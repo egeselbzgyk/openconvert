@@ -3,3 +3,4 @@
 //! digest and a stub LLM server. Never a dependency of a shipped crate.
 
 pub mod assertions;
+pub mod handmade;

@@ -5,6 +5,7 @@
 
 pub mod ci_lint;
 pub mod fixtures;
+pub mod handmade_fixtures;
 pub mod stage_sidecars;
 pub mod thresholds_lint;
 pub mod vendor_pdfium;

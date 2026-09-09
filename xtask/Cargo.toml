@@ -18,6 +18,7 @@ path = "src/main.rs"
 
 [dependencies]
 oc-core = { path = "../crates/oc-core", version = "0.1.0" }
+oc-testkit = { path = "../crates/oc-testkit", version = "0.1.0" }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

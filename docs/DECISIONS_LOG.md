@@ -569,3 +569,33 @@ not a warning. **Owner: maintainer, for every row.**
 - **VD-g — UB-Mannheim Windows Tesseract. Blocks Phase 13.** The installer's actual install path and the
   Tesseract version it delivers, so the Windows discovery probe looks in the right place for the right
   binary.
+
+## 2026-09-09 · PDFium already performs overdraw dedup, and does not lose distinct glyphs · Phase 1
+Context: D13.4 lists `OverdrawDedup` as a ledger reason with a 0.02 budget, and Phase 1 detail 2 defines
+the rule: "two glyphs with identical `ch`, `font`, `size_pt` whose origins differ by < 0.35 pt in both
+axes are the same glyph drawn twice (fake bold, R1 §D.6 #2) → keep one". Test 1.4 asserts `C_raw` holds
+two of the character and `C_0` one.
+Measured (PDFium 151.0.7881.0, through `FPDFText_*` on hand-built one-page PDFs, 12 pt Helvetica):
+- Two **identical** glyphs at 0.0, 0.1, 0.2, 0.3, 0.34, 0.5, 1, 2, 3 and 4 pt apart → `count_chars` is
+  **1**. At 5 pt and beyond → 2. So PDFium collapses an overdrawn duplicate itself, at a separation an
+  order of magnitude larger than the plan's 0.35 pt.
+- Two **different** glyphs (`A`/`B`) at 0.2, 1 and 2 pt apart → **2** characters, both origins reported.
+  A combining accent over a base letter likewise stays two characters. **PDFium does not merge distinct
+  characters**, so nothing is lost.
+Consequences, all of which change Phase 1 rather than any decision:
+1. **`C_raw` taken from the text page is already post-overdraw-dedup.** The rule in detail 2 would never
+   fire: by the time we see glyphs, the duplicate is gone.
+2. **Test 1.4 as written cannot hold through this API** — `C_raw` will have one of the character, not
+   two. It has to assert the observable truth instead: the fixture's two draws arrive as one glyph, and
+   nothing is silently dropped from a *different* pair.
+3. **The 0.02 budget loses its subject unless the removal is measured.** The intent of D13.4 is that
+   dedup cannot quietly eat text, and that intent survives only if the amount PDFium removed is
+   observable. The way to keep it is to count glyphs a second way — from the page's text *objects*, whose
+   strings are pre-dedup — and ledger the difference as `OverdrawDedup`. That keeps the reason, the
+   budget and the invariant, with PDFium doing the detection and us doing the accounting.
+No decision in DECISIONS.md is contradicted: D13.4 says dedup happens and is budgeted, not who performs
+it. Recorded here rather than blocked because the guarantee is preserved by (3), and because the
+measurement — distinct characters are never merged — is the part that could have been alarming and is not.
+Re-checkable on a PDFium bump: `oc_testkit::handmade::{overdraw_at, overlap_pair_at}` build the fixtures
+the probe used.
+Affects: D13.4, IMPLEMENTATION_PLAN Phase 1 detail 2 and test 1.4, VD-d (the wider PDFium spike).
