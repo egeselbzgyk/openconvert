@@ -852,3 +852,49 @@ Affects: D13.2, R8 §A2, IMPLEMENTATION_PLAN Phase 1 detail 8 and §2.1/§2.4, `
 `[limits]`, `crates/oc-core/src/limits.rs`, `crates/oc-pdf/src/{limits.rs,error.rs,inspect.rs}`,
 `crates/oc-pdf/src/pdfium/{bind.rs,doc.rs,images.rs}`, `crates/openconvert/src/{cli.rs,cmd_inspect.rs}`,
 `crates/oc-testkit/src/handmade.rs`.
+
+## 2026-09-09 · Encryption: fixtures built rather than committed blind, and one error split · Phase 1
+Context: item 1.7 implements `oc-pdf::encrypt` against tests 1.12, 1.13, 1.14.
+
+1. **Encrypted fixtures are generated, not obtained.** `pdf-writer` cannot encrypt, so the obvious
+   route was to produce three encrypted PDFs out of band once and commit them - which would make
+   them the only fixtures in the corpus nobody could regenerate or inspect the provenance of.
+   `lopdf` 0.45 turns out to expose the whole standard security handler (`EncryptionVersion::V4`,
+   `Aes128CryptFilter`, `Permissions`, `Document::encrypt`), so `oc_testkit::mutate::encrypt` is a
+   recipe like the other three and `cargo xtask mutations` writes `h01__encrypted_empty_user.pdf`,
+   `h01__encrypted_password.pdf` and `h01__encrypted_no_print.pdf`. AES-128 rather than 40-bit RC4
+   or AES-256 because it is what the great majority of encrypted PDFs in circulation use, and what
+   test 1.12 names. PDFium reads all three, so the two libraries agree about the format.
+
+   The fixture passwords - `owner` and `secret` - are public constants in `xtask::mutations`. A
+   fixture password is a test input, not a secret, and a test that cannot say which password it
+   used is a test nobody can reproduce.
+
+2. **`PdfError::Open` is split, because 1.13's contract is the distinction.** PDFium reports "wrong
+   password" and "this is not a PDF" through one error type, and `open` was collapsing both into
+   `PdfError::Open { message }`. A supervising UI that has to parse that message to decide whether
+   to prompt for a password cannot be written against a stable contract, so the password case is
+   now `PdfError::PasswordRequired`, recognised from
+   `PdfiumInternalError::PasswordError`, and the CLI maps it to **exit 2** with
+   `fatal{E_PASSWORD_REQUIRED}` - the same "nothing was attempted, your move" code that
+   `E_LIMIT_EXCEEDED` established in item 1.6.
+
+3. **An unreadable permission flag reads as *permitted*.** This is the opposite of the safe
+   direction everywhere else in the codebase, and deliberately so. Elsewhere an unknown answer
+   should restrict; here an unknown answer that restricted would invent a limitation on the user's
+   own book out of a flag PDFium merely failed to report. D13.11 says permissions are recorded and
+   never enforced, so the field is documentation, and documentation that guesses "forbidden" is
+   worse than documentation that guesses "allowed".
+
+4. **`print` is a disjunction.** `pdfium-render` offers `can_print_high_quality()` and
+   `can_print_only_low_quality()` and no plain `can_print()`. A file that permits low-quality
+   printing permits printing, so `permissions.print` is the OR of the two and
+   `permissions.print_high_quality` carries the finer answer. Test 1.14 asserts both are false on
+   `h01__encrypted_no_print`, and that the *same* document encrypted with printing allowed reports
+   the opposite - without which the assertion would pass against a hard-wired `false`.
+
+The three `inspect` snapshots change by the added `document.permissions` object only.
+Evidence: `cargo nextest run --workspace` - 50 passed.
+Affects: D13.11, RT D12, IMPLEMENTATION_PLAN Phase 1 detail 7 and §2.4,
+`crates/oc-pdf/src/{encrypt.rs,error.rs,inspect.rs,pdfium/doc.rs}`,
+`crates/oc-testkit/src/mutate.rs`, `crates/openconvert/src/cmd_inspect.rs`, `xtask/src/mutations.rs`.

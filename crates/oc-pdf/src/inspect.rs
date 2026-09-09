@@ -64,6 +64,9 @@ pub struct DocumentInfo {
     pub has_struct_tree: bool,
     pub title: Option<String>,
     pub author: Option<String>,
+    /// What the file asks a viewer to allow. Reported so a user can see it; nothing in the
+    /// pipeline branches on it (D13.11).
+    pub permissions: crate::encrypt::Permissions,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -109,7 +112,7 @@ pub trait PdfDoc {
 }
 
 /// The document-level metadata `inspect` reports.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DocMetadata {
     pub producer: Option<String>,
     pub creator: Option<String>,
@@ -117,6 +120,23 @@ pub struct DocMetadata {
     pub author: Option<String>,
     pub encrypted: bool,
     pub has_struct_tree: bool,
+    /// What the file's permission flags request. Recorded, never enforced (D13.11).
+    pub permissions: crate::encrypt::Permissions,
+}
+
+impl Default for DocMetadata {
+    /// An unencrypted document, which asks for nothing and therefore restricts nothing.
+    fn default() -> Self {
+        Self {
+            producer: None,
+            creator: None,
+            title: None,
+            author: None,
+            encrypted: false,
+            has_struct_tree: false,
+            permissions: crate::encrypt::Permissions::unrestricted(),
+        }
+    }
 }
 
 /// Inspect a PDF file.
@@ -201,6 +221,7 @@ pub fn inspect(
             has_struct_tree: metadata.has_struct_tree,
             title: metadata.title,
             author: metadata.author,
+            permissions: metadata.permissions,
         },
         pages,
         warnings,

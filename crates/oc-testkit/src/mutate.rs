@@ -38,6 +38,8 @@ pub enum MutateError {
     /// reason, which is the failure a mutation test exists to prevent.
     #[error("nothing to mutate: the document has no {what}")]
     Absent { what: &'static str },
+    #[error("the document could not be encrypted: {0}")]
+    Encrypt(String),
 }
 
 /// Set `/Rotate` on every page.
@@ -211,4 +213,67 @@ fn number(object: &Object) -> Option<f32> {
 
 fn rect_object(rect: [f32; RECT_LEN]) -> Object {
     Object::Array(rect.iter().copied().map(Object::Real).collect())
+}
+
+/// How a fixture is encrypted.
+#[derive(Clone, Copy, Debug)]
+pub struct EncryptOptions<'a> {
+    /// The password that grants full rights. Never empty in a fixture: an owner password is
+    /// what makes the permission flags mean anything.
+    pub owner_password: &'a str,
+    /// The password a reader is asked for. Empty means "no password needed", which is by far
+    /// the commonest form of encrypted PDF in the wild — the file is encrypted to carry
+    /// permission flags, not to keep anyone out.
+    pub user_password: &'a str,
+    /// Whether the permission flags allow printing. The flag every test of D13.11 turns off,
+    /// because it is the one a converter is most often expected to obey and must not.
+    pub allow_printing: bool,
+}
+
+/// Encrypt a document with AES-128 (security handler V4, revision 4).
+///
+/// **Changes:** how the file's strings and streams are stored, and what permissions it
+/// declares. **Does not change:** a single character of its content, which is the whole point
+/// of D13.11 — an encrypted book is a book, and the flags inside it are a request to a viewer
+/// rather than a lock on the text.
+///
+/// AES-128 rather than the 40-bit RC4 of PDF 1.4 or the AES-256 of PDF 2.0 because it is what
+/// the overwhelming majority of encrypted PDFs in circulation actually use, and what test 1.12
+/// names.
+pub fn encrypt(bytes: &[u8], options: EncryptOptions<'_>) -> Result<Vec<u8>, MutateError> {
+    use lopdf::encryption::crypt_filters::{Aes128CryptFilter, CryptFilter};
+    use lopdf::encryption::{EncryptionState, EncryptionVersion, Permissions};
+    use std::collections::BTreeMap;
+    use std::sync::Arc;
+
+    /// The conventional name for the standard crypt filter; readers look for exactly this.
+    const STANDARD_FILTER: &[u8] = b"StdCF";
+
+    let mut document = load(bytes)?;
+
+    let mut permissions = Permissions::all();
+    if !options.allow_printing {
+        permissions.remove(Permissions::PRINTABLE);
+        permissions.remove(Permissions::PRINTABLE_IN_HIGH_QUALITY);
+    }
+
+    let mut crypt_filters: BTreeMap<Vec<u8>, Arc<dyn CryptFilter>> = BTreeMap::new();
+    crypt_filters.insert(STANDARD_FILTER.to_vec(), Arc::new(Aes128CryptFilter));
+
+    let state = EncryptionState::try_from(EncryptionVersion::V4 {
+        document: &document,
+        encrypt_metadata: true,
+        crypt_filters,
+        stream_filter: STANDARD_FILTER.to_vec(),
+        string_filter: STANDARD_FILTER.to_vec(),
+        owner_password: options.owner_password,
+        user_password: options.user_password,
+        permissions,
+    })
+    .map_err(|error| MutateError::Encrypt(error.to_string()))?;
+
+    document
+        .encrypt(&state)
+        .map_err(|error| MutateError::Encrypt(error.to_string()))?;
+    save(document)
 }

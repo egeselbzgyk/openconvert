@@ -43,8 +43,50 @@ pub fn run(workspace_root: &Path) -> Result<()> {
         oc_testkit::mutate::strip_tounicode(&f01).context("strip_tounicode failed on f01")?;
     write(&out.join("f01__strip_tounicode.pdf"), &stripped)?;
 
+    // The three encrypted forms Phase 1 detail 7 has to tell apart. All are AES-128, which is
+    // what the great majority of encrypted PDFs in circulation use.
+    for (name, options) in [
+        (
+            // The commonest kind by far: encrypted to carry permission flags, open to anyone.
+            "h01__encrypted_empty_user.pdf",
+            oc_testkit::mutate::EncryptOptions {
+                owner_password: OWNER_PASSWORD,
+                user_password: "",
+                allow_printing: true,
+            },
+        ),
+        (
+            "h01__encrypted_password.pdf",
+            oc_testkit::mutate::EncryptOptions {
+                owner_password: OWNER_PASSWORD,
+                user_password: USER_PASSWORD,
+                allow_printing: true,
+            },
+        ),
+        (
+            // Opens without a password and forbids printing: the case D13.11 is about, where
+            // the flag must be recorded and must not be obeyed.
+            "h01__encrypted_no_print.pdf",
+            oc_testkit::mutate::EncryptOptions {
+                owner_password: OWNER_PASSWORD,
+                user_password: "",
+                allow_printing: false,
+            },
+        ),
+    ] {
+        let encrypted = oc_testkit::mutate::encrypt(&h01, options)
+            .with_context(|| format!("encrypt failed for {name}"))?;
+        write(&out.join(name), &encrypted)?;
+    }
+
     Ok(())
 }
+
+/// The passwords the encrypted fixtures use. Committed in the open on purpose: a fixture
+/// password is a test input, not a secret, and a test that cannot say what password it used
+/// is a test nobody can reproduce.
+pub const OWNER_PASSWORD: &str = "owner";
+pub const USER_PASSWORD: &str = "secret";
 
 fn read(path: &Path, producing_task: &str) -> Result<Vec<u8>> {
     std::fs::read(path).with_context(|| {

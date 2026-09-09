@@ -10,6 +10,7 @@ use pdfium_render::prelude::{
 };
 
 use crate::classify::{classify_page, PageCharStats, PageClass, PageImageStats};
+use crate::encrypt::Permissions;
 use crate::error::PdfError;
 use crate::geom::{PageGeometry, PdfRect, Rotate};
 use crate::glyphs::{family_key, PageGlyphs, STAGE};
@@ -61,9 +62,7 @@ impl PdfiumDoc {
     ) -> Result<Self, PdfError> {
         let document = pdfium
             .load_pdf_from_byte_vec(bytes.to_vec(), password)
-            .map_err(|source| PdfError::Open {
-                message: source.to_string(),
-            })?;
+            .map_err(open_error)?;
         // The door (Phase 1 detail 8). Checked here, before any page is read, because the
         // cost of a degenerate document is per page.
         let pages = u32::try_from(document.pages().len()).unwrap_or(u32::MAX);
@@ -605,6 +604,49 @@ fn read_metadata(document: &PdfDocument<'_>, bytes: &[u8]) -> DocMetadata {
         // the permission flags do not block conversion (D13.11).
         encrypted: find_bytes(bytes, b"/Encrypt"),
         has_struct_tree: find_bytes(bytes, b"/StructTreeRoot"),
+        permissions: read_permissions(document),
+    }
+}
+
+/// Tell "this needs a password" apart from "this is not a PDF".
+///
+/// PDFium reports both through one error type, so the password case has to be recognised by
+/// its internal code. Getting this wrong in the safe-looking direction — calling everything a
+/// malformed file — would mean the UI could never prompt for a password (test 1.13).
+fn open_error(source: pdfium_render::prelude::PdfiumError) -> PdfError {
+    use pdfium_render::prelude::{PdfiumError, PdfiumInternalError};
+
+    match source {
+        PdfiumError::PdfiumLibraryInternalError(PdfiumInternalError::PasswordError) => {
+            PdfError::PasswordRequired
+        }
+        other => PdfError::Open {
+            message: other.to_string(),
+        },
+    }
+}
+
+/// The document's permission flags, as the file declares them (D13.11).
+///
+/// Read and reported; nothing branches on them. PDFium offers no plain "may print" predicate,
+/// only the two quality-specific ones, so printing at all is the disjunction: a file that
+/// permits low-quality printing permits printing.
+///
+/// A flag PDFium cannot answer for reads as permitted. That is the safe direction here, and
+/// the opposite of the safe direction elsewhere: an unreadable flag must not become an
+/// invented restriction on the user's own book.
+fn read_permissions(document: &PdfDocument<'_>) -> Permissions {
+    let permissions = document.permissions();
+    let allowed = |value: Result<bool, pdfium_render::prelude::PdfiumError>| value.unwrap_or(true);
+
+    let high_quality = allowed(permissions.can_print_high_quality());
+    Permissions {
+        print: high_quality || allowed(permissions.can_print_only_low_quality()),
+        print_high_quality: high_quality,
+        copy: allowed(permissions.can_extract_text_and_graphics()),
+        modify: allowed(permissions.can_modify_document_content()),
+        annotate: allowed(permissions.can_add_or_modify_text_annotations()),
+        assemble: allowed(permissions.can_assemble_document()),
     }
 }
 

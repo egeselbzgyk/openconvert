@@ -19,7 +19,15 @@ expression: report
     "producer_family": "Typst",
     "has_struct_tree": false,
     "title": "The Test Book",
-    "author": "O. Convert"
+    "author": "O. Convert",
+    "permissions": {
+      "print": true,
+      "print_high_quality": true,
+      "copy": true,
+      "modify": true,
+      "annotate": true,
+      "assemble": true
+    }
   },
   "pages": [
     {

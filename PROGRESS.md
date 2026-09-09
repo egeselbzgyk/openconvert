@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 1
-CURRENT_ITEM: 1.7 — encryption (tests 1.12, 1.13, 1.14)
+CURRENT_ITEM: 1.8 — outlines and metadata (test 1.15)
 LAST_UPDATED: 2026-09-09
 
 ---
@@ -42,37 +42,29 @@ LAST_UPDATED: 2026-09-09
 
 ## Current work item
 
-**Phase 1, item 1.7 — encryption (tests 1.12, 1.13, 1.14).** Items 1.1–1.6 are done: hand-made
+**Phase 1, item 1.8 — outlines and metadata (test 1.15).** Items 1.1–1.7 are done: hand-made
 fixtures, glyph extraction (1.1–1.4), metamorphic invariants (1.5–1.7), the broken-text mutation
-(1.8), images (1.9) and resource limits (1.10, 1.11, 1.20).
+(1.8), images (1.9), resource limits (1.10, 1.11, 1.20) and encryption (1.12–1.14).
 
-Next is RED, three tests:
-1.12 `encrypted_empty_user_password_opens` (an AES-128 empty-user-password PDF opens with no
-`--password`); 1.13 `encrypted_with_password_requires_flag` (an `openconvert` integration test:
-without `--password` → exit 2 and `fatal{E_PASSWORD_REQUIRED}`; with it → exit 0);
-1.14 `owner_password_permissions_recorded_not_enforced` (conversion proceeds; the report carries
-`permissions.print == false`).
+Next is RED: test 1.15 `outline_is_read_depth_first` — the outline of a tagged `f01` variant comes
+back in prefix order with correct levels. Then implement `oc-pdf::{outline, meta}` per Phase 1
+detail 6: `PdfBookmarks::iter()` is documented as depth-first prefix order (V2 §1), so the level
+has to be derived by walking rather than taken from the iterator; `lopdf` for `/Info`, for
+`/Metadata` (XMP kept as raw bytes, then a minimal `dc:` extraction with `quick-xml`), and for
+`has_struct_tree` as a real `/Root /StructTreeRoot` lookup rather than today's byte search.
 
-Then implement `oc-pdf::encrypt` per Phase 1 detail 7 and D13.11/RT D12: try the empty user
-password first; on failure require `--password` or a password file; read the owner-password
-permission flags and **record them in the report without enforcing them** — a permission bit is
-the publisher's request to a viewer, not a lock, and a converter that honoured it would refuse to
-convert books its user legitimately owns.
+Two things already in place that this item builds on: `PdfiumDoc` already holds the parsed
+`lopdf::Document` (added in 1.5 for the image flags), so no new plumbing is needed; and
+`quick-xml` 0.42 is already a workspace dependency.
 
-Fixtures: encrypted PDFs are the one kind `pdf-writer` cannot build — it has no encryption support.
-Options, in preference order: (a) `lopdf` 0.45 has an `encryption` module, so `oc_testkit::mutate`
-could gain an `encrypt` recipe alongside the three that exist; (b) commit small encrypted PDFs
-generated once out of band. (a) keeps every fixture reproducible from source, which is the reason
-`xtask handmade-fixtures` exists at all — check what `lopdf::encryption` actually exposes first.
+`f01` has no outline — Typst emits none for a document with no headings marked as such. Either the
+tagged variant `f01_prose_single_column__tagged.pdf` carries one (check first), or the fixture is
+a hand-made `h13_outline.pdf` with a known three-level tree, which is the more direct test anyway
+because the expected order is then written down rather than inferred.
 
-`PdfError::Open` currently swallows PDFium's password failure into a string; 1.13 needs it
-distinguished, so a `PdfError::PasswordRequired` variant is part of this item. Note the exit code
-it needs is **2**, which `E_LIMIT_EXCEEDED` already established the route for in `cmd_inspect`.
-
-Remaining Phase 1 items after 1.7: 1.8 outline (1.15) · 1.9 fuzz-lite (1.16) ·
-1.10 dump-stage (1.17) · 1.11 the poppler oracle (1.18) · 1.12 cancellation (1.19) · then VD-d,
-the ten-PDF image spike that blocks Phase 4's image policy. VD-d has its first fixture,
-`h09_image_smask`.
+Remaining Phase 1 items after 1.8: 1.9 fuzz-lite (1.16) · 1.10 dump-stage (1.17) ·
+1.11 the poppler oracle (1.18) · 1.12 cancellation (1.19) · then VD-d, the ten-PDF image spike
+that blocks Phase 4's image policy. VD-d has its first fixture, `h09_image_smask`.
 
 ## Notes
 
@@ -160,3 +152,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-09  P1.4      oc-pdf broken-text: control-char counter + strip_tounicode (test 1.8)  928f9d7
 2026-09-09  P1.5      oc-pdf images: ImageRef, DPI, kind, smask/inline via lopdf (test 1.9)  053ad54
 2026-09-09  P1.6      oc-core/oc-pdf resource limits + --max-pages (tests 1.10, 1.11, 1.20)  13fce0b
+2026-09-09  P1.7      oc-pdf encryption: permissions recorded not enforced (tests 1.12-1.14)

@@ -32,10 +32,18 @@ pub enum PdfError {
     #[error("cannot read {}: {message}", .path.display())]
     Io { path: PathBuf, message: String },
 
-    /// The bytes are not a PDF this backend can open — malformed, or encrypted with a
-    /// password that was not supplied.
+    /// The bytes are not a PDF this backend can open: malformed, or truncated.
     #[error("cannot open the PDF: {message}")]
     Open { message: String },
+
+    /// The document is encrypted with a user password that was not supplied, or the one
+    /// supplied was wrong.
+    ///
+    /// Distinct from [`PdfError::Open`] because a supervisor that cannot tell "this needs a
+    /// password" from "this is not a PDF" cannot prompt the user for one — which is the whole
+    /// contract of test 1.13.
+    #[error("this PDF needs a password; pass --password or set OC_PDF_PASSWORD")]
+    PasswordRequired,
 
     /// A declared or reached quantity exceeded what this conversion is allowed to consume
     /// (D13.2, R8 §A2). Both numbers are carried so the message says whether to raise the

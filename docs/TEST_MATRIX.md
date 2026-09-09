@@ -71,9 +71,9 @@ replaced by the phase that owns it.
 | 1.9 | `images::image_only_page_extracts_one_image_with_dpi` | `oc-pdf` | fixture (f03) | `test` | green |
 | 1.10 | `limits::image_pixel_bomb_is_refused_before_decode` | `oc-pdf` | fixture (h11) | `test` | green |
 | 1.11 | `limits::decompression_bomb_is_bounded` | `oc-pdf` | fixture (h12) | `test` | green |
-| 1.12 | `encrypted_empty_user_password_opens` | `oc-pdf` | fixture | `test` | — |
-| 1.13 | `encrypted_with_password_requires_flag` | `openconvert` | integration | `test` | — |
-| 1.14 | `owner_password_permissions_recorded_not_enforced` | `oc-pdf` | fixture | `test` | — |
+| 1.12 | `encrypt::encrypted_empty_user_password_opens` | `oc-pdf` | fixture (mutation) | `test` | green |
+| 1.13 | `cli::encrypted_with_password_requires_flag` | `openconvert` | integration | `test` | green |
+| 1.14 | `encrypt::owner_password_permissions_recorded_not_enforced` | `oc-pdf` | fixture (mutation) | `test` | green |
 | 1.15 | `outline_is_read_depth_first` | `oc-pdf` | fixture | `test` | — |
 | 1.16 | `prop_never_panics_on_arbitrary_bytes` | `oc-pdf` | property | `test`, `proptest-deep` | — |
 | 1.17 | `dump_stage_ingest_snapshot_h01` | `oc-core` | snapshot | `test` | — |

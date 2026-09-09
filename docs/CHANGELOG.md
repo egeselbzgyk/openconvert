@@ -185,3 +185,13 @@ Rust field name, and a capital letter there trips `non_snake_case` under `-D war
 - New: `openconvert inspect --max-pages <N>`. A limit refusal exits **2** with
   `E_LIMIT_EXCEEDED`: it is a configuration outcome, not a conversion failure.
 - New fixtures `h11_pixel_bomb` and `h12_decompression_bomb`.
+
+### Encryption (`oc-pdf`, `oc-testkit`, `openconvert`)
+
+- New: `oc_pdf::encrypt::Permissions`, reported on `document.permissions` and **never
+  enforced** (D13.11). The three `inspect` snapshots change by that object only.
+- New: `PdfError::PasswordRequired`, split out of `PdfError::Open` — a supervisor has to be
+  able to tell "needs a password" from "not a PDF". The CLI maps it to exit **2** with
+  `E_PASSWORD_REQUIRED`.
+- New: `oc_testkit::mutate::encrypt` (AES-128 via `lopdf`), and three encrypted fixtures
+  under `corpus/fixtures/mutations/`.

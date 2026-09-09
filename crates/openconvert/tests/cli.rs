@@ -144,3 +144,69 @@ fn max_pages_flag_refuses_the_document() {
         .expect("the binary runs");
     assert_eq!(ok.status.code(), Some(0));
 }
+
+/// Test 1.13. An encrypted document with a real user password: refused without one, converted
+/// with it.
+///
+/// The exit code is the contract. A supervising UI decides whether to prompt for a password
+/// from the code and the `fatal` event, never by reading the message text (D13.2), so this
+/// asserts both and says nothing about the wording.
+#[test]
+fn encrypted_with_password_requires_flag() {
+    let encrypted = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/fixtures/mutations/h01__encrypted_password.pdf");
+    assert!(
+        encrypted.is_file(),
+        "missing {}; run `cargo run -p xtask -- mutations`",
+        encrypted.display()
+    );
+
+    let refused = Command::new(binary())
+        .arg("inspect")
+        .arg(&encrypted)
+        .arg("--json")
+        .arg("--progress")
+        .arg("json")
+        // The environment variable is the other way in, and an inherited one would make this
+        // test pass without the flag doing anything.
+        .env_remove("OC_PDF_PASSWORD")
+        .output()
+        .expect("the binary runs");
+
+    assert_eq!(
+        refused.status.code(),
+        Some(2),
+        "stderr: {}",
+        String::from_utf8_lossy(&refused.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert!(stderr.contains("E_PASSWORD_REQUIRED"), "stderr: {stderr}");
+    assert!(
+        refused.stdout.is_empty(),
+        "a refused document writes no report"
+    );
+
+    let opened = Command::new(binary())
+        .arg("inspect")
+        .arg(&encrypted)
+        .arg("--json")
+        .arg("--password")
+        .arg("secret")
+        .env_remove("OC_PDF_PASSWORD")
+        .output()
+        .expect("the binary runs");
+
+    assert_eq!(
+        opened.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&opened.stderr)
+    );
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&opened.stdout).expect("stdout is one JSON document");
+    assert_eq!(parsed["document"]["encrypted"], true);
+    assert_eq!(parsed["document"]["pages"], 1);
+    // Recorded, not enforced: this fixture permits printing, and h01__encrypted_no_print does
+    // not, and both convert.
+    assert_eq!(parsed["document"]["permissions"]["print"], true);
+}

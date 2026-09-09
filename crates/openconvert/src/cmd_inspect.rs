@@ -23,6 +23,13 @@ const E_PDF: &str = "E_PDF";
 /// the door or three hundred pages in, which is what makes one code right for both.
 const E_LIMIT: &str = "E_LIMIT_EXCEEDED";
 
+/// The document is encrypted with a user password we were not given (D13.11, §2.4).
+///
+/// Exit 2, like a limit refusal and for the same reason: nothing was attempted, and the
+/// next move belongs to whoever launched us — here, to prompt for the password. A UI that
+/// had to parse stderr to know that could not be written.
+const E_PASSWORD: &str = "E_PASSWORD_REQUIRED";
+
 /// Run the subcommand, returning the process exit code.
 ///
 /// Nothing here returns `Result` to `main`: an error has to reach the caller as an event on
@@ -69,6 +76,10 @@ pub fn run<W: Write>(
         Ok(report) => report,
         Err(oc_pdf::error::PdfError::LimitExceeded(exceeded)) => {
             events.fatal(E_LIMIT, &exceeded.to_string());
+            return ExitCode::Usage;
+        }
+        Err(error @ oc_pdf::error::PdfError::PasswordRequired) => {
+            events.fatal(E_PASSWORD, &error.to_string());
             return ExitCode::Usage;
         }
         Err(error) => {
