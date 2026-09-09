@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 0
-CURRENT_ITEM: 0.5 — `xtask vendor-pdfium` + `oc-pdf::pdfium` binding (test 0.7, not yet written)
+CURRENT_ITEM: 0.6 — `oc-pdf::classify` page classification (tests 0.9–0.12, not yet written)
 LAST_UPDATED: 2026-09-09
 
 ---
@@ -13,6 +13,50 @@ LAST_UPDATED: 2026-09-09
 
 - `STATUS` is one of `IN_PROGRESS` · `BLOCKED` · `COMPLETE`.
 - Set `STATUS: BLOCKED` **only** when a decision is needed that `docs/DECISIONS.md` does not settle. Write the question under `## Blocked` and stop.
+- Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
+- Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
+
+---
+
+## Phases
+
+- [ ] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
+      *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
+      *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
+- [ ] **Phase 1** — PDF inspection and ingestion  *(includes the PDFium image/SMask spike = VD-d)*
+- [ ] **Phase 2** — Text assembly and normalization  *(normalization `N`, ledger, furniture inputs, language)*
+- [ ] **Phase 3** — Layout  *(blocks, columns, reading order, paragraphs, dehyphenation; VD-b must close)*
+- [ ] **Phase 4** — Structure  *(headings, outline/TOC, book structure, lists, footnotes, captions, quotes/verse, tables, images, metadata)*
+- [ ] **Phase 5** — EPUB generation, Tier-1 validator, EPUBCheck CI gate
+- [ ] **Phase 6** — Structural validation, repair loop, report, CI DOM checks  *(VD-f if the validation pack ships)*
+- [ ] **Phase 7** — Corpus v1, eval harness, benchmarks, real-world holdout
+- [ ] **Phase 8** — AI abstraction (no real model yet)
+- [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
+- [ ] **Phase 10** — AI-assisted decisions (the four tasks)
+- [ ] **Phase 11** — BYO providers
+- [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
+- [ ] **Phase 13** — OCR  *(VD-g must close)*
+- [ ] **Phase 14** — Security hardening
+- [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
+
+## Current work item
+
+**Phase 0, item 0.6 — `oc-pdf::classify`.** Nothing written yet. Next step is RED: write tests 0.9–0.12
+(`classify::classify_text_page`, `classify_image_only_page`, `classify_ocr_sandwich_page`,
+`classify_broken_text_page`) in `crates/oc-pdf/src/classify.rs`, watch them fail, then implement
+`classify_page(&PageGeometry, &PageCharStats, &PageImageStats, Option<f32>, &Thresholds)
+-> (PageClass, f32)` as the pure function of the counters that Phase 0 detail 3 specifies, in that
+exact evaluation order. No PDFium is needed: the inputs are plain counters. The dictionary-hit-rate arm
+is wired but always passed `None` in Phase 0 (Phase 2 supplies it) — see the RT B1 note in
+`docs/DECISIONS_LOG.md`.
+
+Done in this branch: the workspace bootstrap (§1.1–§1.9) and items 0.1–0.5 — `geom::Rect` and
+`ids::BlockId`; `IR_VERSION` and `canonical::to_canonical_json`; the `oc-core::thresholds` codegen and
+lint; `oc-pdf::geom` page-space normalisation; `xtask vendor-pdfium` and the PDFium binding with its
+startup probe. Every open design question decided along the way is written up in
+`docs/DECISIONS_LOG.md` — read that before changing any of them.
+
+## Blocked` and stop.
 - Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
 - Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
 
@@ -207,14 +251,16 @@ _(empty)_
   are written up in `docs/DECISIONS_LOG.md`. `cargo deny check` is clean today.
 - **VD-a is closed** (zip 8.6.0 confirmed as the current stable major against the crates.io index).
   VD-b…VD-g still open, each with an owner and a blocking phase; stubs are in `docs/DECISIONS_LOG.md`.
-- Local tool versions: rustc 1.98.1, cargo-nextest 0.9.143, cargo-deny 0.20.2. PDFium is **not** vendored yet
-  (`xtask vendor-pdfium` is unimplemented), so test 0.7 will fail with `LibraryNotFound` until it lands.
+- Local tool versions: rustc 1.98.1, cargo-nextest 0.9.143, cargo-deny 0.20.2.
+- **PDFium must be vendored before the test suite passes**: `cargo run -p xtask -- vendor-pdfium`. It is
+  pinned to `chromium/7881` (151.0.7881.0) in `xtask/pdfium.lock`, lands in the git-ignored
+  `vendor/pdfium/<triple>/`, and needs `curl` and `tar` on PATH. CI already runs it before `nextest`.
 - `GOLDEN_BLOCK_ID_CHAPTER_3 = "SDMLH752SA"` in `ids.rs` is a committed golden value. If that assertion
   ever fails, the id derivation changed and `IR_VERSION` must change in the same commit (D13.3).
 - Commit messages carry **no** Claude Code attribution footer (maintainer's instruction, 2026-09-09).
-- `xtask` is still a `todo!()` stub. Phase 0's Definition of Done needs `thresholds-lint` (the rule is
-  already implemented as `oc_core::thresholds::lint`; xtask only has to call it), `ci-lint`, `fixtures`,
-  `vendor-pdfium` and `stage-sidecars`. Those are separate work items, not part of item 0.4.
+- `xtask` has `vendor-pdfium` only. Phase 0's Definition of Done still needs `thresholds-lint` (the rule
+  is already implemented as `oc_core::thresholds::lint`; xtask only has to call it), `ci-lint`,
+  `fixtures` and `stage-sidecars`. Each is its own work item.
 
 ## Completed items log
 
@@ -224,3 +270,4 @@ _(empty)_
 2026-09-09  P0.2      oc-model: canonical JSON + IR_VERSION (tests 0.3, 0.4)                        2cd8f76
 2026-09-09  P0.3      oc-core: thresholds codegen + provenance lint (tests 0.5, 0.6)                3843abb
 2026-09-09  P0.4      oc-pdf: page-space normalisation (test 0.8 + corner unit test)              79ac71f
+2026-09-09  P0.5      xtask vendor-pdfium + oc-pdf PDFium binding and probe (test 0.7)             PENDING

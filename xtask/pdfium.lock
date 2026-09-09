@@ -1,0 +1,56 @@
+# Pinned PDFium binary release, vendored by `cargo run -p xtask -- vendor-pdfium` (D3).
+#
+# `build` is the Chromium build number and must equal three things at once:
+#   1. the `pdfium_<build>` feature selected for `pdfium-render` in the workspace Cargo.toml,
+#   2. `oc_pdf::pdfium::EXPECTED_PDFIUM_BUILD`,
+#   3. BUILD= in the VERSION file inside the archive.
+# `xtask vendor-pdfium` checks (1) and (3); test 0.7 checks (2) and the VERSION file of the
+# library it actually bound. Bumping PDFium therefore means editing all three in one commit.
+#
+# Digests were taken from the GitHub release API and independently re-computed from the
+# downloaded archive (see docs/DECISIONS_LOG.md).
+
+schema_version = 1
+repo = "bblanchon/pdfium-binaries"
+tag = "chromium/7881"
+build = 7881
+version = "151.0.7881.0"
+retrieved_date = "2026-09-09"
+
+# One entry per supported host triple. `asset` is the release asset name; `sha256` is of the
+# asset as downloaded, before extraction.
+[[asset]]
+triple = "x86_64-pc-windows-msvc"
+asset = "pdfium-win-x64.tgz"
+sha256 = "73cc0de638ac2095e7445bf56a38200a5b7c7ca0e9f4ba144598f2457377ac08"
+size_bytes = 3733154
+
+[[asset]]
+triple = "aarch64-pc-windows-msvc"
+asset = "pdfium-win-arm64.tgz"
+sha256 = "d3035d4d2cacac6ecd1a2ece197a3d702a1b2a58466276b9f870b8cb278a9d84"
+size_bytes = 3522432
+
+[[asset]]
+triple = "x86_64-unknown-linux-gnu"
+asset = "pdfium-linux-x64.tgz"
+sha256 = "1470e21b8b4a3b4ad7f85684e2da11d94f3b69a86d81dee11b9b6709d927ac1d"
+size_bytes = 3644759
+
+[[asset]]
+triple = "aarch64-unknown-linux-gnu"
+asset = "pdfium-linux-arm64.tgz"
+sha256 = "ee7f7b7d5468958336a818c1cd580bdd20972846b7377b13f9a923d92d1d4674"
+size_bytes = 3588127
+
+[[asset]]
+triple = "x86_64-apple-darwin"
+asset = "pdfium-mac-x64.tgz"
+sha256 = "6dedf83990e0e3d6b7c93c9e7589c5a126b0ae14b7464d76120cff7a26afb18b"
+size_bytes = 3588813
+
+[[asset]]
+triple = "aarch64-apple-darwin"
+asset = "pdfium-mac-arm64.tgz"
+sha256 = "52e94ca5aa8847934330daf3f8150c190682c5ca93831468794f8b90d4392e40"
+size_bytes = 3533019

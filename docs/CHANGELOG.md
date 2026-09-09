@@ -30,6 +30,16 @@ One section per completed phase, listing new CLI flags, new IR fields, new warni
 - New: `canonical::to_canonical_json` and `canonical::CanonError` — sorted keys, `ir_version` first,
   NFC strings, `f32` at two decimals, non-finite floats rejected instead of written as `null`.
 
+### PDF backend (`oc-pdf`, `xtask`)
+
+- New: `cargo run -p xtask -- vendor-pdfium` — fetches the PDFium binary pinned in `xtask/pdfium.lock`
+  (`chromium/7881`, 151.0.7881.0) for the host triple, verifies its SHA-256, and unpacks it to
+  `vendor/pdfium/<triple>/`.
+- New: `backend::PdfBackend`, `backend::BackendVersion`, `pdfium::PdfiumBackend::bind`,
+  `pdfium::EXPECTED_PDFIUM_BUILD`, `error::PdfError`.
+- New env var: `OC_PDFIUM_PATH` — an authoritative override for PDFium discovery.
+- Changed: `pdfium-render` selects the exact `pdfium_7881` feature instead of `pdfium_latest`.
+
 ### PDF geometry (`oc-pdf`)
 
 - New: `geom::PdfRect` (PDF user space, y up), `geom::Rotate`, `geom::PageGeometry` with

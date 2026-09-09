@@ -219,3 +219,36 @@ generated `crop_width` fails in `f32` because `(llx + crop_width) - llx` is not 
 offset is large next to the page. The expected size now comes from the crop box itself, so the comparison
 is exact. The failing seed is committed in `crates/oc-pdf/proptest-regressions/geom.txt`.
 Affects: D13.3, RT D10, IMPLEMENTATION_PLAN Phase 0 detail 5 and test 0.8, `crates/oc-pdf/src/geom.rs`.
+
+## 2026-09-09 · PDFium pinned to chromium/7881, vendored via curl+tar, probed behaviourally · Phase 0
+Context: Phase 0 detail 1 requires `xtask vendor-pdfium` to fetch the `bblanchon/pdfium-binaries` asset
+for the host triple against a SHA-256 pinned in `xtask/pdfium.lock`, and detail 3 / D3 require a startup
+ABI probe. Several details were open.
+Decision:
+1. **Pin `chromium/7881`, not the newest release.** The newest is `chromium/8044` (2026-09-07), but
+   `pdfium-render` 0.9.4's highest declared binding set is `pdfium_7881` — its `pdfium_latest` feature
+   *is* `pdfium_7881`. Vendoring 8044 against 7881 bindings is precisely the ABI mismatch D3 lists as a
+   residual risk, for no benefit. The workspace manifest now selects `pdfium_7881` explicitly rather
+   than `pdfium_latest`, so a `pdfium-render` upgrade cannot silently move the target build.
+2. **The build number is pinned in three places and cross-checked.** `xtask/pdfium.lock` (`build = 7881`),
+   the `pdfium_7881` cargo feature, and `oc_pdf::pdfium::EXPECTED_PDFIUM_BUILD`. `vendor-pdfium` refuses
+   to run when the manifest and the lock disagree, and also checks the `VERSION` file inside the archive;
+   test 0.7 checks the constant against the lock and against the library it actually bound. The check
+   earned itself immediately: the first run failed because the manifest still said `pdfium_latest`.
+3. **Download and extraction shell out to `curl` and `tar`.** Both ship with Windows 10+, macOS and every
+   CI runner image. This keeps D13.9's dependency firewall trivially true — no crate outside `oc-net`
+   gains an HTTP client, not even a build-time one — and avoids adding `flate2`/`tar` to the tree.
+4. **The ABI probe is behavioural, not a version symbol.** PDFium exports no version function, and
+   `has_unicode_map_error()` does not exist in `pdfium-render` (RT B1). So `bind()` opens a 437-byte
+   hand-built one-page PDF (`crates/oc-pdf/src/pdfium/probe.pdf`, verified against pypdfium2) through the
+   loaded library and requires exactly one page, then compares the `VERSION` file beside the library to
+   `EXPECTED_PDFIUM_BUILD`. A library supplied through `OC_PDFIUM_PATH` with no `VERSION` beside it gets
+   the behavioural half only, which is all that can be checked.
+5. **`OC_PDFIUM_PATH` is authoritative.** When it is set, no other candidate is tried. An override that
+   silently falls back to the vendored copy is worse than one that fails loudly, and asserting the
+   failure is also what proves test 0.7 is not passing vacuously.
+Evidence: `cargo run -p xtask -- vendor-pdfium` fetched `pdfium-win-x64.tgz` and reported
+`vendored pdfium 151.0.7881.0 (chromium/7881)`. The pinned SHA-256s came from the GitHub release API and
+`73cc0de638ac2095e7445bf56a38200a5b7c7ca0e9f4ba144598f2457377ac08` was independently re-computed from the
+downloaded archive with `sha256sum`. `cargo nextest run -p oc-pdf` — 3 passed.
+Affects: D3, D13.9, RT B1, IMPLEMENTATION_PLAN §1.2 and Phase 0 details 1 and 3, `xtask`, `crates/oc-pdf`.

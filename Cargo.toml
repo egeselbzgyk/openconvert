@@ -30,10 +30,12 @@ anyhow       = "1"
 tracing      = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # --- pdf ---
-pdfium-render = { version = "0.9.4", default-features = false, features = ["pdfium_latest", "image_025", "thread_safe"] }
+pdfium-render = { version = "0.9.4", default-features = false, features = ["pdfium_7881", "image_025", "thread_safe"] }
 # NOTE: the plan's feature names ("image", "libloading") do not exist in 0.9.4. `libloading` is an
 # unconditional non-wasm dependency, so runtime binding (D3) needs no feature; the image API is
-# `image_025` (matching our `image` 0.25 pin). Recorded in docs/DECISIONS_LOG.md.
+# `image_025` (matching our `image` 0.25 pin). The PDFium build is pinned exactly rather than via
+# `pdfium_latest`, so the bindings and the vendored library cannot drift; `xtask vendor-pdfium`
+# refuses to run when this feature and `xtask/pdfium.lock` disagree. See docs/DECISIONS_LOG.md.
 lopdf         = { version = "0.45", default-features = false, features = ["serde"] }
 # --- text ---
 unicode-normalization = "0.1"

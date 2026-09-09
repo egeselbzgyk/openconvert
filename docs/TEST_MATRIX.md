@@ -35,7 +35,7 @@ replaced by the phase that owns it.
 | 0.4 | `canonical::canonical_json_rejects_nan` | `oc-model` | unit | `test` | green |
 | 0.5 | `thresholds::every_provisional_has_owner_and_future_review` | `oc-core` | CI-gate | `test`, `lint` | green |
 | 0.6 | `thresholds::generated_constants_match_toml` | `oc-core` | unit | `test` | green |
-| 0.7 | `pdfium::binds_and_reports_version` | `oc-pdf` | integration | `test` | — |
+| 0.7 | `pdfium::binds_and_reports_version` | `oc-pdf` | integration | `test` | green |
 | 0.8 | `geom::prop_normalised_rects_are_inside_page` | `oc-pdf` | property | `test`, `proptest-deep` | green |
 | 0.8a | `geom::normalises_corners_for_each_rotation` | `oc-pdf` | unit | `test` | green |
 | 0.9 | `classify::classify_text_page` | `oc-pdf` | unit | `test` | — |
