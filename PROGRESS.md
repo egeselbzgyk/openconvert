@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 0
-CURRENT_ITEM: 0.6 — `oc-pdf::classify` page classification (tests 0.9–0.12, not yet written)
+CURRENT_ITEM: 0.7 — `oc-pdf::producer` producer-family detection (test 0.13, not yet written)
 LAST_UPDATED: 2026-09-09
 
 ---
@@ -13,6 +13,51 @@ LAST_UPDATED: 2026-09-09
 
 - `STATUS` is one of `IN_PROGRESS` · `BLOCKED` · `COMPLETE`.
 - Set `STATUS: BLOCKED` **only** when a decision is needed that `docs/DECISIONS.md` does not settle. Write the question under `## Blocked` and stop.
+- Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
+- Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
+
+---
+
+## Phases
+
+- [ ] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
+      *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
+      *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
+- [ ] **Phase 1** — PDF inspection and ingestion  *(includes the PDFium image/SMask spike = VD-d)*
+- [ ] **Phase 2** — Text assembly and normalization  *(normalization `N`, ledger, furniture inputs, language)*
+- [ ] **Phase 3** — Layout  *(blocks, columns, reading order, paragraphs, dehyphenation; VD-b must close)*
+- [ ] **Phase 4** — Structure  *(headings, outline/TOC, book structure, lists, footnotes, captions, quotes/verse, tables, images, metadata)*
+- [ ] **Phase 5** — EPUB generation, Tier-1 validator, EPUBCheck CI gate
+- [ ] **Phase 6** — Structural validation, repair loop, report, CI DOM checks  *(VD-f if the validation pack ships)*
+- [ ] **Phase 7** — Corpus v1, eval harness, benchmarks, real-world holdout
+- [ ] **Phase 8** — AI abstraction (no real model yet)
+- [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
+- [ ] **Phase 10** — AI-assisted decisions (the four tasks)
+- [ ] **Phase 11** — BYO providers
+- [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
+- [ ] **Phase 13** — OCR  *(VD-g must close)*
+- [ ] **Phase 14** — Security hardening
+- [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
+
+## Current work item
+
+**Phase 0, item 0.7 — `oc-pdf::producer`.** Nothing written yet. Next step is RED: write test 0.13
+`producer::producer_family_table` in `crates/oc-pdf/src/producer.rs` as a table-driven test mapping nine
+producer strings to the nine `ProducerFamily` variants, watch it fail, then implement
+`producer_family(info, xmp) -> ProducerFamily` as the ordered regex table in Phase 0 detail 4:
+`pdftex|xetex|luatex` → `PdfTeX`; `indesign` → `InDesign`; `microsoft.*word|word for` → `Word`;
+`ghostscript` → `Ghostscript`; `abbyy|finereader|scanner|kofax` → `Scanner`; `^typst` → `Typst`;
+`weasyprint` → `WeasyPrint`; `chrom(e|ium)|skia` → `Chromium`; else `Unknown`. All case-insensitive,
+`/Producer` first, then `/Creator`. The strata list in D18 and `corpus/manifest.json` must agree with
+the variant set.
+
+Done in this branch: the workspace bootstrap (§1.1–§1.9) and items 0.1–0.6 — `geom::Rect` and
+`ids::BlockId`; `IR_VERSION` and `canonical::to_canonical_json`; the `oc-core::thresholds` codegen and
+lint; `oc-pdf::geom` page-space normalisation; `xtask vendor-pdfium` and the PDFium binding with its
+startup probe; `oc-pdf::classify` page classification. Every open design question decided along the way
+is written up in `docs/DECISIONS_LOG.md` — read that before changing any of them.
+
+## Blocked` and stop.
 - Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
 - Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
 
@@ -271,3 +316,4 @@ _(empty)_
 2026-09-09  P0.3      oc-core: thresholds codegen + provenance lint (tests 0.5, 0.6)                3843abb
 2026-09-09  P0.4      oc-pdf: page-space normalisation (test 0.8 + corner unit test)              79ac71f
 2026-09-09  P0.5      xtask vendor-pdfium + oc-pdf PDFium binding and probe (test 0.7)             5059a98
+2026-09-09  P0.6      oc-pdf: page classification (tests 0.9-0.12 + mixed/blank/dict test)        PENDING

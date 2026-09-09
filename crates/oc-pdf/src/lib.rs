@@ -6,6 +6,7 @@
 //! with `#[allow(unsafe_code)]` on that module alone (IMPLEMENTATION_PLAN §0.1).
 
 pub mod backend;
+pub mod classify;
 pub mod error;
 pub mod geom;
 pub mod pdfium;

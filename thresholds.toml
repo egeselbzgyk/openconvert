@@ -86,6 +86,59 @@ evidence = "R10 §4.4 row 1 'dictionary hit rate'"
 owner = "maintainer"
 review_by = "2027-06-30"
 
+# Confidence attached to each page-class verdict (D13.10, Phase 0 detail 3). These are the
+# numbers the plan states inline; they are here rather than in the code because every number
+# production code reads comes from this file (D17), and because they are exactly the kind of
+# value `eval calibrate` should later fit against real per-stratum agreement.
+[pageclass.confidence.ocr_sandwich]
+value = 0.95
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 0 detail 3: two independent signals agree (glyphless font + invisible text over a full-page image)"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[pageclass.confidence.image_only]
+value = 0.90
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 0 detail 3"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[pageclass.confidence.blank]
+value = 0.90
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 0 detail 3: no visible characters and no image"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[pageclass.confidence.broken_text]
+value = 0.80
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 0 detail 3; the share test is a proxy for a broken CMap, not proof of one"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[pageclass.confidence.mixed]
+value = 0.70
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 0 detail 3: the least certain of the positive verdicts"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[pageclass.confidence.text]
+value = 1.00
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 0 detail 3: the default verdict once every other arm has declined"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[pageclass.confidence.fallback_blank]
+value = 0.50
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 0 detail 3: the otherwise arm; deliberately low so the report flags it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [limits.max_pages]
 value = 3000
 source = "provisional"

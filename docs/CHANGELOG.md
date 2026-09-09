@@ -30,6 +30,13 @@ One section per completed phase, listing new CLI flags, new IR fields, new warni
 - New: `canonical::to_canonical_json` and `canonical::CanonError` — sorted keys, `ir_version` first,
   NFC strings, `f32` at two decimals, non-finite floats rejected instead of written as `null`.
 
+### Page classification (`oc-pdf`)
+
+- New: `classify::PageClass`, `classify::PageCharStats`, `classify::PageImageStats`,
+  `classify::classify_page` (D13.10).
+- New thresholds: `pageclass.confidence.{ocr_sandwich, image_only, blank, broken_text, mixed, text,
+  fallback_blank}`, all `provisional`.
+
 ### PDF backend (`oc-pdf`, `xtask`)
 
 - New: `cargo run -p xtask -- vendor-pdfium` — fetches the PDFium binary pinned in `xtask/pdfium.lock`

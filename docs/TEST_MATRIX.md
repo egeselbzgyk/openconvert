@@ -38,10 +38,11 @@ replaced by the phase that owns it.
 | 0.7 | `pdfium::binds_and_reports_version` | `oc-pdf` | integration | `test` | green |
 | 0.8 | `geom::prop_normalised_rects_are_inside_page` | `oc-pdf` | property | `test`, `proptest-deep` | green |
 | 0.8a | `geom::normalises_corners_for_each_rotation` | `oc-pdf` | unit | `test` | green |
-| 0.9 | `classify::classify_text_page` | `oc-pdf` | unit | `test` | — |
-| 0.10 | `classify::classify_image_only_page` | `oc-pdf` | unit | `test` | — |
-| 0.11 | `classify::classify_ocr_sandwich_page` | `oc-pdf` | unit | `test` | — |
-| 0.12 | `classify::classify_broken_text_page` | `oc-pdf` | unit | `test` | — |
+| 0.9 | `classify::classify_text_page` | `oc-pdf` | unit | `test` | green |
+| 0.10 | `classify::classify_image_only_page` | `oc-pdf` | unit | `test` | green |
+| 0.11 | `classify::classify_ocr_sandwich_page` | `oc-pdf` | unit | `test` | green |
+| 0.12 | `classify::classify_broken_text_page` | `oc-pdf` | unit | `test` | green |
+| 0.12a | `classify::classify_mixed_blank_and_dictionary_arm` | `oc-pdf` | unit | `test` | green |
 | 0.13 | `producer::producer_family_table` | `oc-pdf` | unit (table-driven) | `test` | — |
 | 0.14 | `inspect::inspect_f01_prose_single_column` | `oc-pdf` | snapshot (insta) | `test` | — |
 | 0.15 | `inspect::inspect_f02_two_column` | `oc-pdf` | snapshot | `test` | — |

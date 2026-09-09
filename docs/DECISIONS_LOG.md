@@ -265,3 +265,29 @@ the repository produces a byte-identical `probe.pdf`
 (`7b40d7f0920d9fe4c1b92cd620ef3a77e4f3b8fb0b65841148685eba8dc23d75`), which it would not have done on a
 Windows checkout before the change — every offset in the PDF's cross-reference table would have shifted.
 Affects: `.gitattributes`, IMPLEMENTATION_PLAN §0.6, every committed fixture from here on.
+
+## 2026-09-09 · Page-class confidences moved into `thresholds.toml`; no geometry parameter · Phase 0
+Context: Phase 0 detail 3 states the classification confidences inline (0.95, 0.9, 0.9, 0.8, 0.7, 1.0,
+0.5) and gives the signature `classify_page(g: &PageGeometry, c: &PageCharStats, i: &PageImageStats,
+dict_hit_rate: Option<f32>, t: &Thresholds)`.
+Decision:
+1. **The seven confidences are new `pageclass.confidence.*` entries in `thresholds.toml`**, all
+   `source = "provisional"`. CLAUDE.md's hard rule is that no numeric literal appears in production code
+   and every constant comes from that file, and unlike the id-format constants these really are the kind
+   of number `eval calibrate` should later fit — a confidence is a claim about how often the verdict is
+   right, which is measurable per producer stratum (D17, D18). `fallback_blank` is named separately from
+   `blank` because the two share a class but not a claim: 0.9 for a page with nothing on it, 0.5 for the
+   `otherwise` arm, which exists so the report can flag it.
+2. **`classify_page` takes no `PageGeometry`.** None of the seven arms reads geometry — detail 3 itself
+   calls it "a pure function over the counters" — and §0.2 forbids unused parameters. The image share is
+   already normalised to `[0, 1]` by the caller that computed it, so page size never enters here. If a
+   later arm needs geometry, adding the parameter is a one-line change at the two call sites.
+3. **A fifth test was added: `classify::classify_mixed_blank_and_dictionary_arm`.** Tests 0.9–0.12 cover
+   four of the seven arms; `mixed`, the clear `blank`, the `otherwise` fallback and the dictionary-hit
+   arm are untouched by them. The dictionary arm matters most: Phase 0 always passes `None`, so without
+   a test it would be dead wiring until Phase 2 and any mistake in it would surface there rather than
+   here.
+Evidence: `cargo nextest run -p oc-pdf` — 8 passed. `cargo run -p xtask -- thresholds-lint` is not yet
+implemented, but `oc_core::thresholds::lint` (test 0.5) covers the seven new entries and passes.
+Affects: D13.10, D17, IMPLEMENTATION_PLAN Phase 0 detail 3 and tests 0.9–0.12, `thresholds.toml`,
+`crates/oc-pdf/src/classify.rs`.
