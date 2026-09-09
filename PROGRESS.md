@@ -159,4 +159,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-09  P1.7      oc-pdf encryption: permissions recorded not enforced (tests 1.12-1.14)  a825fc5
 2026-09-10  P1.8      oc-pdf outline walk + meta from the object tree (test 1.15)  d815ad3
 2026-09-10  P1.9      oc-pdf fuzz-lite: random, truncated and corrupted inputs (test 1.16)  d9f18aa
-2026-09-10  P1.10     oc-pdf dump + openconvert dump-stage ingest (test 1.17)
+2026-09-10  P1.10     oc-pdf dump + openconvert dump-stage ingest (test 1.17)  0ccbd1b
