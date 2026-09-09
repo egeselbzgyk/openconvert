@@ -77,6 +77,16 @@ impl PageGeometry {
         }
     }
 
+    /// The page's `/Rotate`, in degrees, for reports and snapshots.
+    pub fn rotate_degrees(&self) -> u16 {
+        match self.rotate {
+            Rotate::None => 0,
+            Rotate::Cw90 => QUARTER_TURN_DEGREES as u16,
+            Rotate::Cw180 => HALF_TURN_DEGREES as u16,
+            Rotate::Cw270 => THREE_QUARTER_TURN_DEGREES as u16,
+        }
+    }
+
     /// Height of the page as displayed.
     pub fn height_pt(&self) -> f32 {
         match self.rotate {

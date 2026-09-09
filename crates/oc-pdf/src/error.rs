@@ -27,4 +27,18 @@ pub enum PdfError {
     /// The library loaded but did not behave: it is not the ABI we expect.
     #[error("the PDFium startup probe failed: {message}")]
     ProbeFailed { message: String },
+
+    /// The file could not be read.
+    #[error("cannot read {}: {message}", .path.display())]
+    Io { path: PathBuf, message: String },
+
+    /// The bytes are not a PDF this backend can open — malformed, or encrypted with a
+    /// password that was not supplied.
+    #[error("cannot open the PDF: {message}")]
+    Open { message: String },
+
+    /// One page could not be read. The index is included because a document that fails on
+    /// page 812 of 900 is a different problem from one that fails on page 0.
+    #[error("page {index}: {message}")]
+    Page { index: u32, message: String },
 }

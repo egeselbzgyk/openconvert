@@ -30,6 +30,12 @@ One section per completed phase, listing new CLI flags, new IR fields, new warni
 - New: `canonical::to_canonical_json` and `canonical::CanonError` — sorted keys, `ir_version` first,
   NFC strings, `f32` at two decimals, non-finite floats rejected instead of written as `null`.
 
+### Inspection (`oc-pdf`)
+
+- New: `inspect::inspect`, `inspect::InspectReport` (`openconvert.inspect/1`), `inspect::PdfDoc`,
+  `inspect::PdfOpen`, `inspect::InspectOptions`, `pdfium::PdfiumDoc`.
+- New warning codes: `W_IMAGE_ONLY_PAGES`, `W_BROKEN_TEXT_PAGES`.
+
 ### Fixtures (`xtask`, `corpus/`)
 
 - New: `cargo run -p xtask -- fixtures` compiles the three Typst sources in-process to

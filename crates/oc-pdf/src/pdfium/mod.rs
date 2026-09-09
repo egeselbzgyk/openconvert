@@ -6,8 +6,10 @@
 //! runtime error, which is why binding always ends with a probe.
 
 mod bind;
+mod doc;
 
 pub use bind::{PdfiumBackend, EXPECTED_PDFIUM_BUILD};
+pub use doc::PdfiumDoc;
 
 // ---------------------------------------------------------------------------
 // Tests (written first — IMPLEMENTATION_PLAN §0.2). Row 0.7 of the Phase 0 table.

@@ -393,3 +393,34 @@ two pages; `--keep-structtree` produces the three `__tagged` variants, all carry
 `pypdfium2` reads the metadata quoted above.
 Affects: D18, IMPLEMENTATION_PLAN Phase 0 fixture recipe and the expected `inspect --json`, tests
 0.14–0.16, `xtask/src/fixtures.rs`, `corpus/manifest.json`.
+
+## 2026-09-09 · `inspect`: two traits, a leaked library, and geometry at report precision · Phase 0
+Context: Phase 0's architecture gives `PdfBackend` with both `open` and `version`, and
+`inspect(doc, opts) -> InspectReport`. Building it surfaced three things.
+Decision:
+1. **`PdfOpen` is a separate trait from `PdfBackend`.** `inspect` needs only "give me a document"; a
+   test or a second backend can supply that without also pretending to be a loaded library with a
+   version. `PdfBackend` keeps `version()`, which is what the `hello` event carries.
+2. **The `Pdfium` handle is leaked (`Box::leak`).** A `PdfDocument` borrows from the `Pdfium` that
+   produced it, and `PdfOpen::open` returns an owned `Box<dyn PdfDoc>`, so the library must outlive
+   every document it opens. The alternatives are a self-referential struct or a lifetime in a public
+   API, and §0.1 forbids lifetimes in public APIs. One process binds one library and then converts, so
+   "lives forever" and "lives as long as the process" are the same statement here.
+3. **`has_struct_tree` and `encrypted` are byte searches, not parses.** PDFium exposes no predicate for
+   either, and `inspect` only needs to know whether one is present. Phase 1 reads the structure tree
+   properly through `lopdf` when it needs the hints inside it.
+4. **Geometry is rounded to two decimals in the report**, matching canonical JSON's precision
+   (ARCHITECTURE §4.3), so a snapshot cannot churn on the last bit of an `f32`.
+5. **Image coverage is a sum of bounding boxes, clamped to 1**, not a union. Two overlapping images
+   would over-count, but the value is only ever compared against a threshold and the clamp bounds the
+   error in the direction that matters.
+Confirmed against real files: the fixtures classify exactly as the plan predicts — f01/f02 `text` at
+confidence 1.0, f03 both pages `image_only` at 0.9 with `image_count` 1, `image_area_ratio` 1.0 and one
+`W_IMAGE_ONLY_PAGES` warning carrying `count: 2`. Page sizes match too: f01 419.53 × 595.28, f02
+595.28 × 841.89. The plan's illustrative `visible_chars` (1180/214) are not the real counts (668/256 for
+f01, 786/226 for f02); the plan says the snapshot is the assertion, and it is.
+The producer/creator inversion recorded in the fixtures entry is confirmed here: `producer` is `null`
+and `creator` is `Typst 0.15.1` in all three reports, and `producer_family` is `Typst` only because
+`producer_family` falls back to `/Creator`.
+Evidence: `cargo nextest run --workspace` — 19 passed. Three committed `insta` snapshots.
+Affects: D3, D13.10, IMPLEMENTATION_PLAN Phase 0 architecture and tests 0.14–0.16, `crates/oc-pdf`.

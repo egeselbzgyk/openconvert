@@ -1,0 +1,57 @@
+---
+source: crates/oc-pdf/src/inspect.rs
+expression: report
+---
+{
+  "schema": "openconvert.inspect/1",
+  "engine_version": "[version]",
+  "ir_version": 1,
+  "source": {
+    "path": "[path]",
+    "sha256": "[sha256]",
+    "bytes": "[bytes]"
+  },
+  "document": {
+    "pages": 2,
+    "encrypted": false,
+    "producer": null,
+    "creator": "[creator]",
+    "producer_family": "Typst",
+    "has_struct_tree": false,
+    "title": "Two Column Study",
+    "author": "O. Convert"
+  },
+  "pages": [
+    {
+      "index": 0,
+      "width_pt": 595.28,
+      "height_pt": 841.89,
+      "rotate": 0,
+      "class": "text",
+      "class_confidence": 1.0,
+      "visible_chars": 786,
+      "invisible_chars": 0,
+      "replacement_chars": 0,
+      "pua_chars": 0,
+      "image_count": 0,
+      "image_area_ratio": 0.0,
+      "glyphless_font": false
+    },
+    {
+      "index": 1,
+      "width_pt": 595.28,
+      "height_pt": 841.89,
+      "rotate": 0,
+      "class": "text",
+      "class_confidence": 1.0,
+      "visible_chars": 226,
+      "invisible_chars": 0,
+      "replacement_chars": 0,
+      "pua_chars": 0,
+      "image_count": 0,
+      "image_area_ratio": 0.0,
+      "glyphless_font": false
+    }
+  ],
+  "warnings": []
+}

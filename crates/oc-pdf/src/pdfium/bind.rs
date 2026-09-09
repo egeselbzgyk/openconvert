@@ -36,13 +36,12 @@ const PROBE_PAGE_COUNT: i32 = 1;
 
 /// PDFium, loaded from a shared library at runtime (D3).
 pub struct PdfiumBackend {
-    /// Held for its lifetime, not read: dropping it unloads the library. Documents opened
-    /// through it borrow from it, so it must outlive them. Phase 1 reads it.
-    #[allow(
-        dead_code,
-        reason = "owns the loaded library; readers arrive with document access"
-    )]
-    pdfium: Pdfium,
+    /// Leaked deliberately. A `PdfDocument` borrows from the `Pdfium` that produced it, and
+    /// `PdfOpen::open` has to hand back an owned `Box<dyn PdfDoc>` - so the library has to
+    /// outlive every document, which for a process that binds one library and then converts
+    /// is the same as living forever. The alternatives are a self-referential struct or a
+    /// lifetime in a public API, and IMPLEMENTATION_PLAN 0.1 rules the latter out.
+    pdfium: &'static Pdfium,
     version: BackendVersion,
 }
 
@@ -69,10 +68,10 @@ impl PdfiumBackend {
             path: library.clone(),
             message: source.to_string(),
         })?;
-        let pdfium = Pdfium::new(bindings);
+        let pdfium: &'static Pdfium = Box::leak(Box::new(Pdfium::new(bindings)));
 
         let version = read_version(library, library.clone());
-        probe(&pdfium, &version)?;
+        probe(pdfium, &version)?;
 
         Ok(Self { pdfium, version })
     }
@@ -81,6 +80,20 @@ impl PdfiumBackend {
 impl PdfBackend for PdfiumBackend {
     fn version(&self) -> BackendVersion {
         self.version.clone()
+    }
+}
+
+impl crate::inspect::PdfOpen for PdfiumBackend {
+    fn open(
+        &self,
+        bytes: &[u8],
+        password: Option<&str>,
+    ) -> Result<Box<dyn crate::inspect::PdfDoc>, PdfError> {
+        Ok(Box::new(crate::pdfium::PdfiumDoc::open(
+            self.pdfium,
+            bytes,
+            password,
+        )?))
     }
 }
 

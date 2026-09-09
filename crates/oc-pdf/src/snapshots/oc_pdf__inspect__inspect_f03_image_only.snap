@@ -1,0 +1,65 @@
+---
+source: crates/oc-pdf/src/inspect.rs
+expression: report
+---
+{
+  "schema": "openconvert.inspect/1",
+  "engine_version": "[version]",
+  "ir_version": 1,
+  "source": {
+    "path": "[path]",
+    "sha256": "[sha256]",
+    "bytes": "[bytes]"
+  },
+  "document": {
+    "pages": 2,
+    "encrypted": false,
+    "producer": null,
+    "creator": "[creator]",
+    "producer_family": "Typst",
+    "has_struct_tree": false,
+    "title": null,
+    "author": null
+  },
+  "pages": [
+    {
+      "index": 0,
+      "width_pt": 419.53,
+      "height_pt": 595.28,
+      "rotate": 0,
+      "class": "image_only",
+      "class_confidence": 0.9,
+      "visible_chars": 0,
+      "invisible_chars": 0,
+      "replacement_chars": 0,
+      "pua_chars": 0,
+      "image_count": 1,
+      "image_area_ratio": 1.0,
+      "glyphless_font": false
+    },
+    {
+      "index": 1,
+      "width_pt": 419.53,
+      "height_pt": 595.28,
+      "rotate": 0,
+      "class": "image_only",
+      "class_confidence": 0.9,
+      "visible_chars": 0,
+      "invisible_chars": 0,
+      "replacement_chars": 0,
+      "pua_chars": 0,
+      "image_count": 1,
+      "image_area_ratio": 1.0,
+      "glyphless_font": false
+    }
+  ],
+  "warnings": [
+    {
+      "code": "W_IMAGE_ONLY_PAGES",
+      "severity": "warn",
+      "args": {
+        "count": 2
+      }
+    }
+  ]
+}
