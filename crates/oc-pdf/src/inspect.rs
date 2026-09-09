@@ -109,6 +109,15 @@ pub trait PdfDoc {
     fn page_glyphs(&self, index: u32) -> Result<crate::glyphs::PageGlyphs, PdfError>;
     /// The images one page draws (Phase 1 detail 4).
     fn page_images(&self, index: u32) -> Result<Vec<oc_model::extract::ImageRef>, PdfError>;
+    /// One image, decoded and composited (Phase 1 detail 4, VD-d).
+    ///
+    /// `image` indexes the page's images in draw order, matching `page_images`.
+    fn image_bytes(
+        &self,
+        page: u32,
+        image: oc_model::extract::ImageId,
+    ) -> Result<crate::images::DecodedImage, PdfError>;
+
     /// The document outline, depth-first (Phase 1 detail 6).
     ///
     /// Infallible: a document with no outline has an empty one, and an outline PDFium cannot

@@ -1186,3 +1186,98 @@ failure - it is the answer the user asked for, and it exits 3 rather than 1 (§2
 Evidence: `cargo nextest run --workspace` - 75 passed.
 Affects: D13.2, IMPLEMENTATION_PLAN §2.3, §2.4, Phase 1 test 1.19, Phase 14 §6,
 `crates/oc-core/src/{cancel.rs,progress.rs}`, `crates/openconvert/src/{control.rs,cmd_dump_stage.rs}`.
+
+## 2026-09-10 · VD-d closed: PDFium composites, and the plan's proposed reference could not have said so · Phase 1
+Context: the last Phase 1 item. The plan's Failure-modes section asks for a ten-fixture spike
+comparing `get_processed_image()` against "a `pypdfium2` reference in `eval/`", with the image
+policy chosen from the result.
+
+**The proposed reference is not independent, so the comparison could not answer the question.**
+`pypdfium2` wraps *the same PDFium library*. It is a different binding, not a different
+implementation. Two bindings agreeing tells us that `pdfium-render` and `pypdfium2` both call the
+same C function correctly and nothing whatever about whether the compositing is right. Building
+that harness would have produced a green result that meant nothing.
+
+**What was done instead: known-answer tests.** We author the fixtures, so we know what the
+composited pixels must be. `h09`'s soft mask is written as "first half of the samples 0, rest 255"
+by `oc_testkit::handmade`, so the top four rows of an 8x8 image must come back fully transparent
+and the bottom four fully opaque. That is a fact about the file, not about a second library, and it
+is falsifiable in both directions - a decoder that ignored the mask, and one that inverted it, both
+fail it.
+
+**The answer: `get_processed_image()` composites correctly.** Measured on PDFium `chromium/7881`:
+
+| case | fixture | result |
+|---|---|---|
+| soft mask (`/SMask`) | `h09_image_smask` | **applied**, exact alpha layout |
+| stencil mask (`/ImageMask`) | `h14_stencil_mask` | **applied**, correct polarity |
+| indexed colour | `h15_indexed_colour` | **resolved** through the palette |
+| DeviceGray -> RGB | `h05_invisible_layer` | expanded, 235 -> (235,235,235) |
+| inline image (`BI/ID/EI`) | `h10_inline_image` | decodes with no special case |
+| full-page scan | `h05`, `f03` | decodes |
+| tiny ornament | - | geometry only, covered by `image_kind_covers_every_arm` |
+| rotated image | - | `/Rotate` is page-level; covered by test 1.5 |
+| CMYK JPEG | **not covered** | needs a real CMYK JPEG; `image` 0.25 does not encode one |
+| 1-bit CCITT | **not covered** | no CCITT G3/G4 encoder available |
+| JPX (JPEG 2000) | **not covered** | no JPEG 2000 encoder available |
+
+**So the image policy is: use `get_processed_image()`, and do not write our own compositing.**
+`get_raw_image()` stays reachable for the debug flag the plan reserves. Phase 4 can assume masks,
+palettes and colour spaces are already resolved by the time it sees pixels.
+
+**The three uncovered formats are honest gaps, not silent ones.** All three are decoded by PDFium's
+own codecs rather than by anything we wrote, and all three are cases where a failure would be a
+decode error rather than a wrong picture - which `image_bytes` reports as `PdfError::Page`. The way
+to close them is a real-world sample in the Phase 7 corpus rather than a synthetic fixture we
+cannot honestly build. Recorded as such.
+
+**A trap found on the way.** The stencil-mask test asserted the wrong polarity on its first run and
+PDFium was right: PDF 32000-1 §8.9.6.2 says a sample of **0 paints** with the current colour and a
+sample of **1 leaves the page unchanged** - the opposite of the intuition that a set bit means ink.
+Both the fixture and the test now say so explicitly, because it is exactly the kind of thing that
+gets "fixed" in the wrong direction later.
+
+`PdfDoc::image_bytes` is the deliverable: the compositing path Phase 4 and Phase 5 will call. It
+checks `max_image_pixels` against the *declared* dimensions before decoding, which matters more
+here than in `page_images` - this is the one entry point that actually allocates for an image.
+Evidence: `cargo nextest run --workspace` - 82 passed.
+Affects: VD-d (**closed**), D13.11, IMPLEMENTATION_PLAN Phase 1 detail 4 and Failure modes,
+Phase 4 image policy, `crates/oc-pdf/src/{images.rs,inspect.rs,pdfium/doc.rs}`,
+`crates/oc-pdf/tests/smask_spike.rs`, `crates/oc-testkit/src/handmade.rs`.
+
+## 2026-09-10 · A1.6 measured on a 301-page born-digital book · Phase 1
+Context: the last unmeasured Phase 1 acceptance criterion. A1.6 asks for wall clock <= 0.15 s/page
+and peak RSS <= 250 MB on a 300-page born-digital book.
+
+**The subject.** No 300-page fixture existed - every fixture in the corpus has one or two pages,
+which is how the O(n squared) bug in the previous entry survived. So `f01`'s prose body was repeated
+300 times into a Typst source and compiled with `xtask::fixtures::compile_fixture`, giving a
+**301-page, 308 KB** document of real Typst output: embedded subset fonts, justified prose, running
+headers, page numbers and an outline entry per chapter. Not committed - it is derived from a
+committed source in three lines and is a third of a megabyte.
+
+**The measurement.** `openconvert dump-stage ingest`, release build, three runs, peak working set
+sampled every 5 ms while the process ran:
+
+| run | total | per page | peak RSS |
+|---|---|---|---|
+| 0 | 3 047 ms | 10.12 ms | 98 MB |
+| 1 | 3 112 ms | 10.34 ms | 99 MB |
+| 2 | 3 081 ms | 10.24 ms | 91 MB |
+
+**Both budgets are met with room.** 10.2 ms/page against 150 ms/page is a factor of ~15; 98 MB
+against 250 MB is a factor of ~2.5. And the figure is pessimistic: `dump-stage ingest` does
+extraction *plus* canonical-JSON serialisation of every glyph, font, image and ledger entry, which
+is strictly more than ingestion alone.
+
+**The caveat, stated rather than buried.** This machine is not D9's reference machine L (4c/8t AVX2
+x86, 16 GB), so these numbers are indicative rather than the official sign-off. The margin is wide
+enough that a slower reference machine is unlikely to change the verdict, but the criterion says
+machine L and this is not it. Phase 7's benchmark harness is where it gets measured properly.
+
+**No wall-clock assertion was added to the test suite.** A duration assertion in the fast tier
+measures the CI runner, which is the argument `tests/scaling.rs` already makes; the standing guard
+against the regression that actually threatens this budget - per-page cost growing with document
+size - is that file's ratio test.
+Evidence: measured 2026-09-10 on the development machine, release profile, PDFium `chromium/7881`.
+Affects: A1.6, D9 reference machine L, Phase 7 benchmarks.

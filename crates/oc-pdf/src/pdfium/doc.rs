@@ -175,6 +175,14 @@ impl PdfDoc for PdfiumDoc {
         self.page_images_impl(index)
     }
 
+    fn image_bytes(
+        &self,
+        page: u32,
+        image: ImageId,
+    ) -> Result<crate::images::DecodedImage, PdfError> {
+        self.image_bytes_impl(page, image)
+    }
+
     fn outline(&self) -> Vec<oc_model::extract::OutlineEntry> {
         crate::outline::read_outline(&self.document, &self.limits)
     }
@@ -301,6 +309,55 @@ impl PdfiumDoc {
             });
         }
         Ok(images)
+    }
+
+    /// Decode and composite one image (VD-d).
+    ///
+    /// `get_processed_image` rather than `get_raw_image`: the processed form is the one that
+    /// has had the soft mask, the stencil mask and the colour-space conversion applied, which
+    /// is what a reader sees and therefore what belongs in the EPUB. The raw form is kept
+    /// reachable for the debug flag the plan reserves, not used here.
+    ///
+    /// The pixel limit is checked against the *declared* dimensions before the decode, not
+    /// after: that is the whole point of it.
+    pub fn image_bytes_impl(
+        &self,
+        page: u32,
+        image: ImageId,
+    ) -> Result<crate::images::DecodedImage, PdfError> {
+        let loaded = self.page(page)?;
+        let wanted = usize::try_from(image.0).unwrap_or(usize::MAX);
+        let missing = || PdfError::Page {
+            index: page,
+            message: format!("no image {} on this page", image.0),
+        };
+
+        let objects = loaded.objects();
+        let object = objects
+            .iter()
+            .filter(|object| object.object_type() == PdfPageObjectType::Image)
+            .nth(wanted)
+            .ok_or_else(missing)?;
+        let object = object.as_image_object().ok_or_else(missing)?;
+
+        check_image(
+            pixels(object.width()),
+            pixels(object.height()),
+            &self.limits,
+        )?;
+
+        let decoded = object
+            .get_processed_image(&self.document)
+            .map_err(|source| PdfError::Page {
+                index: page,
+                message: format!("image {} could not be decoded: {source}", image.0),
+            })?;
+        let rgba = decoded.to_rgba8();
+        Ok(crate::images::DecodedImage {
+            width: rgba.width(),
+            height: rgba.height(),
+            rgba: rgba.into_raw(),
+        })
     }
 
     /// Extract one page into the Stage-1 layer (Phase 1 details 1-3).

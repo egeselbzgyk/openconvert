@@ -3,8 +3,8 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 1
-CURRENT_ITEM: 1.13 — VD-d, the image/SMask spike (the last Phase 1 item)
+CURRENT_PHASE: 2
+CURRENT_ITEM: 2.1 — read PHASE 2 of the plan, then its first work item
 LAST_UPDATED: 2026-09-10
 
 ---
@@ -24,7 +24,7 @@ LAST_UPDATED: 2026-09-10
 - [x] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
       *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
       *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
-- [ ] **Phase 1** — PDF inspection and ingestion  *(includes the PDFium image/SMask spike = VD-d)*
+- [x] **Phase 1** — PDF inspection and ingestion  *(VD-d closed: PDFium composites masks, palettes and colour spaces correctly)*
 - [ ] **Phase 2** — Text assembly and normalization  *(normalization `N`, ledger, furniture inputs, language)*
 - [ ] **Phase 3** — Layout  *(blocks, columns, reading order, paragraphs, dehyphenation; VD-b must close)*
 - [ ] **Phase 4** — Structure  *(headings, outline/TOC, book structure, lists, footnotes, captions, quotes/verse, tables, images, metadata)*
@@ -42,35 +42,26 @@ LAST_UPDATED: 2026-09-10
 
 ## Current work item
 
-**Phase 1, item 1.13 — VD-d, the image/SMask spike.** Every *named* test in the Phase 1 table
-(1.1–1.20) now exists and passes. Items 1.1–1.12 are done: hand-made fixtures, glyph extraction
-(1.1–1.4), metamorphic invariants (1.5–1.7), the broken-text mutation (1.8), images (1.9), resource
-limits (1.10, 1.11, 1.20), encryption (1.12–1.14), outlines/metadata (1.15), fuzz-lite (1.16),
-`dump-stage ingest` (1.17), the poppler oracle (1.18) and cancellation (1.19). Plus an O(n²)
-performance fix found while sizing 1.19's fixture.
+**Phase 2 has not been started.** Phase 1 is complete — its Definition of Done is checked below.
 
-VD-d is the last piece of Phase 1 and it **blocks Phase 4's image policy**, so it is worth doing
-properly rather than deferring. The plan's Failure-modes section specifies it: a ten-fixture spike
-comparing `get_processed_image()` against a `pypdfium2` reference in `eval/`, over **SMask,
-stencil mask, CMYK JPEG, indexed PNG, 1-bit CCITT, JPX, inline image, rotated image, tiny ornament,
-full-page scan**, with the outcome written into `docs/DECISIONS_LOG.md` and the image policy chosen
-from it.
+First step: read `docs/IMPLEMENTATION_PLAN.md` PHASE 2 and `docs/PIPELINE.md`'s `text` stage, then
+take the first work item with the TDD loop. Do **not** read them ahead of time; the plan says to
+open a section when the phase needs it.
 
-Two of the ten already exist: `h09_image_smask` and `h10_inline_image`. The rest need building —
-`pdf-writer` can express most of them, and the ones it cannot (JPX, CCITT) need a crafted stream or
-an honest note that the format is untested.
+Phase 2 is normalisation `N`, word/line assembly, the ledger, furniture inputs and language
+detection. Three things from Phase 1 land directly on it, in priority order:
 
-The question the spike has to answer, in the plan's own terms: does `get_processed_image()`
-composite masks and colour spaces correctly, or does it need `get_raw_image()` plus our own
-compositing? Everything downstream of Phase 4's image policy depends on the answer.
-
-After VD-d: run the Phase 1 Definition of Done check (§0.3) — every named test, `--workspace` green,
-clippy, fmt, `cargo deny`, `thresholds-lint`, the A1.1–A1.6 acceptance criteria, a
-`docs/CHANGELOG.md` phase entry — then tick Phase 1 and advance to Phase 2.
-
-**A1.6 is the acceptance criterion to check deliberately**: ≤ 0.15 s/page and ≤ 250 MB peak RSS on
-a 300-page born-digital book. The O(n²) fix moved the first number a long way, but it has not been
-measured against a real 300-page book, only against synthetic empty pages.
+1. **The hyphen problem is Phase 2's to solve, and it is the biggest.** PDFium reports a hard
+   hyphen (U+002D) and a soft hyphen (U+00AD) as the *same* U+0002; `is_hyphen()` says only that a
+   character is a hyphen, never which. Measured against `pdftotext` in item 1.11. So D13.4's
+   `SoftHyphen` reason cannot fire, PIPELINE §369's compound-word rule loses its cheapest signal,
+   and `C_raw` differs from the document at every hyphenated line break.
+2. **`OverdrawDedup` has a budget and no way to consume it** (item 1.2). PDFium collapses
+   overdrawn duplicates before we see them.
+3. Both need the **same** thing: `lopdf` content-stream access to the `Tj`/`TJ` operands. Do them
+   as one piece of work rather than patching twice. `PdfiumDoc` already holds the parsed
+   `lopdf::Document` and `oc_pdf::limits::read_page_content` already reads a page's content stream
+   under the decompression cap, so the plumbing exists.
 
 Also open, and cheap: CI's `test` job runs `xtask fixtures` but never `handmade-fixtures` or
 `mutations`, so a builder change that no longer reproduces the committed fixtures would not be
@@ -86,7 +77,7 @@ Carried forward, in the order a fresh session needs them:
   Pinned to `chromium/7881` (151.0.7881.0) in `xtask/pdfium.lock`, lands in the git-ignored
   `vendor/pdfium/<triple>/`, needs `curl` and `tar` on PATH. CI runs it before `nextest`.
 - **Fixtures**: `cargo run -p xtask -- fixtures` (Typst f01–f03 into the git-ignored
-  `target/fixtures/`), `-- handmade-fixtures` (h01–h13, committed), `-- mutations` (committed).
+  `target/fixtures/`), `-- handmade-fixtures` (h01–h15, committed), `-- mutations` (committed).
 - **No stage may treat the backend's glyph order as reading order.** Measured in item 1.3: PDFium
   reorders the lines of a page under `/Rotate 90`. Reading order is Phase 3's, from geometry.
 - **Open from items 1.4 and 1.11, for Phase 2/3 — the biggest open item in Phase 1.** PDFium
@@ -113,13 +104,41 @@ Carried forward, in the order a fresh session needs them:
 - `GOLDEN_BLOCK_ID_CHAPTER_3 = "SDMLH752SA"` in `ids.rs` is a committed golden value. If that
   assertion ever fails, the id derivation changed and `IR_VERSION` must change in the same commit
   (D13.3).
-- **VD-a is closed.** VD-b…VD-g still open, each with an owner and a blocking phase.
+- **VD-a and VD-d are closed.** VD-b, VD-c, VD-e, VD-f, VD-g still open, each with an owner
+  and a blocking phase.
 - Commit messages carry **no** Claude Code attribution footer (maintainer's instruction, 2026-09-09).
 - Local tool versions: rustc 1.98.1, cargo-nextest 0.9.143, cargo-deny 0.20.2.
 
 ## Blocked
 
 _(empty — Q1 resolved 2026-09-09; see `docs/DECISIONS_LOG.md`)_
+
+## Phase 1 — Definition of Done
+
+Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-10:
+
+1. **Every named test exists and passes** — all twenty rows of the Phase 1 table (1.1–1.20), plus
+   about twenty more, each of which exists because something was measured and was not what the
+   plan assumed. `docs/TEST_MATRIX.md` lists every one and the CI job that runs it.
+2. **`cargo nextest run --workspace`** — 83 passed, 0 skipped, 0 ignored; with
+   `--features poppler-oracle`, 55 passed in `oc-pdf`. **Verified on Windows only**, as in
+   Phase 0: Linux and macOS are CI's job.
+3. **clippy** `--workspace --all-targets --all-features --locked -- -D warnings` — clean.
+4. **`cargo fmt --all --check`** — clean.
+5. **`cargo deny check`** — advisories, bans, licenses, sources ok; `deny.tools.toml` ok.
+6. **`cargo run -p xtask -- thresholds-lint`** — clean.
+7. **Acceptance criteria A1.1–A1.6.** A1.1 by `acceptance::every_glyph_carries_thirteen_real_
+   signals` over all eleven fixtures; A1.2 by test 1.5; A1.3 by tests 1.10 and VD-d.7; A1.4 by
+   test 1.8; A1.5 by 1.16. **A1.6 measured** on a 301-page Typst book: 10.2 ms/page against a
+   150 ms budget, 98 MB peak RSS against 250 MB — but **not on D9's reference machine L**, so it
+   is indicative rather than signed off. Phase 7's benchmark harness measures it properly.
+8. **`docs/CHANGELOG.md`** — Phase 1 entry written.
+9. **No unnumbered TODO/FIXME** — `xtask ci-lint` clean.
+
+**VD-d closed**: PDFium's `get_processed_image()` composites soft masks, stencil masks, indexed
+palettes and DeviceGray correctly, so the image policy uses it and writes no compositing of its
+own. CMYK JPEG, 1-bit CCITT and JPX are uncovered — no encoder exists to build those fixtures
+honestly — and are deferred to real samples in the Phase 7 corpus.
 
 ## Phase 0 — Definition of Done
 
@@ -173,3 +192,5 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-10  P1.11     oc-pdf differential pdftotext oracle behind a feature (test 1.18)  2a9aa8f
 2026-09-10  P1.perf   oc-pdf: page ids read once, not per page (O(n^2) fix)                6908601
 2026-09-10  P1.12     oc-core cancel/progress + openconvert control channel (test 1.19)  69734e5
+2026-09-10  P1.13     oc-pdf image_bytes + VD-d known-answer spike (VD-d closed)
+2026-09-10  PHASE 1   COMPLETE - Definition of Done checked; A1.6 measured off reference machine L

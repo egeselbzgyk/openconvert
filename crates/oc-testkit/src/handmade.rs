@@ -70,6 +70,8 @@ pub fn all() -> Vec<(&'static str, Vec<u8>)> {
         ("h11_pixel_bomb", h11_pixel_bomb()),
         ("h12_decompression_bomb", h12_decompression_bomb()),
         ("h13_outline", h13_outline()),
+        ("h14_stencil_mask", h14_stencil_mask()),
+        ("h15_indexed_colour", h15_indexed_colour()),
     ]
 }
 
@@ -229,6 +231,30 @@ pub fn h12_decompression_bomb() -> Vec<u8> {
     )
 }
 
+/// h14 - an image drawn as a *stencil mask* (`/ImageMask true`).
+///
+/// The other way a PDF makes part of an image transparent, and the one that predates
+/// `/SMask`: one bit per pixel, where — per PDF 32000-1 §8.9.6.2, and this is the opposite of
+/// what most people guess — a sample of **0 paints** with the current colour and a sample of
+/// **1 leaves the page unchanged**. VD-d has to know whether PDFium composites this form as
+/// well as the soft mask, because a scanned book's stamps and logos are usually stencils.
+pub fn h14_stencil_mask() -> Vec<u8> {
+    build(Page::default().full_page_image().stencil_mask())
+}
+
+/// h15 - an image in an Indexed colour space over DeviceRGB.
+///
+/// A palette rather than direct colour, which is how a PNG with few colours reaches a PDF.
+/// The palette here is two entries - one red, one blue - so a decoder that ignores the index
+/// and reads the sample as grey produces something obviously wrong rather than something
+/// subtly off.
+pub fn h15_indexed_colour() -> Vec<u8> {
+    build(Page::default().full_page_image().indexed_palette())
+}
+
+/// The palette `h15` declares: entry 0 is red, entry 1 is blue.
+pub const INDEXED_PALETTE: [[u8; 3]; 2] = [[255, 0, 0], [0, 0, 255]];
+
 /// The outline `h13` carries, as `(title, level)` in the order it must be read.
 ///
 /// Three levels and two roots, because a tree that is only one level deep cannot tell a
@@ -325,6 +351,8 @@ struct Page {
     declared_image_size: Option<i32>,
     content_padding: Option<usize>,
     outline: Vec<(&'static str, u16)>,
+    stencil_mask: bool,
+    indexed_palette: bool,
 }
 
 impl Page {
@@ -355,6 +383,18 @@ impl Page {
 
     fn full_page_image(mut self) -> Self {
         self.full_page_image = true;
+        self
+    }
+
+    /// Draw the page image as a one-bit stencil mask rather than as colour samples.
+    fn stencil_mask(mut self) -> Self {
+        self.stencil_mask = true;
+        self
+    }
+
+    /// Put the page image in an Indexed colour space over DeviceRGB.
+    fn indexed_palette(mut self) -> Self {
+        self.indexed_palette = true;
         self
     }
 
@@ -487,13 +527,48 @@ fn build(page: Page) -> Vec<u8> {
     if page.full_page_image {
         // Eight by eight mid-grey pixels, uncompressed. A scan's content does not matter to
         // any of these fixtures; that an image covers the page does.
-        let pixels = vec![GREY_LEVEL; IMAGE_SIDE_PX * IMAGE_SIDE_PX];
-        let mut image = pdf.image_xobject(image_id, &pixels);
+        // A stencil mask is one bit per pixel and its rows are byte-aligned, so an eight-wide
+        // image is one byte per row: the top half 0 (painted), the bottom half 1 (masked out).
+        let stencil: Vec<u8> = (0..IMAGE_SIDE_PX)
+            .map(|row| if row < IMAGE_SIDE_PX / 2 { 0x00 } else { 0xFF })
+            .collect();
+        // Indexed samples are palette indices, one byte each: top half entry 0, bottom entry 1.
+        let indexed: Vec<u8> = (0..IMAGE_SIDE_PX * IMAGE_SIDE_PX)
+            .map(|i| u8::from(i >= IMAGE_SIDE_PX * IMAGE_SIDE_PX / 2))
+            .collect();
+        let grey = vec![GREY_LEVEL; IMAGE_SIDE_PX * IMAGE_SIDE_PX];
+
+        let samples = if page.stencil_mask {
+            &stencil
+        } else if page.indexed_palette {
+            &indexed
+        } else {
+            &grey
+        };
+
+        let mut image = pdf.image_xobject(image_id, samples);
         // The declared size is what a reader believes and what a limit has to be checked
         // against; the stream behind it stays sixty-four bytes.
         let side = page.declared_image_size.unwrap_or(IMAGE_SIDE_PX as i32);
-        image.width(side).height(side).color_space().device_gray();
-        image.bits_per_component(BITS_PER_COMPONENT);
+        image.width(side).height(side);
+        if page.stencil_mask {
+            image.image_mask(true);
+        } else if page.indexed_palette {
+            let lookup: Vec<u8> = INDEXED_PALETTE.iter().flatten().copied().collect();
+            image.color_space().indexed(
+                Name(b"DeviceRGB"),
+                i32::try_from(INDEXED_PALETTE.len() - 1).unwrap_or(1),
+                &lookup,
+            );
+        } else {
+            image.color_space().device_gray();
+        }
+        // A stencil mask is one bit per sample by definition; everything else here is eight.
+        image.bits_per_component(if page.stencil_mask {
+            1
+        } else {
+            BITS_PER_COMPONENT
+        });
         if page.image_smask {
             image.s_mask(smask_id);
         }

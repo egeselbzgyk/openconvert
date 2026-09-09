@@ -129,7 +129,17 @@ Rust field name, and a capital letter there trips `non_snake_case` under `-D war
 
 ## Phase 1 — PDF inspection and ingestion
 
-*(in progress)*
+Turns a PDF into the Stage-1 extraction layer: glyphs with all thirteen verified signals,
+images decoded and composited, outlines, metadata, encryption, resource limits, `C_raw` as the
+first conservation baseline, and `dump-stage ingest` to see all of it.
+
+All twenty named tests (1.1–1.20) pass, plus twenty-odd more that each exist because something
+was measured and turned out not to be what the plan assumed. **VD-d is closed.** The five
+findings worth knowing before touching this code are in `docs/DECISIONS_LOG.md`: PDFium's glyph
+order is not rotation-invariant; it reports both hard and soft hyphens as U+0002; a CID font
+stripped of `/ToUnicode` yields control characters that the broken-text detector originally
+missed; image extraction was O(n²) in page count; and the `pypdfium2` reference the plan
+proposed for VD-d could not have answered VD-d's question.
 
 ### IR (`oc-model`)
 
@@ -253,3 +263,16 @@ Rust field name, and a capital letter there trips `non_snake_case` under `-D war
   Unknown messages are ignored so the protocol stays forward-compatible.
 - `dump-stage` polls the flag at the stage boundary and before every page, and exits **3**
   with `done{"status":"cancelled"}`.
+
+### Images decoded (`oc-pdf`, `oc-testkit`) — VD-d closed
+
+- New: `oc_pdf::images::DecodedImage` and `PdfDoc::image_bytes`, which composite through
+  `get_processed_image()` and check `max_image_pixels` before decoding.
+- New fixtures `h14_stencil_mask` and `h15_indexed_colour`.
+- **VD-d answered:** PDFium composites soft masks, stencil masks, indexed palettes and
+  DeviceGray correctly, so the image policy uses `get_processed_image()` and writes no
+  compositing of its own. CMYK JPEG, 1-bit CCITT and JPX remain uncovered — no encoder exists
+  to build the fixtures honestly — and are deferred to real samples in the Phase 7 corpus.
+- The plan's proposed `pypdfium2` reference was **not** used: it wraps the same PDFium, so the
+  comparison could not have answered the question. Known-answer fixtures were used instead.
+  See `docs/DECISIONS_LOG.md`.

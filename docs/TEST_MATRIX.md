@@ -86,6 +86,14 @@ replaced by the phase that owns it.
 | 1.18 | `oracle::differential_pdftotext_coverage_f01` | `oc-pdf` | integration (oracle) | `poppler-oracle` | green |
 | 1.18a | `oracle::differential_pdftotext_coverage_f02` | `oc-pdf` | integration (oracle) | `poppler-oracle` | green |
 | 1.9a | `scaling::per_page_extraction_cost_does_not_grow_with_page_count` | `oc-pdf` | perf regression | `test` | green |
+| VD-d.1 | `smask_spike::processed_image_applies_the_soft_mask` | `oc-pdf` | known-answer | `test` | green |
+| VD-d.2 | `smask_spike::processed_image_applies_a_stencil_mask` | `oc-pdf` | known-answer | `test` | green |
+| VD-d.3 | `smask_spike::processed_image_resolves_an_indexed_palette` | `oc-pdf` | known-answer | `test` | green |
+| VD-d.4 | `smask_spike::device_gray_is_expanded_to_rgb` | `oc-pdf` | known-answer | `test` | green |
+| VD-d.5 | `smask_spike::an_unmasked_image_comes_back_fully_opaque` | `oc-pdf` | known-answer | `test` | green |
+| VD-d.6 | `smask_spike::an_inline_image_decodes_like_any_other` | `oc-pdf` | known-answer | `test` | green |
+| VD-d.7 | `smask_spike::decoding_a_pixel_bomb_is_refused` | `oc-pdf` | unit | `test` | green |
+| A1.1 | `acceptance::every_glyph_carries_thirteen_real_signals` | `oc-pdf` | acceptance | `test` | green |
 | 1.19 | `cmd_dump_stage::cancel_is_observed_inside_page_loop` | `openconvert` | integration | `test` | green |
 | 1.19a | `cmd_dump_stage::an_uncancelled_loop_writes_every_page` | `openconvert` | integration | `test` | green |
 | 1.19b | `control::a_cancel_on_the_control_channel_sets_the_flag` | `openconvert` | unit | `test` | green |

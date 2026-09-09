@@ -10,6 +10,41 @@ use oc_model::extract::ImageKind;
 #[cfg(test)]
 use oc_model::extract::ImageRef;
 
+/// One image, decoded and composited: straight RGBA8 pixels, ready to encode.
+///
+/// Not part of the serialised IR — pixels do not belong in canonical JSON — so this is an
+/// `oc-pdf` type rather than an `oc-model` one. What reaches the IR is `ImageRef`, which
+/// describes the image; this is the image.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DecodedImage {
+    pub width: u32,
+    pub height: u32,
+    /// Four bytes per pixel, row-major, top-left origin.
+    pub rgba: Vec<u8>,
+}
+
+impl DecodedImage {
+    /// The pixel at `(x, y)`, or `None` outside the image.
+    pub fn pixel(&self, x: u32, y: u32) -> Option<[u8; 4]> {
+        if x >= self.width || y >= self.height {
+            return None;
+        }
+        let start = usize::try_from((y * self.width + x) * 4).ok()?;
+        self.rgba.get(start..start + 4)?.try_into().ok()
+    }
+
+    /// Whether any pixel is less than fully opaque.
+    ///
+    /// The question the SMask spike (VD-d) exists to answer: did compositing actually happen?
+    pub fn has_transparency(&self) -> bool {
+        self.rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .any(|px| px[3] != u8::MAX)
+    }
+}
+
 /// Classify an image by how it sits on the page.
 ///
 /// The order matters and is the plan's: a full-page background is checked before a strip,
