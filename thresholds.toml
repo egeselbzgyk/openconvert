@@ -508,7 +508,7 @@ owner = "maintainer"
 review_by = "2027-06-30"
 
 # ---------- model promotion gate (D9 G1-G9) ----------
-[model_gate.g4_max_seconds_on_L]
+[model_gate.g4_max_seconds_on_l]           # "L" = D9 reference machine L (4c/8t AVX2 x86, 16 GB)
 value = 50
 source = "provisional"
 evidence = "D9 G4 / RT C3, tightened by ratified note N-5: 25% share of a ~150 s deterministic 300-page book"

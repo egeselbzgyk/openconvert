@@ -30,9 +30,18 @@ One section per completed phase, listing new CLI flags, new IR fields, new warni
 - New: `canonical::to_canonical_json` and `canonical::CanonError` — sorted keys, `ir_version` first,
   NFC strings, `f32` at two decimals, non-finite floats rejected instead of written as `null`.
 
+### Thresholds (`oc-core`)
+
+- New: `crates/oc-core/build.rs` generates the typed `thresholds::T` and the `thresholds::PROVENANCE`
+  table from `thresholds.toml`, and fails the build on a malformed entry.
+- New: `thresholds::lint`, `thresholds::LintFinding`, `thresholds::LintProblem` — D17's owner/expiry
+  rule, shared by the test and (later) `xtask thresholds-lint`.
+
 ### New thresholds
 
 All 79 initial `thresholds.toml` entries (see the file; §1.5 of the plan is the reference list).
+`model_gate.g4_max_seconds_on_L` is spelled `model_gate.g4_max_seconds_on_l`: a threshold key becomes a
+Rust field name, and a capital letter there trips `non_snake_case` under `-D warnings`.
 
 ### New CLI flags
 

@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 0
-CURRENT_ITEM: 0.3 — `oc-core::thresholds` (build.rs codegen from thresholds.toml; tests 0.5 and 0.6, not yet written)
+CURRENT_ITEM: 0.4 — `oc-pdf` PDFium binding + `xtask vendor-pdfium` (tests 0.7 and 0.8, not yet written)
 LAST_UPDATED: 2026-09-09
 
 ---
@@ -13,6 +13,52 @@ LAST_UPDATED: 2026-09-09
 
 - `STATUS` is one of `IN_PROGRESS` · `BLOCKED` · `COMPLETE`.
 - Set `STATUS: BLOCKED` **only** when a decision is needed that `docs/DECISIONS.md` does not settle. Write the question under `## Blocked` and stop.
+- Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
+- Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
+
+---
+
+## Phases
+
+- [ ] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
+      *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
+      *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
+- [ ] **Phase 1** — PDF inspection and ingestion  *(includes the PDFium image/SMask spike = VD-d)*
+- [ ] **Phase 2** — Text assembly and normalization  *(normalization `N`, ledger, furniture inputs, language)*
+- [ ] **Phase 3** — Layout  *(blocks, columns, reading order, paragraphs, dehyphenation; VD-b must close)*
+- [ ] **Phase 4** — Structure  *(headings, outline/TOC, book structure, lists, footnotes, captions, quotes/verse, tables, images, metadata)*
+- [ ] **Phase 5** — EPUB generation, Tier-1 validator, EPUBCheck CI gate
+- [ ] **Phase 6** — Structural validation, repair loop, report, CI DOM checks  *(VD-f if the validation pack ships)*
+- [ ] **Phase 7** — Corpus v1, eval harness, benchmarks, real-world holdout
+- [ ] **Phase 8** — AI abstraction (no real model yet)
+- [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
+- [ ] **Phase 10** — AI-assisted decisions (the four tasks)
+- [ ] **Phase 11** — BYO providers
+- [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
+- [ ] **Phase 13** — OCR  *(VD-g must close)*
+- [ ] **Phase 14** — Security hardening
+- [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
+
+## Current work item
+
+**Phase 0, item 0.4 — `oc-pdf` PDFium binding.** Nothing written yet. This item needs the vendored
+library before its tests can pass, so it is two halves: `xtask vendor-pdfium` (download the
+`bblanchon/pdfium-binaries` asset for the host triple, verify a SHA-256 pinned in `xtask/pdfium.lock`,
+unpack to `vendor/pdfium/<triple>/`) and then `oc-pdf::pdfium::bind` (`Pdfium::bind_to_library`, resolving
+the library from `OC_PDFIUM_PATH`, then next to the executable, then `vendor/pdfium/<triple>/`, plus the
+startup ABI probe that calls into a one-page in-memory PDF and reports `PdfError::AbiMismatch`).
+
+Tests to write FIRST: 0.7 `pdfium::binds_and_reports_version` and 0.8
+`geom::prop_normalised_rects_are_inside_page`. Note 0.8 is listed under `oc_pdf::geom` in the plan's
+table — it is the page-space normalisation property (rotate ∈ {0,90,180,270} × CropBox offsets), which
+belongs to `oc-pdf`, not to `oc-model::geom`.
+
+Done in this branch: the workspace bootstrap (§1.1–§1.9), item 0.1 (`geom::Rect`, `ids::BlockId`),
+item 0.2 (`IR_VERSION`, `canonical::to_canonical_json`) and item 0.3 (`oc-core::thresholds` codegen and
+lint). Every open design question decided along the way is written up in `docs/DECISIONS_LOG.md` — read
+that before changing any of them.
+
+## Blocked` and stop.
 - Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
 - Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
 
@@ -115,6 +161,9 @@ _(empty)_
 - `GOLDEN_BLOCK_ID_CHAPTER_3 = "SDMLH752SA"` in `ids.rs` is a committed golden value. If that assertion
   ever fails, the id derivation changed and `IR_VERSION` must change in the same commit (D13.3).
 - Commit messages carry **no** Claude Code attribution footer (maintainer's instruction, 2026-09-09).
+- `xtask` is still a `todo!()` stub. Phase 0's Definition of Done needs `thresholds-lint` (the rule is
+  already implemented as `oc_core::thresholds::lint`; xtask only has to call it), `ci-lint`, `fixtures`,
+  `vendor-pdfium` and `stage-sidecars`. Those are separate work items, not part of item 0.4.
 
 ## Completed items log
 
@@ -122,3 +171,4 @@ _(empty)_
 2026-09-09  P0.setup  Cargo workspace, thresholds.toml, deny.toml, CI matrix, eval skeleton (§1.1-§1.9)  e6d02df
 2026-09-09  P0.1      oc-model: BlockId derivation + Rect (tests 0.1, 0.2)                          1d32410
 2026-09-09  P0.2      oc-model: canonical JSON + IR_VERSION (tests 0.3, 0.4)                        2cd8f76
+2026-09-09  P0.3      oc-core: thresholds codegen + provenance lint (tests 0.5, 0.6)                PENDING

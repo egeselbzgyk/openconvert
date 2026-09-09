@@ -154,3 +154,38 @@ Evidence: `cargo nextest run -p oc-model` — 4 tests pass; the committed snapsh
 beside `f64` `0.126 -> 0.126`, `ir_version` first, sorted keys at both levels, `cafe`+U+0301 emitted as
 NFC `café`, and `None` as `null`.
 Affects: D13.3, D13.8, ARCHITECTURE §4.3, `crates/oc-model/src/canonical.rs`, every future IR type.
+
+## 2026-09-09 · Threshold codegen: OUT_DIR, uniform types, and where the expiry rule lives · Phase 0
+Context: §1.5 says "`xtask` generates `crates/oc-core/src/thresholds_generated.rs` from this file at build
+time (a `build.rs` in `oc-core` reading `../../thresholds.toml`)", and Phase 0 detail 6 says the build
+script "fails the build on a malformed entry" while "`xtask thresholds-lint` additionally enforces
+owner/expiry". Four things needed deciding.
+Decision:
+1. **The generated file goes to `OUT_DIR` and is pulled in with `include!`**, not written into `src/`.
+   A build script that writes into its own source tree breaks read-only checkouts, vendored builds and
+   `cargo package`, and Cargo warns about it. Nothing is lost: the text is inspectable at
+   `target/<profile>/build/oc-core-*/out/thresholds_generated.rs`, and it is regenerated whenever
+   `thresholds.toml` changes (`cargo:rerun-if-changed`).
+2. **Uniform value types: TOML float -> `f64`, integer -> `i64`, boolean -> `bool`.** The alternative,
+   picking `u64` when a value happens to be non-negative, makes the *type* depend on the *value*, so
+   changing a number from 0 to -1 would silently break every caller. Uniform typing costs a cast at some
+   call sites and cannot surprise anyone.
+3. **The expiry rule is a lint, not a build failure.** An expired `review_by` must fail CI (D17), but
+   making it fail `cargo build` means the workspace stops compiling on a date nobody touched — including
+   on an old commit someone is bisecting. So `build.rs` rejects only *malformed* entries (missing or
+   misspelled `source`, a non-scalar `value`, a key that is not a Rust field name, a wrong
+   `schema_version`), and the owner/expiry rule lives in `oc_core::thresholds::lint`, asserted by test 0.5
+   and reused by `xtask thresholds-lint`. One implementation of the rule, two callers.
+   `lint` takes `today` as an ISO string rather than reading a clock, so it is a pure function; ISO dates
+   compare correctly as strings, so no date type is needed in `oc-core` at all — `time` is a
+   *dev*-dependency, used only by the test to ask what day it is.
+4. **`model_gate.g4_max_seconds_on_L` renamed to `..._on_l`.** The build script generates a struct field
+   per key, and a field with a capital letter trips `non_snake_case`, which `-D warnings` makes an error.
+   §1.5 wrote the key with D9's machine name "L" capitalised; the codegen requirement wins and the
+   machine is named in a comment on the key instead. Value, source, evidence and owner are unchanged.
+Evidence: `cargo nextest run -p oc-core` — `thresholds::every_provisional_has_owner_and_future_review`
+(all 79 entries pass, and four hand-written fixtures prove the lint still fires on a missing owner, an
+expired date, a missing date, and not on a `published` entry) and `thresholds::generated_constants_match_toml`
+(`T.layout.furniture.band_ratio == 0.08` and equals the runtime-parsed value; `PROVENANCE.len()` equals
+the number of entries in the file). The capital-L key was caught by the build script itself.
+Affects: D17, IMPLEMENTATION_PLAN §1.5 and Phase 0 detail 6, `thresholds.toml`, `crates/oc-core`.
