@@ -4,7 +4,9 @@
 //!
 //! Also the home of `thresholds`, the generated view of `thresholds.toml` (D17).
 
+pub mod cancel;
 pub mod events;
 pub mod exit;
 pub mod limits;
+pub mod progress;
 pub mod thresholds;

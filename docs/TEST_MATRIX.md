@@ -86,5 +86,12 @@ replaced by the phase that owns it.
 | 1.18 | `oracle::differential_pdftotext_coverage_f01` | `oc-pdf` | integration (oracle) | `poppler-oracle` | green |
 | 1.18a | `oracle::differential_pdftotext_coverage_f02` | `oc-pdf` | integration (oracle) | `poppler-oracle` | green |
 | 1.9a | `scaling::per_page_extraction_cost_does_not_grow_with_page_count` | `oc-pdf` | perf regression | `test` | green |
-| 1.19 | `cancel_is_observed_inside_page_loop` | `oc-core` | integration | `test` | — |
+| 1.19 | `cmd_dump_stage::cancel_is_observed_inside_page_loop` | `openconvert` | integration | `test` | green |
+| 1.19a | `cmd_dump_stage::an_uncancelled_loop_writes_every_page` | `openconvert` | integration | `test` | green |
+| 1.19b | `control::a_cancel_on_the_control_channel_sets_the_flag` | `openconvert` | unit | `test` | green |
+| 1.19c | `control::other_control_traffic_does_not_cancel` | `openconvert` | unit | `test` | green |
+| 1.19d | `control::a_closed_control_channel_does_not_cancel` | `openconvert` | unit | `test` | green |
+| 1.19e | `control::control_messages_parse_and_unknown_ones_are_ignored` | `openconvert` | unit | `test` | green |
+| 1.19f | `cancel::cancel_is_shared_by_clones` | `oc-core` | unit | `test` | green |
+| 1.19g | `cancel::cancel_crosses_threads` | `oc-core` | unit | `test` | green |
 | 1.20 | `limits::max_pages_refuses_at_the_door` | `oc-pdf` | integration | `test` | green |

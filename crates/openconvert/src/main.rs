@@ -8,6 +8,7 @@
 mod cli;
 mod cmd_dump_stage;
 mod cmd_inspect;
+mod control;
 
 use std::io::Write;
 use std::process::ExitCode as ProcessExitCode;

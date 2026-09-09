@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 1
-CURRENT_ITEM: 1.12 — cancellation (test 1.19)
+CURRENT_ITEM: 1.13 — VD-d, the image/SMask spike (the last Phase 1 item)
 LAST_UPDATED: 2026-09-10
 
 ---
@@ -42,37 +42,35 @@ LAST_UPDATED: 2026-09-10
 
 ## Current work item
 
-**Phase 1, item 1.12 — cancellation (test 1.19).** Items 1.1–1.11 are done: hand-made fixtures,
-glyph extraction (1.1–1.4), metamorphic invariants (1.5–1.7), the broken-text mutation (1.8),
-images (1.9), resource limits (1.10, 1.11, 1.20), encryption (1.12–1.14), outlines/metadata (1.15),
-fuzz-lite (1.16), `dump-stage ingest` (1.17) and the poppler oracle (1.18).
+**Phase 1, item 1.13 — VD-d, the image/SMask spike.** Every *named* test in the Phase 1 table
+(1.1–1.20) now exists and passes. Items 1.1–1.12 are done: hand-made fixtures, glyph extraction
+(1.1–1.4), metamorphic invariants (1.5–1.7), the broken-text mutation (1.8), images (1.9), resource
+limits (1.10, 1.11, 1.20), encryption (1.12–1.14), outlines/metadata (1.15), fuzz-lite (1.16),
+`dump-stage ingest` (1.17), the poppler oracle (1.18) and cancellation (1.19). Plus an O(n²)
+performance fix found while sizing 1.19's fixture.
 
-Next is RED: test 1.19 `cancel_is_observed_inside_page_loop` — setting the cancel flag during a
-200-page ingest reaches `done{cancelled}` in under 2 s (D13.2).
+VD-d is the last piece of Phase 1 and it **blocks Phase 4's image policy**, so it is worth doing
+properly rather than deferring. The plan's Failure-modes section specifies it: a ten-fixture spike
+comparing `get_processed_image()` against a `pypdfium2` reference in `eval/`, over **SMask,
+stencil mask, CMYK JPEG, indexed PNG, 1-bit CCITT, JPX, inline image, rotated image, tiny ornament,
+full-page scan**, with the outcome written into `docs/DECISIONS_LOG.md` and the image policy chosen
+from it.
 
-This is the first `oc-core` pipeline work, and the plan's Architecture block for Phase 1 gives the
-shape:
+Two of the ten already exist: `h09_image_smask` and `h10_inline_image`. The rest need building —
+`pdf-writer` can express most of them, and the ones it cannot (JPX, CCITT) need a crafted stream or
+an honest note that the format is untested.
 
-```rust
-pub struct Ctx { pub progress: Arc<dyn Progress>, pub cancel: Arc<AtomicBool>,
-                 pub limits: Limits, pub warnings: Vec<Warning> }
-```
+The question the spike has to answer, in the plan's own terms: does `get_processed_image()`
+composite masks and colour spaces correctly, or does it need `get_raw_image()` plus our own
+compositing? Everything downstream of Phase 4's image policy depends on the answer.
 
-So: `crates/oc-core/src/{cancel.rs, progress.rs}` — `Cancel` wrapping an `AtomicBool`, and a
-`Progress` trait the CLI implements over its `EventSink`. Then a page loop in `oc-core` that checks
-the flag **between pages**, not only at the end, and exits with `ExitCode::Cancelled` (3) and a
-`done{cancelled}` event. `oc_testkit::handmade::many_pages(200)` already builds the document.
+After VD-d: run the Phase 1 Definition of Done check (§0.3) — every named test, `--workspace` green,
+clippy, fmt, `cargo deny`, `thresholds-lint`, the A1.1–A1.6 acceptance criteria, a
+`docs/CHANGELOG.md` phase entry — then tick Phase 1 and advance to Phase 2.
 
-Two things to hold to:
-- **Between pages is the only granularity available.** A single page's extraction is one PDFium
-  call and cannot be interrupted; 2 s is a budget over the whole loop, and a single page that takes
-  longer than that is a different problem (the `perf.seconds_per_page_max` threshold).
-- The flag has to be `Arc<AtomicBool>` rather than a channel, because Phase 12's Tauri UI sets it
-  from another thread while the loop runs.
-
-After 1.12, Phase 1's remaining work is **VD-d**, the ten-PDF image/SMask spike that blocks Phase
-4's image policy — `h09_image_smask` is its first fixture — and then the Phase 1 Definition of Done
-check (§0.3) before advancing to Phase 2.
+**A1.6 is the acceptance criterion to check deliberately**: ≤ 0.15 s/page and ≤ 250 MB peak RSS on
+a 300-page born-digital book. The O(n²) fix moved the first number a long way, but it has not been
+measured against a real 300-page book, only against synthetic empty pages.
 
 Also open, and cheap: CI's `test` job runs `xtask fixtures` but never `handmade-fixtures` or
 `mutations`, so a builder change that no longer reproduces the committed fixtures would not be
@@ -173,3 +171,5 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-10  P1.9      oc-pdf fuzz-lite: random, truncated and corrupted inputs (test 1.16)  d9f18aa
 2026-09-10  P1.10     oc-pdf dump + openconvert dump-stage ingest (test 1.17)  0ccbd1b
 2026-09-10  P1.11     oc-pdf differential pdftotext oracle behind a feature (test 1.18)  2a9aa8f
+2026-09-10  P1.perf   oc-pdf: page ids read once, not per page (O(n^2) fix)                6908601
+2026-09-10  P1.12     oc-core cancel/progress + openconvert control channel (test 1.19)

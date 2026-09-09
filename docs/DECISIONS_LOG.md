@@ -1146,3 +1146,43 @@ many_pages` is now the tool for it.
 Evidence: `cargo nextest run --workspace` - 66 passed.
 Affects: A1.6, IMPLEMENTATION_PLAN Phase 1 detail 4, `crates/oc-pdf/src/pdfium/{doc.rs,images.rs}`,
 `crates/oc-pdf/tests/scaling.rs`.
+
+## 2026-09-10 · Cancellation, and two tests that are deterministic instead of one that races · Phase 1
+Context: item 1.12 implements `oc-core::{cancel, progress}` and `openconvert::control` against
+test 1.19.
+
+1. **`Cancel` is an `Arc<AtomicBool>` behind a named type, not a channel.** §2.3 requires the flag
+   to be polled at stage boundaries and inside every per-page loop, and Phase 12's UI sets it from
+   another thread while the loop runs. A relaxed atomic read is cheap enough to do between every
+   page of a nine-hundred-page book; a channel receive in the middle of a page loop is not.
+   `Release`/`Acquire` rather than `Relaxed`, so anything the cancelling thread did first is
+   visible to the thread that observes the flag. Phase 14 adds `AbortCause` to the same flag
+   rather than a second mechanism (§14.6), and nothing here has to change for that.
+
+2. **Test 1.19 is deterministic, and the obvious way to write it is not.** "Setting the cancel flag
+   during a 200-page ingest" invites a thread that sleeps and then cancels - which works only if
+   the loop is still running when the sleep ends. Measured: a 3 000-page dump takes 0.53 s, so 200
+   empty pages take single-digit milliseconds, and such a test would pass or fail on how fast the
+   machine is. Instead the cancel is fired **from inside the loop's own progress callback**, after
+   page 3 of 200. That pins the moment exactly and asserts the property that actually matters: the
+   loop stopped at page 4, not at page 200, so the flag is read *between* pages rather than once
+   before them. A companion test runs the same loop uncancelled and asserts all 20 pages are
+   written, without which the first test would pass against a loop that always stopped at four.
+
+3. **The control channel is tested against a byte slice, not a process.** The remaining link is
+   stdin NDJSON to flag. An end-to-end test - spawn the binary, write `{"t":"cancel"}`, hope the
+   flag is set before the work finishes - is a race by construction, and at 0.53 s for 3 000 pages
+   it is a race the test would often lose. So the reader loop is `drain<R: BufRead>`, `listen` is
+   the three lines that put it on a thread over stdin, and `drain` is tested directly. Both halves
+   of 1.19 are deterministic; the join between them is three lines with no branch in it.
+
+4. **Unknown control messages are ignored, not fatal.** A supervisor from a newer UI may send a
+   message this engine does not know. Refusing to work because of it would turn a
+   forward-compatible protocol into a brittle one, so `parse` returns `None` for anything
+   unrecognised, malformed or blank, and the reader carries on.
+
+`Outcome::{Completed, Cancelled}` is a separate type from `Result` because being cancelled is not a
+failure - it is the answer the user asked for, and it exits 3 rather than 1 (§2.4).
+Evidence: `cargo nextest run --workspace` - 75 passed.
+Affects: D13.2, IMPLEMENTATION_PLAN §2.3, §2.4, Phase 1 test 1.19, Phase 14 §6,
+`crates/oc-core/src/{cancel.rs,progress.rs}`, `crates/openconvert/src/{control.rs,cmd_dump_stage.rs}`.

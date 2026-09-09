@@ -245,3 +245,11 @@ Rust field name, and a capital letter there trips `non_snake_case` under `-D war
 - New: `tests/scaling.rs`, which asserts the *ratio* of per-page cost between 100 and 800
   pages rather than any absolute duration, so it detects a complexity change and not a slow
   CI runner.
+
+### Cancellation (`oc-core`, `openconvert`)
+
+- New: `oc_core::cancel::{Cancel, Outcome}` and `oc_core::progress::{Progress, Silent}`.
+- New: `openconvert::control` — NDJSON on stdin, `{"t":"cancel"}` and `{"t":"ping"}` (§2.3).
+  Unknown messages are ignored so the protocol stays forward-compatible.
+- `dump-stage` polls the flag at the stage boundary and before every page, and exits **3**
+  with `done{"status":"cancelled"}`.
