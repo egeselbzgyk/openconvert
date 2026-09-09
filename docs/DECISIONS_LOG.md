@@ -1035,3 +1035,67 @@ Evidence: `cargo nextest run --workspace` - 65 passed.
 Affects: D13.3, D13.8, RT B4, IMPLEMENTATION_PLAN Phase 1 detail 9 and test 1.17, §2.1, §2.4,
 `crates/oc-model/src/extract.rs`, `crates/oc-pdf/src/dump.rs`,
 `crates/openconvert/src/{cli.rs,cmd_dump_stage.rs,main.rs}`.
+
+## 2026-09-10 · PDFium erases the difference between a soft hyphen and a hard one · Phase 1
+Context: item 1.11 writes test 1.18, the differential test against `pdftotext`.
+
+**The finding, and it is the most consequential of Phase 1.** The oracle test over `f02` failed
+with exactly one missing word: `"projec\u{ad}"`. Chased down:
+
+| fixture | what the source says | `pdftotext` reports | PDFium reports |
+|---|---|---|---|
+| `f01` | `pipe-` typed by the author, a real hyphen | `pipe-` (U+002D) | `pipe` + **U+0002** |
+| `f02` | `projection`, hyphenated automatically by Typst | `projec` + **U+00AD** (soft hyphen) | `projec` + **U+0002** |
+
+So PDFium reports a **hard hyphen and a soft hyphen as the same character**, U+0002, and
+`is_hyphen()` says only *that* a character is a hyphen, never *which*. An independent extractor
+keeps them apart; ours cannot.
+
+**Why this matters more than it looks.** Three separate parts of the design assume the
+distinction exists:
+
+- D13.4 gives `SoftHyphen` its own ledger reason - "a soft hyphen, U+00AD, removed by
+  normalisation `N`". **That reason can never fire from a PDFium stream**, because U+00AD never
+  arrives. Left alone, soft hyphens would survive into the EPUB as U+0002 control characters, and
+  the budget for removing them would sit permanently unused - the same shape as the `OverdrawDedup`
+  gap from item 1.2.
+- PIPELINE §369 requires that a genuinely hyphenated compound broken at its real hyphen
+  (`Nord-Süd-Achse`, `E-Mail-Adresse`) is **not** rejoined, while a typesetter's soft hyphen **is**.
+  That is precisely the distinction PDFium has erased, so Phase 3's dehyphenator cannot make it
+  from the character alone and will have to fall back on the dictionary check.
+- Item 1.4's note in `PROGRESS.md` said PDFium reports a line-break hyphen "not as U+002D". True
+  but incomplete: it is not U+00AD either, and the two cases are indistinguishable downstream.
+
+**What recovers it.** The content stream. `lopdf` access to the `Tj`/`TJ` operands gives the actual
+byte the font was asked to draw, which distinguishes the two - and that is the *same* mechanism the
+`OverdrawDedup` gap needs. Two open items now point at one piece of work, which makes it worth
+doing properly in Phase 2 rather than patching twice.
+
+**The test's own decision.** The three hyphen forms (U+0002, U+00AD, U+002D) are folded to one
+before comparison. Test 1.18 asks whether any *text* went missing; re-reporting an encoding
+difference as a lost word would make it a worse test of that, and the encoding difference is
+recorded here instead. Without the folding it fails on one word out of ~200 and says nothing useful.
+
+**Two decisions about how the test runs.**
+
+1. **A cargo feature, not a skip attribute.** The plan says to run this "only when `pdftotext` is
+   on PATH". CLAUDE.md bans marking tests as skipped and `xtask ci-lint` enforces it, on the
+   grounds that a skipped test reads as a green one - and a test that silently passes when its
+   oracle is absent is that same failure in another costume. The whole file is
+   `#![cfg(feature = "poppler-oracle")]`: off, it does not exist and claims nothing; on, it must
+   find the binary or fail. A `poppler-oracle` CI job installs `poppler-utils` and turns it on,
+   following the `epubcheck` job's pattern. `ci-lint` flagged this file's own prose about the
+   banned attribute, as it did in Phase 0; reworded rather than exempted, because the exemption
+   list is exactly two files and a test asserts that.
+2. **`f02` was added to the plan's `f01`.** `f01` is one column of prose and both extractors walk
+   it identically - it agrees on the first run and proves little. `f02` has two columns and
+   automatic hyphenation, and it is the one that found the U+0002 collapse. A differential test
+   that only ever agrees is not yet a test.
+
+Also worth recording: the oracle here is Xpdf's `pdftotext` 4.00, not Poppler's. Poppler forked
+from Xpdf, so it is still an implementation independent of PDFium, which is what the test needs;
+CI installs `poppler-utils`, so both are exercised across environments.
+Evidence: `cargo nextest run --workspace` - 65 passed; `--features poppler-oracle` - 46 passed
+in `oc-pdf`, both oracle tests green.
+Affects: D13.4 `SoftHyphen`, D15, PIPELINE §369, R9 §B.5, IMPLEMENTATION_PLAN Phase 1 test 1.18,
+`crates/oc-pdf/tests/oracle.rs`, `crates/oc-pdf/Cargo.toml`, `.github/workflows/ci.yml`.

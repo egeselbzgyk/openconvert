@@ -225,3 +225,14 @@ Rust field name, and a capital letter there trips `non_snake_case` under `-D war
   128-slot ASCII array, which was putting 128 mostly-zero entries into every page of every
   dump.
 - An unimplemented stage is `E_UNKNOWN_STAGE` and exit 2.
+
+### Differential oracle (`oc-pdf`, CI)
+
+- New: `tests/oracle.rs` behind the `poppler-oracle` cargo feature, and a CI job that installs
+  `poppler-utils` and turns it on. The feature is the gate in place of a skip attribute, which
+  CLAUDE.md bans.
+- **Found:** PDFium reports both a hard hyphen (U+002D) and a soft hyphen (U+00AD) as U+0002,
+  and `is_hyphen()` does not distinguish them. D13.4's `SoftHyphen` reason cannot fire from a
+  PDFium stream, and PIPELINE §369's compound-word rule loses its cheapest signal. Recovering
+  it needs content-stream access — the same mechanism the `OverdrawDedup` gap needs. See
+  `docs/DECISIONS_LOG.md`.

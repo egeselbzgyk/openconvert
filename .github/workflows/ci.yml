@@ -73,6 +73,23 @@ jobs:
       - name: assert oc-core cannot reach a socket crate
         run: cargo run -p xtask -- assert-no-net-deps
 
+  poppler-oracle:                                      # D15: CI-only oracle, never shipped
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+      - run: sudo apt-get update && sudo apt-get install -y poppler-utils
+      - run: cargo run -p xtask -- vendor-pdfium
+      - run: cargo run -p xtask -- fixtures
+      # The feature exists so this test is gated by a CI job rather than by a skip attribute,
+      # which CLAUDE.md bans and `xtask ci-lint` enforces. Off, the test does not exist; on,
+      # it must find `pdftotext` or fail.
+      - run: cargo nextest run -p oc-pdf --features poppler-oracle --locked -E 'test(differential_)'
+
   epubcheck:                                           # D6 Tier 2 hard gate
     runs-on: ubuntu-latest
     needs: test

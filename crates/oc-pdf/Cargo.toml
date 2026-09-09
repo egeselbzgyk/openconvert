@@ -21,8 +21,16 @@ sha2.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
 
+[features]
+# The differential test against `pdftotext` (test 1.18). Off by default: Poppler and Xpdf
+# are GPL and never ship (D15), and the binary is not present on most machines. The
+# `poppler-oracle` CI job turns it on, which is the gate CLAUDE.md asks for in place of
+# `#[ignore]`.
+poppler-oracle = []
+
 [dev-dependencies]
 oc-testkit = { path = "../oc-testkit", version = "0.1.0" }
 insta.workspace = true
 proptest.workspace = true
 pdf-writer.workspace = true
+unicode-normalization.workspace = true

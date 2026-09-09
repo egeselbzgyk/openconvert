@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 1
-CURRENT_ITEM: 1.11 — the poppler oracle (test 1.18)
+CURRENT_ITEM: 1.12 — cancellation (test 1.19)
 LAST_UPDATED: 2026-09-10
 
 ---
@@ -42,33 +42,41 @@ LAST_UPDATED: 2026-09-10
 
 ## Current work item
 
-**Phase 1, item 1.11 — the poppler oracle (test 1.18).** Items 1.1–1.10 are done: hand-made
-fixtures, glyph extraction (1.1–1.4), metamorphic invariants (1.5–1.7), the broken-text mutation
-(1.8), images (1.9), resource limits (1.10, 1.11, 1.20), encryption (1.12–1.14),
-outlines/metadata (1.15), fuzz-lite (1.16) and `dump-stage ingest` (1.17).
+**Phase 1, item 1.12 — cancellation (test 1.19).** Items 1.1–1.11 are done: hand-made fixtures,
+glyph extraction (1.1–1.4), metamorphic invariants (1.5–1.7), the broken-text mutation (1.8),
+images (1.9), resource limits (1.10, 1.11, 1.20), encryption (1.12–1.14), outlines/metadata (1.15),
+fuzz-lite (1.16), `dump-stage ingest` (1.17) and the poppler oracle (1.18).
 
-Next is RED: test 1.18 `differential_pdftotext_coverage_f01` — every word `pdftotext` extracts from
-`f01` appears in our glyph stream after NFC (R9 §B.5).
+Next is RED: test 1.19 `cancel_is_observed_inside_page_loop` — setting the cancel flag during a
+200-page ingest reaches `done{cancelled}` in under 2 s (D13.2).
 
-Three things this item has to settle, in order:
+This is the first `oc-core` pipeline work, and the plan's Architecture block for Phase 1 gives the
+shape:
 
-1. **`pdftotext` is not shipped and may not be present.** D15 bans Poppler from the shipped tree
-   (GPL); it is a CI-only oracle binary. So the test runs only when `pdftotext` is on `PATH` — and
-   **not** by being `#[ignore]`d, which CLAUDE.md and `xtask ci-lint` both forbid. It has to be a
-   test that *passes* when the oracle is absent while saying so, or a cargo feature named in
-   `docs/TEST_MATRIX.md` and turned on by a CI job. The plan says the CI `test` job installs
-   `poppler-utils`, so the feature route is the one that matches: add the feature, add it to
-   `.github/workflows/ci.yml`, list it in the matrix.
-2. **What "appears in our glyph stream" means.** Our stream has no words yet — Phase 2 assembles
-   them. So the comparison is over the concatenated `ch` sequence with whitespace removed, NFC on
-   both sides, asserting containment of each `pdftotext` word. Not equality: `pdftotext` inserts
-   its own spacing and line breaks, which is exactly the reconstruction Phase 2 will do
-   differently.
-3. **A word `pdftotext` gets and we do not is a real finding**, not a reason to weaken the test.
-   Record it before adjusting anything.
+```rust
+pub struct Ctx { pub progress: Arc<dyn Progress>, pub cancel: Arc<AtomicBool>,
+                 pub limits: Limits, pub warnings: Vec<Warning> }
+```
 
-Remaining Phase 1 items after 1.11: 1.12 cancellation (1.19) · then VD-d, the ten-PDF image spike
-that blocks Phase 4's image policy. VD-d has its first fixture, `h09_image_smask`.
+So: `crates/oc-core/src/{cancel.rs, progress.rs}` — `Cancel` wrapping an `AtomicBool`, and a
+`Progress` trait the CLI implements over its `EventSink`. Then a page loop in `oc-core` that checks
+the flag **between pages**, not only at the end, and exits with `ExitCode::Cancelled` (3) and a
+`done{cancelled}` event. `oc_testkit::handmade::many_pages(200)` already builds the document.
+
+Two things to hold to:
+- **Between pages is the only granularity available.** A single page's extraction is one PDFium
+  call and cannot be interrupted; 2 s is a budget over the whole loop, and a single page that takes
+  longer than that is a different problem (the `perf.seconds_per_page_max` threshold).
+- The flag has to be `Arc<AtomicBool>` rather than a channel, because Phase 12's Tauri UI sets it
+  from another thread while the loop runs.
+
+After 1.12, Phase 1's remaining work is **VD-d**, the ten-PDF image/SMask spike that blocks Phase
+4's image policy — `h09_image_smask` is its first fixture — and then the Phase 1 Definition of Done
+check (§0.3) before advancing to Phase 2.
+
+Also open, and cheap: CI's `test` job runs `xtask fixtures` but never `handmade-fixtures` or
+`mutations`, so a builder change that no longer reproduces the committed fixtures would not be
+caught. A `--check` mode on those two tasks would close it.
 
 ## Notes
 
@@ -83,10 +91,14 @@ Carried forward, in the order a fresh session needs them:
   `target/fixtures/`), `-- handmade-fixtures` (h01–h13, committed), `-- mutations` (committed).
 - **No stage may treat the backend's glyph order as reading order.** Measured in item 1.3: PDFium
   reorders the lines of a page under `/Rotate 90`. Reading order is Phase 3's, from geometry.
-- **Open from item 1.4, for Phase 2/3:** PDFium reports a line-break hyphen as **U+0002** with
-  `is_hyphen()` set, not as U+002D. So `C_raw` already differs from the document by one character at
-  every hyphenated line break — normalisation `N` must map it back before `Dehyphenate` can account
-  for removing it — and the flag is a free, exact dehyphenation signal for Phase 3.
+- **Open from items 1.4 and 1.11, for Phase 2/3 — the biggest open item in Phase 1.** PDFium
+  reports a line-break hyphen as **U+0002**, and reports a *hard* hyphen (U+002D) and a *soft*
+  one (U+00AD) as the same U+0002; `is_hyphen()` says only that it is a hyphen, never which.
+  Measured against `pdftotext`, which keeps them apart. Consequences: D13.4's `SoftHyphen`
+  reason can never fire, PIPELINE §369's compound-word rule (`Nord-Süd-Achse` must not be
+  rejoined) loses its cheapest signal, and `C_raw` differs from the document at every
+  hyphenated line break. Recovering it needs `lopdf` content-stream access — **the same
+  mechanism the `OverdrawDedup` gap below needs**, so do both at once in Phase 2.
 - **Open from item 1.2, for the conservation-law work in Phase 2/6:** `OverdrawDedup` has a budget
   and no way to consume it. PDFium collapses overdrawn duplicates before we see them and its
   object-level text API returns the same deduplicated string, so the collapsed count needs `lopdf`
@@ -160,3 +172,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-10  P1.8      oc-pdf outline walk + meta from the object tree (test 1.15)  d815ad3
 2026-09-10  P1.9      oc-pdf fuzz-lite: random, truncated and corrupted inputs (test 1.16)  d9f18aa
 2026-09-10  P1.10     oc-pdf dump + openconvert dump-stage ingest (test 1.17)  0ccbd1b
+2026-09-10  P1.11     oc-pdf differential pdftotext oracle behind a feature (test 1.18)

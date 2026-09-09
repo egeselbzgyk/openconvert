@@ -83,6 +83,7 @@ replaced by the phase that owns it.
 | 1.17a | `dump::char_histogram_serialises_only_present_characters` | `oc-pdf` | unit | `test` | green |
 | 1.17b | `cli::dump_stage_ingest_streams_one_object_per_line` | `openconvert` | integration | `test` | green |
 | 1.17c | `cli::dump_stage_rejects_an_unimplemented_stage` | `openconvert` | integration | `test` | green |
-| 1.18 | `differential_pdftotext_coverage_f01` | `oc-pdf` | integration (oracle) | `test` | — |
+| 1.18 | `oracle::differential_pdftotext_coverage_f01` | `oc-pdf` | integration (oracle) | `poppler-oracle` | green |
+| 1.18a | `oracle::differential_pdftotext_coverage_f02` | `oc-pdf` | integration (oracle) | `poppler-oracle` | green |
 | 1.19 | `cancel_is_observed_inside_page_loop` | `oc-core` | integration | `test` | — |
 | 1.20 | `limits::max_pages_refuses_at_the_door` | `oc-pdf` | integration | `test` | green |
