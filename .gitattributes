@@ -1,2 +1,17 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Binary fixtures and artefacts must never be line-ending normalised. Git's `text=auto`
+# heuristic only looks for a NUL byte, and a small PDF has none — so it would classify
+# probe.pdf as text and rewrite its newlines on checkout, shifting every byte offset in the
+# cross-reference table and leaving a file PDFium cannot open.
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gguf  binary
+*.epub  binary
+*.tgz   binary
+*.zip   binary
+*.ttf   binary
+*.otf   binary
