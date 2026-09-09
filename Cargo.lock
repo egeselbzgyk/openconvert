@@ -3517,6 +3517,7 @@ dependencies = [
 name = "oc-testkit"
 version = "0.1.0"
 dependencies = [
+ "lopdf",
  "oc-core",
  "oc-model",
  "pdf-writer 0.13.0",

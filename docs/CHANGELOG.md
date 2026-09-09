@@ -143,3 +143,11 @@ Rust field name, and a capital letter there trips `non_snake_case` under `-D war
 - Changed: `PdfiumBackend::bind` is idempotent — PDFium can only be bound once per process.
 - Changed: `PageGeometry::normalise`'s debug assertion is now conditional on the source rect
   lying inside the crop box; content outside it is `ClippedOffPage`, not a bug.
+
+### Metamorphic invariants (`oc-pdf`, `oc-testkit`, `xtask`)
+
+- New: `oc_testkit::mutate::{rotate, cropbox_offset}` — the mutation recipes, over `lopdf`.
+- New: `oc_testkit::handmade::line_of_glyphs`, one line of glyphs in any operator order.
+- New: `cargo xtask mutations`, writing `corpus/fixtures/mutations/h01__cropbox_offset.pdf`.
+- Measured: PDFium's character order is not invariant under `/Rotate 90`. No stage may
+  treat the backend's glyph order as reading order; see `docs/DECISIONS_LOG.md`.

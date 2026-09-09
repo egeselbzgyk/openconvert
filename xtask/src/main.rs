@@ -2,7 +2,9 @@
 //!
 //! Everything here is build- and test-time tooling. Nothing in `xtask` ships.
 
-use xtask::{ci_lint, fixtures, handmade_fixtures, stage_sidecars, thresholds_lint, vendor_pdfium};
+use xtask::{
+    ci_lint, fixtures, handmade_fixtures, mutations, stage_sidecars, thresholds_lint, vendor_pdfium,
+};
 
 use std::path::{Path, PathBuf};
 
@@ -16,6 +18,8 @@ tasks:
   fixtures          compile the Typst fixture sources to target/fixtures/
                       --keep-structtree   emit the tagged variants instead (D18)
   handmade-fixtures write the hand-made PDFs to corpus/fixtures/handmade/
+  mutations         apply the mutation recipes to the fixtures they belong to and
+                    write the results to corpus/fixtures/mutations/
   ci-lint           repository rules: no skipped tests, no unnumbered markers
                       --release-branch    also reject TODO_ placeholders in models.toml
   thresholds-lint   D17 provenance: every provisional threshold has an owner and a
@@ -36,6 +40,7 @@ fn main() -> Result<()> {
             fixtures::run(&root, keep_structtree)
         }
         Some("handmade-fixtures") => handmade_fixtures::run(&root),
+        Some("mutations") => mutations::run(&root),
         Some("ci-lint") => {
             let release_branch = std::env::args().any(|a| a == "--release-branch");
             ci_lint::run(&root, release_branch)

@@ -129,6 +129,44 @@ pub fn h08_overlap_distinct() -> Vec<u8> {
     overlap_pair_at(0.2, "A", "B")
 }
 
+/// The characters test 1.7 draws along one baseline, in the order they read.
+pub const LINE_ALPHABET: &str = "ABCDEFGH";
+
+/// How many of them there are, as the permutation strategy needs it.
+pub const LINE_GLYPH_COUNT: usize = LINE_ALPHABET.len();
+
+/// The gap between their origins, in points.
+///
+/// Wider than a 12 pt capital, so no two glyphs touch and the reading-order sort has an
+/// unambiguous answer; wide enough that PDFium synthesises a space between them, which is
+/// the second thing this fixture is worth — those spaces are dropped at ingestion, so a
+/// reorder test that counted them would be testing the wrong invariant.
+const LINE_ADVANCE_PT: f32 = 14.0;
+
+/// One line of glyphs, drawn in the order `order` gives.
+///
+/// `order` is a permutation of `0..LINE_GLYPH_COUNT`: each entry names the slot the next
+/// drawing operator fills, so `[7, 6, .., 0]` writes the line back to front. The rendered
+/// page is identical whichever permutation is used — position comes from the text matrix,
+/// not from the operator's place in the stream — which is what makes this a metamorphic
+/// fixture rather than eight different fixtures.
+pub fn line_of_glyphs(order: &[usize]) -> Vec<u8> {
+    let mut page = Page::default();
+    for slot in order {
+        let Some(ch) = LINE_ALPHABET.chars().nth(*slot) else {
+            continue;
+        };
+        let x = FIXTURE_ORIGIN.0 + LINE_ADVANCE_PT * slot_offset(*slot);
+        page = page.text((x, FIXTURE_ORIGIN.1), ch.encode_utf8(&mut [0u8; 4]));
+    }
+    build(page)
+}
+
+/// A slot index as a distance multiplier. Separate so the cast is in one place.
+fn slot_offset(slot: usize) -> f32 {
+    u16::try_from(slot).unwrap_or(u16::MAX).into()
+}
+
 /// The overdraw fixture at an arbitrary separation.
 ///
 /// Kept public so the PDFium merge threshold recorded in `docs/DECISIONS_LOG.md` can be

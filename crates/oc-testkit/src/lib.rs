@@ -4,3 +4,4 @@
 
 pub mod assertions;
 pub mod handmade;
+pub mod mutate;

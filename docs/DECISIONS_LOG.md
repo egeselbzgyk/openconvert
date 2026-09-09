@@ -645,3 +645,61 @@ of a 200 pt page, which would have made it a clipping test by accident.
 Evidence: `cargo nextest run --workspace` - 30 passed.
 Affects: D3, D13.4, D13.10, R1 §D.6 #1, IMPLEMENTATION_PLAN Phase 0 detail 5 and Phase 1 details 1-3,
 tests 0.7 and 1.1-1.4, `crates/oc-model/src/{extract,ledger}.rs`, `crates/oc-pdf`.
+
+## 2026-09-09 · PDFium reorders text under `/Rotate 90`, and two mutation decisions · Phase 1
+Context: item 1.3 writes the metamorphic invariants, tests 1.5-1.7, in
+`crates/oc-pdf/tests/metamorphic.rs`.
+
+1. **PDFium's character order is not rotation-invariant, and test 1.5 as the plan states it is
+   false.** The plan's assertion is "for `/Rotate` in {0,90,180,270} applied to `f01`, the ordered
+   sequence of `ch` values is identical". Measured, over both pages of `f01`:
+
+   | `/Rotate` | raw order preserved | multiset preserved | order preserved after un-rotating |
+   |---|---|---|---|
+   | 0   | yes | yes | yes |
+   | 90  | **no** | yes | yes |
+   | 180 | yes | yes | yes |
+   | 270 | yes | yes | yes |
+
+   At 90 - and only at 90 - PDFium's text page hands back the lines of the first paragraph in a
+   different order. Its text page is not a transcript of the content stream: it groups characters
+   into text lines and picks a flow orientation, and at a quarter turn that heuristic decides
+   differently. Nothing is lost, and no line is internally scrambled; the lines arrive in another
+   sequence.
+
+   So the invariant is asserted where it is true rather than weakened to a multiset comparison.
+   The test un-rotates each glyph origin back into the unrotated display frame and compares the
+   characters **in reading order**, which is the same string for all four rotations. That is a
+   stronger test than the plan's, not a weaker one: it also proves `PageGeometry::normalise` maps
+   each rotation to the right axis, because origins from a rotation we had mapped wrongly would
+   not line up. The multiset is still asserted, first and separately, so that a failure says
+   whether text was *lost* or merely *reordered* - which is the difference between a conservation
+   bug and an ordering bug.
+
+   Consequence for later phases: **no stage may treat the backend's glyph order as reading order.**
+   Phase 3 computes reading order from geometry, which was always the design (PIPELINE `layout`),
+   and this is the measurement that says the shortcut was never available.
+
+2. **The mutation recipes are Rust, in `oc-testkit::mutate`, not Python.** The plan's Phase 1 file
+   list puts them in `eval/src/oc_eval/mutate/*.py`. A metamorphic test has to mutate and compare
+   in one process; a Python step in the middle would make `cargo nextest` - the gate - depend on an
+   interpreter, a virtualenv and a `pikepdf` wheel to run at all. `rotate` and `cropbox_offset` are
+   implemented over `lopdf`, which is the first real use of that dependency. The Python recipes keep
+   their job in Phase 7, where a corpus of real books is mutated once and the output is a file.
+
+3. **Mutated fixtures are committed, by a new `cargo xtask mutations`.** `corpus/fixtures/mutations/`
+   was an empty directory the plan names as a regression artefact. It now holds
+   `h01__cropbox_offset.pdf`, and test 1.6 ingests all three routes to the same page - `h03`, built
+   with the offset; `h01` mutated at run time; and the committed file - because they fail
+   differently. The committed file is compared by what it extracts, not byte-for-byte, so an `lopdf`
+   bump that writes the same document differently does not fail an unrelated test.
+
+Also: `Page::line_of_glyphs` in `oc-testkit::handmade` builds one line of eight glyphs in any given
+operator order, for test 1.7. The gap between them is deliberately wide enough that PDFium
+synthesises spaces, which ingestion then drops - a reorder test that counted those would be testing
+the wrong invariant.
+Evidence: `cargo nextest run --workspace` - 33 passed. Rotation table measured on PDFium
+`chromium/7881` with `f01_prose_single_column.pdf`.
+Affects: D3, D13.4, R1 §D.6 #1, IMPLEMENTATION_PLAN Phase 1 tests 1.5-1.7 and its Files list,
+`crates/oc-pdf/tests/metamorphic.rs`, `crates/oc-testkit/src/{mutate.rs,handmade.rs}`,
+`xtask/src/mutations.rs`.

@@ -64,9 +64,9 @@ replaced by the phase that owns it.
 | 1.2 | `glyphs::generated_spaces_are_dropped_and_ledgered` | `oc-pdf` | fixture (h06) | `test` | green |
 | 1.3 | `glyphs::invisible_render_mode_3_is_not_visible_text` | `oc-pdf` | fixture (h05) | `test` | green |
 | 1.4 | `glyphs::overdraw_duplicate_glyphs_are_deduped` | `oc-pdf` | fixture (h07, h08) | `test` | green |
-| 1.5 | `prop_rotate_invariance_of_extracted_text` | `oc-pdf` | metamorphic | `test`, `proptest-deep` | — |
-| 1.6 | `cropbox_offset_does_not_lose_text` | `oc-pdf` | metamorphic (h03) | `test` | — |
-| 1.7 | `prop_content_stream_reorder_invariance` | `oc-pdf` | metamorphic | `test`, `proptest-deep` | — |
+| 1.5 | `metamorphic::prop_rotate_invariance_of_extracted_text` | `oc-pdf` | metamorphic | `test`, `proptest-deep` | green |
+| 1.6 | `metamorphic::cropbox_offset_does_not_lose_text` | `oc-pdf` | metamorphic (h03) | `test` | green |
+| 1.7 | `metamorphic::prop_content_stream_reorder_invariance` | `oc-pdf` | metamorphic | `test`, `proptest-deep` | green |
 | 1.8 | `stripped_tounicode_page_classifies_broken_text` | `oc-pdf` | fixture (mutation) | `test` | — |
 | 1.9 | `image_only_page_extracts_one_image_with_dpi` | `oc-pdf` | fixture (f03) | `test` | — |
 | 1.10 | `image_pixel_bomb_is_refused_before_decode` | `oc-pdf` | unit | `test` | — |
