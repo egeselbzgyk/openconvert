@@ -86,3 +86,43 @@ Decision: every internal path dependency is written `{ path = "…", version = "
 Evidence: `cargo deny check bans` — `error[wildcard]: found 1 wildcard dependency for crate 'oc-core'`
 before the change; `bans ok` after.
 Affects: IMPLEMENTATION_PLAN §1.4, every `crates/*/Cargo.toml`.
+
+## 2026-09-09 · `BlockId` derivation: the details D13.3 leaves open · Phase 0
+Context: D13.3 fixes the id as `base32(blake3(page_index ‖ bbox rounded to 1 pt ‖ first 64 NFC chars))[..10]`
+with a collision suffix, and `IR_SKETCH.md` fixes the type as `[u8; 10]`. Four things had to be pinned
+before the first id could be computed, none of them settled by the ADR.
+Decision:
+1. **Field encoding.** `page_index` as `u32::to_le_bytes`; each bbox coordinate rounded with `f32::round`,
+   cast to `i32` (saturating, so a non-finite coordinate cannot panic), then `i32::to_le_bytes`. The three
+   fixed-width fields come first, so the variable-width text needs no separator to keep the concatenation
+   unambiguous. Little-endian is chosen explicitly rather than inherited from the host, so ids are
+   identical on every target (D13.8's determinism contract).
+2. **Text prefix in characters, not bytes.** `text.nfc().take(64)`, so the truncation point does not move
+   with the script. `derive` truncates; callers pass the whole block text.
+3. **Alphabet.** RFC 4648 base32, unpadded, uppercase. Note for Phase 5: an id may begin with a digit,
+   so an XHTML `id` attribute built from one needs a prefix — an XML `NCName` cannot start with a digit.
+4. **The collision suffix is the tenth character, not an eleventh.** `[u8; 10]` leaves no room to append,
+   so the counter occupies the last character and the digest supplies the first nine (45 bits, plus a
+   5-bit counter). `derive` always emits counter 0; `with_collision_suffix(n)` writes `n % 32`. This makes
+   distinctness within a collision family an *invariant* — every variant differs from the base and from
+   every other variant in a known position — rather than a probability, which is what lets test 0.2 assert
+   it deterministically over 10 000 generated triples instead of relying on 50-bit luck. The cost is 45
+   rather than 50 bits of base entropy: ~1.4e-6 chance of one collision in a 10 000-block book, which is
+   exactly the case the suffix exists to resolve.
+Evidence: `cargo nextest run -p oc-model` — `ids::block_id_is_stable_for_same_inputs` (golden id
+`SDMLH752SA` for `derive(3, Rect{72.0, 96.5, 340.25, 118.0}, "Chapter 3")`) and
+`ids::prop_block_id_collision_suffix_is_unique` (10 000 cases) both pass.
+Affects: D13.3, `IR_VERSION`, `crates/oc-model/src/ids.rs`, Phase 5 (XHTML id emission).
+
+## 2026-09-09 · Format constants live in code, not in `thresholds.toml` · Phase 0
+Context: CLAUDE.md forbids numeric literals in production code, sourcing every constant from
+`thresholds.toml`. `ids.rs` needs 10 (id length), 9 (hash characters), 64 (text prefix) and 32 (alphabet
+size).
+Decision: these are named `const` items in the module, not threshold entries.
+Evidence: D17 defines `thresholds.toml` as the home of *tunable* numbers — every entry carries
+`source`/`evidence`/`owner`/`review_by` and is subject to `eval calibrate`. The id format constants are
+none of those things: changing one changes `ir_version` and invalidates every cache and override, so it is
+a versioned format change, not a calibration. The plan itself puts `pub const IR_VERSION: u32 = 1` in
+`oc-model`, not in `thresholds.toml`, which is the same category. The rule is honoured in substance: no
+magic numbers, every constant named and documented against the decision that fixes it.
+Affects: CLAUDE.md §2 hard rules, `crates/oc-model/src/ids.rs`, `xtask thresholds-lint` scope.

@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 0
-CURRENT_ITEM: 0.1 — `oc-model::ids::BlockId` (tests 0.1 and 0.2 are written and RED; implement `BlockId` + `Rect` next)
+CURRENT_ITEM: 0.2 — `oc-model::canonical` (canonical JSON; tests 0.3 and 0.4, not yet written)
 LAST_UPDATED: 2026-09-09
 
 ---
@@ -41,16 +41,17 @@ LAST_UPDATED: 2026-09-09
 
 ## Current work item
 
-**Phase 0, item 0.1 — `oc-model::ids::BlockId`.** Workspace bootstrap (§1.1–§1.9) is done and committed on
-branch `phase/00-bootstrap`. Tests 0.1 (`ids::block_id_is_stable_for_same_inputs`) and 0.2
-(`ids::prop_block_id_collision_suffix_is_unique`) are written in `crates/oc-model/src/ids.rs` and are RED
-with the expected reason: `no BlockId in ids`, `no Rect in geom` (the sanctioned compile-error RED for the
-first test of a new module, §0.2 step 1).
+**Phase 0, item 0.2 — `oc-model::canonical`.** Nothing written yet. Next step is RED: write tests 0.3
+(`canonical::canonical_json_sorts_keys_and_rounds_geometry`, an `insta` snapshot) and 0.4
+(`canonical::canonical_json_rejects_nan`) in `crates/oc-model/src/canonical.rs`, watch them fail, then
+implement `to_canonical_json<T: Serialize>(v: &T) -> Result<String, CanonError>` per D13.3: sorted keys,
+geometry rounded to 0.01 pt **at serialization only**, NFC strings, no NaN/Inf, `ir_version` first.
 
-Next: implement `Rect` in `crates/oc-model/src/geom.rs` and `BlockId::{derive, with_collision_suffix,
-as_str}` in `ids.rs` per D13.3 — `base32(blake3(page_index ‖ bbox rounded to 1 pt ‖ first 64 NFC chars))[..10]`
-— then fill `GOLDEN_BLOCK_ID_CHAPTER_3` (currently `"__unset__"`) from the first green run, run
-`cargo nextest run -p oc-model`, then `--workspace`, fmt/clippy, commit, tick this file.
+Done in this branch so far: the workspace bootstrap (§1.1–§1.9) and item 0.1 — `Rect` in
+`crates/oc-model/src/geom.rs`, `BlockId::{derive, with_collision_suffix, as_str}` in
+`crates/oc-model/src/ids.rs`. The four derivation details D13.3 leaves open (field byte encoding,
+character-wise text truncation, base32 alphabet, and the collision counter occupying the tenth character)
+are written up in `docs/DECISIONS_LOG.md`.
 
 ## Blocked
 
@@ -71,7 +72,11 @@ _(empty)_
   VD-b…VD-g still open, each with an owner and a blocking phase; stubs are in `docs/DECISIONS_LOG.md`.
 - Local tool versions: rustc 1.98.1, cargo-nextest 0.9.143, cargo-deny 0.20.2. PDFium is **not** vendored yet
   (`xtask vendor-pdfium` is unimplemented), so test 0.7 will fail with `LibraryNotFound` until it lands.
+- `GOLDEN_BLOCK_ID_CHAPTER_3 = "SDMLH752SA"` in `ids.rs` is a committed golden value. If that assertion
+  ever fails, the id derivation changed and `IR_VERSION` must change in the same commit (D13.3).
+- Commit messages carry **no** Claude Code attribution footer (maintainer's instruction, 2026-09-09).
 
 ## Completed items log
 
 <!-- one line per finished work item: `YYYY-MM-DD  P<phase>.<item>  <what>  <commit sha>` -->
+2026-09-09  P0.setup  Cargo workspace, thresholds.toml, deny.toml, CI matrix, eval skeleton (§1.1-§1.9)  e6d02df

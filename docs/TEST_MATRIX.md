@@ -27,8 +27,8 @@ replaced by the phase that owns it.
 
 | # | Test | Crate | Kind | CI job | Status |
 |---|---|---|---|---|---|
-| 0.1 | `ids::block_id_is_stable_for_same_inputs` | `oc-model` | unit | `test` | written |
-| 0.2 | `ids::prop_block_id_collision_suffix_is_unique` | `oc-model` | property | `test`, `proptest-deep` | written |
+| 0.1 | `ids::block_id_is_stable_for_same_inputs` | `oc-model` | unit | `test` | green |
+| 0.2 | `ids::prop_block_id_collision_suffix_is_unique` | `oc-model` | property | `test`, `proptest-deep` | green |
 | 0.3 | `canonical::canonical_json_sorts_keys_and_rounds_geometry` | `oc-model` | snapshot | `test` | — |
 | 0.4 | `canonical::canonical_json_rejects_nan` | `oc-model` | unit | `test` | — |
 | 0.5 | `thresholds::every_provisional_has_owner_and_future_review` | `oc-core` | CI-gate | `test`, `lint` | — |
