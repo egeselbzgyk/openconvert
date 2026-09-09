@@ -68,7 +68,7 @@ replaced by the phase that owns it.
 | 1.6 | `metamorphic::cropbox_offset_does_not_lose_text` | `oc-pdf` | metamorphic (h03) | `test` | green |
 | 1.7 | `metamorphic::prop_content_stream_reorder_invariance` | `oc-pdf` | metamorphic | `test`, `proptest-deep` | green |
 | 1.8 | `inspect::stripped_tounicode_page_classifies_broken_text` | `oc-pdf` | fixture (mutation) | `test` | green |
-| 1.9 | `image_only_page_extracts_one_image_with_dpi` | `oc-pdf` | fixture (f03) | `test` | — |
+| 1.9 | `images::image_only_page_extracts_one_image_with_dpi` | `oc-pdf` | fixture (f03) | `test` | green |
 | 1.10 | `image_pixel_bomb_is_refused_before_decode` | `oc-pdf` | unit | `test` | — |
 | 1.11 | `decompression_bomb_is_bounded` | `oc-pdf` | fixture | `test` | — |
 | 1.12 | `encrypted_empty_user_password_opens` | `oc-pdf` | fixture | `test` | — |

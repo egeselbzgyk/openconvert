@@ -7,9 +7,11 @@
 
 mod bind;
 mod doc;
+mod images;
 
 pub use bind::{PdfiumBackend, EXPECTED_PDFIUM_BUILD};
 pub use doc::PdfiumDoc;
+pub(crate) use images::page_image_facts;
 
 // ---------------------------------------------------------------------------
 // Tests (written first — IMPLEMENTATION_PLAN §0.2). Row 0.7 of the Phase 0 table.

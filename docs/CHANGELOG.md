@@ -164,3 +164,14 @@ Rust field name, and a capital letter there trips `non_snake_case` under `-D war
   of the three undecodable kinds reached it. The three snapshots change by that field only.
 - Measured: PDFium marks a line-break hyphen with U+0002 and `is_hyphen()`; those are excluded
   from the control count. See `docs/DECISIONS_LOG.md` for what it means for `N` and Phase 3.
+
+### Images (`oc-model`, `oc-pdf`, `oc-testkit`)
+
+- New: `oc_model::extract::{ImageRef, ImageKind, ImageId, PageRef}` per `IR_SKETCH`.
+- New: `oc_pdf::images::{classify_image, effective_dpi}` and `PdfDoc::page_images`.
+- New: `has_smask` and `is_inline` are read from the file with `lopdf` — PDFium exposes
+  neither — and matched to PDFium's image objects by draw order, used only when the two
+  agree on the count. `PdfiumDoc` now keeps the parsed object tree alongside.
+- New fixtures `h09_image_smask` and `h10_inline_image`, the only ones for which those two
+  flags are true.
+- New thresholds `images.{full_page_area_ratio, strip_aspect_ratio, ornament_max_side_pt}`.

@@ -749,3 +749,48 @@ Evidence: `cargo nextest run --workspace` - 34 passed. Measured on PDFium `chrom
 Affects: D13.10, PIPELINE lines 154/158/658, R2 §B.8, RT B1, `thresholds.toml`
 `pageclass.broken_text_replacement_share`, `crates/oc-pdf/src/{classify.rs,inspect.rs,pdfium/doc.rs}`,
 `crates/oc-testkit/src/mutate.rs`, the three `inspect` snapshots (new `control_chars` field).
+
+## 2026-09-09 · Images: two backends, and two flags that would otherwise never be true · Phase 1
+Context: item 1.5 implements `oc-pdf::images` and `PdfDoc::page_images` against test 1.9.
+
+1. **The plan's DPI band assumes a page size the fixture does not have.** Test 1.9 asserts
+   `effective_dpi` within [140, 160]. `scan_page_01.png` is 1240 x 1754, which is A4 at 150 dpi -
+   so the band is right for an A4 page. But `f03_image_only.typ`, also given verbatim by the plan,
+   sets `page(width: 148mm, height: 210mm)`: A5. The same asset over 419.53 pt is
+   1240 / (419.53 / 72) = **212.81 dpi**. The two halves of the plan contradict each other.
+   Resolved in favour of the fixture: 212 dpi is an ordinary scan resolution, `f01` and `f02` are
+   A5 too so changing only `f03` would make the corpus inconsistent, and the test's purpose is that
+   the division is right rather than that it equals 150. `intrinsic_px` is asserted alongside the
+   result, so both inputs and the output are pinned and a right answer cannot come from wrong parts.
+
+2. **`has_smask` and `is_inline` cannot come from PDFium, so they come from the file.** PDFium's
+   image object exposes width, height, colour space and DPI, and nothing about masks or about
+   inline images; `FPDFImageObj_GetImageMetadata` has no field for either. Both are properties of
+   the file, so `pdfium::images` walks the page content stream with `lopdf`: `/Name Do` resolved
+   through `/Resources /XObject` gives the mask flag from `/SMask` or `/Mask`, and `BI` gives an
+   inline image directly. `PdfiumDoc` now keeps the `lopdf::Document` beside the PDFium one.
+
+   The two sides are matched **by draw order** - PDFium enumerates page objects in content-stream
+   order and so does the walk - and the match is used **only when both agree on the count**.
+   Otherwise both flags read `false` for every image on the page. That is the safe direction: an
+   unnoticed mask makes compositing do work it need not; a wrongly asserted mask would drop pixels.
+
+3. **Two fixtures added, because otherwise both flags could only ever be false.** `f03` has no mask
+   and no inline image, so test 1.9's `!has_smask` and `!is_inline` would pass just as well against
+   a detector hard-wired to `false` - which is exactly what the fallback in (2) is. `h09_image_smask`
+   is a full-page image with an 8-bit `/SMask`, and `h10_inline_image` writes `BI ... ID ... EI`
+   straight into the content stream (`pdf-writer` has no inline-image API; the content stream is
+   bytes). Each is asserted true, and each test also asserts the negative case through the same
+   code path, so the two answers are told apart rather than one being the only one available.
+   `h09` is also the seed of the VD-d spike, which needs a masked image to compare against.
+
+4. **Three thresholds added** under `[images]`: `full_page_area_ratio` 0.95, `strip_aspect_ratio`
+   8.0, `ornament_max_side_pt` 48.0, all from Phase 1 detail 4 and all `provisional`. The
+   full-page test runs before the strip test, which matters on a tall narrow page: a page-shaped
+   background is not a banner. `image_kind_covers_every_arm` pins all four arms plus that ordering,
+   because three of the four are otherwise reachable only through fixtures that do not exist.
+Evidence: `cargo nextest run --workspace` - 38 passed. Measured on PDFium `chromium/7881`.
+Affects: D13.11, IMPLEMENTATION_PLAN Phase 1 detail 4 and test 1.9, IR_SKETCH `ImageRef`,
+`thresholds.toml` `[images]`, `crates/oc-model/src/extract.rs`,
+`crates/oc-pdf/src/{images.rs,inspect.rs,pdfium/{doc.rs,images.rs}}`,
+`crates/oc-testkit/src/handmade.rs`.

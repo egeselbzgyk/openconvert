@@ -10,6 +10,7 @@ pub mod classify;
 pub mod error;
 pub mod geom;
 pub mod glyphs;
+pub mod images;
 pub mod inspect;
 pub mod pdfium;
 pub mod producer;

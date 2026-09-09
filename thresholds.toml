@@ -331,6 +331,27 @@ owner = "maintainer"
 review_by = "2028-01-01"
 
 # ---------- images / epub ----------
+[images.full_page_area_ratio]
+value = 0.95
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 1 detail 4: an image covering >= 95% of the page area is the page's background, not a figure on it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[images.strip_aspect_ratio]
+value = 8.0
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 1 detail 4: long side / short side > 8 is a rule or a banner rather than a figure"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[images.ornament_max_side_pt]
+value = 48.0
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 1 detail 4: an image whose longest side is under 48 pt is a bullet, logo or flourish. The cross-page-repetition test that actually drops one is Phase 4 (images.ornament_page_share)"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [images.max_longest_side_px]
 value = 1600
 source = "provisional"

@@ -35,6 +35,9 @@ const RENDER_MODE_INVISIBLE: i32 = 3;
 /// The grey a scan's paper is, and the size of the stand-in image. Eight pixels is enough:
 /// what matters is that an image covers the page, never what is in it.
 const GREY_LEVEL: u8 = 235;
+
+/// Eight-bit samples, for both the image and its mask.
+const BITS_PER_COMPONENT: i32 = 8;
 const IMAGE_SIDE_PX: usize = 8;
 
 /// The font name Tesseract gives the invisible layer it writes over a scan (R3 §4). A
@@ -55,6 +58,8 @@ pub fn all() -> Vec<(&'static str, Vec<u8>)> {
         ("h06_generated_space", h06_generated_space()),
         ("h07_overdraw_duplicate", h07_overdraw_duplicate()),
         ("h08_overlap_distinct", h08_overlap_distinct()),
+        ("h09_image_smask", h09_image_smask()),
+        ("h10_inline_image", h10_inline_image()),
     ]
 }
 
@@ -167,6 +172,26 @@ fn slot_offset(slot: usize) -> f32 {
     u16::try_from(slot).unwrap_or(u16::MAX).into()
 }
 
+/// h09 - a full-page image carrying a soft mask.
+///
+/// The only fixture whose `has_smask` is true, and therefore the only one that proves the
+/// flag is read at all: every other image in the corpus is an unmasked XObject, so a detector
+/// that always answered "no mask" would pass every test but this one. It is also the seed of
+/// the VD-d spike, which has to compare masked compositing against a reference.
+pub fn h09_image_smask() -> Vec<u8> {
+    build(Page::default().full_page_image().image_smask())
+}
+
+/// h10 - an image written inline in the content stream (`BI ... ID ... EI`).
+///
+/// The counterpart to h09: the only fixture whose `is_inline` is true, and so the only one
+/// that proves the flag is read rather than defaulted. Inline images are how producers write
+/// the small ones - bullets, rules, logos - and they are invisible to a resource-dictionary
+/// walk, because they are in no resource dictionary.
+pub fn h10_inline_image() -> Vec<u8> {
+    build(Page::default().inline_image())
+}
+
 /// The overdraw fixture at an arbitrary separation.
 ///
 /// Kept public so the PDFium merge threshold recorded in `docs/DECISIONS_LOG.md` can be
@@ -198,6 +223,8 @@ struct Page {
     rotate: Option<i32>,
     font_name: Option<&'static str>,
     full_page_image: bool,
+    image_smask: bool,
+    inline_image: bool,
 }
 
 impl Page {
@@ -230,6 +257,18 @@ impl Page {
         self.full_page_image = true;
         self
     }
+
+    fn inline_image(mut self) -> Self {
+        self.inline_image = true;
+        self
+    }
+
+    /// Give the page image a soft mask: an 8-bit greyscale alpha channel the size of the
+    /// image, which is what a photograph with a transparent background carries.
+    fn image_smask(mut self) -> Self {
+        self.image_smask = true;
+        self
+    }
 }
 
 fn build(page: Page) -> Vec<u8> {
@@ -239,6 +278,7 @@ fn build(page: Page) -> Vec<u8> {
     let content_id = Ref::new(4);
     let font_id = Ref::new(5);
     let image_id = Ref::new(6);
+    let smask_id = Ref::new(7);
 
     let mut content = Content::new();
     if page.full_page_image {
@@ -264,7 +304,12 @@ fn build(page: Page) -> Vec<u8> {
         content.show(Str(&to_winansi(text)));
         content.end_text();
     }
-    let content = content.finish();
+    // `Content::finish` yields a `Buf`; the inline image is appended to its bytes, because
+    // `pdf-writer` has no `BI` operator and the content stream is only ever bytes.
+    let mut content: Vec<u8> = content.finish().to_vec();
+    if page.inline_image {
+        content.extend_from_slice(&inline_image_operator());
+    }
 
     let mut pdf = Pdf::new();
     // A fixed file id: without one, `pdf-writer` leaves the trailer's /ID absent, and with a
@@ -313,11 +358,66 @@ fn build(page: Page) -> Vec<u8> {
             .height(IMAGE_SIDE_PX as i32)
             .color_space()
             .device_gray();
-        image.bits_per_component(8).finish();
+        image.bits_per_component(BITS_PER_COMPONENT);
+        if page.image_smask {
+            image.s_mask(smask_id);
+        }
+        image.finish();
+
+        if page.image_smask {
+            // Half opaque, half transparent, so the mask is not a constant a reader could
+            // optimise away.
+            let samples = IMAGE_SIDE_PX * IMAGE_SIDE_PX;
+            let mut alpha = vec![u8::MAX; samples];
+            alpha[..samples / 2].fill(0);
+            let mut mask = pdf.image_xobject(smask_id, &alpha);
+            mask.width(IMAGE_SIDE_PX as i32)
+                .height(IMAGE_SIDE_PX as i32)
+                .color_space()
+                .device_gray();
+            mask.bits_per_component(BITS_PER_COMPONENT).finish();
+        }
     }
 
     pdf.stream(content_id, &content).finish();
     pdf.finish()
+}
+
+/// An inline image drawn over the whole page, as raw content-stream bytes.
+///
+/// `BI` opens the dictionary in abbreviated form - `/W` width, `/H` height, `/CS` colour
+/// space, `/BPC` bits per component - `ID` is followed by exactly one space and then the
+/// samples, and `EI` closes it. The samples are a constant grey, so no byte sequence in them
+/// can be mistaken for the terminator.
+fn inline_image_operator() -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(
+        b"q
+",
+    );
+    out.extend_from_slice(
+        format!(
+            "{} 0 0 {} 0 0 cm
+",
+            PAGE[2], PAGE[3]
+        )
+        .as_bytes(),
+    );
+    out.extend_from_slice(
+        format!("BI /W {IMAGE_SIDE_PX} /H {IMAGE_SIDE_PX} /CS /G /BPC {BITS_PER_COMPONENT} ID ")
+            .as_bytes(),
+    );
+    out.extend(std::iter::repeat_n(
+        GREY_LEVEL,
+        IMAGE_SIDE_PX * IMAGE_SIDE_PX,
+    ));
+    out.extend_from_slice(
+        b"
+EI
+Q
+",
+    );
+    out
 }
 
 /// Encode text as WinAnsi bytes, which is what the fixtures' font declares.

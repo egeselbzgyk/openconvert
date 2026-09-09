@@ -13,8 +13,9 @@ use crate::classify::{classify_page, PageCharStats, PageClass, PageImageStats};
 use crate::error::PdfError;
 use crate::geom::{PageGeometry, PdfRect, Rotate};
 use crate::glyphs::{family_key, PageGlyphs, STAGE};
+use crate::images::{classify_image, effective_dpi};
 use crate::inspect::{DocMetadata, PdfDoc};
-use oc_model::extract::{CharHistogram, FontId, FontInfo, Glyph};
+use oc_model::extract::{CharHistogram, FontId, FontInfo, Glyph, ImageId, ImageRef, PageRef};
 use oc_model::ledger::{LedgerEntry, Reason};
 
 /// Unicode private-use areas. A subset font with no `ToUnicode` map lands here rather than
@@ -33,6 +34,12 @@ const INVISIBLE_ALPHA: u8 = 0;
 pub struct PdfiumDoc {
     document: PdfDocument<'static>,
     metadata: DocMetadata,
+    /// The same file, parsed as PDF objects.
+    ///
+    /// PDFium answers "where is it and how big"; the object tree answers "what does the file
+    /// say it is". `None` when `lopdf` declines a file PDFium accepted, which happens - it is
+    /// the stricter parser - and which costs only the two structural image flags.
+    structure: Option<lopdf::Document>,
 }
 
 impl PdfiumDoc {
@@ -52,7 +59,12 @@ impl PdfiumDoc {
                 message: source.to_string(),
             })?;
         let metadata = read_metadata(&document, bytes);
-        Ok(Self { document, metadata })
+        let structure = lopdf::Document::load_mem(bytes).ok();
+        Ok(Self {
+            document,
+            metadata,
+            structure,
+        })
     }
 }
 
@@ -140,6 +152,10 @@ impl PdfDoc for PdfiumDoc {
         self.page_glyphs_impl(index)
     }
 
+    fn page_images(&self, index: u32) -> Result<Vec<ImageRef>, PdfError> {
+        self.page_images_impl(index)
+    }
+
     fn page_image_stats(&self, index: u32) -> Result<PageImageStats, PdfError> {
         let page = self.page(index)?;
         let page_area = page.width().value * page.height().value;
@@ -185,6 +201,77 @@ impl PdfiumDoc {
 }
 
 impl PdfiumDoc {
+    /// Extract one page's images (Phase 1 detail 4).
+    ///
+    /// Geometry and pixel counts come from PDFium; `has_smask` and `is_inline` come from the
+    /// file's own object tree, matched to PDFium's objects by draw order. When the two
+    /// disagree about how many images the page has, both flags are reported as `false` for
+    /// every image on the page — see `pdfium::images` for why that is the safe direction.
+    pub fn page_images_impl(&self, index: u32) -> Result<Vec<ImageRef>, PdfError> {
+        let page = self.page(index)?;
+        let geometry = self.page_geometry(index)?;
+        let page_area = geometry.width_pt() * geometry.height_pt();
+
+        let objects: Vec<_> = page
+            .objects()
+            .iter()
+            .filter(|object| object.object_type() == PdfPageObjectType::Image)
+            .collect();
+
+        // The file's view of the same draws. Discarded unless it agrees on the count, which
+        // is the check that makes matching by position sound rather than hopeful.
+        let facts = self
+            .structure
+            .as_ref()
+            .and_then(|structure| crate::pdfium::page_image_facts(structure, index))
+            .filter(|facts| facts.len() == objects.len());
+
+        let mut images = Vec::with_capacity(objects.len());
+        for (position, object) in objects.iter().enumerate() {
+            let Some(image) = object.as_image_object() else {
+                continue;
+            };
+            let bounds = object.bounds().map_err(|source| PdfError::Page {
+                index,
+                message: source.to_string(),
+            })?;
+            let bbox = geometry.normalise(PdfRect {
+                llx: bounds.left().value,
+                lly: bounds.bottom().value,
+                urx: bounds.right().value,
+                ury: bounds.top().value,
+            });
+
+            let width_pt = bbox.x1 - bbox.x0;
+            let height_pt = bbox.y1 - bbox.y0;
+            let area_ratio = if page_area > 0.0 {
+                ((width_pt * height_pt) / page_area).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+
+            let intrinsic_px = (pixels(image.width()), pixels(image.height()));
+            let fact = facts
+                .as_ref()
+                .and_then(|facts| facts.get(position))
+                .copied()
+                .unwrap_or_default();
+
+            images.push(ImageRef {
+                id: ImageId(u32::try_from(position).unwrap_or(u32::MAX)),
+                page: PageRef::new(index),
+                bbox,
+                intrinsic_px,
+                has_smask: fact.has_smask,
+                is_inline: fact.is_inline,
+                colorspace: colorspace_name(image),
+                effective_dpi: effective_dpi(intrinsic_px.0, width_pt),
+                kind: classify_image(area_ratio, width_pt, height_pt, &oc_core::thresholds::T),
+            });
+        }
+        Ok(images)
+    }
+
     /// Extract one page into the Stage-1 layer (Phase 1 details 1-3).
     ///
     /// Filtering here is removal, and every removal is ledgered. What is *not* removed
@@ -415,6 +502,41 @@ fn degrees(rotation: pdfium_render::prelude::PdfPageRenderRotation) -> i32 {
 fn is_private_use(c: char) -> bool {
     let code = u32::from(c);
     PUA_BMP.contains(&code) || PUA_PLANE_15.contains(&code) || PUA_PLANE_16.contains(&code)
+}
+
+/// An image dimension in pixels. A negative one is not a thing, so it reads as zero and the
+/// derived DPI reads as zero with it - visibly wrong rather than quietly plausible.
+fn pixels(
+    value: Result<pdfium_render::prelude::Pixels, pdfium_render::prelude::PdfiumError>,
+) -> u32 {
+    value
+        .ok()
+        .and_then(|v| u32::try_from(v).ok())
+        .unwrap_or_default()
+}
+
+/// The colour space, named the way the PDF specification names it.
+///
+/// Reported as a string rather than as an enum because `ImageRef` crosses into canonical JSON
+/// and a reader of that report wants "DeviceGray", not a discriminant.
+fn colorspace_name(image: &pdfium_render::prelude::PdfPageImageObject<'_>) -> String {
+    use pdfium_render::prelude::PdfColorSpace;
+
+    let name = match image.color_space() {
+        Ok(PdfColorSpace::DeviceGray) => "DeviceGray",
+        Ok(PdfColorSpace::DeviceRGB) => "DeviceRGB",
+        Ok(PdfColorSpace::DeviceCMYK) => "DeviceCMYK",
+        Ok(PdfColorSpace::CalibratedCIEGray) => "CalGray",
+        Ok(PdfColorSpace::CalibratedCIERGB) => "CalRGB",
+        Ok(PdfColorSpace::CalibratedCIELab) => "Lab",
+        Ok(PdfColorSpace::CalibratedICCProfile) => "ICCBased",
+        Ok(PdfColorSpace::Separation) => "Separation",
+        Ok(PdfColorSpace::DeviceN) => "DeviceN",
+        Ok(PdfColorSpace::Indexed) => "Indexed",
+        Ok(PdfColorSpace::Pattern) => "Pattern",
+        Ok(PdfColorSpace::Unknown) | Err(_) => "Unknown",
+    };
+    name.to_owned()
 }
 
 /// The three control characters a correctly-extracted text page legitimately carries.

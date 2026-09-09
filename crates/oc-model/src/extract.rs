@@ -169,3 +169,65 @@ impl CharHistogram {
         }
     }
 }
+
+/// Which page something is on, and what that page is called in the book.
+///
+/// The label is the *printed* page number when one has been detected — `"iv"`, `"12"` — which
+/// is not the index: front matter restarts the numbering, and a reader who asks for page 12
+/// means the one with 12 on it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct PageRef {
+    pub index: u32,
+    pub label: Option<String>,
+}
+
+impl PageRef {
+    /// A page with no detected label. Phase 4 fills the label in.
+    pub fn new(index: u32) -> Self {
+        Self { index, label: None }
+    }
+}
+
+/// An image, interned per document.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct ImageId(pub u32);
+
+/// What an image is doing on the page.
+///
+/// The distinction is not cosmetic: a `FullPageBackground` on an `image_only` page *is* the
+/// page and goes to OCR, a `Figure` becomes a `<figure>` with a caption, an `Ornament` is a
+/// candidate for dropping once Phase 4 sees it repeat, and a `Strip` is usually a rule that
+/// should not survive into a reflowable book at all.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ImageKind {
+    Figure,
+    FullPageBackground,
+    Ornament,
+    Strip,
+    /// The backend could not place it. Kept so that an unplaceable image is visibly
+    /// unclassified rather than silently a `Figure`.
+    Unknown,
+}
+
+/// One image as a page draws it.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ImageRef {
+    pub id: ImageId,
+    pub page: PageRef,
+    /// Where it lands, in normalised page space.
+    pub bbox: Rect,
+    /// Its own pixel dimensions, before any scaling onto the page.
+    pub intrinsic_px: (u32, u32),
+    /// Whether it carries a soft mask or a stencil mask — that is, whether part of it is
+    /// meant to be transparent.
+    pub has_smask: bool,
+    /// Whether it was written inline in the content stream (`BI … ID … EI`) rather than as an
+    /// XObject. Inline images are small by rule and often decorative.
+    pub is_inline: bool,
+    /// The colour space as the file names it, e.g. `"DeviceGray"`.
+    pub colorspace: String,
+    /// Pixels per inch as actually reproduced: `intrinsic_px.0 / (bbox width in inches)`.
+    pub effective_dpi: f32,
+    pub kind: ImageKind,
+}

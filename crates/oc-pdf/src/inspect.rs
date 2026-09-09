@@ -101,6 +101,8 @@ pub trait PdfDoc {
     fn page_image_stats(&self, index: u32) -> Result<PageImageStats, PdfError>;
     /// The Stage-1 extraction layer for one page (Phase 1).
     fn page_glyphs(&self, index: u32) -> Result<crate::glyphs::PageGlyphs, PdfError>;
+    /// The images one page draws (Phase 1 detail 4).
+    fn page_images(&self, index: u32) -> Result<Vec<oc_model::extract::ImageRef>, PdfError>;
 }
 
 /// The document-level metadata `inspect` reports.
