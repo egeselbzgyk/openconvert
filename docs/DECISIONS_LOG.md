@@ -189,3 +189,33 @@ expired date, a missing date, and not on a `published` entry) and `thresholds::g
 (`T.layout.furniture.band_ratio == 0.08` and equals the runtime-parsed value; `PROVENANCE.len()` equals
 the number of entries in the file). The capital-L key was caught by the build script itself.
 Affects: D17, IMPLEMENTATION_PLAN §1.5 and Phase 0 detail 6, `thresholds.toml`, `crates/oc-core`.
+
+## 2026-09-09 · Page-space normalisation: a separate source type, and one extra test · Phase 0
+Context: Phase 0 detail 5 requires the normalised space to be computed once — origin top-left, y down,
+points, after `/Rotate` and after the CropBox offset — with a `debug_assert!` that every produced rect
+lies inside the page box inflated by 1 pt, because R1 §D.6 #1 documents this exact mix-up silently
+deleting body text in a shipping 2026 tool. Test 0.8 is the property.
+Decision:
+1. **PDF user space gets its own type, `oc_pdf::geom::PdfRect`**, rather than reusing `oc_model::Rect`.
+   The failure mode the invariant exists to prevent is *passing a rectangle from one space to a function
+   expecting the other*. An assertion catches that only when the numbers happen to fall outside the page;
+   a distinct type catches it at compile time, everywhere, for free. `PageGeometry::normalise` is then the
+   single doorway between the two spaces.
+2. **Both corners are mapped and then re-ordered.** Two of the four rotations move the lower-left corner
+   to somewhere that is no longer lower-left, so taking the mapped corners as `(x0,y0)`/`(x1,y1)` yields
+   inverted rectangles under 180° and 270°.
+3. **A unit test was added beyond the plan's table: `geom::normalises_corners_for_each_rotation`.**
+   Test 0.8 asserts that a mapped rect lands inside the page box — but a rotation applied in the *wrong
+   direction* also lands inside the page box, so the property as specified cannot detect a reversed or
+   transposed rotation at all. The unit test pins where the crop box's bottom-left corner ends up under
+   each of the four rotations, on a landscape page whose origin is not (0,0) so a forgotten offset fails
+   too. The property keeps its job: it covers offsets and sizes the unit test cannot enumerate.
+4. **`INSIDE_PAGE_TOLERANCE_PT = 1.0` is a code constant, not a threshold** — same reasoning as the id
+   format constants: it is a float-error epsilon in an assertion, not a tunable policy number, and D17's
+   file is for numbers that carry an owner and a review date.
+Evidence: `cargo nextest run -p oc-pdf` — 2 passed; `PROPTEST_CASES=4096` also passes. The property found
+one real defect on first run, in the test rather than the code: comparing the page size against the
+generated `crop_width` fails in `f32` because `(llx + crop_width) - llx` is not `crop_width` once the
+offset is large next to the page. The expected size now comes from the crop box itself, so the comparison
+is exact. The failing seed is committed in `crates/oc-pdf/proptest-regressions/geom.txt`.
+Affects: D13.3, RT D10, IMPLEMENTATION_PLAN Phase 0 detail 5 and test 0.8, `crates/oc-pdf/src/geom.rs`.

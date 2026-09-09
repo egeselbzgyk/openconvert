@@ -3,6 +3,8 @@
 Every test added by the project, the crate it lives in, and the CI job that runs it.
 Required by the Phase 0 First Milestone (item 6) and by the Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3 item 7).
 
+A row numbered `N.Na` is an addition to the plan's table, with its reason in `docs/DECISIONS_LOG.md`.
+
 `Status`: `written` = the test exists and is RED · `green` = it exists and passes · `—` = not yet written.
 A test is never `#[ignore]`d; a test that cannot run everywhere is gated behind a cargo feature and the
 CI job that enables that feature is named here (`IMPLEMENTATION_PLAN.md` §0.2).
@@ -34,7 +36,8 @@ replaced by the phase that owns it.
 | 0.5 | `thresholds::every_provisional_has_owner_and_future_review` | `oc-core` | CI-gate | `test`, `lint` | green |
 | 0.6 | `thresholds::generated_constants_match_toml` | `oc-core` | unit | `test` | green |
 | 0.7 | `pdfium::binds_and_reports_version` | `oc-pdf` | integration | `test` | — |
-| 0.8 | `geom::prop_normalised_rects_are_inside_page` | `oc-pdf` | property | `test`, `proptest-deep` | — |
+| 0.8 | `geom::prop_normalised_rects_are_inside_page` | `oc-pdf` | property | `test`, `proptest-deep` | green |
+| 0.8a | `geom::normalises_corners_for_each_rotation` | `oc-pdf` | unit | `test` | green |
 | 0.9 | `classify::classify_text_page` | `oc-pdf` | unit | `test` | — |
 | 0.10 | `classify::classify_image_only_page` | `oc-pdf` | unit | `test` | — |
 | 0.11 | `classify::classify_ocr_sandwich_page` | `oc-pdf` | unit | `test` | — |

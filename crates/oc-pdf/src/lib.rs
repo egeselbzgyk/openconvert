@@ -4,3 +4,5 @@
 //!
 //! `unsafe` is forbidden crate-wide; the pdfium binding module re-enables it locally
 //! with `#[allow(unsafe_code)]` on that module alone (IMPLEMENTATION_PLAN §0.1).
+
+pub mod geom;
