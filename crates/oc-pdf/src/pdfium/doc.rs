@@ -9,10 +9,13 @@ use pdfium_render::prelude::{
     PdfPageTextRenderMode, Pdfium,
 };
 
-use crate::classify::{PageCharStats, PageImageStats};
+use crate::classify::{classify_page, PageCharStats, PageClass, PageImageStats};
 use crate::error::PdfError;
 use crate::geom::{PageGeometry, PdfRect, Rotate};
+use crate::glyphs::{family_key, PageGlyphs, STAGE};
 use crate::inspect::{DocMetadata, PdfDoc};
+use oc_model::extract::{CharHistogram, FontId, FontInfo, Glyph};
+use oc_model::ledger::{LedgerEntry, Reason};
 
 /// Unicode private-use areas. A subset font with no `ToUnicode` map lands here rather than
 /// producing U+FFFD, so both are counted towards the broken-text share (D13.10).
@@ -132,6 +135,10 @@ impl PdfDoc for PdfiumDoc {
         Ok(stats)
     }
 
+    fn page_glyphs(&self, index: u32) -> Result<PageGlyphs, PdfError> {
+        self.page_glyphs_impl(index)
+    }
+
     fn page_image_stats(&self, index: u32) -> Result<PageImageStats, PdfError> {
         let page = self.page(index)?;
         let page_area = page.width().value * page.height().value;
@@ -174,6 +181,224 @@ impl PdfiumDoc {
                 message: source.to_string(),
             })
     }
+}
+
+impl PdfiumDoc {
+    /// Extract one page into the Stage-1 layer (Phase 1 details 1-3).
+    ///
+    /// Filtering here is removal, and every removal is ledgered. What is *not* removed
+    /// matters as much: an OCR sandwich's invisible layer is the page's only text, so
+    /// render mode 3 is dropped as `HiddenText` on every page except that one.
+    pub fn page_glyphs_impl(&self, index: u32) -> Result<PageGlyphs, PdfError> {
+        let page = self.page(index)?;
+        let geometry = self.page_geometry(index)?;
+        let images = self.page_image_stats(index)?;
+        let text = page.text().map_err(|source| PdfError::Page {
+            index,
+            message: source.to_string(),
+        })?;
+
+        // Classification comes first, because it decides whether render mode 3 is the page's
+        // text or text hidden on it.
+        let stats = self.page_char_stats(index)?;
+        let (class, class_confidence) =
+            classify_page(&stats, &images, None, &oc_core::thresholds::T);
+        let sandwich = class == PageClass::OcrSandwich;
+
+        let mut fonts: Vec<FontInfo> = Vec::new();
+        let mut glyphs = Vec::new();
+        let mut removed = Vec::new();
+        let mut c_raw = CharHistogram::new();
+
+        for (position, character) in text.chars().iter().enumerate() {
+            let position = u32::try_from(position).unwrap_or(u32::MAX);
+            let span = (position, position.saturating_add(1));
+            let ch = character
+                .unicode_char()
+                .unwrap_or(char::REPLACEMENT_CHARACTER);
+
+            // A synthesised space is the backend's reconstruction, not the document's
+            // content, so it never enters `C_raw` (D3, Phase 1 detail 2).
+            if character.is_generated().unwrap_or(false) {
+                removed.push(LedgerEntry::removed(
+                    STAGE,
+                    Reason::GeneratedSpace,
+                    index,
+                    span,
+                    ch.to_string(),
+                ));
+                continue;
+            }
+
+            let render_mode = render_mode_code(&character);
+            let fill = fill_rgba(&character);
+            let invisible = render_mode == RENDER_MODE_INVISIBLE || fill[3] == INVISIBLE_ALPHA;
+            if invisible && !sandwich {
+                // Rendered but not visible on a page that is not a sandwich: hidden text.
+                removed.push(LedgerEntry::removed(
+                    STAGE,
+                    Reason::HiddenText,
+                    index,
+                    span,
+                    ch.to_string(),
+                ));
+                continue;
+            }
+
+            let tight = character.tight_bounds().map_err(|source| PdfError::Page {
+                index,
+                message: source.to_string(),
+            })?;
+            let loose = character.loose_bounds().unwrap_or(tight);
+            let origin = character.origin();
+
+            // Wholly outside the visible page is geometric absence, not a rendering choice.
+            let bbox = geometry.normalise(pdf_rect(&tight));
+            if outside_page(&geometry, &bbox) {
+                removed.push(LedgerEntry::removed(
+                    STAGE,
+                    Reason::ClippedOffPage,
+                    index,
+                    span,
+                    ch.to_string(),
+                ));
+                continue;
+            }
+
+            let font = intern_font(&mut fonts, &character);
+            let (ox, oy) = match origin {
+                Ok((x, y)) => geometry.normalise_point(x.value, y.value),
+                // A glyph PDFium cannot place has no origin worth inventing; the tight box
+                // is still known, so the baseline is taken from its foot.
+                Err(_) => (bbox.x0, bbox.y1),
+            };
+
+            c_raw.add(ch);
+            glyphs.push(Glyph {
+                ch,
+                bbox,
+                loose_bbox: geometry.normalise(pdf_rect(&loose)),
+                origin: (ox, oy),
+                font,
+                size_pt: character.scaled_font_size().value,
+                weight: font_weight(&character),
+                italic: character.font_is_italic(),
+                render_mode,
+                fill,
+                generated: false,
+                hyphen_flag: character.is_hyphen().unwrap_or(false),
+                angle_deg: character.angle_degrees().unwrap_or_default(),
+            });
+        }
+
+        Ok(PageGlyphs {
+            glyphs,
+            fonts,
+            removed,
+            c_raw,
+            stats,
+            class,
+            class_confidence,
+        })
+    }
+}
+
+/// PDF text rendering mode 3.
+const RENDER_MODE_INVISIBLE: u8 = 3;
+
+fn render_mode_code(character: &pdfium_render::prelude::PdfPageTextChar<'_>) -> u8 {
+    use pdfium_render::prelude::PdfPageTextRenderMode as Mode;
+    match character.render_mode() {
+        Ok(Mode::FilledUnstroked) => 0,
+        Ok(Mode::StrokedUnfilled) => 1,
+        Ok(Mode::FilledThenStroked) => 2,
+        Ok(Mode::Invisible) => RENDER_MODE_INVISIBLE,
+        Ok(Mode::FilledUnstrokedClipping) => 4,
+        Ok(Mode::StrokedUnfilledClipping) => 5,
+        Ok(Mode::FilledThenStrokedClipping) => 6,
+        Ok(Mode::InvisibleClipping) => 7,
+        // An unrecognised mode is reported as filled: assuming a glyph is visible keeps it
+        // in the document, and losing text is the failure that matters.
+        Ok(Mode::Unknown) | Err(_) => 0,
+    }
+}
+
+fn fill_rgba(character: &pdfium_render::prelude::PdfPageTextChar<'_>) -> [u8; 4] {
+    match character.fill_color() {
+        Ok(colour) => [colour.red(), colour.green(), colour.blue(), colour.alpha()],
+        // Same reasoning as the render mode: an unreadable colour is treated as opaque black
+        // rather than as invisible.
+        Err(_) => [0, 0, 0, u8::MAX],
+    }
+}
+
+fn pdf_rect(rect: &pdfium_render::prelude::PdfRect) -> crate::geom::PdfRect {
+    crate::geom::PdfRect {
+        llx: rect.left().value,
+        lly: rect.bottom().value,
+        urx: rect.right().value,
+        ury: rect.top().value,
+    }
+}
+
+/// A font's weight on the usual 100-900 scale.
+///
+/// PDFium reports "unknown" for fonts that do not declare one, which is most of the
+/// standard fourteen. Normal is the honest stand-in: it is what a reader renders them at,
+/// and a zero would read as "thinner than hairline" to every later stage.
+fn font_weight(character: &pdfium_render::prelude::PdfPageTextChar<'_>) -> u16 {
+    use pdfium_render::prelude::PdfFontWeight as W;
+    const NORMAL: u16 = 400;
+    match character.font_weight() {
+        Some(W::Weight100) => 100,
+        Some(W::Weight200) => 200,
+        Some(W::Weight300) => 300,
+        Some(W::Weight400Normal) => NORMAL,
+        Some(W::Weight500) => 500,
+        Some(W::Weight600) => 600,
+        Some(W::Weight700Bold) => 700,
+        Some(W::Weight800) => 800,
+        Some(W::Weight900) => 900,
+        // PDFium reports 0 for a font with no descriptor, which is every one of the
+        // standard fourteen. Zero would read as "thinner than hairline" to a heading
+        // clusterer, so it is normal here too.
+        Some(W::Custom(0)) | None => NORMAL,
+        Some(W::Custom(value)) => u16::try_from(value).unwrap_or(u16::MAX),
+    }
+}
+
+/// Whether a normalised rect lies wholly outside the page.
+fn outside_page(geometry: &crate::geom::PageGeometry, rect: &oc_model::geom::Rect) -> bool {
+    let (w, h) = (geometry.width_pt(), geometry.height_pt());
+    rect.x1 <= 0.0 || rect.y1 <= 0.0 || rect.x0 >= w || rect.y0 >= h
+}
+
+/// Intern a character's font, returning its index.
+fn intern_font(
+    fonts: &mut Vec<FontInfo>,
+    character: &pdfium_render::prelude::PdfPageTextChar<'_>,
+) -> FontId {
+    let name = character.font_name();
+    if let Some(existing) = fonts.iter().position(|f| f.name == name) {
+        return FontId(u16::try_from(existing).unwrap_or_default());
+    }
+    let id = FontId(u16::try_from(fonts.len()).unwrap_or(u16::MAX));
+    let lowered = name.to_lowercase();
+    fonts.push(FontInfo {
+        family_key: family_key(&name),
+        // Heuristics over the name, which is all PDFium exposes here; Phase 2 refines them
+        // from the font descriptor through `lopdf` when it needs more.
+        serif: !lowered.contains("sans")
+            && !lowered.contains("arial")
+            && !lowered.contains("helvetica"),
+        fixed_pitch: lowered.contains("mono") || lowered.contains("courier"),
+        symbolic: lowered.contains("symbol") || lowered.contains("dingbat"),
+        type3: lowered.contains("type3"),
+        embedded: name.as_bytes().get(6) == Some(&b'+'),
+        name,
+        id,
+    });
+    id
 }
 
 fn degrees(rotation: pdfium_render::prelude::PdfPageRenderRotation) -> i32 {

@@ -3490,6 +3490,7 @@ dependencies = [
  "lopdf",
  "oc-core",
  "oc-model",
+ "oc-testkit",
  "pdf-writer 0.13.0",
  "pdfium-render",
  "proptest",

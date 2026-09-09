@@ -32,6 +32,15 @@ const PAGE: [f32; 4] = [0.0, 0.0, 200.0, 800.0];
 /// PDF text render mode 3: drawn, but neither filled nor stroked — invisible.
 const RENDER_MODE_INVISIBLE: i32 = 3;
 
+/// The grey a scan's paper is, and the size of the stand-in image. Eight pixels is enough:
+/// what matters is that an image covers the page, never what is in it.
+const GREY_LEVEL: u8 = 235;
+const IMAGE_SIDE_PX: usize = 8;
+
+/// The font name Tesseract gives the invisible layer it writes over a scan (R3 §4). A
+/// sandwich detector keys on it, so a fixture pretending to be one has to carry it.
+const OCR_FONT: &str = "GlyphLessFont";
+
 /// Every hand-made fixture, as `(name, bytes)`.
 ///
 /// One list, so `xtask handmade-fixtures` and the tests cannot disagree about which fixtures
@@ -45,6 +54,7 @@ pub fn all() -> Vec<(&'static str, Vec<u8>)> {
         ("h05_invisible_layer", h05_invisible_layer()),
         ("h06_generated_space", h06_generated_space()),
         ("h07_overdraw_duplicate", h07_overdraw_duplicate()),
+        ("h08_overlap_distinct", h08_overlap_distinct()),
     ]
 }
 
@@ -74,12 +84,21 @@ pub fn h04_ligature_fi() -> Vec<u8> {
     build(Page::default().text(FIXTURE_ORIGIN, "\u{FB01}n"))
 }
 
-/// h05 — a full alphabet drawn in render mode 3, the shape of an OCR text layer. No visible
-/// characters, twenty-six invisible ones (test 1.3).
+/// h05 — an OCR sandwich: a full-page image with an invisible text layer over it, drawn in
+/// a font named the way Tesseract names its own (test 1.3).
+///
+/// The image and the font name are both load-bearing. D13.10 recognises a sandwich from
+/// three signals together - invisible text, a glyph-less font, and an image covering the
+/// page - so a fixture with only the invisible text would classify as `blank` and test 1.3
+/// would be asserting against a rule that never fired.
 pub fn h05_invisible_layer() -> Vec<u8> {
     build(
         Page::default()
-            .text(FIXTURE_ORIGIN, "abcdefghijklmnopqrstuvwxyz")
+            .full_page_image()
+            .font_name(OCR_FONT)
+            // Twenty-six 12 pt characters need ~174 pt; starting at the fixture origin
+            // would run them off a 200 pt page and make this a clipping test by accident.
+            .text((10.0, FIXTURE_ORIGIN.1), "abcdefghijklmnopqrstuvwxyz")
             .render_mode(RENDER_MODE_INVISIBLE),
     )
 }
@@ -102,6 +121,12 @@ pub fn h07_overdraw_duplicate() -> Vec<u8> {
             .text(FIXTURE_ORIGIN, "A")
             .text((FIXTURE_ORIGIN.0 + 0.2, FIXTURE_ORIGIN.1), "A"),
     )
+}
+
+/// h08 — two *different* glyphs overlapping. Both must survive: PDFium merges duplicates,
+/// never distinct characters, and that is what makes its text page safe to build `C_raw` on.
+pub fn h08_overlap_distinct() -> Vec<u8> {
+    overlap_pair_at(0.2, "A", "B")
 }
 
 /// The overdraw fixture at an arbitrary separation.
@@ -133,6 +158,8 @@ struct Page {
     render_mode: Option<i32>,
     crop: Option<[f32; 4]>,
     rotate: Option<i32>,
+    font_name: Option<&'static str>,
+    full_page_image: bool,
 }
 
 impl Page {
@@ -155,6 +182,16 @@ impl Page {
         self.rotate = Some(degrees);
         self
     }
+
+    fn font_name(mut self, name: &'static str) -> Self {
+        self.font_name = Some(name);
+        self
+    }
+
+    fn full_page_image(mut self) -> Self {
+        self.full_page_image = true;
+        self
+    }
 }
 
 fn build(page: Page) -> Vec<u8> {
@@ -163,8 +200,16 @@ fn build(page: Page) -> Vec<u8> {
     let page_id = Ref::new(3);
     let content_id = Ref::new(4);
     let font_id = Ref::new(5);
+    let image_id = Ref::new(6);
 
     let mut content = Content::new();
+    if page.full_page_image {
+        // Drawn first, so the text layer sits over it exactly as a scan's does.
+        content.save_state();
+        content.transform([PAGE[2], 0.0, 0.0, PAGE[3], 0.0, 0.0]);
+        content.x_object(Name(b"Im1"));
+        content.restore_state();
+    }
     for (origin, text) in &page.runs {
         content.begin_text();
         if let Some(mode) = page.render_mode {
@@ -205,13 +250,33 @@ fn build(page: Page) -> Vec<u8> {
         if let Some(rotate) = page.rotate {
             written.rotate(rotate);
         }
-        written.resources().fonts().pair(Name(b"F1"), font_id);
+        {
+            let mut resources = written.resources();
+            resources.fonts().pair(Name(b"F1"), font_id);
+            if page.full_page_image {
+                resources.x_objects().pair(Name(b"Im1"), image_id);
+            }
+            resources.finish();
+        }
         written.finish();
     }
 
     pdf.type1_font(font_id)
-        .base_font(Name(BASE_FONT.as_bytes()))
+        .base_font(Name(page.font_name.unwrap_or(BASE_FONT).as_bytes()))
         .encoding_predefined(Name(b"WinAnsiEncoding"));
+
+    if page.full_page_image {
+        // Eight by eight mid-grey pixels, uncompressed. A scan's content does not matter to
+        // any of these fixtures; that an image covers the page does.
+        let pixels = vec![GREY_LEVEL; IMAGE_SIDE_PX * IMAGE_SIDE_PX];
+        let mut image = pdf.image_xobject(image_id, &pixels);
+        image
+            .width(IMAGE_SIDE_PX as i32)
+            .height(IMAGE_SIDE_PX as i32)
+            .color_space()
+            .device_gray();
+        image.bits_per_component(8).finish();
+    }
 
     pdf.stream(content_id, &content).finish();
     pdf.finish()

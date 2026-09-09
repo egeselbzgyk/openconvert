@@ -599,3 +599,49 @@ measurement — distinct characters are never merged — is the part that could 
 Re-checkable on a PDFium bump: `oc_testkit::handmade::{overdraw_at, overlap_pair_at}` build the fixtures
 the probe used.
 Affects: D13.4, IMPLEMENTATION_PLAN Phase 1 detail 2 and test 1.4, VD-d (the wider PDFium spike).
+
+## 2026-09-09 · Glyph extraction: four things the tests found · Phase 1
+Context: item 1.2 implements `oc-model::{extract,ledger}` and `oc-pdf::glyphs` against tests 1.1-1.4.
+Four findings, each one a test failing for a reason worth keeping:
+
+1. **`PdfiumBackend::bind()` is now idempotent.** PDFium initialises global state, so a second
+   `bind_to_library` in one process fails with `PdfiumLibraryBindingsAlreadyInitialized`. Test 1.4 opens
+   two fixtures and hit it immediately. A caller should not have to know this: the first successful bind
+   is cached in a `OnceLock` and every later call returns it. A *failed* bind is not cached, so fixing
+   `OC_PDFIUM_PATH` and retrying still works. Consequence for test 0.7: once a process has bound, `bind`
+   no longer consults the environment, so the "the override is authoritative" assertion moved to a new
+   `PdfiumBackend::resolve_library()`, which is the function that actually implements the rule. Test 0.7
+   now also asserts that binding twice succeeds.
+
+2. **`PageGeometry::normalise`'s invariant is conditional, and had to be.** Phase 0 detail 5 asks for a
+   `debug_assert!` that every produced rect lies inside the page. That is only true of rects that started
+   inside the crop box; a glyph outside it is content the page clips away, which is exactly what the
+   `ClippedOffPage` ledger reason exists for. As written the assertion made a *correct* extraction panic.
+   It now reads "a rect inside the crop box must land inside the page", which is the invariant that was
+   meant and the one R1 §D.6 #1 is about.
+
+3. **The overdraw measurement is not available through this backend.** The previous entry proposed
+   keeping D13.4's `OverdrawDedup` budget meaningful by counting characters a second way, from the page's
+   text objects, and ledgering the difference. Measured: `PdfPageTextObject::text()` returns the *same*
+   deduplicated text - one character for a fixture whose content stream draws two - because it reads
+   through the text page. So the count PDFium collapsed cannot be recovered from `pdfium-render`'s API at
+   all. Rather than ship a field that is always zero, `objects_char_count` and `overdrawn_by_backend` are
+   gone and test 1.4 asserts what is true and checkable: the duplicate does not survive, we did not
+   remove it, and two *different* overlapping glyphs at the same separation both do survive. **Open, for
+   the conservation-law work in Phase 2/6:** recovering the collapsed count needs content-stream access
+   through `lopdf` (counting the bytes shown by `Tj`/`TJ`), which is the only route left. Until then
+   `OverdrawDedup` has a budget and no way to consume it, which is safe - it cannot hide a loss, because
+   PDFium never merges distinct characters - but it is not the guarantee D13.4 describes.
+
+4. **PDFium reports font weight 0 for the standard fourteen**, which carry no `FontDescriptor`. Zero
+   would read as "thinner than hairline" to the heading clusterer in Phase 4, so a missing or zero weight
+   becomes 400, which is what a reader renders those fonts at.
+
+Also corrected: h05 was not an OCR sandwich. D13.10 recognises one from three signals together -
+invisible text, a glyph-less font, and an image covering the page - and the fixture had only the first,
+so it classified as `blank` and test 1.3 would have asserted against a rule that never fired. It now
+carries a full-page image and declares its font `GlyphLessFont`. Its alphabet also ran off the right edge
+of a 200 pt page, which would have made it a clipping test by accident.
+Evidence: `cargo nextest run --workspace` - 30 passed.
+Affects: D3, D13.4, D13.10, R1 §D.6 #1, IMPLEMENTATION_PLAN Phase 0 detail 5 and Phase 1 details 1-3,
+tests 0.7 and 1.1-1.4, `crates/oc-model/src/{extract,ledger}.rs`, `crates/oc-pdf`.

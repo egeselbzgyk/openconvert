@@ -117,9 +117,13 @@ impl PageGeometry {
             x1: ax.max(bx),
             y1: ay.max(by),
         };
+        // The invariant is conditional, and the condition matters: a rect that started
+        // inside the crop box must land inside the page. A rect that started outside it is
+        // content the page clips away - the `ClippedOffPage` ledger reason - and asserting
+        // on that would make a correct extraction panic on a real book.
         debug_assert!(
-            self.contains(&mapped),
-            "normalised rect {mapped:?} escapes the {} x {} page ({:?}, {:?})",
+            !self.crop_contains(&rect) || self.contains(&mapped),
+            "rect inside the crop box mapped outside the {} x {} page: {mapped:?} ({:?}, {:?})",
             self.width_pt(),
             self.height_pt(),
             self.crop,
@@ -144,6 +148,15 @@ impl PageGeometry {
             Rotate::Cw180 => (self.crop_width() - across, self.crop_height() - down),
             Rotate::Cw270 => (down, self.crop_width() - across),
         }
+    }
+
+    /// Whether a user-space rect lies within the crop box, within the same tolerance.
+    fn crop_contains(&self, rect: &PdfRect) -> bool {
+        let tolerance = INSIDE_PAGE_TOLERANCE_PT;
+        rect.llx >= self.crop.llx - tolerance
+            && rect.lly >= self.crop.lly - tolerance
+            && rect.urx <= self.crop.urx + tolerance
+            && rect.ury <= self.crop.ury + tolerance
     }
 
     fn contains(&self, rect: &Rect) -> bool {

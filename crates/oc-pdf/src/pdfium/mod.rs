@@ -60,9 +60,11 @@ fn binds_and_reports_version() {
 
     // OC_PDFIUM_PATH is authoritative: pointing it somewhere empty must fail rather than
     // quietly fall back to the vendored copy, which would make the override untrustworthy.
-    // This also proves the test above is not passing vacuously - binding really can fail.
+    // Asserted against `resolve_library` rather than `bind`, because PDFium initialises
+    // global state and can only be bound once per process - so `bind` caches its first
+    // success and stops consulting the environment, by design.
     std::env::set_var("OC_PDFIUM_PATH", "definitely-not-a-pdfium-library");
-    let refused = PdfiumBackend::bind();
+    let refused = PdfiumBackend::resolve_library();
     std::env::remove_var("OC_PDFIUM_PATH");
     match refused {
         Err(crate::error::PdfError::LibraryNotFound { searched }) => {
@@ -73,6 +75,11 @@ fn binds_and_reports_version() {
             );
         }
         Err(other) => panic!("expected LibraryNotFound, got {other}"),
-        Ok(_) => panic!("an OC_PDFIUM_PATH pointing at nothing must not bind"),
+        Ok(path) => panic!("an OC_PDFIUM_PATH pointing at nothing must not resolve: {path:?}"),
     }
+
+    // Binding twice in one process is what a test suite does, and it must not be an error:
+    // PDFium's own second initialisation fails, so `bind` caches its first success.
+    let again = PdfiumBackend::bind().expect("binding twice in one process is allowed");
+    assert_eq!(again.version(), version);
 }

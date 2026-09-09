@@ -1,6 +1,7 @@
 //! Binding PDFium at runtime, and proving the binding works before anything relies on it.
 
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use pdfium_render::prelude::Pdfium;
 
@@ -55,14 +56,48 @@ impl PdfiumBackend {
     ///
     /// `OC_PDFIUM_PATH` is authoritative — when it is set, nothing else is tried. An
     /// override that silently does not take effect is worse than one that fails loudly.
+    ///
+    /// **Idempotent.** PDFium initialises global state, so a second `bind_to_library` in one
+    /// process fails with `PdfiumLibraryBindingsAlreadyInitialized`. A caller should not have
+    /// to know that: the first successful bind is cached and every later call returns it. A
+    /// *failed* bind is not cached, so fixing `OC_PDFIUM_PATH` and retrying still works.
     pub fn bind() -> Result<Self, PdfError> {
+        static BOUND: OnceLock<(&'static Pdfium, BackendVersion)> = OnceLock::new();
+        if let Some((pdfium, version)) = BOUND.get() {
+            return Ok(Self {
+                pdfium,
+                version: version.clone(),
+            });
+        }
+
+        let bound = Self::bind_uncached()?;
+        // A race here means two threads both bound successfully, which PDFium does not allow,
+        // so in practice one wins and the loser reuses its result - which is the point.
+        let (pdfium, version) = BOUND.get_or_init(|| (bound.pdfium, bound.version.clone()));
+        Ok(Self {
+            pdfium,
+            version: version.clone(),
+        })
+    }
+
+    /// The library path `bind` would use, without loading it.
+    ///
+    /// Separate from `bind` so the resolution rules can be tested on their own: once a
+    /// process has bound successfully, `bind` returns the cached library and no longer
+    /// consults the environment, which would make the override rule untestable through it.
+    pub fn resolve_library() -> Result<PathBuf, PdfError> {
         let candidates = candidates();
-        let library = candidates
+        candidates
             .iter()
             .find(|path| path.is_file())
-            .ok_or_else(|| PdfError::LibraryNotFound {
-                searched: candidates.clone(),
-            })?;
+            .cloned()
+            .ok_or(PdfError::LibraryNotFound {
+                searched: candidates,
+            })
+    }
+
+    fn bind_uncached() -> Result<Self, PdfError> {
+        let library = &Self::resolve_library()?;
 
         let bindings = Pdfium::bind_to_library(library).map_err(|source| PdfError::Bind {
             path: library.clone(),

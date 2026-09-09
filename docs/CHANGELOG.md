@@ -126,3 +126,20 @@ Rust field name, and a capital letter there trips `non_snake_case` under `-D war
 ### New warning codes
 
 *(none yet)*
+
+## Phase 1 — PDF inspection and ingestion
+
+*(in progress)*
+
+### IR (`oc-model`)
+
+- New: `extract::{Glyph, FontInfo, FontId, CharHistogram}` and
+  `ledger::{Reason, LedgerEntry}` — the closed fifteen-variant `Reason` of D13.4.
+
+### Extraction (`oc-pdf`)
+
+- New: `glyphs::{PageGlyphs, family_key}`, `PdfDoc::page_glyphs`, and
+  `pdfium::PdfiumBackend::resolve_library`.
+- Changed: `PdfiumBackend::bind` is idempotent — PDFium can only be bound once per process.
+- Changed: `PageGeometry::normalise`'s debug assertion is now conditional on the source rect
+  lying inside the crop box; content outside it is `ClippedOffPage`, not a bug.

@@ -55,3 +55,28 @@ replaced by the phase that owns it.
 | 0.22 | `engine > spawn_receives_hello` | `apps/desktop/ui` | integration (Vitest + Tauri mock) | `ui` | green |
 | 0.23 | `ci::no_ignored_tests` | `xtask` | CI-gate | `test`, `lint` | green |
 | 0.23a | `ci::thresholds_pass_their_own_provenance_rule` | `xtask` | CI-gate | `test`, `lint` | green |
+
+## Phase 1
+
+| # | Test | Crate | Kind | CI job | Status |
+|---|---|---|---|---|---|
+| 1.1 | `glyphs::glyphs_carry_all_verified_signals` | `oc-pdf` | fixture (h01) | `test` | green |
+| 1.2 | `glyphs::generated_spaces_are_dropped_and_ledgered` | `oc-pdf` | fixture (h06) | `test` | green |
+| 1.3 | `glyphs::invisible_render_mode_3_is_not_visible_text` | `oc-pdf` | fixture (h05) | `test` | green |
+| 1.4 | `glyphs::overdraw_duplicate_glyphs_are_deduped` | `oc-pdf` | fixture (h07, h08) | `test` | green |
+| 1.5 | `prop_rotate_invariance_of_extracted_text` | `oc-pdf` | metamorphic | `test`, `proptest-deep` | — |
+| 1.6 | `cropbox_offset_does_not_lose_text` | `oc-pdf` | metamorphic (h03) | `test` | — |
+| 1.7 | `prop_content_stream_reorder_invariance` | `oc-pdf` | metamorphic | `test`, `proptest-deep` | — |
+| 1.8 | `stripped_tounicode_page_classifies_broken_text` | `oc-pdf` | fixture (mutation) | `test` | — |
+| 1.9 | `image_only_page_extracts_one_image_with_dpi` | `oc-pdf` | fixture (f03) | `test` | — |
+| 1.10 | `image_pixel_bomb_is_refused_before_decode` | `oc-pdf` | unit | `test` | — |
+| 1.11 | `decompression_bomb_is_bounded` | `oc-pdf` | fixture | `test` | — |
+| 1.12 | `encrypted_empty_user_password_opens` | `oc-pdf` | fixture | `test` | — |
+| 1.13 | `encrypted_with_password_requires_flag` | `openconvert` | integration | `test` | — |
+| 1.14 | `owner_password_permissions_recorded_not_enforced` | `oc-pdf` | fixture | `test` | — |
+| 1.15 | `outline_is_read_depth_first` | `oc-pdf` | fixture | `test` | — |
+| 1.16 | `prop_never_panics_on_arbitrary_bytes` | `oc-pdf` | property | `test`, `proptest-deep` | — |
+| 1.17 | `dump_stage_ingest_snapshot_h01` | `oc-core` | snapshot | `test` | — |
+| 1.18 | `differential_pdftotext_coverage_f01` | `oc-pdf` | integration (oracle) | `test` | — |
+| 1.19 | `cancel_is_observed_inside_page_loop` | `oc-core` | integration | `test` | — |
+| 1.20 | `max_pages_refuses_at_the_door` | `oc-core` | unit | `test` | — |

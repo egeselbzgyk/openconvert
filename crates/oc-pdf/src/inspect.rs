@@ -95,6 +95,8 @@ pub trait PdfDoc {
     fn page_geometry(&self, index: u32) -> Result<crate::geom::PageGeometry, PdfError>;
     fn page_char_stats(&self, index: u32) -> Result<PageCharStats, PdfError>;
     fn page_image_stats(&self, index: u32) -> Result<PageImageStats, PdfError>;
+    /// The Stage-1 extraction layer for one page (Phase 1).
+    fn page_glyphs(&self, index: u32) -> Result<crate::glyphs::PageGlyphs, PdfError>;
 }
 
 /// The document-level metadata `inspect` reports.

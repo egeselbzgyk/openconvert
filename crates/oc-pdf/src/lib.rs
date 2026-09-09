@@ -9,6 +9,7 @@ pub mod backend;
 pub mod classify;
 pub mod error;
 pub mod geom;
+pub mod glyphs;
 pub mod inspect;
 pub mod pdfium;
 pub mod producer;
