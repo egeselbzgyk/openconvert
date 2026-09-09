@@ -9,7 +9,7 @@
 ///
 /// `x0`/`y0` is the top-left corner and `x1`/`y1` the bottom-right, so `y1 >= y0`
 /// holds for a well-formed rectangle: y grows downwards.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize)]
 pub struct Rect {
     pub x0: f32,
     pub y0: f32,

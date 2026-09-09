@@ -21,6 +21,15 @@ One section per completed phase, listing new CLI flags, new IR fields, new warni
   internal path dependencies carry explicit versions; `ureq` deferred to Phase 9.
 - Verification debt: **VD-a closed** (`zip` 8.6.0 is the current stable major).
 
+### IR (`oc-model`)
+
+- New: `IR_VERSION = 1`.
+- New: `geom::Rect` — the one normalised page space (top-left origin, y down, points, after `/Rotate`
+  and CropBox offset).
+- New: `ids::BlockId` with `derive` / `with_collision_suffix` / `as_str` (D13.3).
+- New: `canonical::to_canonical_json` and `canonical::CanonError` — sorted keys, `ir_version` first,
+  NFC strings, `f32` at two decimals, non-finite floats rejected instead of written as `null`.
+
 ### New thresholds
 
 All 79 initial `thresholds.toml` entries (see the file; §1.5 of the plan is the reference list).

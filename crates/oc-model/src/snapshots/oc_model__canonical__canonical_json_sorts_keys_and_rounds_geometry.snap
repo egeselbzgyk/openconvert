@@ -1,0 +1,5 @@
+---
+source: crates/oc-model/src/canonical.rs
+expression: json
+---
+{"ir_version":1,"alpha":[3,1,2],"bbox":{"x0":1.23,"x1":3.46,"y0":2.35,"y1":4.57},"confidence":0.95,"missing":null,"ratio":0.126,"title":"café","zebra":{"alpha":true,"caption":"figure 1","zebra":3}}

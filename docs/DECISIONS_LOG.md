@@ -126,3 +126,31 @@ a versioned format change, not a calibration. The plan itself puts `pub const IR
 `oc-model`, not in `thresholds.toml`, which is the same category. The rule is honoured in substance: no
 magic numbers, every constant named and documented against the decision that fixes it.
 Affects: CLAUDE.md §2 hard rules, `crates/oc-model/src/ids.rs`, `xtask thresholds-lint` scope.
+
+## 2026-09-09 · Canonical JSON: the rounding rule, the compact form, and a bespoke serialiser · Phase 0
+Context: ARCHITECTURE §4.3 fixes the contract — keys sorted, `ir_version` first, arrays in document order,
+strings NFC, no NaN/Inf ("a serialization error, not a silent `null`"), "`f32` geometry printed with **2
+decimals at serialization only**". Three things had to be decided to implement it.
+Decision:
+1. **The rounding rule is by type: `f32` prints with two decimals, `f64` prints shortest-round-trip.**
+   A generic serialiser cannot tell a geometric float from any other one, and threading
+   `#[serde(serialize_with = ...)]` through every coordinate field in the IR would be both invasive and
+   easy to forget on a new field. §4.3's own wording is "`f32` geometry", and the IR uses `f32` for
+   geometry and confidences throughout while `f64` is reserved for ratios and statistics — so the type
+   *is* the discriminator, and the rule is enforced by construction rather than by remembering an
+   attribute. Confidences round to two decimals as well, which is more precision than they carry.
+   In-memory values are untouched (RT B5).
+2. **Compact output**, no insignificant whitespace, no trailing newline, non-ASCII written literally as
+   UTF-8. The canonical form exists to be byte-identical for identical input (D13.8) and to be hashed;
+   indentation is presentation, and `--dump-stage` can pretty-print separately if that is ever wanted.
+   The plan's own expected output for test 0.3, `"x0":1.23`, has no space after the colon.
+3. **A bespoke `serde::Serializer` rather than `serde_json`.** `serde_json` writes a non-finite float as
+   `null` — it checks `is_finite()` and calls `Formatter::write_null`, so no formatter hook can tell a
+   NaN from a real `None` afterwards. A silent `null` where a coordinate belongs is exactly the failure
+   §4.3 rules out. Key ordering is also not expressible in a streaming formatter, so the value tree is
+   built first and written second, which the NaN check needs anyway.
+Evidence: `cargo nextest run -p oc-model` — 4 tests pass; the committed snapshot
+`oc_model__canonical__canonical_json_sorts_keys_and_rounds_geometry.snap` shows `f32` `1.234567 -> 1.23`
+beside `f64` `0.126 -> 0.126`, `ir_version` first, sorted keys at both levels, `cafe`+U+0301 emitted as
+NFC `café`, and `None` as `null`.
+Affects: D13.3, D13.8, ARCHITECTURE §4.3, `crates/oc-model/src/canonical.rs`, every future IR type.
