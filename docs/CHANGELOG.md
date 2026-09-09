@@ -30,6 +30,15 @@ One section per completed phase, listing new CLI flags, new IR fields, new warni
 - New: `canonical::to_canonical_json` and `canonical::CanonError` — sorted keys, `ir_version` first,
   NFC strings, `f32` at two decimals, non-finite floats rejected instead of written as `null`.
 
+### CLI and events (`openconvert`, `oc-core`)
+
+- New CLI: `openconvert inspect <INPUT.pdf> [--json] [--pages <RANGE>] [--password <STRING>]
+  [--progress none|json]`, plus `--help` and `--version`.
+- New env var: `OC_PDF_PASSWORD`.
+- New: `oc-core::events::EventSink` (NDJSON on stderr, `hello`/`done`/`fatal`, 8 KiB line cap,
+  `PROTOCOL_VERSION = 1`) and `oc-core::exit::ExitCode`.
+- New error codes: `E_USAGE`, `E_INPUT`, `E_PDF`, `E_PDFIUM_ABI`.
+
 ### Inspection (`oc-pdf`)
 
 - New: `inspect::inspect`, `inspect::InspectReport` (`openconvert.inspect/1`), `inspect::PdfDoc`,

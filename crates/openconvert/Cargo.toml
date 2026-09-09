@@ -18,6 +18,7 @@ oc-model = { path = "../oc-model", version = "0.1.0" }
 oc-pdf = { path = "../oc-pdf", version = "0.1.0" }
 oc-net = { path = "../oc-net", version = "0.1.0" }
 anyhow.workspace = true
+thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

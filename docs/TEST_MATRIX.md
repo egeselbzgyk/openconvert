@@ -47,9 +47,9 @@ replaced by the phase that owns it.
 | 0.14 | `inspect::inspect_f01_prose_single_column` | `oc-pdf` | snapshot (insta) | `test` | green |
 | 0.15 | `inspect::inspect_f02_two_column` | `oc-pdf` | snapshot | `test` | green |
 | 0.16 | `inspect::inspect_f03_image_only` | `oc-pdf` | snapshot | `test` | green |
-| 0.17 | `cli::inspect_json_is_valid_and_stable` | `openconvert` | integration | `test`, `no-network` | — |
-| 0.18 | `events::hello_is_first_stderr_line` | `openconvert` | integration | `test` | — |
-| 0.19 | `cli::exit_code_2_on_bad_args` | `openconvert` | integration | `test` | — |
+| 0.17 | `cli::inspect_json_is_valid_and_stable` | `openconvert` | integration | `test`, `no-network` | green |
+| 0.18 | `events::hello_is_first_stderr_line` | `openconvert` | integration | `test` | green |
+| 0.19 | `cli::exit_code_2_on_bad_args` | `openconvert` | integration | `test` | green |
 | 0.20 | `fixtures::typst_fixtures_are_reproducible` | `xtask` | fixture/CI | `test` | green |
 | 0.21 | `assertions::assertion_runner_understands_all_kinds` | `oc-testkit` | unit | `test` | — |
 | 0.22 | `engine::spawn_receives_hello` | `apps/desktop/ui` | integration (Vitest + Tauri mock) | `ui` | — |

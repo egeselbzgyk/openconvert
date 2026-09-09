@@ -424,3 +424,31 @@ and `creator` is `Typst 0.15.1` in all three reports, and `producer_family` is `
 `producer_family` falls back to `/Creator`.
 Evidence: `cargo nextest run --workspace` — 19 passed. Three committed `insta` snapshots.
 Affects: D3, D13.10, IMPLEMENTATION_PLAN Phase 0 architecture and tests 0.14–0.16, `crates/oc-pdf`.
+
+## 2026-09-09 · CLI: hand-rolled parsing, and where the one-based/zero-based line is drawn · Phase 0
+Context: §2.1 specifies a large CLI surface; Phase 0 implements one subcommand of it. §1.2's dependency
+list gives the binary `anyhow` and no argument parser.
+Decision:
+1. **Hand-rolled argument parsing, not `clap`.** Phase 0 needs one subcommand and four flags, and §0.2
+   asks for the least code that does the job. A parser generator earns its dependency when `convert`
+   arrives with twenty flags and a job-spec; that is the phase to add it in, with the `deny.toml` check
+   §7 of LICENSE_AND_DEPENDENCIES requires. The parser is one function returning a typed `Command`, so
+   swapping it later touches nothing else.
+2. **`--pages` is one-based on the command line and zero-based in the IR, converted in exactly one
+   place.** A reader counts pages from one and `BlockId` indexes them from zero (D13.3); the conversion
+   lives in `parse_page_range` and nowhere else, so the two conventions never meet again.
+3. **`--progress json` is detected before parsing can fail.** A usage error must still be reportable as
+   a `fatal` event, and it cannot be if the channel is only opened after the arguments parse.
+4. **`cmd_inspect::run` returns an exit code, not a `Result`.** An error has to reach the caller both as
+   an event on stderr and as an exit code, and §2.4 says never to infer one from the other. Producing
+   both in one place is what keeps them from disagreeing.
+5. **The report on stdout is pretty-printed.** It is read by a person far more often than by a machine,
+   `serde_json`'s pretty printer is deterministic, and test 0.17 checks that two runs are byte-identical.
+   The canonical (compact) form belongs to the IR, not to this report.
+6. **A binding failure exits 2, not 1.** No PDF was touched, so nothing was attempted; that is the
+   definition §2.4 gives for 2 rather than 1.
+Evidence: `cargo nextest run --workspace` — 22 passed. Test names land exactly as the plan's table
+spells them, because integration tests in `tests/cli.rs` and `tests/events.rs` are reported by nextest
+as `openconvert::cli <fn>` and `openconvert::events <fn>`.
+Affects: D13.1, D13.2, IMPLEMENTATION_PLAN §2.1–§2.4, tests 0.17–0.19, `crates/openconvert`,
+`crates/oc-core/src/{events,exit}.rs`, and Phase 1 (where `convert` will want a parser generator).
