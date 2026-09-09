@@ -10,3 +10,4 @@ pub mod classify;
 pub mod error;
 pub mod geom;
 pub mod pdfium;
+pub mod producer;

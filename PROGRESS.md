@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 0
-CURRENT_ITEM: 0.7 — `oc-pdf::producer` producer-family detection (test 0.13, not yet written)
+CURRENT_ITEM: 0.8 — `xtask fixtures` Typst fixture generation (test 0.20, not yet written)
 LAST_UPDATED: 2026-09-09
 
 ---
@@ -13,6 +13,63 @@ LAST_UPDATED: 2026-09-09
 
 - `STATUS` is one of `IN_PROGRESS` · `BLOCKED` · `COMPLETE`.
 - Set `STATUS: BLOCKED` **only** when a decision is needed that `docs/DECISIONS.md` does not settle. Write the question under `## Blocked` and stop.
+- Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
+- Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
+
+---
+
+## Phases
+
+- [ ] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
+      *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
+      *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
+- [ ] **Phase 1** — PDF inspection and ingestion  *(includes the PDFium image/SMask spike = VD-d)*
+- [ ] **Phase 2** — Text assembly and normalization  *(normalization `N`, ledger, furniture inputs, language)*
+- [ ] **Phase 3** — Layout  *(blocks, columns, reading order, paragraphs, dehyphenation; VD-b must close)*
+- [ ] **Phase 4** — Structure  *(headings, outline/TOC, book structure, lists, footnotes, captions, quotes/verse, tables, images, metadata)*
+- [ ] **Phase 5** — EPUB generation, Tier-1 validator, EPUBCheck CI gate
+- [ ] **Phase 6** — Structural validation, repair loop, report, CI DOM checks  *(VD-f if the validation pack ships)*
+- [ ] **Phase 7** — Corpus v1, eval harness, benchmarks, real-world holdout
+- [ ] **Phase 8** — AI abstraction (no real model yet)
+- [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
+- [ ] **Phase 10** — AI-assisted decisions (the four tasks)
+- [ ] **Phase 11** — BYO providers
+- [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
+- [ ] **Phase 13** — OCR  *(VD-g must close)*
+- [ ] **Phase 14** — Security hardening
+- [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
+
+## Current work item
+
+**Phase 0, item 0.8 - `xtask fixtures`.** Nothing written yet, and it is the last thing standing between
+here and the First Milestone's `inspect` snapshots (tests 0.14-0.16), which need real PDFs.
+
+Next step is RED: write test 0.20 `fixtures::typst_fixtures_are_reproducible` (compiling each `.typ`
+twice yields byte-identical PDFs; if it does not, the fallback per R7 D.2 is to commit the PDFs as
+golden binaries plus a nightly regenerate-and-diff job). Then:
+
+1. Author `corpus/fixtures/typst/{f01_prose_single_column,f02_two_column,f03_image_only}.typ` - the
+   sources are given verbatim in the plan's Phase 0 section, under "Typst fixture sources".
+2. Generate `corpus/fixtures/assets/scan_page_01.png` (1240x1754, grey 235, light noise, 0.4 degree
+   skew, ~60 KB). The plan says `eval/src/oc_eval/generate/scan_sim.py --make-fixture-asset` (Pillow),
+   and the file is committed. `.gitattributes` already marks `*.png` binary.
+3. `cargo run -p xtask -- fixtures`: `typst::compile` in-process with embedded fonts only and a fixed
+   timestamp, `typst_pdf::pdf`, then `strip_structtree` over the `lopdf` document (D18 - Typst tags PDFs
+   by default while reality is 12.6 percent tagged), writing `target/fixtures/<f>.pdf` and a
+   `corpus/manifest.json` entry with producer_stratum "ours(Typst)". A `--keep-structtree` variant named
+   `<f>__tagged.pdf` is compiled with `PdfStandard::Ua_1` for the Phase-4 tagged bucket.
+
+The `typst` and `typst-pdf` crates (0.15.x) are not workspace dependencies yet and are xtask-only.
+Check them against `deny.toml`'s allow-list before adding: Typst itself is Apache-2.0, but its
+dependency tree has not been reviewed here.
+
+Done in this branch: the workspace bootstrap (1.1-1.9) and items 0.1-0.7 - `geom::Rect` and
+`ids::BlockId`; `IR_VERSION` and `canonical::to_canonical_json`; the `oc-core::thresholds` codegen and
+lint; `oc-pdf::geom` page-space normalisation; `xtask vendor-pdfium` and the PDFium binding with its
+startup probe; `oc-pdf::classify`; `oc-pdf::producer`. Every open design question decided along the way
+is written up in `docs/DECISIONS_LOG.md` - read that before changing any of them.
+
+## Blocked` and stop.
 - Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
 - Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
 
@@ -317,3 +374,4 @@ _(empty)_
 2026-09-09  P0.4      oc-pdf: page-space normalisation (test 0.8 + corner unit test)              79ac71f
 2026-09-09  P0.5      xtask vendor-pdfium + oc-pdf PDFium binding and probe (test 0.7)             5059a98
 2026-09-09  P0.6      oc-pdf: page classification (tests 0.9-0.12 + mixed/blank/dict test)        97ddfd8
+2026-09-09  P0.7      oc-pdf: producer-family detection (test 0.13)                              PENDING

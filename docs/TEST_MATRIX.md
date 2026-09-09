@@ -43,7 +43,7 @@ replaced by the phase that owns it.
 | 0.11 | `classify::classify_ocr_sandwich_page` | `oc-pdf` | unit | `test` | green |
 | 0.12 | `classify::classify_broken_text_page` | `oc-pdf` | unit | `test` | green |
 | 0.12a | `classify::classify_mixed_blank_and_dictionary_arm` | `oc-pdf` | unit | `test` | green |
-| 0.13 | `producer::producer_family_table` | `oc-pdf` | unit (table-driven) | `test` | — |
+| 0.13 | `producer::producer_family_table` | `oc-pdf` | unit (table-driven) | `test` | green |
 | 0.14 | `inspect::inspect_f01_prose_single_column` | `oc-pdf` | snapshot (insta) | `test` | — |
 | 0.15 | `inspect::inspect_f02_two_column` | `oc-pdf` | snapshot | `test` | — |
 | 0.16 | `inspect::inspect_f03_image_only` | `oc-pdf` | snapshot | `test` | — |

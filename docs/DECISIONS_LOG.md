@@ -291,3 +291,33 @@ Evidence: `cargo nextest run -p oc-pdf` — 8 passed. `cargo run -p xtask -- thr
 implemented, but `oc_core::thresholds::lint` (test 0.5) covers the seven new entries and passes.
 Affects: D13.10, D17, IMPLEMENTATION_PLAN Phase 0 detail 3 and tests 0.9–0.12, `thresholds.toml`,
 `crates/oc-pdf/src/classify.rs`.
+
+## 2026-09-09 · Producer detection takes two strings, not an `InfoDict` · Phase 0
+Context: Phase 0's architecture block gives `producer_family(info: &InfoDict, xmp: Option<&XmpMeta>)`,
+and detail 4 gives the ordered regex table. Neither `InfoDict` nor `XmpMeta` exists yet — they are the
+`lopdf`-backed types Phase 1 introduces.
+Decision:
+1. **The signature is `producer_family(producer: Option<&str>, creator: Option<&str>)`.** Detection reads
+   exactly two strings; whether they came from the `/Info` dictionary or from XMP is the caller's
+   business, and inventing both types now to hold two optional strings would be the speculative
+   generality §0.2 rules out. When Phase 1 adds `InfoDict`, it passes its fields in.
+2. **`/Producer` first, `/Creator` only as a fallback, never as an override.** `/Producer` names the tool
+   that wrote the bytes and `/Creator` the application the document came from, so a recognised producer
+   is the stronger signal; but generic and empty producers are common enough that ignoring the creator
+   would lose real strata.
+3. **`RegexSet`, taking the lowest matching index.** That is precisely "the first rule in the table
+   wins", in one pass over the string, without compiling eight regexes per call — the set is built once
+   in a `OnceLock`.
+4. **`PdfTeX` serialises as `"pdfTeX"`** to match D18's stratum spelling; every other variant serialises
+   as written. The two vocabularies are related but not identical: `corpus/manifest.json`'s
+   `producer_stratum` also has `Quark` (which we detect as `Unknown`) and writes our own renderers as
+   `ours(Typst)` / `ours(WeasyPrint)`, because a stratum records provenance while `ProducerFamily`
+   records detection. Phase 7 owns the mapping between them.
+5. **The test asserts its own completeness.** `ProducerFamily::ALL` exists so the table-driven test can
+   check it covers every variant; adding a variant without a case fails test 0.13 rather than going
+   untested.
+Evidence: `cargo nextest run -p oc-pdf` — 9 passed. The table covers all nine variants plus three
+`/Creator` precedence cases, the `^typst` anchor (a string that mentions Typst is not Typst, but leading
+whitespace does not defeat it), and the two serialised spellings.
+Affects: D13.10, D18, IMPLEMENTATION_PLAN Phase 0 detail 4 and test 0.13,
+`crates/oc-pdf/src/producer.rs`, Phase 1 (`InfoDict`), Phase 7 (stratum mapping).

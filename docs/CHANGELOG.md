@@ -30,6 +30,11 @@ One section per completed phase, listing new CLI flags, new IR fields, new warni
 - New: `canonical::to_canonical_json` and `canonical::CanonError` — sorted keys, `ir_version` first,
   NFC strings, `f32` at two decimals, non-finite floats rejected instead of written as `null`.
 
+### Producer detection (`oc-pdf`)
+
+- New: `producer::ProducerFamily` (nine variants; `PdfTeX` serialises as `pdfTeX` to match D18's
+  stratum spelling) and `producer::producer_family`.
+
 ### Page classification (`oc-pdf`)
 
 - New: `classify::PageClass`, `classify::PageCharStats`, `classify::PageImageStats`,
