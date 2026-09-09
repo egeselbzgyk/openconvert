@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 1
-CURRENT_ITEM: 1.2 — glyph extraction: `oc-model::extract` + `oc-pdf::glyphs` (tests 1.1–1.4)
+CURRENT_ITEM: 1.3 — metamorphic invariants: rotate, CropBox offset, operator reorder (tests 1.5–1.7)
 LAST_UPDATED: 2026-09-09
 
 ---
@@ -43,20 +43,29 @@ _(empty — Q1 resolved 2026-09-09; see `docs/DECISIONS_LOG.md`)_
 
 ## Current work item
 
-**Phase 1, item 1.2 — glyph extraction.** Item 1.1 (the hand-made fixtures) is done. Next is
-`oc-model::{extract,ledger}` and `oc-pdf::glyphs`, driven by tests 1.1-1.4.
+**Phase 1, item 1.3 — metamorphic invariants (tests 1.5-1.7).** Items 1.1 (hand-made fixtures) and
+1.2 (glyph extraction) are done.
 
-Phase 1 is XL: twenty tests covering glyphs, images, vectors, outlines, metadata, encryption, limits,
-cancellation and a `pdftotext` differential oracle. Items after 1.2, roughly one per cluster:
-1.3 metamorphic invariants (1.5-1.7) · 1.4 broken-text mutation (1.8) · 1.5 images (1.9) ·
-1.6 limits (1.10, 1.11, 1.20) · 1.7 encryption (1.12-1.14) · 1.8 outline (1.15) · 1.9 fuzz-lite (1.16) ·
+Next: 1.5 `prop_rotate_invariance_of_extracted_text` (for `/Rotate` in {0,90,180,270} applied to f01,
+the ordered `ch` sequence is identical), 1.6 `cropbox_offset_does_not_lose_text` (h03 plus a mutation
+shifting the CropBox by 50,50: `C_raw` unchanged, all rects inside the page), 1.7
+`prop_content_stream_reorder_invariance` (shuffling drawing operators within one line leaves the char
+sequence unchanged after a y/x sort). These are the tests that catch the CropBox/rotate class of bug
+R1 §D.6 #1 documents, so they are worth more than their line count suggests.
+
+`oc_testkit::handmade` can already build rotated and crop-shifted pages; a `/Rotate` mutation over the
+Typst f01 needs `lopdf`, which `xtask` and `oc-pdf` both have.
+
+Remaining Phase 1 items after 1.3: 1.4 broken-text mutation (1.8) · 1.5 images (1.9) · 1.6 limits
+(1.10, 1.11, 1.20) · 1.7 encryption (1.12-1.14) · 1.8 outline (1.15) · 1.9 fuzz-lite (1.16) ·
 1.10 dump-stage (1.17) · 1.11 the poppler oracle (1.18) · 1.12 cancellation (1.19) · then VD-d, the
-ten-PDF image spike, which blocks Phase 4's image policy.
+ten-PDF image spike that blocks Phase 4's image policy.
 
-**Read `docs/DECISIONS_LOG.md`'s PDFium overdraw entry before writing test 1.4.** PDFium's text page
-already collapses identical overlapping glyphs, so `C_raw` from that API is post-dedup and test 1.4 as
-the plan words it cannot hold. The entry says what to assert instead and how to keep D13.4's budget
-meaningful (count glyphs a second way, from the page's text objects, and ledger the difference).
+**Open from item 1.2, for the conservation-law work in Phase 2/6:** `OverdrawDedup` has a budget and no
+way to consume it. PDFium collapses overdrawn duplicates before we see them and its object-level text
+API returns the same deduplicated string, so the collapsed count needs `lopdf` content-stream access
+(counting bytes shown by `Tj`/`TJ`). Safe in the meantime - PDFium never merges distinct characters -
+but not the guarantee D13.4 describes. Details in `docs/DECISIONS_LOG.md`.
 
 ## Phase 0 — Definition of Done
 
@@ -576,3 +585,4 @@ sources, `corpus/fixtures/assets/scan_page_01.png`, and its generator
 2026-09-09  P0.13     apps/desktop hello-Tauri + handshake + LICENSE (test 0.22)                52a4071
 2026-09-09  PHASE 0   COMPLETE - Definition of Done checked, one item partly open (A0.6)
 2026-09-09  P1.1      oc-testkit handmade fixtures + the PDFium overdraw finding           15d0dbe
+2026-09-09  P1.2      oc-model extract/ledger + oc-pdf glyph extraction (tests 1.1-1.4)    f962f00
