@@ -129,6 +129,7 @@ impl PdfDoc for PdfiumDoc {
             match character.unicode_char() {
                 Some(char::REPLACEMENT_CHARACTER) => stats.replacement += 1,
                 Some(c) if is_private_use(c) => stats.pua += 1,
+                Some(c) if is_undecodable_control(c, &character) => stats.control += 1,
                 _ => {}
             }
         }
@@ -414,6 +415,33 @@ fn degrees(rotation: pdfium_render::prelude::PdfPageRenderRotation) -> i32 {
 fn is_private_use(c: char) -> bool {
     let code = u32::from(c);
     PUA_BMP.contains(&code) || PUA_PLANE_15.contains(&code) || PUA_PLANE_16.contains(&code)
+}
+
+/// The three control characters a correctly-extracted text page legitimately carries.
+const TAB: u32 = 0x09;
+const LINE_FEED: u32 = 0x0A;
+const CARRIAGE_RETURN: u32 = 0x0D;
+
+/// A control character that stands for a code nothing could map to Unicode.
+///
+/// Two exclusions, both measured on the fixtures rather than assumed:
+///
+/// - Tab, line feed and carriage return reach a text page as structure — PDFium inserts them
+///   between lines and columns — rather than as content.
+/// - PDFium marks a hyphen at a line break with **U+0002** and sets `is_hyphen()` on it.
+///   `f02` carries two, at `projec-tion` and `reading-order`; the stripped-`/ToUnicode` `f01`
+///   carries 653 controls and not one of them is flagged. So the flag separates the two
+///   meanings exactly, and a hyphenated page is not charged for its own hyphens.
+fn is_undecodable_control(
+    c: char,
+    character: &pdfium_render::prelude::PdfPageTextChar<'_>,
+) -> bool {
+    let code = u32::from(c);
+    c.is_control()
+        && code != TAB
+        && code != LINE_FEED
+        && code != CARRIAGE_RETURN
+        && !character.is_hyphen().unwrap_or(false)
 }
 
 /// Read the document metadata `inspect` reports.

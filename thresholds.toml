@@ -75,7 +75,7 @@ review_by = "2027-06-30"
 [pageclass.broken_text_replacement_share]
 value = 0.20
 source = "provisional"
-evidence = "R2 §B.8 + RT B1 fallback for missing has_unicode_map_error(): U+FFFD/PUA share"
+evidence = "R2 §B.8 + RT B1 fallback for missing has_unicode_map_error(): share of visible characters that are U+FFFD, private-use, or non-structural controls. The third kind was added in Phase 1 item 1.4: a CID font stripped of /ToUnicode makes PDFium return glyph indices, which are neither of the first two - see docs/DECISIONS_LOG.md"
 owner = "maintainer"
 review_by = "2027-06-30"
 

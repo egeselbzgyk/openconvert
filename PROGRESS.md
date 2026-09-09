@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 1
-CURRENT_ITEM: 1.4 — broken-text mutation (test 1.8)
+CURRENT_ITEM: 1.5 — images: ImageRef, effective DPI, kind (test 1.9)
 LAST_UPDATED: 2026-09-09
 
 ---
@@ -42,20 +42,21 @@ LAST_UPDATED: 2026-09-09
 
 ## Current work item
 
-**Phase 1, item 1.4 — the broken-text mutation (test 1.8).** Items 1.1 (hand-made fixtures),
-1.2 (glyph extraction, tests 1.1–1.4) and 1.3 (metamorphic invariants, tests 1.5–1.7) are done.
+**Phase 1, item 1.5 — images (test 1.9).** Items 1.1–1.4 are done: hand-made fixtures, glyph
+extraction (tests 1.1–1.4), the metamorphic invariants (1.5–1.7) and the broken-text mutation (1.8).
 
-Next is RED: test 1.8 `stripped_tounicode_page_classifies_broken_text` — `f01__strip_tounicode.pdf`
-must classify every page `broken_text`. The mutation belongs beside the two that exist:
-add `strip_tounicode` to `oc_testkit::mutate` (delete `/ToUnicode` from every font dictionary, so
-the text decodes to U+FFFD or to nothing), have `cargo xtask mutations` write
-`corpus/fixtures/mutations/f01__strip_tounicode.pdf`, and assert against
-`pageclass.broken_text_replacement_share`, which is already in `thresholds.toml`.
+Next is RED: test 1.9 `image_only_page_extracts_one_image_with_dpi` over `f03` — one `ImageRef`,
+`kind == FullPageBackground`, `effective_dpi` within [140, 160]. Then implement `oc-pdf::images`
+per Phase 1 detail 4: `PdfPageImageObject::get_processed_image()` for compositing — not
+`get_raw_image()`, which is kept behind a `--images raw` debug flag for the SMask spike — plus
+`intrinsic_px`, `effective_dpi = intrinsic_px.0 / (bbox.width_pt / 72)`, `has_smask`, `colorspace`
+and `is_inline`; then `kind`: area ratio ≥ 0.95 → `FullPageBackground`, aspect > 8 → `Strip`,
+max side < 48 pt → `Ornament`, else `Figure`. Those four numbers are thresholds and belong in
+`thresholds.toml` with provenance before any code references them (D17).
 
-Remaining Phase 1 items after 1.4: 1.5 images (1.9) · 1.6 limits (1.10, 1.11, 1.20) ·
-1.7 encryption (1.12–1.14) · 1.8 outline (1.15) · 1.9 fuzz-lite (1.16) · 1.10 dump-stage (1.17) ·
-1.11 the poppler oracle (1.18) · 1.12 cancellation (1.19) · then VD-d, the ten-PDF image spike that
-blocks Phase 4's image policy.
+Remaining Phase 1 items after 1.5: 1.6 limits (1.10, 1.11, 1.20) · 1.7 encryption (1.12–1.14) ·
+1.8 outline (1.15) · 1.9 fuzz-lite (1.16) · 1.10 dump-stage (1.17) · 1.11 the poppler oracle (1.18) ·
+1.12 cancellation (1.19) · then VD-d, the ten-PDF image spike that blocks Phase 4's image policy.
 
 ## Notes
 
@@ -70,6 +71,10 @@ Carried forward, in the order a fresh session needs them:
   `target/fixtures/`), `-- handmade-fixtures` (h01–h08, committed), `-- mutations` (committed).
 - **No stage may treat the backend's glyph order as reading order.** Measured in item 1.3: PDFium
   reorders the lines of a page under `/Rotate 90`. Reading order is Phase 3's, from geometry.
+- **Open from item 1.4, for Phase 2/3:** PDFium reports a line-break hyphen as **U+0002** with
+  `is_hyphen()` set, not as U+002D. So `C_raw` already differs from the document by one character at
+  every hyphenated line break — normalisation `N` must map it back before `Dehyphenate` can account
+  for removing it — and the flag is a free, exact dehyphenation signal for Phase 3.
 - **Open from item 1.2, for the conservation-law work in Phase 2/6:** `OverdrawDedup` has a budget
   and no way to consume it. PDFium collapses overdrawn duplicates before we see them and its
   object-level text API returns the same deduplicated string, so the collapsed count needs `lopdf`
@@ -136,3 +141,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-09  P1.1      oc-testkit handmade fixtures + the PDFium overdraw finding           15d0dbe
 2026-09-09  P1.2      oc-model extract/ledger + oc-pdf glyph extraction (tests 1.1-1.4)    f962f00
 2026-09-09  P1.3      oc-pdf metamorphic invariants + oc-testkit mutate (tests 1.5-1.7)   bd96e3a
+2026-09-09  P1.4      oc-pdf broken-text: control-char counter + strip_tounicode (test 1.8)

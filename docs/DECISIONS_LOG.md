@@ -703,3 +703,49 @@ Evidence: `cargo nextest run --workspace` - 33 passed. Rotation table measured o
 Affects: D3, D13.4, R1 §D.6 #1, IMPLEMENTATION_PLAN Phase 1 tests 1.5-1.7 and its Files list,
 `crates/oc-pdf/tests/metamorphic.rs`, `crates/oc-testkit/src/{mutate.rs,handmade.rs}`,
 `xtask/src/mutations.rs`.
+
+## 2026-09-09 · The broken-text detector missed the commonest broken text · Phase 1
+Context: item 1.4 writes test 1.8, `stripped_tounicode_page_classifies_broken_text`, over a new
+`strip_tounicode` mutation of `f01`.
+
+**The finding.** Stripping `/ToUnicode` from `f01` and inspecting it gave, on both pages:
+`class: Text, class_confidence: 1.0, visible_chars: 664, replacement_chars: 0, pua_chars: 0`.
+The extracted text is
+`"\u{1}\u{2}\u{3}\u{4}\u{1}\u{3}\u{5}\u{6}\u{4}..."` where the original reads
+`"The Test BookChapter 3It was a dark and stormy night..."`. Typst writes Type0/CIDFontType0 fonts
+with Identity-H encoding, so without a `/ToUnicode` map PDFium hands back **the glyph indices
+themselves** - U+0001, U+0002, U+0003 - which are neither U+FFFD nor private-use.
+
+So the Phase 0 detector, which counts `replacement + pua` over `visible`, scored a page of pure
+mojibake as ordinary text at full confidence. That is the exact failure D13.10 and PIPELINE §658
+exist to prevent: the page would have been emitted into the EPUB as 664 control characters instead
+of being routed to OCR. `f01` unmutated classifies `text` at confidence 1.0 too, so the test was
+worth having precisely because it could move the classifier rather than agree with it.
+
+**The fix, and why it is a completion rather than a new decision.** PIPELINE line 154 states the rule
+as "U+FFFD/PUA share above the language prior **or** dictionary hit rate below it", and line 158
+records that the whole share statistic is already a *substitution* for the missing
+`has_unicode_map_error()` (V2 §1, RT B1). The intent - "characters that decode to nothing usable" -
+is unchanged; the enumeration of what that looks like was incomplete. `PageCharStats` gains a third
+counter, `control`, and `is_broken_text` sums all three over the same threshold. Nothing about the
+threshold, the ordering of the arms, or the second (dictionary) arm changes. `pageclass.broken_text_
+replacement_share` keeps its value of 0.20; only its `evidence` string is restated.
+
+**PDFium marks a line-break hyphen with U+0002 and `is_hyphen()`.** Measured while checking the new
+counter for false positives: `f02` page 0 carries exactly two control characters, at `projec-tion`
+and `reading-order` - both hyphenated across a line break in the two-column layout - and both have
+`is_hyphen()` set. The stripped `f01` carries 653 controls and **not one** is flagged. The flag
+separates the two meanings exactly, so `is_undecodable_control` excludes hyphen-flagged characters
+and a heavily hyphenated page is not charged for its own hyphens. Tab, line feed and carriage return
+are excluded too: PDFium inserts those between lines and columns as structure.
+
+**Open, for Phase 2/3.** Two things follow from that hyphen marker and neither is Phase 1's:
+- `C_raw` for a hyphenated page contains U+0002 where the document contains U+002D. The
+  conservation quantity is therefore already one character away from the document at every line-break
+  hyphen. Normalisation `N` has to map it back, before `Dehyphenate` can account for removing it.
+- It is a free, exact dehyphenation signal - PDFium is naming the line-break hyphens - which the
+  Phase 3 dehyphenator should use rather than re-deriving from geometry.
+Evidence: `cargo nextest run --workspace` - 34 passed. Measured on PDFium `chromium/7881`.
+Affects: D13.10, PIPELINE lines 154/158/658, R2 §B.8, RT B1, `thresholds.toml`
+`pageclass.broken_text_replacement_share`, `crates/oc-pdf/src/{classify.rs,inspect.rs,pdfium/doc.rs}`,
+`crates/oc-testkit/src/mutate.rs`, the three `inspect` snapshots (new `control_chars` field).

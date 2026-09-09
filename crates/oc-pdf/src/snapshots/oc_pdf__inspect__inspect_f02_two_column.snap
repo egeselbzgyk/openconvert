@@ -33,6 +33,7 @@ expression: report
       "invisible_chars": 0,
       "replacement_chars": 0,
       "pua_chars": 0,
+      "control_chars": 0,
       "image_count": 0,
       "image_area_ratio": 0.0,
       "glyphless_font": false
@@ -48,6 +49,7 @@ expression: report
       "invisible_chars": 0,
       "replacement_chars": 0,
       "pua_chars": 0,
+      "control_chars": 0,
       "image_count": 0,
       "image_area_ratio": 0.0,
       "glyphless_font": false

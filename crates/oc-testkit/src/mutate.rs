@@ -33,6 +33,11 @@ pub enum MutateError {
     Write(String),
     #[error("page {page} has no usable {attribute}")]
     Missing { page: u32, attribute: &'static str },
+    /// The mutation found nothing to change, which means the fixture is not the one the test
+    /// thinks it is. Silently returning the input would make the test pass for the wrong
+    /// reason, which is the failure a mutation test exists to prevent.
+    #[error("nothing to mutate: the document has no {what}")]
+    Absent { what: &'static str },
 }
 
 /// Set `/Rotate` on every page.
@@ -79,6 +84,45 @@ pub fn cropbox_offset(bytes: &[u8], dx: f32, dy: f32) -> Result<Vec<u8>, MutateE
         ];
         let dictionary = page_dictionary_mut(&mut document, id)?;
         dictionary.set("CropBox", rect_object(shifted));
+    }
+    save(document)
+}
+
+/// The key that maps a font's character codes back to Unicode.
+const TO_UNICODE: &[u8] = b"ToUnicode";
+
+/// Delete `/ToUnicode` from every object that carries one.
+///
+/// **Changes:** whether anything can say what the characters *are*. **Does not change:** a
+/// single mark on the page — the glyphs are selected by code and drawn from the embedded
+/// font either way, so a reader sees exactly the same ink.
+///
+/// That gap is the most common reason a real PDF is unconvertible (R2 §B.8), and it is why
+/// `broken_text` is a page class rather than an error: the honest answer is to route the page
+/// to OCR, not to emit whatever the code points happened to decode to.
+///
+/// Every object is visited rather than only the fonts reachable from a page's resources: a
+/// font referenced from a Form XObject, an annotation appearance or a pattern is a font too,
+/// and one surviving `/ToUnicode` would leave part of the document decodable.
+pub fn strip_tounicode(bytes: &[u8]) -> Result<Vec<u8>, MutateError> {
+    let mut document = load(bytes)?;
+    let mut removed = 0usize;
+    for object in document.objects.values_mut() {
+        let dictionary = match object {
+            Object::Dictionary(dictionary) => Some(dictionary),
+            Object::Stream(stream) => Some(&mut stream.dict),
+            _ => None,
+        };
+        if let Some(dictionary) = dictionary {
+            if dictionary.remove(TO_UNICODE).is_some() {
+                removed += 1;
+            }
+        }
+    }
+    if removed == 0 {
+        return Err(MutateError::Absent {
+            what: "/ToUnicode to strip",
+        });
     }
     save(document)
 }

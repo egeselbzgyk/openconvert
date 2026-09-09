@@ -39,6 +39,15 @@ pub struct PageCharStats {
     pub replacement: u32,
     /// Private-use code points, which a subset font with no `ToUnicode` map produces.
     pub pua: u32,
+    /// Control characters other than tab, line feed and carriage return.
+    ///
+    /// A font draws no control character, so one arriving from the text page is the raw code
+    /// the content stream selected a glyph with, surfacing because nothing could map it to
+    /// Unicode. Measured, on `f01__strip_tounicode.pdf`: an Identity-H CID font stripped of
+    /// its `/ToUnicode` makes PDFium return the glyph indices themselves - U+0001, U+0002,
+    /// U+0003 - which are neither U+FFFD nor private-use, and which the two counters above
+    /// therefore miss completely. See `docs/DECISIONS_LOG.md`.
+    pub control: u32,
     /// Whether any font on the page is a `GlyphLessFont`, the marker Tesseract's PDF output
     /// leaves behind.
     pub glyphless_font: bool,
@@ -101,13 +110,20 @@ pub fn classify_page(
 
 /// Two independent signals of a broken CMap: characters that decode to nothing usable, and
 /// characters that decode but spell nothing.
+///
+/// "Nothing usable" is three counters rather than the two PIPELINE line 154 names, because
+/// the two it names do not cover the commonest case. A CID font stripped of its `/ToUnicode`
+/// yields raw glyph indices, which are control characters; a simple font with a broken
+/// encoding yields U+FFFD; a symbolic subset yields private-use points. All three are the
+/// same fault - the character code cannot be mapped to Unicode - and all three must count,
+/// or a page of pure mojibake classifies as `text` with full confidence.
 fn is_broken_text(
     chars: &PageCharStats,
     dictionary_hit_rate: Option<f32>,
     thresholds: &Thresholds,
 ) -> bool {
     let pageclass = &thresholds.pageclass;
-    let undecodable = f64::from(chars.replacement + chars.pua);
+    let undecodable = f64::from(chars.replacement + chars.pua + chars.control);
     // A page with no visible characters cannot be judged by a share of them; the divisor
     // guards the ratio, it does not stand in for missing evidence.
     let share = undecodable / f64::from(chars.visible.max(1));
@@ -147,6 +163,7 @@ fn chars(visible: u32) -> PageCharStats {
         invisible: 0,
         replacement: 0,
         pua: 0,
+        control: 0,
         glyphless_font: false,
     }
 }
@@ -184,6 +201,7 @@ fn classify_ocr_sandwich_page() {
         invisible: 900,
         replacement: 0,
         pua: 0,
+        control: 0,
         glyphless_font: true,
     };
     let (class, confidence) = classify_page(&stats, &full_page_image(), None, &T);
@@ -219,6 +237,35 @@ fn classify_broken_text_page() {
     };
     assert_eq!(
         classify_page(&pua, &no_images(), None, &T).0,
+        PageClass::BrokenText
+    );
+
+    // And so do control characters, which is the case the first two miss. A CID font
+    // stripped of its `/ToUnicode` makes PDFium hand back the glyph indices themselves -
+    // U+0001, U+0002, U+0003 - and a page of those is mojibake that would otherwise
+    // classify as `text` with full confidence. Measured on `f01__strip_tounicode.pdf`,
+    // which test 1.8 ingests end to end.
+    let control = PageCharStats {
+        visible: 900,
+        control: 300,
+        ..chars(900)
+    };
+    assert_eq!(
+        classify_page(&control, &no_images(), None, &T).0,
+        PageClass::BrokenText
+    );
+
+    // The three are one share, not three: a page failing every way at once is still broken
+    // by the same rule, and no arm may be reachable only on its own.
+    let mixed = PageCharStats {
+        visible: 900,
+        replacement: 100,
+        pua: 60,
+        control: 40,
+        ..chars(900)
+    };
+    assert_eq!(
+        classify_page(&mixed, &no_images(), None, &T).0,
         PageClass::BrokenText
     );
 

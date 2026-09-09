@@ -151,3 +151,16 @@ Rust field name, and a capital letter there trips `non_snake_case` under `-D war
 - New: `cargo xtask mutations`, writing `corpus/fixtures/mutations/h01__cropbox_offset.pdf`.
 - Measured: PDFium's character order is not invariant under `/Rotate 90`. No stage may
   treat the backend's glyph order as reading order; see `docs/DECISIONS_LOG.md`.
+
+### Broken-text detection (`oc-pdf`, `oc-testkit`, `xtask`)
+
+- New: `oc_testkit::mutate::strip_tounicode`, and `f01__strip_tounicode.pdf` under
+  `corpus/fixtures/mutations/`.
+- **Fixed:** a page whose CID fonts have no `/ToUnicode` classified as `text` with full
+  confidence. PDFium returns the raw glyph indices, which are control characters and so were
+  counted by neither the U+FFFD nor the private-use counter. `PageCharStats` gains `control`
+  and `is_broken_text` sums all three over the unchanged threshold.
+- New: `PageInfo.control_chars` in the `inspect` report, so a `broken_text` verdict says which
+  of the three undecodable kinds reached it. The three snapshots change by that field only.
+- Measured: PDFium marks a line-break hyphen with U+0002 and `is_hyphen()`; those are excluded
+  from the control count. See `docs/DECISIONS_LOG.md` for what it means for `N` and Phase 3.

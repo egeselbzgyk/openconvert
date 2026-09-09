@@ -75,6 +75,10 @@ pub struct PageInfo {
     pub invisible_chars: u32,
     pub replacement_chars: u32,
     pub pua_chars: u32,
+    /// Control characters other than tab, line feed and carriage return — the shape a
+    /// stripped `/ToUnicode` on a CID font takes. Reported so that a `broken_text` verdict
+    /// says which of the three undecodable kinds it was reached by.
+    pub control_chars: u32,
     pub image_count: u32,
     pub image_area_ratio: f32,
     pub glyphless_font: bool,
@@ -161,6 +165,7 @@ pub fn inspect(
             invisible_chars: chars.invisible,
             replacement_chars: chars.replacement,
             pua_chars: chars.pua,
+            control_chars: chars.control,
             image_count: images.count,
             image_area_ratio: round_to_report(images.covered_area_ratio),
             glyphless_font: chars.glyphless_font,
@@ -336,4 +341,61 @@ fn inspect_f03_image_only() {
     );
 
     snapshot_settings().bind(|| insta::assert_json_snapshot!(report));
+}
+
+/// A mutated fixture, written by `cargo run -p xtask -- mutations`.
+///
+/// Committed, unlike the Typst fixtures it is derived from, because a mutation is only a
+/// regression artefact if everyone's copy is the same file.
+#[cfg(test)]
+fn mutation(name: &str) -> std::path::PathBuf {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/fixtures/mutations")
+        .join(format!("{name}.pdf"));
+    assert!(
+        path.is_file(),
+        "missing mutation {}; run `cargo run -p xtask -- mutations`",
+        path.display()
+    );
+    path
+}
+
+/// Test 1.8. Strip `/ToUnicode` from every font and the page still draws — a reader sees the
+/// same ink — but nothing can say what the characters *are*. That is the single most common
+/// way a PDF is unconvertible (R2 §B.8), and the whole point of classifying it is to route
+/// the page to OCR instead of emitting mojibake into a book.
+///
+/// `f01` is the right subject because unmutated it classifies `text` with high confidence,
+/// so this asserts the classifier can be moved, not merely that it agrees with itself.
+#[test]
+fn stripped_tounicode_page_classifies_broken_text() {
+    use crate::classify::PageClass;
+    use crate::inspect::{inspect, InspectOptions};
+    use crate::pdfium::PdfiumBackend;
+
+    let backend = PdfiumBackend::bind().expect("PDFium is vendored");
+    let report = inspect(
+        &backend,
+        &mutation("f01__strip_tounicode"),
+        &InspectOptions::default(),
+    )
+    .expect("the mutated fixture inspects");
+
+    assert_eq!(report.document.pages, 2);
+    assert!(
+        report
+            .pages
+            .iter()
+            .all(|p| p.class == PageClass::BrokenText),
+        "{:?}",
+        report.pages
+    );
+    assert!(
+        report
+            .warnings
+            .iter()
+            .any(|w| w.code == "W_BROKEN_TEXT_PAGES"),
+        "{:?}",
+        report.warnings
+    );
 }
