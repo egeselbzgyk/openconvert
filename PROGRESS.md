@@ -192,5 +192,5 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-10  P1.11     oc-pdf differential pdftotext oracle behind a feature (test 1.18)  2a9aa8f
 2026-09-10  P1.perf   oc-pdf: page ids read once, not per page (O(n^2) fix)                6908601
 2026-09-10  P1.12     oc-core cancel/progress + openconvert control channel (test 1.19)  69734e5
-2026-09-10  P1.13     oc-pdf image_bytes + VD-d known-answer spike (VD-d closed)
+2026-09-10  P1.13     oc-pdf image_bytes + VD-d known-answer spike (VD-d closed)             c73476e
 2026-09-10  PHASE 1   COMPLETE - Definition of Done checked; A1.6 measured off reference machine L
