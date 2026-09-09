@@ -75,7 +75,10 @@ replaced by the phase that owns it.
 | 1.13 | `cli::encrypted_with_password_requires_flag` | `openconvert` | integration | `test` | green |
 | 1.14 | `encrypt::owner_password_permissions_recorded_not_enforced` | `oc-pdf` | fixture (mutation) | `test` | green |
 | 1.15 | `outline::outline_is_read_depth_first` | `oc-pdf` | fixture (h13) | `test` | green |
-| 1.16 | `prop_never_panics_on_arbitrary_bytes` | `oc-pdf` | property | `test`, `proptest-deep` | — |
+| 1.16 | `fuzz_lite::prop_never_panics_on_arbitrary_bytes` | `oc-pdf` | property | `test`, `proptest-deep` | green |
+| 1.16a | `fuzz_lite::prop_never_panics_on_truncated_fixtures` | `oc-pdf` | property | `test`, `proptest-deep` | green |
+| 1.16b | `fuzz_lite::prop_never_panics_on_corrupted_fixtures` | `oc-pdf` | property | `test`, `proptest-deep` | green |
+| 1.16c | `fuzz_lite::corruption_reaches_the_extraction_paths` | `oc-pdf` | unit | `test` | green |
 | 1.17 | `dump_stage_ingest_snapshot_h01` | `oc-core` | snapshot | `test` | — |
 | 1.18 | `differential_pdftotext_coverage_f01` | `oc-pdf` | integration (oracle) | `test` | — |
 | 1.19 | `cancel_is_observed_inside_page_loop` | `oc-core` | integration | `test` | — |

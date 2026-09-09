@@ -948,3 +948,52 @@ Affects: D3, D13.10, D18, IMPLEMENTATION_PLAN Phase 1 detail 6 and test 1.15, IR
 `OutlineEntry`, `thresholds.toml` `limits.max_outline_entries`,
 `crates/oc-model/src/extract.rs`, `crates/oc-pdf/src/{outline.rs,meta.rs,inspect.rs,pdfium/doc.rs}`,
 `crates/oc-testkit/src/handmade.rs`.
+
+## 2026-09-10 · Truncation barely fuzzes anything; corruption does · Phase 1
+Context: item 1.9 writes test 1.16 as `crates/oc-pdf/tests/fuzz_lite.rs`.
+
+**The measurement.** The plan's generator is "20 000 random byte strings (and 200 truncations of
+real fixtures)". Measured, over a hundred evenly spaced cuts of each of three committed fixtures:
+
+| fixture | bytes | cuts that opened | cuts that extracted glyphs |
+|---|---|---|---|
+| `h01_two_glyphs` | 717 | 3 / 101 | 3 |
+| `h13_outline` | 1535 | 2 / 101 | 2 |
+| `h09_image_smask` | 1255 | 2 / 101 | 2 |
+
+Two to three per cent. PDFium wants a trailer and an xref at the *end* of the file, so a cut
+anywhere before them is refused at the door - and a cut after them is not a truncation. Two hundred
+truncations therefore buy roughly five inputs that reach an extraction path, which is not a fuzz
+test of the extraction paths. The same three fixtures with **one byte changed**:
+
+| fixture | opened | extracted glyphs |
+|---|---|---|
+| `h01_two_glyphs` | 187 / 200 | 170 |
+| `h13_outline` | 195 / 200 | 187 |
+| `h09_image_smask` | 192 / 200 | 181 |
+
+93-98 % open, 85-94 % extract. Flipping a byte leaves the trailer intact, so PDFium takes its
+damaged-file recovery path - rebuilding the xref, guessing object boundaries - which is the
+deepest and least-travelled code in the library, and the shape a real damaged file actually has.
+
+**The decision.** Both generators are kept. The plan names truncation and it costs almost nothing;
+corruption is added at 2 000 cases because it is the one that fuzzes the code under test. Three
+proptest tests rather than one, so the case counts can differ by two orders of magnitude and a
+failure names which kind of input found it.
+
+The random half is also improved: half of the random inputs are given a real `%PDF-1.7` header,
+because bytes without one are rejected before a parser sees them and twenty thousand of those
+measure the header check twenty thousand times.
+
+**The measurement is asserted, not just written down.** `corruption_reaches_the_extraction_paths`
+re-runs a deterministic 200-sample sweep and fails if fewer than half reach glyph extraction. A
+reach figure recorded only in a comment is one that stops being true silently; if PDFium's recovery
+path ever tightens, this says so rather than leaving 2 000 cases quietly testing the door.
+
+**What none of this can catch.** A segmentation fault inside PDFium is not a panic and
+`catch_unwind` will never see it - it takes the process with it. RT A5.2 accepts that for v1 and
+reserves `--isolate-parser` for the Phase 14 worker. A green run here means "no panic", not "no
+crash". Nothing crashed across ~22 200 inputs on `chromium/7881`.
+Evidence: `cargo nextest run --workspace` - 61 passed. The fuzz binary is ~12 s, now the slowest
+test in the suite by an order of magnitude, which is the price of the plan's 20 000 figure.
+Affects: RT A5.2, IMPLEMENTATION_PLAN Phase 1 test 1.16, `crates/oc-pdf/tests/fuzz_lite.rs`.

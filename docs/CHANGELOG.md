@@ -206,3 +206,12 @@ Rust field name, and a capital letter there trips `non_snake_case` under `-D war
   from the object tree, with the byte search kept only as a fallback.
 - New fixture `h13_outline` (six entries, three levels, two roots) and threshold
   `limits.max_outline_entries`.
+
+### Fuzz-lite (`oc-pdf`)
+
+- New: `tests/fuzz_lite.rs` — ~22 200 inputs per run across three generators, asserting only
+  that nothing panics or hangs.
+- Measured: truncation reaches an extraction path in 2–3 % of cases (PDFium needs the trailer
+  and xref at the end of the file); single-byte corruption reaches one in 93–98 %. Both
+  generators are kept and the reach figure is asserted by its own test, so it cannot decay
+  silently. See `docs/DECISIONS_LOG.md`.

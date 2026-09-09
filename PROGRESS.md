@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 1
-CURRENT_ITEM: 1.9 — fuzz-lite (test 1.16)
+CURRENT_ITEM: 1.10 — dump-stage ingest (test 1.17)
 LAST_UPDATED: 2026-09-10
 
 ---
@@ -42,31 +42,33 @@ LAST_UPDATED: 2026-09-10
 
 ## Current work item
 
-**Phase 1, item 1.9 — fuzz-lite (test 1.16).** Items 1.1–1.8 are done: hand-made fixtures, glyph
-extraction (1.1–1.4), metamorphic invariants (1.5–1.7), the broken-text mutation (1.8), images
-(1.9), resource limits (1.10, 1.11, 1.20), encryption (1.12–1.14) and outlines/metadata (1.15).
+**Phase 1, item 1.10 — `dump-stage ingest` (test 1.17).** Items 1.1–1.9 are done: hand-made
+fixtures, glyph extraction (1.1–1.4), metamorphic invariants (1.5–1.7), the broken-text mutation
+(1.8), images (1.9), resource limits (1.10, 1.11, 1.20), encryption (1.12–1.14),
+outlines/metadata (1.15) and fuzz-lite (1.16).
 
-Next is RED: test 1.16 `prop_never_panics_on_arbitrary_bytes` — 20 000 random byte strings, plus
-200 truncations of the real fixtures, must all return `Err` and never panic. The nightly
-`proptest-deep` job raises it to 200 000.
+Next is RED: test 1.17 `dump_stage_ingest_snapshot_h01` — an `insta` snapshot of the canonical
+JSON of the extraction layer for `h01_two_glyphs`. Then:
 
-Two things to get right, and the second is the harder one:
+1. Assemble an `IngestDump` from what already exists: `PageGlyphs` (glyphs, fonts, removed,
+   `c_raw`, stats, class), `page_images`, `outline`, `doc_info`. Every one of those types already
+   derives `Serialize`; the work is the shape of the document, not the plumbing.
+2. `oc_model::canonical::to_canonical_json` for the bytes — sorted keys, geometry at 0.01 pt,
+   NFC, no NaN, `ir_version` first (D13.3). It exists and is tested from Phase 0 item 0.2.
+3. `crates/openconvert/src/cmd_dump_stage.rs` plus `openconvert dump-stage <stage> <input>`.
+   §2.1's CLI is hand-rolled; this is the second subcommand, so the parser grows a branch rather
+   than a dependency.
+4. **Stream it per page.** RT B4: a real book's extraction layer is tens of megabytes, so the CLI
+   writes page by page rather than building one value and serialising it. The snapshot only ever
+   covers a two-glyph fixture.
 
-- **Truncations are the valuable half.** Random bytes are rejected at the header and exercise
-  almost nothing; a real fixture cut off at a random offset is a *plausible* PDF with a broken
-  xref, which is what a partial download or a damaged file actually looks like. Draw the cut
-  offsets across the whole file, not just the tail.
-- **A PDFium segfault is not a panic and no `catch_unwind` will see it.** RT A5.2 accepts that for
-  v1 and reserves `--isolate-parser` for Phase 14. So if a truncation kills the test process, the
-  finding is real and belongs in `DECISIONS_LOG.md` — do not quietly drop the input that did it.
+Watch for: `c_raw` is a `CharHistogram` whose `Serialize` is the internal `ascii: Vec<u32>` — 128
+mostly-zero entries would make an unreadable snapshot and a huge dump. It needs a `Serialize` that
+writes only the characters present, which is what `CharHistogram::iter` already yields.
 
-Everything the test needs already exists: `open_with_limits` for the door, `page_glyphs` and
-`page_images` for the per-page paths, and `oc_testkit::handmade` for the corpus to truncate. The
-surface to fuzz is every public entry point that takes bytes.
-
-Remaining Phase 1 items after 1.9: 1.10 dump-stage (1.17) · 1.11 the poppler oracle (1.18) ·
-1.12 cancellation (1.19) · then VD-d, the ten-PDF image spike that blocks Phase 4's image policy.
-VD-d has its first fixture, `h09_image_smask`.
+Remaining Phase 1 items after 1.10: 1.11 the poppler oracle (1.18) · 1.12 cancellation (1.19) ·
+then VD-d, the ten-PDF image spike that blocks Phase 4's image policy. VD-d has its first fixture,
+`h09_image_smask`.
 
 ## Notes
 
@@ -156,3 +158,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-09  P1.6      oc-core/oc-pdf resource limits + --max-pages (tests 1.10, 1.11, 1.20)  13fce0b
 2026-09-09  P1.7      oc-pdf encryption: permissions recorded not enforced (tests 1.12-1.14)  a825fc5
 2026-09-10  P1.8      oc-pdf outline walk + meta from the object tree (test 1.15)  d815ad3
+2026-09-10  P1.9      oc-pdf fuzz-lite: random, truncated and corrupted inputs (test 1.16)
