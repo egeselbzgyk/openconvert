@@ -374,4 +374,4 @@ _(empty)_
 2026-09-09  P0.4      oc-pdf: page-space normalisation (test 0.8 + corner unit test)              79ac71f
 2026-09-09  P0.5      xtask vendor-pdfium + oc-pdf PDFium binding and probe (test 0.7)             5059a98
 2026-09-09  P0.6      oc-pdf: page classification (tests 0.9-0.12 + mixed/blank/dict test)        97ddfd8
-2026-09-09  P0.7      oc-pdf: producer-family detection (test 0.13)                              PENDING
+2026-09-09  P0.7      oc-pdf: producer-family detection (test 0.13)                              4788213
