@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 1
-CURRENT_ITEM: 1.1 — Phase 1 opening item; read IMPLEMENTATION_PLAN PHASE 1 and pick the first test
+CURRENT_ITEM: 1.2 — glyph extraction: `oc-model::extract` + `oc-pdf::glyphs` (tests 1.1–1.4)
 LAST_UPDATED: 2026-09-09
 
 ---
@@ -43,18 +43,20 @@ _(empty — Q1 resolved 2026-09-09; see `docs/DECISIONS_LOG.md`)_
 
 ## Current work item
 
-**Phase 1, item 1.1 — not yet chosen.** Phase 0 is complete (see below). The next step is to read
-`docs/IMPLEMENTATION_PLAN.md` PHASE 1 in full, plus the `ingest` section of `docs/PIPELINE.md`, and take
-the first item of its test table with the usual TDD loop.
+**Phase 1, item 1.2 — glyph extraction.** Item 1.1 (the hand-made fixtures) is done. Next is
+`oc-model::{extract,ledger}` and `oc-pdf::glyphs`, driven by tests 1.1-1.4.
 
-What Phase 0 leaves ready for it: `PdfiumBackend` binds and probes, `PdfDoc` gives per-page counters,
-`PageGeometry` converts PDF user space into the one IR space, `classify_page` types pages, `BlockId` and
-canonical JSON exist, thresholds are generated and linted, and `cargo run -p xtask -- fixtures` produces
-three real PDFs to test against.
+Phase 1 is XL: twenty tests covering glyphs, images, vectors, outlines, metadata, encryption, limits,
+cancellation and a `pdftotext` differential oracle. Items after 1.2, roughly one per cluster:
+1.3 metamorphic invariants (1.5-1.7) · 1.4 broken-text mutation (1.8) · 1.5 images (1.9) ·
+1.6 limits (1.10, 1.11, 1.20) · 1.7 encryption (1.12-1.14) · 1.8 outline (1.15) · 1.9 fuzz-lite (1.16) ·
+1.10 dump-stage (1.17) · 1.11 the poppler oracle (1.18) · 1.12 cancellation (1.19) · then VD-d, the
+ten-PDF image spike, which blocks Phase 4's image policy.
 
-**Verification debt VD-d blocks Phase 1** (`docs/DECISIONS_LOG.md`): the PDFium image spike over ten real
-PDFs, comparing `get_processed_image()` against a `pypdfium2` reference. D3's residual-risk note depends
-on its answer, so it is Phase 1 work, not something to discover in Phase 4.
+**Read `docs/DECISIONS_LOG.md`'s PDFium overdraw entry before writing test 1.4.** PDFium's text page
+already collapses identical overlapping glyphs, so `C_raw` from that API is post-dedup and test 1.4 as
+the plan words it cannot hold. The entry says what to assert instead and how to keep D13.4's budget
+meaningful (count glyphs a second way, from the page's text objects, and ledger the difference).
 
 ## Phase 0 — Definition of Done
 
@@ -573,3 +575,4 @@ sources, `corpus/fixtures/assets/scan_page_01.png`, and its generator
 2026-09-09  P0.11/12  oc-testkit assertions + xtask ci-lint/thresholds-lint (0.21, 0.23)        de4298c
 2026-09-09  P0.13     apps/desktop hello-Tauri + handshake + LICENSE (test 0.22)                52a4071
 2026-09-09  PHASE 0   COMPLETE - Definition of Done checked, one item partly open (A0.6)
+2026-09-09  P1.1      oc-testkit handmade fixtures + the PDFium overdraw finding           15d0dbe
