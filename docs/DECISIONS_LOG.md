@@ -539,3 +539,33 @@ Evidence: `npm test` in `apps/desktop/ui` — 5 tests, covering the hello parse,
 protocol and IR mismatches, a stream that does not begin with `hello`, and the non-JSON line.
 `cargo run -p xtask -- stage-sidecars` staged `openconvert 0.1.0` for the host triple.
 Affects: D2, D7, D13.9, RT A5.7, RT B15, A0.6, A0.7, test 0.22, `apps/desktop`, `xtask`.
+
+## 2026-09-09 · Verification-debt stubs VD-b…VD-g · Phase 0
+Acceptance A0.9 requires every row of the Phase 0 verification-debt table to carry an owner, a blocking
+phase, and a stub here. VD-a is closed above. The rest are open, and each closes with a dated entry in
+this file naming the source actually consulted. An open row past its blocking phase is a release blocker,
+not a warning. **Owner: maintainer, for every row.**
+
+- **VD-b — `hyphenation` pattern licences. Blocks Phase 3.** The crate is Apache-2.0/MIT, already
+  confirmed; the bundled TeX/`hyph-utf8` *pattern files* are separately licensed and unverified, and it is
+  also unconfirmed that DE, TR and EN patterns are present at all. To close: read the pattern files'
+  own licence headers in the version pinned at that time, and record which of the three languages ship.
+- **VD-c — `zspell` licence. Blocks the optional dictionary pack (post-v1).** crates.io reports the
+  licence field as literally "Non-standard", unmapped to any SPDX id. `zspell` is not a dependency today
+  and `deny.toml` would reject it, so nothing in v1 waits on this. To close: read the crate's own
+  `LICENSE` file.
+- **VD-d — PDFium SMask, vector-path and bookmark coverage. Blocks Phase 1, and Phase 4's image policy.**
+  An API-signature-level spike over ten real PDFs (SMask, stencil mask, CMYK JPEG, indexed PNG, 1-bit
+  CCITT, JPX, inline image, rotated image, tiny ornament, full-page scan), comparing
+  `get_processed_image()` against a `pypdfium2` reference. This is Phase 1's image spike; the row exists
+  so it is not quietly dropped, because D3's own residual-risk note depends on the answer.
+- **VD-e — igerman98 and Turkish hunspell licences. Blocks the optional dictionary pack (post-v1).**
+  D15 routes around this for core data by generating the word-frequency lists from CC0/PD text, so
+  nothing in v1's shipped path depends on the answer. To close: read both projects' licence files.
+- **VD-f — validation-pack JRE licence, per vendor. Blocks Phase 6, or whenever the validation pack
+  ships.** That a Temurin (or other OpenJDK-derived) minimal `jlink` image is redistributable under
+  GPLv2 + Classpath Exception has to be read from that vendor's own licence text, not assumed from
+  OpenJDK generally.
+- **VD-g — UB-Mannheim Windows Tesseract. Blocks Phase 13.** The installer's actual install path and the
+  Tesseract version it delivers, so the Windows discovery probe looks in the right place for the right
+  binary.

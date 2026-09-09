@@ -3,8 +3,8 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 0
-CURRENT_ITEM: 0.9 — `oc-pdf::inspect` + the `inspect` JSON report (tests 0.14–0.16, not yet written)
+CURRENT_PHASE: 1
+CURRENT_ITEM: 1.1 — Phase 1 opening item; read IMPLEMENTATION_PLAN PHASE 1 and pick the first test
 LAST_UPDATED: 2026-09-09
 
 ---
@@ -12,7 +12,7 @@ LAST_UPDATED: 2026-09-09
 ## How to use this file
 
 - `STATUS` is one of `IN_PROGRESS` · `BLOCKED` · `COMPLETE`.
-- Set `STATUS: IN_PROGRESS` **only** when a decision is needed that `docs/DECISIONS.md` does not settle. Write the question under `## Blocked
+- Set `STATUS: BLOCKED` **only** when a decision is needed that `docs/DECISIONS.md` does not settle. Write the question under `## Blocked
 
 _(empty — Q1 resolved 2026-09-09; see `docs/DECISIONS_LOG.md`)_
 
@@ -22,7 +22,76 @@ _(empty — Q1 resolved 2026-09-09; see `docs/DECISIONS_LOG.md`)_
 
 ## Phases
 
-- [ ] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
+- [x] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
+      *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
+      *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
+- [ ] **Phase 1** — PDF inspection and ingestion  *(includes the PDFium image/SMask spike = VD-d)*
+- [ ] **Phase 2** — Text assembly and normalization  *(normalization `N`, ledger, furniture inputs, language)*
+- [ ] **Phase 3** — Layout  *(blocks, columns, reading order, paragraphs, dehyphenation; VD-b must close)*
+- [ ] **Phase 4** — Structure  *(headings, outline/TOC, book structure, lists, footnotes, captions, quotes/verse, tables, images, metadata)*
+- [ ] **Phase 5** — EPUB generation, Tier-1 validator, EPUBCheck CI gate
+- [ ] **Phase 6** — Structural validation, repair loop, report, CI DOM checks  *(VD-f if the validation pack ships)*
+- [ ] **Phase 7** — Corpus v1, eval harness, benchmarks, real-world holdout
+- [ ] **Phase 8** — AI abstraction (no real model yet)
+- [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
+- [ ] **Phase 10** — AI-assisted decisions (the four tasks)
+- [ ] **Phase 11** — BYO providers
+- [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
+- [ ] **Phase 13** — OCR  *(VD-g must close)*
+- [ ] **Phase 14** — Security hardening
+- [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
+
+## Current work item
+
+**Phase 1, item 1.1 — not yet chosen.** Phase 0 is complete (see below). The next step is to read
+`docs/IMPLEMENTATION_PLAN.md` PHASE 1 in full, plus the `ingest` section of `docs/PIPELINE.md`, and take
+the first item of its test table with the usual TDD loop.
+
+What Phase 0 leaves ready for it: `PdfiumBackend` binds and probes, `PdfDoc` gives per-page counters,
+`PageGeometry` converts PDF user space into the one IR space, `classify_page` types pages, `BlockId` and
+canonical JSON exist, thresholds are generated and linted, and `cargo run -p xtask -- fixtures` produces
+three real PDFs to test against.
+
+**Verification debt VD-d blocks Phase 1** (`docs/DECISIONS_LOG.md`): the PDFium image spike over ten real
+PDFs, comparing `get_processed_image()` against a `pypdfium2` reference. D3's residual-risk note depends
+on its answer, so it is Phase 1 work, not something to discover in Phase 4.
+
+## Phase 0 — Definition of Done
+
+Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
+
+1. **Every named test exists and passes** — all 23 rows of the Phase 0 table, plus four additions
+   (0.8a, 0.12a, 0.23a, and the committed-assertion-file test), each with its reason in
+   `docs/DECISIONS_LOG.md`. `docs/TEST_MATRIX.md` lists every one and the CI job that runs it.
+2. **`cargo nextest run --workspace`** — 26 passed, 0 skipped, 0 ignored. **Verified on Windows only.**
+   Linux and macOS are CI's job and have not run yet; this is the one Definition-of-Done item Phase 0
+   cannot claim from this machine.
+3. **clippy** `--workspace --all-targets --all-features --locked -- -D warnings` — clean.
+4. **`cargo fmt --all --check`** — clean.
+5. **`cargo deny check`** — advisories, bans, licenses, sources all ok; plus `deny.tools.toml`
+   licenses/bans/sources ok.
+6. **`cargo run -p xtask -- thresholds-lint`** — clean.
+7. **Acceptance criteria** A0.1–A0.9: A0.1 (minus the two other OSes, see 2), A0.2, A0.3, A0.4, A0.5,
+   A0.7, A0.8 and A0.9 are demonstrated by named tests. **A0.6 is partly open**: the app compiles, the
+   handshake and the rendered version string are unit-tested, but no one has watched a real window open.
+   Phase 12 owns the UI; a screenshot at that point closes it.
+8. **`docs/CHANGELOG.md`** — Phase 0 entry written.
+9. **No unnumbered TODO/FIXME** — `xtask ci-lint` clean.
+
+Also delivered: the First Milestone in full — `openconvert inspect` on three Typst fixtures with
+committed snapshots, `cargo deny` clean, and `docs/TEST_MATRIX.md` written.
+
+## Blocked
+
+_(empty — Q1 resolved 2026-09-09; see `docs/DECISIONS_LOG.md`)_
+
+## Notes` short: what a fresh session needs in order to resume, nothing else.
+
+---
+
+## Phases
+
+- [x] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
       *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
       *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
 - [ ] **Phase 1** — PDF inspection and ingestion  *(includes the PDFium image/SMask spike = VD-d)*
@@ -77,7 +146,7 @@ decided along the way is written up in `docs/DECISIONS_LOG.md` - read that befor
 
 ## Phases
 
-- [ ] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
+- [x] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
       *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
       *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
 - [ ] **Phase 1** — PDF inspection and ingestion  *(includes the PDFium image/SMask spike = VD-d)*
@@ -134,7 +203,7 @@ is written up in `docs/DECISIONS_LOG.md` - read that before changing any of them
 
 ## Phases
 
-- [ ] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
+- [x] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
       *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
       *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
 - [ ] **Phase 1** — PDF inspection and ingestion  *(includes the PDFium image/SMask spike = VD-d)*
@@ -179,7 +248,7 @@ is written up in `docs/DECISIONS_LOG.md` — read that before changing any of th
 
 ## Phases
 
-- [ ] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
+- [x] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
       *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
       *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
 - [ ] **Phase 1** — PDF inspection and ingestion  *(includes the PDFium image/SMask spike = VD-d)*
@@ -223,7 +292,7 @@ startup probe. Every open design question decided along the way is written up in
 
 ## Phases
 
-- [ ] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
+- [x] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
       *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
       *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
 - [ ] **Phase 1** — PDF inspection and ingestion  *(includes the PDFium image/SMask spike = VD-d)*
@@ -274,7 +343,7 @@ decided along the way is written up in `docs/DECISIONS_LOG.md` — read that bef
 
 ## Phases
 
-- [ ] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
+- [x] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
       *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
       *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
 - [ ] **Phase 1** — PDF inspection and ingestion  *(includes the PDFium image/SMask spike = VD-d)*
@@ -320,7 +389,7 @@ that before changing any of them.
 
 ## Phases
 
-- [ ] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
+- [x] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
       *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
       *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
 - [ ] **Phase 1** — PDF inspection and ingestion  *(includes the PDFium image/SMask spike = VD-d)*
@@ -360,7 +429,7 @@ is written up in `docs/DECISIONS_LOG.md` — read that before changing any of th
 
 ## Phases
 
-- [ ] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
+- [x] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
       *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
       *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
 - [ ] **Phase 1** — PDF inspection and ingestion  *(includes the PDFium image/SMask spike = VD-d)*
@@ -499,3 +568,8 @@ sources, `corpus/fixtures/assets/scan_page_01.png`, and its generator
 2026-09-09  P0.6      oc-pdf: page classification (tests 0.9-0.12 + mixed/blank/dict test)        97ddfd8
 2026-09-09  P0.7      oc-pdf: producer-family detection (test 0.13)                              4788213
 2026-09-09  P0.8      xtask fixtures + audit-surface split resolving Q1 (test 0.20)              57df06e
+2026-09-09  P0.9      oc-pdf: inspect report + PdfDoc over PDFium (tests 0.14-0.16)             3ec6f70
+2026-09-09  P0.10     openconvert: CLI, NDJSON events, exit codes (tests 0.17-0.19)             931cc0a
+2026-09-09  P0.11/12  oc-testkit assertions + xtask ci-lint/thresholds-lint (0.21, 0.23)        de4298c
+2026-09-09  P0.13     apps/desktop hello-Tauri + handshake + LICENSE (test 0.22)                52a4071
+2026-09-09  PHASE 0   COMPLETE - Definition of Done checked, one item partly open (A0.6)
