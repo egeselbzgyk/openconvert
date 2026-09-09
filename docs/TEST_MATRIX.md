@@ -85,5 +85,6 @@ replaced by the phase that owns it.
 | 1.17c | `cli::dump_stage_rejects_an_unimplemented_stage` | `openconvert` | integration | `test` | green |
 | 1.18 | `oracle::differential_pdftotext_coverage_f01` | `oc-pdf` | integration (oracle) | `poppler-oracle` | green |
 | 1.18a | `oracle::differential_pdftotext_coverage_f02` | `oc-pdf` | integration (oracle) | `poppler-oracle` | green |
+| 1.9a | `scaling::per_page_extraction_cost_does_not_grow_with_page_count` | `oc-pdf` | perf regression | `test` | green |
 | 1.19 | `cancel_is_observed_inside_page_loop` | `oc-core` | integration | `test` | — |
 | 1.20 | `limits::max_pages_refuses_at_the_door` | `oc-pdf` | integration | `test` | green |

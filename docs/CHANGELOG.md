@@ -236,3 +236,12 @@ Rust field name, and a capital letter there trips `non_snake_case` under `-D war
   PDFium stream, and PIPELINE §369's compound-word rule loses its cheapest signal. Recovering
   it needs content-stream access — the same mechanism the `OverdrawDedup` gap needs. See
   `docs/DECISIONS_LOG.md`.
+
+### Performance (`oc-pdf`)
+
+- **Fixed:** image extraction was O(n²) in page count — `page_images` rebuilt the document's
+  page map on every page. Measured at 78 µs/page over 50 pages and 564 µs/page over 400; now
+  flat at ~16 µs/page. `PdfiumDoc` reads the ordered page ids once at open.
+- New: `tests/scaling.rs`, which asserts the *ratio* of per-page cost between 100 and 800
+  pages rather than any absolute duration, so it detects a complexity change and not a slow
+  CI runner.

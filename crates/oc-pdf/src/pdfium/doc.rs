@@ -40,6 +40,9 @@ pub struct PdfiumDoc {
     /// What this conversion is allowed to consume. Fixed at open time: a limit that can be
     /// changed halfway through a document is not a limit.
     limits: Limits,
+    /// The page objects in page order, read once. See `pdfium::images::page_ids` for why
+    /// this is not looked up per page.
+    page_ids: Vec<lopdf::ObjectId>,
     /// The same file, parsed as PDF objects.
     ///
     /// PDFium answers "where is it and how big"; the object tree answers "what does the file
@@ -69,11 +72,16 @@ impl PdfiumDoc {
         limits.check_pages(pages)?;
 
         let structure = lopdf::Document::load_mem(bytes).ok();
+        let page_ids = structure
+            .as_ref()
+            .map(crate::pdfium::page_ids)
+            .unwrap_or_default();
         let metadata = read_metadata(&document, bytes, structure.as_ref());
         Ok(Self {
             document,
             metadata,
             limits,
+            page_ids,
             structure,
         })
     }
@@ -235,9 +243,15 @@ impl PdfiumDoc {
 
         // The file's view of the same draws. Discarded unless it agrees on the count, which
         // is the check that makes matching by position sound rather than hopeful.
-        let facts = match self.structure.as_ref() {
-            Some(structure) => crate::pdfium::page_image_facts(structure, index, &self.limits)?,
-            None => None,
+        let facts = match (
+            self.structure.as_ref(),
+            self.page_ids
+                .get(usize::try_from(index).unwrap_or(usize::MAX)),
+        ) {
+            (Some(structure), Some(page_id)) => {
+                crate::pdfium::page_image_facts(structure, *page_id, &self.limits)?
+            }
+            _ => None,
         }
         .filter(|facts| facts.len() == objects.len());
 

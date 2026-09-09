@@ -1099,3 +1099,50 @@ Evidence: `cargo nextest run --workspace` - 65 passed; `--features poppler-oracl
 in `oc-pdf`, both oracle tests green.
 Affects: D13.4 `SoftHyphen`, D15, PIPELINE §369, R9 §B.5, IMPLEMENTATION_PLAN Phase 1 test 1.18,
 `crates/oc-pdf/tests/oracle.rs`, `crates/oc-pdf/Cargo.toml`, `.github/workflows/ci.yml`.
+
+## 2026-09-10 · Image extraction was O(n squared) in page count · Phase 1
+Context: found while sizing the 200-page document for item 1.12's cancellation test, which is the
+first time anything in this project opened a document with more than three pages.
+
+**The measurement.** `page_images` over documents of increasing size, before the fix:
+
+| pages | per page |
+|---|---|
+| 50 | 78 us |
+| 100 | 158 us |
+| 200 | 303 us |
+| 400 | 564 us |
+
+Per-page cost doubles as the page count doubles - the signature of a quadratic loop. At the
+`max_pages` limit of 3 000 it extrapolates to seconds per page, which is one to two orders of
+magnitude past acceptance criterion A1.6's budget of 0.15 s/page.
+
+**The cause.** `pdfium::images::page_id` resolved a page index by calling
+`lopdf::Document::get_pages()` and taking the nth entry. `get_pages` walks the entire page tree and
+builds a fresh `BTreeMap` every call, so a 3 000-page book built that map 3 000 times. Added in
+item 1.5, where every fixture had one or two pages and the cost was invisible.
+
+**The fix.** `PdfiumDoc` reads the ordered page ids once at open time. After:
+
+| pages | per page |
+|---|---|
+| 50 | 16.8 us |
+| 100 | 19.8 us |
+| 200 | 18.2 us |
+| 400 | 15.6 us |
+
+Flat, and 36x faster at 400 pages.
+
+**The regression test asserts a ratio, not a duration.** `per_page_extraction_cost_does_not_grow_
+with_page_count` compares per-page cost at 100 and 800 pages and fails above 4x. An absolute
+timing assertion on a shared CI runner measures the runner; a ratio taken in one process cancels
+most of that noise. Measured after the fix the ratio is about 0.9 - slightly *better* at the larger
+size, because fixed costs amortise - and before the fix it was 7.2, so 4 sits far from both.
+
+The general lesson is worth keeping: **every fixture in this project has one or two pages**, so
+nothing before this could have caught a per-page cost that depends on the document. Any future
+per-page work should be measured at scale before it is believed, and `oc_testkit::handmade::
+many_pages` is now the tool for it.
+Evidence: `cargo nextest run --workspace` - 66 passed.
+Affects: A1.6, IMPLEMENTATION_PLAN Phase 1 detail 4, `crates/oc-pdf/src/pdfium/{doc.rs,images.rs}`,
+`crates/oc-pdf/tests/scaling.rs`.
