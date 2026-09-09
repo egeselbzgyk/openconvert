@@ -452,3 +452,43 @@ spells them, because integration tests in `tests/cli.rs` and `tests/events.rs` a
 as `openconvert::cli <fn>` and `openconvert::events <fn>`.
 Affects: D13.1, D13.2, IMPLEMENTATION_PLAN §2.1–§2.4, tests 0.17–0.19, `crates/openconvert`,
 `crates/oc-core/src/{events,exit}.rs`, and Phase 1 (where `convert` will want a parser generator).
+
+## 2026-09-09 · Assertion runner: pending is a third outcome, and the enum is closed · Phase 0
+Context: §0.6 fixes the golden-assertion format and its eleven kinds, and the Phase 0 regression note
+says the runner "skips assertions whose required stage is not yet implemented and *reports* them as
+`pending`, never as `pass`".
+Decision:
+1. **`Outcome` has three variants, and `Pending` carries the stage that would answer it.** Each
+   `Assertion` declares its `required_stage`, and `AssertionDocument`'s fields are all `Option` — `None`
+   means that stage has not run. This is what lets a fixture carry its *final* expectations from Phase 0
+   while the pipeline is a third built, which is the point of writing them now.
+2. **`deny_unknown_fields` and no catch-all variant.** A kind the runner does not know, or a misspelled
+   field in one it does, is a parse error. The failure mode being designed against is an assertion that
+   silently does nothing, because that reads as passing.
+3. **The test asserts its own completeness twice over**: every kind appears exactly once in the sample
+   file, and the count is checked against §0.6's eleven. It then evaluates all eleven three times — once
+   against a document that satisfies them, once against an empty one (all pending, none a pass), and once
+   against one that contradicts them (all failing).
+Evidence: `cargo nextest run -p oc-testkit` — 1 test, all eleven kinds through parse, serialise, reparse
+and three evaluations each.
+Affects: §0.6, test 0.21, `crates/oc-testkit/src/assertions.rs`, every phase that adds a stage.
+
+## 2026-09-09 · `ci-lint` exempts exactly two files, and the exemption is itself asserted · Phase 0
+Context: §0.3 item 9 and §0.2 make "no `#[ignore]`" and "no unnumbered TODO" CI gates. A linter that
+scans the repository's source cannot describe its own rules without tripping them.
+Decision: **the exemption list is exactly `xtask/src/ci_lint.rs` and `xtask/tests/ci.rs`**, and test 0.23
+asserts that it is still exactly those two. There is no per-line escape comment — an escape hatch for
+"no skipped tests" would be the first thing reached for under deadline. Everything else in the repository
+is linted, including the rest of `xtask`; where the usage text and the CI workflow comment quoted the
+banned patterns, they were reworded rather than exempted. The test builds its own offending fixtures at
+runtime (`format!("#[{}]", "ignore")`), so it does not rely on the exemption it is testing.
+Two false positives the first run found and the rules now handle: `models.toml`'s `TODO_COMMIT_SHA`
+placeholders are a named-slot convention with their own `--release-branch` rule, not forgotten notes; and
+a marker only counts at a word boundary, so `MITODOS` is not a marker.
+`thresholds-lint` calls `oc_core::thresholds::lint` rather than reimplementing D17's rule — one
+implementation, two callers — and computes today in UTC, printing the date it judged against so nobody
+has to guess which clock ran. The civil-from-days conversion is Howard Hinnant's; its constants are
+calendar facts, not tunable numbers, so they stay in code (consistent with the format-constants entry).
+Evidence: `cargo run -p xtask -- ci-lint` — clean; `thresholds-lint` — clean (2026-09-09). Both tests
+also feed the rules text that must fail, so a linter that stopped finding anything cannot pass.
+Affects: §0.2, §0.3, §1.9, D17, tests 0.23 and 0.5, `xtask`.

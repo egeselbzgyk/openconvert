@@ -8,7 +8,16 @@ repository.workspace   = true
 description  = "Developer tasks: fixtures, thresholds-lint, ci-lint, vendor-pdfium, stage-sidecars"
 publish      = false
 
+[lib]
+name = "xtask"
+path = "src/lib.rs"
+
+[[bin]]
+name = "xtask"
+path = "src/main.rs"
+
 [dependencies]
+oc-core = { path = "../crates/oc-core", version = "0.1.0" }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

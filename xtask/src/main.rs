@@ -2,8 +2,7 @@
 //!
 //! Everything here is build- and test-time tooling. Nothing in `xtask` ships.
 
-mod fixtures;
-mod vendor_pdfium;
+use xtask::{ci_lint, fixtures, thresholds_lint, vendor_pdfium};
 
 use std::path::{Path, PathBuf};
 
@@ -16,6 +15,10 @@ tasks:
   vendor-pdfium     fetch the pinned PDFium binary for this host and unpack it to vendor/
   fixtures          compile the Typst fixture sources to target/fixtures/
                       --keep-structtree   emit the tagged variants instead (D18)
+  ci-lint           repository rules: no skipped tests, no unnumbered markers
+                      --release-branch    also reject TODO_ placeholders in models.toml
+  thresholds-lint   D17 provenance: every provisional threshold has an owner and a
+                    review_by that has not passed
 ";
 
 fn main() -> Result<()> {
@@ -28,6 +31,11 @@ fn main() -> Result<()> {
             let keep_structtree = std::env::args().any(|a| a == "--keep-structtree");
             fixtures::run(&root, keep_structtree)
         }
+        Some("ci-lint") => {
+            let release_branch = std::env::args().any(|a| a == "--release-branch");
+            ci_lint::run(&root, release_branch)
+        }
+        Some("thresholds-lint") => thresholds_lint::run(&root),
         Some(other) => {
             eprint!("{USAGE}");
             bail!("unknown task `{other}`")

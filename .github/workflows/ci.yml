@@ -12,7 +12,9 @@ jobs:
         with: { toolchain: 1.98.1, components: "rustfmt, clippy" }
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-      - run: cargo run -p xtask -- ci-lint            # no #[ignore], no bare TODO, no TODO_ in models.toml on release branches
+      # Repository rules: no skipped tests, no unnumbered markers, and on a release
+      # branch no placeholder values left in models.toml.
+      - run: cargo run -p xtask -- ci-lint
       - run: cargo run -p xtask -- thresholds-lint    # provenance + expiry
 
   deny:

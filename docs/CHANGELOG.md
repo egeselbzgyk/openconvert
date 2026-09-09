@@ -30,6 +30,16 @@ One section per completed phase, listing new CLI flags, new IR fields, new warni
 - New: `canonical::to_canonical_json` and `canonical::CanonError` — sorted keys, `ir_version` first,
   NFC strings, `f32` at two decimals, non-finite floats rejected instead of written as `null`.
 
+### Test tooling (`oc-testkit`, `xtask`)
+
+- New: `oc-testkit::assertions` - the eleven-kind closed `Assertion` enum, `AssertionDocument`,
+  `parse`, `evaluate`, and a three-valued `Outcome` where `Pending` is never a pass.
+- New: `cargo run -p xtask -- ci-lint` (no skipped tests, no unnumbered markers,
+  `--release-branch` also rejects `models.toml` placeholders) and
+  `cargo run -p xtask -- thresholds-lint` (D17 provenance, UTC).
+- `xtask` now has a library target so its binary and its tests share one implementation of
+  every rule.
+
 ### CLI and events (`openconvert`, `oc-core`)
 
 - New CLI: `openconvert inspect <INPUT.pdf> [--json] [--pages <RANGE>] [--password <STRING>]
