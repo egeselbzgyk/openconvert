@@ -2,9 +2,9 @@
 
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
-STATUS: IN_PROGRESS
+STATUS: BLOCKED
 CURRENT_PHASE: 0
-CURRENT_ITEM: 0.8 — `xtask fixtures` Typst fixture generation (test 0.20, not yet written)
+CURRENT_ITEM: 0.8 — `xtask fixtures` Typst fixture generation — BLOCKED on the question below
 LAST_UPDATED: 2026-09-09
 
 ---
@@ -338,7 +338,69 @@ are written up in `docs/DECISIONS_LOG.md`.
 
 ## Blocked
 
-_(empty)_
+### Q1. Adding the `typst` crates breaks the `cargo deny check` advisories gate. Which way out?
+
+**The conflict.** Two committed decisions cannot both hold today:
+
+- `DECISIONS.md` Appendix A and `TEST_CORPUS.md` 6.1 (ratified) require Typst fixtures to be compiled
+  **in-process via the `typst` + `typst-pdf` crates, no CLI**, from `cargo xtask fixtures`.
+- `IMPLEMENTATION_PLAN.md` 1.4 sets `[advisories] ignore = []`, `SECURITY.md` 9 makes `cargo-deny`
+  advisories a hard CI gate, and Phase 0 acceptance A0.2 requires `cargo deny check` to exit 0.
+
+Adding `typst = "=0.15.1"`, `typst-pdf = "=0.15.1"`, `typst-assets = "=0.15.1"` to `xtask` grows the
+lockfile from 233 to 447 crates and makes `cargo deny check` report **advisories FAILED** with seven
+findings. Licenses, bans and sources all still pass, and `cargo tree -i` confirms every finding is
+reachable only through `xtask` — none of it is in any shipped crate.
+
+| Advisory | Crate | Kind | Path | Fix available |
+|---|---|---|---|---|
+| RUSTSEC-2026-0194 | `quick-xml` 0.38.4 | **vulnerability** (quadratic run time on duplicate attribute names) | `citationberg` -> `hayagriva` -> `typst-library` | needs >= 0.41.0; `citationberg` 0.7.0 requires `^0.38`, so not reachable |
+| RUSTSEC-2026-0195 | `quick-xml` 0.38.4 | **vulnerability** (unbounded namespace allocation, memory-exhaustion DoS) | same | same |
+| RUSTSEC-2026-0206 | `rustybuzz` 0.20.1 | unmaintained | `krilla` -> `typst-pdf` | none |
+| RUSTSEC-2026-0192 | `ttf-parser` 0.25.1 | unmaintained | `fontdb` -> `krilla-svg` -> `typst-pdf` | none |
+| RUSTSEC-2025-0141 | `bincode` 1.3.3 | unmaintained | `syntect` -> `two-face` -> `typst-library` | none |
+| RUSTSEC-2024-0320 | `yaml-rust` 0.4.5 | unmaintained | same | none |
+| RUSTSEC-2024-0436 | `paste` 1.0.15 | unmaintained | `biblatex` -> `hayagriva` -> `typst-library` | none |
+
+Our own `quick-xml` 0.42.0 in `oc-epub` is **not** affected; both vulnerabilities are in the 0.38 line
+that only Typst's citation stack pulls in. `typst` 0.15.1 is the newest release, so waiting for an
+upstream bump is not available today either.
+
+**Why this is not mine to decide.** It is a security-policy call with real trade-offs, and two of the
+seven are actual vulnerabilities rather than unmaintained notices. `SECURITY.md` states the gate but
+says nothing about scoping it to shipped code, and `DECISIONS.md` mandates the crates that trip it.
+
+**The options, as I see them.**
+
+- **(a) Scoped ignores.** Add the seven ids to `[advisories] ignore` with a written reason and a review
+  date each. Honest and visible; the arguments for it are that `xtask` never ships, runs only on the
+  developer's and CI's machines, and processes only fixture sources we author — so a DoS in an XML
+  parser reached through citation handling has no attacker-controlled input. Against: it puts two live
+  vulnerabilities on an allow-list, and the list will need re-reviewing on every `cargo update`.
+- **(b) `[advisories] unmaintained = "workspace"`.** Silences the five unmaintained findings (all
+  transitive) as a policy statement rather than a per-id exception, leaving only the two vulnerabilities
+  to handle by (a). Smaller ignore list, same underlying question.
+- **(c) Move fixture generation out of the audited workspace.** A separate manifest under `tools/`
+  excluded from `[workspace]`, invoked as `cargo run --manifest-path ...`. `cargo deny check` then never
+  sees Typst. Against: it contradicts D14's "one Cargo workspace", and an unaudited tool tree is worse
+  hygiene than an audited one with documented exceptions — it hides the finding instead of accepting it.
+- **(d) Commit the three fixture PDFs as golden binaries.** R7 D.2 already names golden binaries as the
+  fallback when Typst output is not byte-reproducible; this would extend that to "generated out of band".
+  Against: `cargo xtask fixtures` stops being able to regenerate them, which is the whole point of
+  TEST_CORPUS 6.1, and mutation fixtures in Phase 7 build on the same machinery.
+- **(e) Drop Typst; use WeasyPrint (already in `eval/`) as the only synthetic renderer.** Against: D18
+  wants two independent synthetic renderers, and the Phase 0 fixture sources are written in Typst.
+
+**My recommendation if you want one:** (b) then (a) — set `unmaintained = "workspace"`, and ignore the
+two `quick-xml` ids with a reason naming the `xtask`-only path and a `review_by` that forces a re-check
+when `typst` next releases. It keeps one audited workspace, keeps the finding visible in `deny.toml`
+rather than hidden by repo layout, and is the smallest deviation from what is already written down.
+
+**What is already done and does not depend on the answer** (committed in `76da00c`): the three `.typ`
+sources, `corpus/fixtures/assets/scan_page_01.png`, and its generator
+`eval/src/oc_eval/generate/scan_sim.py`. Every option above still needs those files.
+
+**To unblock:** answer Q1, then set `STATUS: IN_PROGRESS` and resume at item 0.8.
 
 ## Notes
 
