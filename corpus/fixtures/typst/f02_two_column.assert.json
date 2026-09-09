@@ -1,0 +1,48 @@
+[
+  {
+    "kind": "text_order",
+    "first": "On the Measurement of Columns",
+    "then": "Introduction",
+    "note": "the floating full-width title precedes the first column"
+  },
+  {
+    "kind": "text_order",
+    "first": "Column detection is the first stage",
+    "then": "The left column continues",
+    "note": "the whole left column precedes the right one"
+  },
+  {
+    "kind": "text_absent",
+    "text": "Two Column Study",
+    "note": "running header removed"
+  },
+  {
+    "kind": "heading_tree",
+    "headings": [
+      [
+        1,
+        "Introduction"
+      ],
+      [
+        1,
+        "Method"
+      ],
+      [
+        1,
+        "Results"
+      ],
+      [
+        1,
+        "Discussion"
+      ],
+      [
+        1,
+        "Conclusion"
+      ]
+    ]
+  },
+  {
+    "kind": "image_count",
+    "equals": 0
+  }
+]

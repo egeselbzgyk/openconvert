@@ -492,3 +492,50 @@ calendar facts, not tunable numbers, so they stay in code (consistent with the f
 Evidence: `cargo run -p xtask -- ci-lint` — clean; `thresholds-lint` — clean (2026-09-09). Both tests
 also feed the rules text that must fail, so a linter that stopped finding anything cannot pass.
 Affects: §0.2, §0.3, §1.9, D17, tests 0.23 and 0.5, `xtask`.
+
+## 2026-09-09 · `unmaintained` is scoped to what a maintainer can act on · Phase 0
+Context: adding Tauri (D2) to the shipped tree brings six `unmaintained` advisories, all transitive and
+none with an upgrade path: `proc-macro-error` (RUSTSEC-2024-0370) and five `unic-*` crates reached
+through `urlpattern` → `tauri-utils`, which is a runtime dependency of `tauri`, not only a build one.
+There are **no vulnerabilities** among them. `deny.toml`'s `ignore = []` makes all six hard failures.
+Decision: **`unmaintained = "workspace"` in both configs.** Vulnerabilities, unsound code and yanked
+releases stay hard failures in the shipped config and always will — those are defects, and a defect that
+ships is this project's problem however deep it sits. "Unmaintained" is a different claim: nobody is
+patching it. That claim is only *actionable* for a crate this workspace chose, where the response is to
+choose differently. Five levels inside Tauri or Typst with no published upgrade, the available responses
+are to fork the crate or abandon the framework D2 mandates, and neither is a decision a red CI run should
+be forcing on a Tuesday.
+This refines what the Q1 entry above says about `deny.toml` keeping "every rule absolute", and it is
+worth being plain about that rather than letting the two entries quietly disagree: `exceptions = []` and
+`ignore = []` remain, no advisory is listed by id anywhere, and every vulnerability class is still
+enforced on the shipped tree. What changed is the *scope* of one advisory class, stated as a rule about
+actionability rather than as a list — which is the whole requirement the maintainer set, because a list
+needs a new entry every time an upstream tree is reshuffled, and lists like that stop being read.
+A useful side effect: the tools advisory report now shows exactly two findings, the two real `quick-xml`
+vulnerabilities, instead of burying them under five unmaintained notices.
+Evidence: `cargo deny check` — advisories ok, bans ok, licenses ok, sources ok, with Tauri and Typst both
+in the workspace (721 crates). `cargo deny --config deny.tools.toml check advisories` — two errors, both
+vulnerabilities, reported by the non-blocking CI step.
+Affects: D2, SECURITY.md §9, `deny.toml`, `deny.tools.toml`.
+
+## 2026-09-09 · The version handshake lives in the UI, not in the Rust shell · Phase 0
+Context: A0.6 wants the window to show the engine version; A0.7 wants it to refuse to start when the
+staged sidecar's version differs from the app's (RT A5.7 — the stale-sidecar footgun). Test 0.22 is a
+Vitest test with a Tauri mock.
+Decision: **the handshake is TypeScript, behind a `Spawner` interface.** The real implementation wraps
+Tauri's sidecar `Command`; the test passes a stub. Putting it in the Rust shell would have made A0.7
+testable only by launching a window, which is exactly the kind of test D7 rules out — and the shell then
+has no logic to get wrong. `handshake` checks three things in order, each with its own error kind:
+protocol, `ir_version`, then engine version against the app's.
+`parseEvents` stops at the first line that does not parse rather than skipping it. Something writing
+non-JSON to the engine's stderr — a linker warning, a sanitizer, a crash handler — is usually the
+interesting part of the failure, and silently dropping it loses the only evidence there is.
+`xtask stage-sidecars` copies the engine under the `<name>-<triple>` name Tauri's `externalBin` expects
+and writes a `STAGE_STAMP` beside it, recording the version the staged binary itself reports rather than
+one read from a manifest — so the stamp describes what is actually on disk.
+The Tauri capability allows exactly one program, the sidecar, and the CSP sets `connect-src 'none'`
+(D13.9): the webview has no network permission at all.
+Evidence: `npm test` in `apps/desktop/ui` — 5 tests, covering the hello parse, the A0.7 refusal, the
+protocol and IR mismatches, a stream that does not begin with `hello`, and the non-JSON line.
+`cargo run -p xtask -- stage-sidecars` staged `openconvert 0.1.0` for the host triple.
+Affects: D2, D7, D13.9, RT A5.7, RT B15, A0.6, A0.7, test 0.22, `apps/desktop`, `xtask`.

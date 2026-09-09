@@ -1,0 +1,42 @@
+[
+  {
+    "kind": "text_order",
+    "first": "Chapter 3",
+    "then": "It was a dark",
+    "note": "heading precedes body in reading order"
+  },
+  {
+    "kind": "text_present",
+    "text": "It was a dark and stormy night"
+  },
+  {
+    "kind": "text_absent",
+    "text": "The Test Book",
+    "note": "running header removed on both pages"
+  },
+  {
+    "kind": "heading_level",
+    "text": "Chapter 3",
+    "level": 1
+  },
+  {
+    "kind": "block_count",
+    "of": "paragraph",
+    "min": 4,
+    "max": 6
+  },
+  {
+    "kind": "image_count",
+    "equals": 0
+  },
+  {
+    "kind": "text_present",
+    "text": "pipeline",
+    "note": "dehyphenated across the page break: 'pipe-' + 'line'"
+  },
+  {
+    "kind": "lang_tag",
+    "text": "It was a dark and stormy night",
+    "lang": "en"
+  }
+]

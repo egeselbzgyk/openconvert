@@ -14,6 +14,10 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 /// One expectation about a converted document.
+///
+/// Every kind may carry a `note` saying why the assertion is there. Notes are documentation,
+/// never part of the check: two assertions differing only in their note are the same
+/// assertion, and a note is what keeps a fixture readable a year later.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Assertion {
@@ -37,9 +41,18 @@ pub enum Assertion {
         note: Option<String>,
     },
     /// A heading with this text exists at this level.
-    HeadingLevel { text: String, level: u8 },
+    HeadingLevel {
+        text: String,
+        level: u8,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+    },
     /// The heading tree, as `(level, text)` in document order.
-    HeadingTree { headings: Vec<(u8, String)> },
+    HeadingTree {
+        headings: Vec<(u8, String)>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+    },
     /// How many blocks of a kind the document has.
     BlockCount {
         of: String,
@@ -49,15 +62,38 @@ pub enum Assertion {
         max: Option<u32>,
     },
     /// Exactly this many images.
-    ImageCount { equals: u32 },
+    ImageCount {
+        equals: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+    },
     /// Every noteref resolves to a footnote and back (D6).
-    NoteBijection { holds: bool },
+    NoteBijection {
+        holds: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+    },
     /// The printed page label of a page.
-    PageLabel { page_index: u32, label: String },
+    PageLabel {
+        page_index: u32,
+        label: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+    },
     /// The language tag on a block.
-    LangTag { text: String, lang: String },
+    LangTag {
+        text: String,
+        lang: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+    },
     /// A block carries a CSS class (`verse`, `dropcap`, `caption`, ...).
-    CssClass { text: String, class: String },
+    CssClass {
+        text: String,
+        class: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+    },
 }
 
 impl Assertion {
@@ -173,7 +209,7 @@ pub fn evaluate(assertion: &Assertion, document: &AssertionDocument) -> Outcome 
                 }
             }
         },
-        Assertion::HeadingLevel { text, level } => match &document.headings {
+        Assertion::HeadingLevel { text, level, .. } => match &document.headings {
             None => pending(),
             Some(headings) => match headings.iter().find(|(_, t)| t.contains(text)) {
                 None => fail(format!("no heading contains {text:?}")),
@@ -183,14 +219,14 @@ pub fn evaluate(assertion: &Assertion, document: &AssertionDocument) -> Outcome 
                 ),
             },
         },
-        Assertion::HeadingTree { headings } => match &document.headings {
+        Assertion::HeadingTree { headings, .. } => match &document.headings {
             None => pending(),
             Some(found) => check(
                 found == headings,
                 format!("heading tree is {found:?}, expected {headings:?}"),
             ),
         },
-        Assertion::BlockCount { of, min, max } => match &document.block_counts {
+        Assertion::BlockCount { of, min, max, .. } => match &document.block_counts {
             None => pending(),
             Some(counts) => {
                 let found = counts.get(of).copied().unwrap_or_default();
@@ -202,21 +238,23 @@ pub fn evaluate(assertion: &Assertion, document: &AssertionDocument) -> Outcome 
                 )
             }
         },
-        Assertion::ImageCount { equals } => match document.image_count {
+        Assertion::ImageCount { equals, .. } => match document.image_count {
             None => pending(),
             Some(found) => check(
                 found == *equals,
                 format!("{found} images, expected {equals}"),
             ),
         },
-        Assertion::NoteBijection { holds } => match document.note_bijection_holds {
+        Assertion::NoteBijection { holds, .. } => match document.note_bijection_holds {
             None => pending(),
             Some(found) => check(
                 found == *holds,
                 format!("note bijection is {found}, expected {holds}"),
             ),
         },
-        Assertion::PageLabel { page_index, label } => match &document.page_labels {
+        Assertion::PageLabel {
+            page_index, label, ..
+        } => match &document.page_labels {
             None => pending(),
             Some(labels) => match labels.get(page_index) {
                 None => fail(format!("page {page_index} has no label")),
@@ -226,7 +264,7 @@ pub fn evaluate(assertion: &Assertion, document: &AssertionDocument) -> Outcome 
                 ),
             },
         },
-        Assertion::LangTag { text, lang } => match &document.lang_tags {
+        Assertion::LangTag { text, lang, .. } => match &document.lang_tags {
             None => pending(),
             Some(tags) => match tags.iter().find(|(block, _)| block.contains(text)) {
                 None => fail(format!("no block contains {text:?}")),
@@ -236,7 +274,7 @@ pub fn evaluate(assertion: &Assertion, document: &AssertionDocument) -> Outcome 
                 ),
             },
         },
-        Assertion::CssClass { text, class } => match &document.css_classes {
+        Assertion::CssClass { text, class, .. } => match &document.css_classes {
             None => pending(),
             Some(classes) => match classes.iter().find(|(block, _)| block.contains(text)) {
                 None => fail(format!("no block contains {text:?}")),
@@ -391,4 +429,42 @@ fn assertion_runner_understands_all_kinds() {
     assert!(parse(r#"[{"kind": "vibes", "text": "x"}]"#).is_err());
     // So is an unexpected field, which is usually a typo in a known one.
     assert!(parse(r#"[{"kind": "image_count", "equals": 0, "eqals": 1}]"#).is_err());
+}
+
+#[test]
+fn committed_assertion_files_parse() {
+    use crate::assertions::{evaluate, parse, AssertionDocument, Outcome};
+
+    // Every `.assert.json` in the repository is parsed here, so a typo in one is caught now
+    // rather than in the phase that finally evaluates it. Against an empty document each is
+    // pending, which is what a fixture's expectations should be before the pipeline exists.
+    let dir =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../corpus/fixtures/typst");
+    let mut files = 0;
+    for entry in std::fs::read_dir(&dir).expect("the fixture directory is readable") {
+        let path = entry.expect("readable entry").path();
+        if !path.to_string_lossy().ends_with(".assert.json") {
+            continue;
+        }
+        files += 1;
+        let text = std::fs::read_to_string(&path).expect("readable file");
+        let assertions =
+            parse(&text).unwrap_or_else(|e| panic!("{} does not parse: {e}", path.display()));
+        assert!(
+            !assertions.is_empty(),
+            "{} has no assertions",
+            path.display()
+        );
+
+        let empty = AssertionDocument::default();
+        for assertion in &assertions {
+            let outcome = evaluate(assertion, &empty);
+            assert!(
+                matches!(outcome, Outcome::Pending { .. }),
+                "{}: {assertion:?} should be pending before any stage has run, got {outcome:?}",
+                path.display()
+            );
+        }
+    }
+    assert_eq!(files, 3, "expected one .assert.json per Phase 0 fixture");
 }

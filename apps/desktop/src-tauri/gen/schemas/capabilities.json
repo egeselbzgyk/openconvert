@@ -1,0 +1,1 @@
+{"engine":{"identifier":"engine","description":"The app may spawn exactly one program - the staged engine - and nothing else. The webview gets no HTTP permission at all (D13.9).","local":true,"windows":["main"],"permissions":[{"identifier":"shell:allow-execute","allow":[{"args":true,"name":"bin/openconvert","sidecar":true}]}]}}

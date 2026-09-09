@@ -1,0 +1,12 @@
+[
+  {
+    "kind": "image_count",
+    "equals": 2,
+    "note": "one full-bleed scan per page; without OCR these stay images"
+  },
+  {
+    "kind": "text_absent",
+    "text": "A Scanned Chapter",
+    "note": "the text is pixels; it appears only once OCR has run"
+  }
+]

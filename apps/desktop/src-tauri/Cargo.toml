@@ -12,6 +12,9 @@ publish      = false
 name = "openconvert-desktop"
 path = "src/main.rs"
 
-# Tauri dependencies are added by the Phase-0 'hello-Tauri' work item, together with
-# tauri.conf.json and the externalBin sidecar staging (IMPLEMENTATION_PLAN Phase 0 §7).
 [dependencies]
+tauri.workspace = true
+tauri-plugin-shell.workspace = true
+
+[build-dependencies]
+tauri-build.workspace = true

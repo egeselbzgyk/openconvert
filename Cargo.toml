@@ -51,6 +51,10 @@ zip       = { version = "8.6", default-features = false, features = ["deflate"] 
 image     = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 uuid      = { version = "1", features = ["v5"] }
 time      = { version = "0.3", features = ["formatting", "macros"] }
+# --- desktop shell (apps/desktop only) ---
+tauri              = { version = "2", features = [] }
+tauri-build        = "2"
+tauri-plugin-shell = "2"
 # --- parallelism / process ---
 rayon = "1"
 # --- net (oc-net only) ---

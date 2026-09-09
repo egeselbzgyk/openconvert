@@ -30,6 +30,14 @@ One section per completed phase, listing new CLI flags, new IR fields, new warni
 - New: `canonical::to_canonical_json` and `canonical::CanonError` — sorted keys, `ir_version` first,
   NFC strings, `f32` at two decimals, non-finite floats rejected instead of written as `null`.
 
+### Desktop shell (`apps/desktop`)
+
+- New: the Tauri 2 app, its capability (one program: the sidecar) and CSP (`connect-src 'none'`).
+- New: `apps/desktop/ui/src/engine.ts` - `parseEvents`, `handshake`, `describeEngine`, and the
+  version handshake that refuses a stale staged sidecar (A0.7).
+- New: `cargo run -p xtask -- stage-sidecars`, which writes a `STAGE_STAMP` beside the staged engine.
+- New: `LICENSE` (Apache-2.0, D15) and the app icons.
+
 ### Test tooling (`oc-testkit`, `xtask`)
 
 - New: `oc-testkit::assertions` - the eleven-kind closed `Assertion` enum, `AssertionDocument`,

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://schema.tauri.app/acl/2",
+  "identifier": "engine",
+  "description": "The app may spawn exactly one program - the staged engine - and nothing else. The webview gets no HTTP permission at all (D13.9).",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "bin/openconvert",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    }
+  ]
+}

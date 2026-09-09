@@ -10,3 +10,5 @@
 __pycache__/
 *.pyc
 .DS_Store
+/apps/desktop/ui/dist
+/apps/desktop/ui/node_modules

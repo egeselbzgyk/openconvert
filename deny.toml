@@ -48,6 +48,22 @@ deny = [
 version = 2
 yanked = "deny"
 ignore = []
+# Vulnerabilities, unsound code and yanked releases are hard failures here and always will
+# be: those are defects, and a defect in a crate that ships to a user is this project's
+# problem whatever its depth in the tree.
+#
+# `unmaintained` is a different claim - "nobody is patching this" - and it is only
+# *actionable* for a crate this workspace chose. Five levels inside Tauri or Typst, with no
+# upgrade path published, the available responses are to fork the crate or abandon the
+# framework, and neither is a decision a failing CI run should be forcing at 3 a.m. So the
+# rule is scoped to what a maintainer can act on: an unmaintained crate this workspace
+# depends on directly fails; an unmaintained transitive is reported by `cargo deny check
+# advisories` when someone goes looking.
+#
+# This is a policy about a class, not a list of exceptions, which is the point: a list would
+# need another entry every time an upstream tree is reshuffled, and lists like that stop
+# being read. See docs/DECISIONS_LOG.md and docs/SECURITY.md 9.
+unmaintained = "workspace"
 
 [sources]
 unknown-registry = "deny"
