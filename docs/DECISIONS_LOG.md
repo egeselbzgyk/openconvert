@@ -252,3 +252,16 @@ Evidence: `cargo run -p xtask -- vendor-pdfium` fetched `pdfium-win-x64.tgz` and
 `73cc0de638ac2095e7445bf56a38200a5b7c7ca0e9f4ba144598f2457377ac08` was independently re-computed from the
 downloaded archive with `sha256sum`. `cargo nextest run -p oc-pdf` — 3 passed.
 Affects: D3, D13.9, RT B1, IMPLEMENTATION_PLAN §1.2 and Phase 0 details 1 and 3, `xtask`, `crates/oc-pdf`.
+
+## 2026-09-09 · Binary fixtures are marked `binary` in `.gitattributes` · Phase 0
+Context: the repo's `.gitattributes` says `* text=auto`. Git classifies a file as text unless it finds a
+NUL byte in the first 8 KiB. `crates/oc-pdf/src/pdfium/probe.pdf` is 437 bytes of mostly-ASCII PDF with
+no NUL, so git classified it as text and warned that it would rewrite its newlines on the next checkout.
+Decision: `*.pdf`, `*.png`, `*.jpg`, `*.jpeg`, `*.gguf`, `*.epub`, `*.tgz`, `*.zip`, `*.ttf`, `*.otf` are
+declared `binary`. This matters well beyond the probe: Phase 0 commits `corpus/fixtures/assets/*.png`,
+Phase 0/4 commit hand-made PDFs, and Phase 5 compares EPUBs byte for byte (D13.8).
+Evidence: `git check-attr` now reports `text: unset, binary: set` for the probe. A fresh `git clone` of
+the repository produces a byte-identical `probe.pdf`
+(`7b40d7f0920d9fe4c1b92cd620ef3a77e4f3b8fb0b65841148685eba8dc23d75`), which it would not have done on a
+Windows checkout before the change — every offset in the PDF's cross-reference table would have shifted.
+Affects: `.gitattributes`, IMPLEMENTATION_PLAN §0.6, every committed fixture from here on.
