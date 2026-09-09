@@ -1,0 +1,42 @@
+[graph]
+all-features = true
+targets = [
+  "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu",
+  "x86_64-pc-windows-msvc", "aarch64-apple-darwin", "x86_64-apple-darwin",
+]
+
+[licenses]
+version = 2
+allow = [
+  "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "MIT", "MIT-0",
+  "BSD-2-Clause", "BSD-3-Clause", "ISC", "MPL-2.0",
+  "Unicode-3.0", "Unicode-DFS-2016", "Zlib", "CC0-1.0",
+]
+confidence-threshold = 0.93
+exceptions = []                       # every future exception needs a comment + issue link
+
+[[licenses.clarify]]
+name = "pdfium-binaries-vendored"     # the vendored PDFium blob (BSD-3), see xtask/vendor
+expression = "BSD-3-Clause"
+license-files = [{ path = "vendor/pdfium/LICENSE", hash = 0x0 }]  # hash filled at vendor time
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+deny = [
+  { name = "openssl-sys", reason = "use rustls; no system OpenSSL in a portable desktop app" },
+  { name = "reqwest",  wrappers = [] },
+  { name = "hyper",    wrappers = [] },
+  { name = "ureq",     wrappers = ["oc-net"] },
+  { name = "socket2",  wrappers = ["oc-net", "ureq"] },
+]
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git      = "deny"
+allow-registry   = ["https://github.com/rust-lang/crates.io-index"]

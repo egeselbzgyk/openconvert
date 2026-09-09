@@ -1,0 +1,70 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/oc-model", "crates/oc-pdf", "crates/oc-text", "crates/oc-layout",
+  "crates/oc-structure", "crates/oc-epub", "crates/oc-validate", "crates/oc-ai",
+  "crates/oc-net", "crates/oc-core", "crates/oc-testkit", "crates/openconvert",
+  "apps/desktop/src-tauri", "xtask",
+]
+
+[workspace.package]
+version      = "0.1.0"
+edition      = "2021"
+rust-version = "1.98"
+license      = "Apache-2.0"
+repository   = "https://github.com/openconvert/openconvert"
+
+[workspace.dependencies]
+# --- core data ---
+serde        = { version = "1", features = ["derive"] }
+serde_json   = { version = "1", features = ["preserve_order"] }
+toml         = "0.9"
+blake3       = "1"
+sha2         = "0.10"
+base32       = "0.5"
+indexmap     = { version = "2", features = ["serde"] }
+smallvec     = "1"
+compact_str  = { version = "0.9", features = ["serde"] }
+thiserror    = "2"
+anyhow       = "1"
+tracing      = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+# --- pdf ---
+pdfium-render = { version = "0.9.4", default-features = false, features = ["pdfium_latest", "image_025", "thread_safe"] }
+# NOTE: the plan's feature names ("image", "libloading") do not exist in 0.9.4. `libloading` is an
+# unconditional non-wasm dependency, so runtime binding (D3) needs no feature; the image API is
+# `image_025` (matching our `image` 0.25 pin). Recorded in docs/DECISIONS_LOG.md.
+lopdf         = { version = "0.45", default-features = false, features = ["serde"] }
+# --- text ---
+unicode-normalization = "0.1"
+unicode-properties    = "0.1"
+whatlang              = "0.18"
+hyphenation           = { version = "0.8", default-features = false }
+regex                 = "1"
+# --- epub ---
+# VD-a closed 2026-09-09: zip 8.6.0 is the current stable major (9.0.0 exists only as -preN).
+# See docs/DECISIONS_LOG.md.
+quick-xml = { version = "0.42", features = ["serialize"] }
+zip       = { version = "8.6", default-features = false, features = ["deflate"] }
+image     = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+uuid      = { version = "1", features = ["v5"] }
+time      = { version = "0.3", features = ["formatting", "macros"] }
+# --- parallelism / process ---
+rayon = "1"
+# --- net (oc-net only) ---
+ureq = { version = "3", features = ["rustls"] }
+# --- dev ---
+insta     = { version = "1.48", features = ["json", "redactions", "filters"] }
+proptest  = "1.11"
+criterion = { version = "0.8", features = ["html_reports"] }
+pdf-writer = "0.13"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"
+
+[profile.bench]
+inherits = "release"
+debug = true

@@ -1,0 +1,37 @@
+name: nightly
+# IMPLEMENTATION_PLAN.md §1.9: the job names exist from Phase 0 so that no later phase
+# has to create this workflow from scratch. Each body is replaced in the phase that owns it.
+on:
+  schedule: [{ cron: "0 3 * * *" }]
+  workflow_dispatch: {}
+concurrency: { group: nightly, cancel-in-progress: true }
+env: { CARGO_TERM_COLOR: always, INSTA_UPDATE: "no" }
+
+jobs:
+  full-corpus:            # Phase 7
+    runs-on: ubuntu-latest
+    steps: [{ run: 'echo "not yet implemented (Phase 7)"' }]
+
+  webkit-dom:             # Phase 6
+    runs-on: ubuntu-latest
+    steps: [{ run: 'echo "not yet implemented (Phase 6)"' }]
+
+  mutation-testing:       # Phase 7 (cargo-mutants + mutmut)
+    runs-on: ubuntu-latest
+    steps: [{ run: 'echo "not yet implemented (Phase 7)"' }]
+
+  proptest-deep:          # Phase 7 (PROPTEST_CASES=4096)
+    runs-on: ubuntu-latest
+    steps: [{ run: 'echo "not yet implemented (Phase 7)"' }]
+
+  bench:                  # Phase 7 (criterion + peak RSS)
+    runs-on: ubuntu-latest
+    steps: [{ run: 'echo "not yet implemented (Phase 7)"' }]
+
+  live-llm-cassette-refresh:   # Phase 9
+    runs-on: ubuntu-latest
+    steps: [{ run: 'echo "not yet implemented (Phase 9)"' }]
+
+  ace-a11y:               # Phase 6
+    runs-on: ubuntu-latest
+    steps: [{ run: 'echo "not yet implemented (Phase 6)"' }]

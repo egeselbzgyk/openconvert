@@ -1,0 +1,18 @@
+[package]
+name         = "oc-net"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+description  = "The only socket-opening crate: model/pack downloads and BYO endpoint transport"
+publish      = false
+
+[dependencies]
+oc-ai = { path = "../oc-ai", version = "0.1.0" }
+# ureq is added by Phase 9 (model downloads). It pulls webpki-roots, whose
+# CDLA-Permissive-2.0 licence is not on D15's allow-list - see docs/DECISIONS_LOG.md.
+sha2.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

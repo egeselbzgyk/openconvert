@@ -1,0 +1,88 @@
+schema_version = 1
+default = "qwen3-1.7b-q4_k_m"
+
+# --- default tier -------------------------------------------------------------
+[[model]]
+id            = "qwen3-1.7b-q4_k_m"
+tier          = "default"
+display_name  = "Qwen3 1.7B (Q4_K_M)"
+family        = "qwen3"
+arch          = "dense"
+license       = "Apache-2.0"
+license_url   = "https://huggingface.co/Qwen/Qwen3-1.7B/raw/main/LICENSE"
+notice_text   = "Qwen3-1.7B (c) Alibaba Cloud, Apache-2.0."
+repo          = "Qwen/Qwen3-1.7B-GGUF"          # official GGUF repo (V1 §1 contrast: Qwen3.5 has none)
+revision      = "TODO_COMMIT_SHA"               # 40-hex commit SHA - filled at Phase 9
+file          = "Qwen3-1.7B-Q4_K_M.gguf"        # pattern: Qwen3-{params}-{QUANT}.gguf
+url_template  = "https://huggingface.co/{repo}/resolve/{revision}/{file}"
+sha256        = "TODO_SHA256"                   # filled at Phase 9
+size_bytes    = 0                               # filled at Phase 9
+context       = 8192
+parallel      = 1
+min_ram_bytes = 3221225472
+thinking_off  = { chat_template_kwargs = { enable_thinking = false }, prompt_suffix = "/no_think" }
+prompt_profile = "qwen3-chatml"
+cache_reuse   = true                            # dense: KV shifting works (RT A3)
+
+# --- low-RAM / fast tier ------------------------------------------------------
+[[model]]
+id            = "qwen3-0.6b-q4_k_m"
+tier          = "small"
+display_name  = "Qwen3 0.6B (Q4_K_M)"
+family        = "qwen3"
+arch = "dense"
+license = "Apache-2.0"
+repo          = "Qwen/Qwen3-0.6B-GGUF"
+revision      = "TODO_COMMIT_SHA"
+file          = "Qwen3-0.6B-Q4_K_M.gguf"
+sha256        = "TODO_SHA256"
+size_bytes = 0
+context = 8192
+parallel = 1
+min_ram_bytes = 1610612736
+thinking_off  = { chat_template_kwargs = { enable_thinking = false }, prompt_suffix = "/no_think" }
+prompt_profile = "qwen3-chatml"
+cache_reuse = true
+
+# --- quality tier -------------------------------------------------------------
+[[model]]
+id            = "qwen3-4b-q4_k_m"
+tier          = "quality"
+display_name  = "Qwen3 4B (Q4_K_M)"
+family        = "qwen3"
+arch = "dense"
+license = "Apache-2.0"
+repo          = "Qwen/Qwen3-4B-GGUF"
+revision      = "TODO_COMMIT_SHA"
+file          = "Qwen3-4B-Q4_K_M.gguf"
+sha256        = "TODO_SHA256"
+size_bytes = 0
+context = 8192
+parallel = 1
+min_ram_bytes = 6442450944
+thinking_off  = { chat_template_kwargs = { enable_thinking = false }, prompt_suffix = "/no_think" }
+prompt_profile = "qwen3-chatml"
+cache_reuse = true
+
+# --- experimental tier (promotable only through the nine-gate test, D9) -------
+[[model]]
+id            = "qwen3.5-2b-q4_k_m-unsloth"
+tier          = "experimental"
+display_name  = "Qwen3.5 2B (Q4_K_M, community quant)"
+family        = "qwen3.5"
+arch = "hybrid-recurrent-moe"
+license = "Apache-2.0"
+license_url   = "https://huggingface.co/Qwen/Qwen3.5-2B/raw/main/LICENSE"
+repo          = "unsloth/Qwen3.5-2B-GGUF"       # V1 §1(g): no official Qwen GGUF (401)
+revision      = "TODO_COMMIT_SHA"               # pinned by commit SHA, never by branch (RT B14)
+file          = "Qwen3.5-2B-Q4_K_M.gguf"
+sha256        = "TODO_SHA256"
+size_bytes = 1288490188   # ~1.28 GB per V1 §1
+context = 8192
+parallel = 1
+min_ram_bytes = 3221225472
+thinking_off  = { chat_template_kwargs = { enable_thinking = false } }
+prompt_profile = "qwen3-chatml"
+cache_reuse   = false                           # RT A3: recurrent layers cannot be KV-shifted
+context_checkpoints = 32
+warn = "Community quantisation of a new hybrid architecture. Not promoted to default; see docs/MODEL_GATE.md."

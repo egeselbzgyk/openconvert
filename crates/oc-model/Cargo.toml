@@ -1,0 +1,24 @@
+[package]
+name         = "oc-model"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+description  = "OpenConvert IR: types, ids, ledger, canonical JSON, overrides schema"
+publish      = false
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+blake3.workspace = true
+base32.workspace = true
+indexmap.workspace = true
+smallvec.workspace = true
+compact_str.workspace = true
+unicode-normalization.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+proptest.workspace = true

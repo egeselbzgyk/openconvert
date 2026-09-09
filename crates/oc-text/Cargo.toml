@@ -1,0 +1,20 @@
+[package]
+name         = "oc-text"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+description  = "Normalization N, folding keys, word/line assembly, dehyphenation, statistics, language"
+publish      = false
+
+[dependencies]
+oc-model = { path = "../oc-model", version = "0.1.0" }
+unicode-normalization.workspace = true
+unicode-properties.workspace = true
+whatlang.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+proptest.workspace = true

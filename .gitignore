@@ -1,0 +1,12 @@
+/target
+/.loop/log-*
+/apps/desktop/node_modules
+/apps/desktop/src-tauri/target
+/apps/desktop/src-tauri/bin/
+/corpus/downloads/
+/corpus/cache/
+/eval/.venv
+/vendor/pdfium/
+__pycache__/
+*.pyc
+.DS_Store

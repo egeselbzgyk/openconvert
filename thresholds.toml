@@ -1,0 +1,572 @@
+schema_version = 1
+
+# ---------- conservation law (D13.4, RT C1) ----------
+[conservation.budget.furniture]           # RunningHeader + RunningFooter + PageNumber, combined
+value = 0.04
+source = "provisional"
+evidence = "RT C1 provisional budget table"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[conservation.budget.overdraw_dedup]
+value = 0.02
+source = "provisional"
+evidence = "RT C1"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[conservation.budget.ocr_layer_duplicate_per_page]
+value = 0.60
+source = "provisional"
+evidence = "RT C1: an OCR sandwich can duplicate ~half a page"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[conservation.budget.dehyphenate]
+value = 0.005
+source = "provisional"
+evidence = "RT C1"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[conservation.budget.decorative_glyph]
+value = 0.002
+source = "provisional"
+evidence = "RT C1"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[conservation.budget.other]               # every Reason not named above, incl. ClippedOffPage, HiddenText, Watermark, GeneratedSpace, SoftHyphen, LigatureExpand, UserOverride
+value = 0.001
+source = "provisional"
+evidence = "RT C1"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[conservation.global_non_ocr_removal]
+value = 0.08
+source = "provisional"
+evidence = "RT C1 global cap"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# ---------- extraction / page classification (D13.10, R3 §4) ----------
+[pageclass.text_min_visible_chars]
+value = 50
+source = "provisional"
+evidence = "R3 §4 step 3 'dozens+ of visible characters'"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[pageclass.image_only_max_visible_chars]
+value = 10
+source = "provisional"
+evidence = "R3 §4 step 4 'near-zero'"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[pageclass.image_area_ratio_min]
+value = 0.60
+source = "provisional"
+evidence = "R3 §4 'images cover most of the page'"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[pageclass.broken_text_replacement_share]
+value = 0.20
+source = "provisional"
+evidence = "R2 §B.8 + RT B1 fallback for missing has_unicode_map_error(): U+FFFD/PUA share"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[pageclass.broken_text_dict_hit_min]
+value = 0.35
+source = "provisional"
+evidence = "R10 §4.4 row 1 'dictionary hit rate'"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[limits.max_pages]
+value = 3000
+source = "provisional"
+evidence = "D13.2 default"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[limits.max_memory_bytes]
+value = 4294967296
+source = "provisional"
+evidence = "D13.2 default 4 GiB"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[limits.max_decompressed_stream_bytes]
+value = 268435456
+source = "published"
+evidence = "R8 §A2 recommended cap 256 MB"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[limits.max_image_pixels]
+value = 100000000
+source = "published"
+evidence = "R8 §A2, mirrors Pillow MAX_IMAGE_PIXELS order of magnitude"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[limits.max_xref_chain]
+value = 128
+source = "published"
+evidence = "R8 §A2 'cap xref/ObjStm chain depth 64-128 hops'"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[limits.stage_deadline_secs]
+value = 300
+source = "provisional"
+evidence = "R8 §A6 watchdog 60-120 s per document; per-stage cap set higher for large books"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# ---------- word/line/layout (R2 §B.3, §D.3) ----------
+[words.nn_manhattan_threshold]
+value = 0.20
+source = "published"
+evidence = "R2 §B.3 PdfPig NearestNeighbourWordExtractor, 20% Manhattan for known direction"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[words.nn_euclidean_threshold]
+value = 0.40
+source = "published"
+evidence = "R2 §B.3 PdfPig, 40% Euclidean for unknown direction"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[layout.furniture.band_ratio]
+value = 0.08
+source = "published"
+evidence = "R2 §B.4 / R10 §6.6: outer ~7-8% of page height"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[layout.furniture.min_repeat_pages]
+value = 3
+source = "published"
+evidence = "R2 §B.4 step 4: repetition on >= K pages, K ~ 3"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[layout.furniture.repetition_ratio_min]
+value = 0.70
+source = "provisional"
+evidence = "R10 §4.4 row 6: grey zone 0.3-0.7; fire above the grey zone"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.furniture.window_pages]
+value = 20
+source = "provisional"
+evidence = "R10 §6.6 sliding window for chapter-title running heads"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.docstrum.within_line_angle_deg]
+value = 30.0
+source = "published"
+evidence = "R2 §B.3 PdfPig Docstrum within-line bounds [-30, +30]"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[layout.docstrum.between_line_angle_min_deg]
+value = 45.0
+source = "published"
+evidence = "R2 §B.3"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[layout.docstrum.between_line_angle_max_deg]
+value = 135.0
+source = "published"
+evidence = "R2 §B.3"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[layout.docstrum.between_line_multiplier]
+value = 1.3
+source = "published"
+evidence = "R2 §B.3"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[layout.whitespace.max_rectangles]
+value = 40
+source = "published"
+evidence = "R2 §B.3 PdfPig WhitespaceCoverExtractor maxRectangleCount"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[layout.whitespace.fuzziness]
+value = 0.15
+source = "published"
+evidence = "R2 §B.3"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[paragraph.line_margin]
+value = 0.5
+source = "published"
+evidence = "R2 §B.6: pdfminer line_margin = 0.5 x line height"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[paragraph.indent_min_em]
+value = 1.0
+source = "published"
+evidence = "R2 §B.6: first-line indent >= ~1 em"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[paragraph.line_unwrap_factor]
+value = 0.4
+source = "published"
+evidence = "R10 §6.4: Calibre line-unwrap-factor default 0.4"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+# ---------- structure ----------
+[headings.candidate_max_char_share]
+value = 0.15
+source = "published"
+evidence = "R2 §B.5 recommended clustering: heading styles hold < ~15% of characters"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[headings.short_line_max_width_ratio]
+value = 0.60
+source = "published"
+evidence = "R2 §B.5: heading line < ~60% of column width"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[footnote.font_size_ratio_max]
+value = 0.85
+source = "published"
+evidence = "R2 §B.6: footnote font typically 0.75-0.85x body"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[footnote.superscript_rise_ratio]
+value = 0.30
+source = "published"
+evidence = "R2 §B.6: baseline raised > ~0.3 x font size"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[dropcap.min_height_lines]
+value = 2.0
+source = "published"
+evidence = "R2 §B.6: glyph height >= ~2x body line height"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[caption.distance_ratio_min]
+value = 1.5
+source = "published"
+evidence = "R10 §6.10: associate if best/second-best distance ratio > 1.5"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+# ---------- images / epub ----------
+[images.max_longest_side_px]
+value = 1600
+source = "provisional"
+evidence = "D13.11 image policy"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[images.ornament_page_share]
+value = 0.30
+source = "provisional"
+evidence = "D13.11: drop a small identical image repeating on >= 30% of pages"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[images.vector_raster_scale]
+value = 2.0
+source = "provisional"
+evidence = "D13.11: vector regions rasterised at 2x in v1"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[xhtml.split_bytes]
+value = 260000
+source = "published"
+evidence = "R5 §A13 / D5: Calibre's ADE-derived ~260 KB default - the one anchored size number"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[epub.warn_total_bytes]
+value = 52428800
+source = "provisional"
+evidence = "D13.11: warn when EPUB > 50 MB"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[epubcheck.max_errors]
+value = 0
+source = "binary"
+evidence = "R9 §A.15 / D6: EPUBCheck error count = 0 is a hard release gate"
+owner = "maintainer"
+review_by = "2099-01-01"
+
+[ace.max_serious_violations]
+value = 0
+source = "binary"
+evidence = "R9 §A.16"
+owner = "maintainer"
+review_by = "2099-01-01"
+
+# ---------- language ----------
+[lang.block_min_words]
+value = 5
+source = "published"
+evidence = "R10 §6.17: require >= 5 words before assigning a lang attribute"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[lang.block_override_max_share]
+value = 0.20
+source = "published"
+evidence = "R10 §6.17: per-block overrides must be < 20% of blocks"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+# ---------- quality statistics (R10 §6.18, datatrove) ----------
+[quality.dup_line_frac]
+value = 0.30
+source = "published"
+evidence = "R10 §6.18 datatrove gopher_repetition_filter"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[quality.dup_para_frac]
+value = 0.30
+source = "published"
+evidence = "R10 §6.18"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[quality.top_2gram_frac]
+value = 0.20
+source = "published"
+evidence = "R10 §6.18"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[quality.top_3gram_frac]
+value = 0.18
+source = "published"
+evidence = "R10 §6.18"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[quality.top_4gram_frac]
+value = 0.16
+source = "published"
+evidence = "R10 §6.18"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[quality.max_non_alpha_words_ratio]
+value = 0.8
+source = "published"
+evidence = "R10 §6.18 gopher_quality_filter"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[validate.min_char_retention]
+value = 0.98
+source = "provisional"
+evidence = "R6 §11 Layer 1: flag character retention < 98% vs the pdfium text layer"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# ---------- AI (RT C4) ----------
+[ai.enabled]
+value = false
+source = "binary"
+evidence = "D17 / RT A7: v1 ships ai.enabled = false"
+owner = "maintainer"
+review_by = "2099-01-01"
+
+[llm.max_calls_per_book]
+value = 8
+source = "provisional"
+evidence = "RT C4 hard budgets"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.max_blocks_per_book]
+value = 30
+source = "provisional"
+evidence = "RT C4; RT A7 notes R10 §6.13 offered 30 as illustrative, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.max_wallclock_share]
+value = 0.25
+source = "provisional"
+evidence = "RT C4 hard stop"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.max_output_tokens_per_call]
+value = 1500
+source = "provisional"
+evidence = "RT C4"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.idle_kill_secs]
+value = 120
+source = "provisional"
+evidence = "RT C2 'idle-kill at 120 s'"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[inventory.max_clusters]
+value = 24
+source = "provisional"
+evidence = "RT A8.3 / C4: above this, no LLM call at all"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[inventory.min_body_char_share]
+value = 0.60
+source = "provisional"
+evidence = "RT A8.3 / C4"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[inventory.holdout_disagree_max]
+value = 0.20
+source = "provisional"
+evidence = "RT A8.2: reject the mapping above 20% disagreement on 8-10 held-out runs"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[verse.short_line_ratio_min]
+value = 0.35
+source = "provisional"
+evidence = "RT C4 escalation predicate: short-line ratio in [0.35, 0.75]"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[verse.short_line_ratio_max]
+value = 0.75
+source = "provisional"
+evidence = "RT C4"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# ---------- repair loop (D13.7, RT A10) ----------
+[repair.max_iterations]
+value = 3
+source = "provisional"
+evidence = "RT A7 table: R10 §6.19 asserts 3 without derivation; safety cap only"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[repair.require_strict_decrease]
+value = true
+source = "binary"
+evidence = "RT A10.1: lexicographic M must strictly decrease"
+owner = "maintainer"
+review_by = "2099-01-01"
+
+[repair.corpus_fire_rate_max]
+value = 0.0
+source = "binary"
+evidence = "D13.7 / RT A10.4: repair-fire rate on the corpus is a release metric with target zero"
+owner = "maintainer"
+review_by = "2099-01-01"
+
+# ---------- performance (RT D19) ----------
+[perf.seconds_per_page_max]
+value = 0.5
+source = "provisional"
+evidence = "D13.11 on reference machine L; Docling anchor 0.41-1.06 s/page (R10 §2.1)"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[perf.peak_rss_bytes_max]
+value = 524288000
+source = "provisional"
+evidence = "D13.11: <= 500 MB peak RSS for a 300-page born-digital book"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# ---------- model promotion gate (D9 G1-G9) ----------
+[model_gate.g4_max_seconds_on_L]
+value = 50
+source = "provisional"
+evidence = "D9 G4 / RT C3, tightened by ratified note N-5: 25% share of a ~150 s deterministic 300-page book"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[model_gate.g5_max_repeat_ratio]
+value = 0.40
+source = "provisional"
+evidence = "D9 G5 / RT C3 prefix reuse"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[model_gate.g6_max_rss_bytes]
+value = 2684354560
+source = "provisional"
+evidence = "D9 G6: 2.5 GB at -c 8192 -np 1"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[model_gate.g8_min_probe_accuracy]
+value = 0.95
+source = "provisional"
+evidence = "D9 G8: >= 95% on 100-item DE and TR flat-enum probes"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# ---------- calibration / golden-decision promotion (D17, TEST_STRATEGY §7) ----------
+[calibration.min_gold_instances_per_task]
+value = 200
+source = "provisional"
+# Rationale: at p ~= 0.9, a 95% CI half-width is ~+-4 pp at n=200 (1.96*sqrt(0.9*0.1/200) = 0.0416),
+# tight enough that a "baseline - 1 margin of error" gate still gates on something; at n=50 the same
+# half-width is ~+-8 pp and the gate passes almost anything. Derived from the target interval width,
+# not measured - revisit once the first golden sets exist. Per-stratum promotion needs n met within
+# the stratum, not only in aggregate.
+evidence = "TEST_STRATEGY §7 promotion checklist; D17 provisional->calibrated gate"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# ---------- corpus (D18) ----------
+[corpus.ours_max_share]
+value = 0.40
+source = "binary"
+evidence = "D18 / RT A9.2: ours(*) may not exceed 40% of the corpus"
+owner = "maintainer"
+review_by = "2099-01-01"
+
+[corpus.holdout_min_files]
+value = 100
+source = "binary"
+evidence = "D18 / RT A9.4: >= 100-file real-world holdout, frozen"
+owner = "maintainer"
+review_by = "2099-01-01"
+
+[corpus.tagged_share_target]
+value = 0.126
+source = "published"
+evidence = "RT A9 / R1 §A.10: real world measured at 12.6% tagged"
+owner = "maintainer"
+review_by = "2028-01-01"

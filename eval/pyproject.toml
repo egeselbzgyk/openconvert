@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "oc-eval"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "pypdfium2>=4",       # rendering + reference text extraction (BSD/Apache, matches our backend)
+  "pdfplumber>=0.11",   # MIT, word boxes for cross-checking (pdfminer.six under the hood)
+  "pikepdf>=9",         # qpdf bindings (Apache-2.0) for structural mutation + QDF round-trip
+  "jiwer>=3",           # CER/WER (R7 §B.5)
+  "numpy>=2",
+  "pandas>=2",
+  "pillow>=11",         # scan simulation + fixture PNG authoring
+  "img2pdf>=0.6",       # image-only PDF wrapping (R7 §C.2 step 3)
+  "lxml>=5",            # XHTML ground truth from Standard Ebooks
+  "matplotlib>=3.9",    # reliability diagrams (R9 §C.9)
+  "scipy>=1.14",        # McNemar exact binomial (R9 §C.7)
+  "typer>=0.15",
+]
+
+[project.optional-dependencies]
+render = ["weasyprint>=63"]     # optional: second synthetic renderer (R7 §B.1)
+dev     = ["pytest>=8", "syrupy>=4", "hypothesis>=6", "ruff>=0.9", "mypy>=1.14"]
+
+[project.scripts]
+oc-eval = "oc_eval.__main__:app"
+
+[tool.ruff]
+line-length = 100
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/oc_eval"]

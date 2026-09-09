@@ -1,0 +1,21 @@
+[package]
+name         = "oc-epub"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+description  = "Typed XHTML builder, OPF/nav/NCX, CSS, splitting, deterministic zip, image encoding"
+publish      = false
+
+[dependencies]
+oc-model = { path = "../oc-model", version = "0.1.0" }
+quick-xml.workspace = true
+zip.workspace = true
+image.workspace = true
+uuid.workspace = true
+time.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+insta.workspace = true

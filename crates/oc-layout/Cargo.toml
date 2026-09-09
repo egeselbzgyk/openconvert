@@ -1,0 +1,18 @@
+[package]
+name         = "oc-layout"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+description  = "Furniture detection, block segmentation, columns, reading order, paragraphs, anchoring"
+publish      = false
+
+[dependencies]
+oc-model = { path = "../oc-model", version = "0.1.0" }
+oc-text = { path = "../oc-text", version = "0.1.0" }
+thiserror.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+proptest.workspace = true
