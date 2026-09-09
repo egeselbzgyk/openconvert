@@ -14,5 +14,7 @@ pub mod glyphs;
 pub mod images;
 pub mod inspect;
 pub mod limits;
+pub mod meta;
+pub mod outline;
 pub mod pdfium;
 pub mod producer;

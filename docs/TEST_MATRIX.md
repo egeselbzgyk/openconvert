@@ -74,7 +74,7 @@ replaced by the phase that owns it.
 | 1.12 | `encrypt::encrypted_empty_user_password_opens` | `oc-pdf` | fixture (mutation) | `test` | green |
 | 1.13 | `cli::encrypted_with_password_requires_flag` | `openconvert` | integration | `test` | green |
 | 1.14 | `encrypt::owner_password_permissions_recorded_not_enforced` | `oc-pdf` | fixture (mutation) | `test` | green |
-| 1.15 | `outline_is_read_depth_first` | `oc-pdf` | fixture | `test` | — |
+| 1.15 | `outline::outline_is_read_depth_first` | `oc-pdf` | fixture (h13) | `test` | green |
 | 1.16 | `prop_never_panics_on_arbitrary_bytes` | `oc-pdf` | property | `test`, `proptest-deep` | — |
 | 1.17 | `dump_stage_ingest_snapshot_h01` | `oc-core` | snapshot | `test` | — |
 | 1.18 | `differential_pdftotext_coverage_f01` | `oc-pdf` | integration (oracle) | `test` | — |

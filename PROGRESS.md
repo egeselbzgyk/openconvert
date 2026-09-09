@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 1
-CURRENT_ITEM: 1.8 — outlines and metadata (test 1.15)
-LAST_UPDATED: 2026-09-09
+CURRENT_ITEM: 1.9 — fuzz-lite (test 1.16)
+LAST_UPDATED: 2026-09-10
 
 ---
 
@@ -42,29 +42,31 @@ LAST_UPDATED: 2026-09-09
 
 ## Current work item
 
-**Phase 1, item 1.8 — outlines and metadata (test 1.15).** Items 1.1–1.7 are done: hand-made
-fixtures, glyph extraction (1.1–1.4), metamorphic invariants (1.5–1.7), the broken-text mutation
-(1.8), images (1.9), resource limits (1.10, 1.11, 1.20) and encryption (1.12–1.14).
+**Phase 1, item 1.9 — fuzz-lite (test 1.16).** Items 1.1–1.8 are done: hand-made fixtures, glyph
+extraction (1.1–1.4), metamorphic invariants (1.5–1.7), the broken-text mutation (1.8), images
+(1.9), resource limits (1.10, 1.11, 1.20), encryption (1.12–1.14) and outlines/metadata (1.15).
 
-Next is RED: test 1.15 `outline_is_read_depth_first` — the outline of a tagged `f01` variant comes
-back in prefix order with correct levels. Then implement `oc-pdf::{outline, meta}` per Phase 1
-detail 6: `PdfBookmarks::iter()` is documented as depth-first prefix order (V2 §1), so the level
-has to be derived by walking rather than taken from the iterator; `lopdf` for `/Info`, for
-`/Metadata` (XMP kept as raw bytes, then a minimal `dc:` extraction with `quick-xml`), and for
-`has_struct_tree` as a real `/Root /StructTreeRoot` lookup rather than today's byte search.
+Next is RED: test 1.16 `prop_never_panics_on_arbitrary_bytes` — 20 000 random byte strings, plus
+200 truncations of the real fixtures, must all return `Err` and never panic. The nightly
+`proptest-deep` job raises it to 200 000.
 
-Two things already in place that this item builds on: `PdfiumDoc` already holds the parsed
-`lopdf::Document` (added in 1.5 for the image flags), so no new plumbing is needed; and
-`quick-xml` 0.42 is already a workspace dependency.
+Two things to get right, and the second is the harder one:
 
-`f01` has no outline — Typst emits none for a document with no headings marked as such. Either the
-tagged variant `f01_prose_single_column__tagged.pdf` carries one (check first), or the fixture is
-a hand-made `h13_outline.pdf` with a known three-level tree, which is the more direct test anyway
-because the expected order is then written down rather than inferred.
+- **Truncations are the valuable half.** Random bytes are rejected at the header and exercise
+  almost nothing; a real fixture cut off at a random offset is a *plausible* PDF with a broken
+  xref, which is what a partial download or a damaged file actually looks like. Draw the cut
+  offsets across the whole file, not just the tail.
+- **A PDFium segfault is not a panic and no `catch_unwind` will see it.** RT A5.2 accepts that for
+  v1 and reserves `--isolate-parser` for Phase 14. So if a truncation kills the test process, the
+  finding is real and belongs in `DECISIONS_LOG.md` — do not quietly drop the input that did it.
 
-Remaining Phase 1 items after 1.8: 1.9 fuzz-lite (1.16) · 1.10 dump-stage (1.17) ·
-1.11 the poppler oracle (1.18) · 1.12 cancellation (1.19) · then VD-d, the ten-PDF image spike
-that blocks Phase 4's image policy. VD-d has its first fixture, `h09_image_smask`.
+Everything the test needs already exists: `open_with_limits` for the door, `page_glyphs` and
+`page_images` for the per-page paths, and `oc_testkit::handmade` for the corpus to truncate. The
+surface to fuzz is every public entry point that takes bytes.
+
+Remaining Phase 1 items after 1.9: 1.10 dump-stage (1.17) · 1.11 the poppler oracle (1.18) ·
+1.12 cancellation (1.19) · then VD-d, the ten-PDF image spike that blocks Phase 4's image policy.
+VD-d has its first fixture, `h09_image_smask`.
 
 ## Notes
 
@@ -76,7 +78,7 @@ Carried forward, in the order a fresh session needs them:
   Pinned to `chromium/7881` (151.0.7881.0) in `xtask/pdfium.lock`, lands in the git-ignored
   `vendor/pdfium/<triple>/`, needs `curl` and `tar` on PATH. CI runs it before `nextest`.
 - **Fixtures**: `cargo run -p xtask -- fixtures` (Typst f01–f03 into the git-ignored
-  `target/fixtures/`), `-- handmade-fixtures` (h01–h12, committed), `-- mutations` (committed).
+  `target/fixtures/`), `-- handmade-fixtures` (h01–h13, committed), `-- mutations` (committed).
 - **No stage may treat the backend's glyph order as reading order.** Measured in item 1.3: PDFium
   reorders the lines of a page under `/Rotate 90`. Reading order is Phase 3's, from geometry.
 - **Open from item 1.4, for Phase 2/3:** PDFium reports a line-break hyphen as **U+0002** with
@@ -153,3 +155,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-09  P1.5      oc-pdf images: ImageRef, DPI, kind, smask/inline via lopdf (test 1.9)  053ad54
 2026-09-09  P1.6      oc-core/oc-pdf resource limits + --max-pages (tests 1.10, 1.11, 1.20)  13fce0b
 2026-09-09  P1.7      oc-pdf encryption: permissions recorded not enforced (tests 1.12-1.14)  a825fc5
+2026-09-10  P1.8      oc-pdf outline walk + meta from the object tree (test 1.15)

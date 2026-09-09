@@ -195,3 +195,14 @@ Rust field name, and a capital letter there trips `non_snake_case` under `-D war
   `E_PASSWORD_REQUIRED`.
 - New: `oc_testkit::mutate::encrypt` (AES-128 via `lopdf`), and three encrypted fixtures
   under `corpus/fixtures/mutations/`.
+
+### Outlines and metadata (`oc-model`, `oc-pdf`, `oc-testkit`)
+
+- New: `oc_model::extract::OutlineEntry`, `oc_pdf::outline::read_outline` and
+  `PdfDoc::outline` — walked depth-first, because `PdfBookmarks::iter()` drops the depth.
+- New: `oc_pdf::meta::{is_encrypted, has_struct_tree, xmp_packet, read_xmp, XmpMeta}`.
+- **Fixed:** `encrypted` and `has_struct_tree` were byte searches over the raw file, so any
+  document containing the *text* `/StructTreeRoot` reported a structure tree. Both now come
+  from the object tree, with the byte search kept only as a fallback.
+- New fixture `h13_outline` (six entries, three levels, two roots) and threshold
+  `limits.max_outline_entries`.

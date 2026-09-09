@@ -3494,6 +3494,7 @@ dependencies = [
  "pdf-writer 0.13.0",
  "pdfium-render",
  "proptest",
+ "quick-xml 0.42.0",
  "regex",
  "serde",
  "serde_json",

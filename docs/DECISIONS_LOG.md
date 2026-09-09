@@ -898,3 +898,53 @@ Evidence: `cargo nextest run --workspace` - 50 passed.
 Affects: D13.11, RT D12, IMPLEMENTATION_PLAN Phase 1 detail 7 and §2.4,
 `crates/oc-pdf/src/{encrypt.rs,error.rs,inspect.rs,pdfium/doc.rs}`,
 `crates/oc-testkit/src/mutate.rs`, `crates/openconvert/src/cmd_inspect.rs`, `xtask/src/mutations.rs`.
+
+## 2026-09-10 · Outlines by walking, and two byte searches replaced · Phase 1
+Context: item 1.8 implements `oc-pdf::{outline, meta}` against test 1.15 and Phase 1 detail 6.
+
+1. **The outline is walked, not iterated.** `PdfBookmarks::iter()` flattens the tree and hands
+   back a sequence with no depth, and the depth is half the information an outline carries - a
+   table of contents whose levels are lost is a list. So `read_outline` walks `first_child` and
+   `next_sibling` with an explicit stack, pushing siblings before children so that popping yields
+   prefix order. Bounded by a new `limits.max_outline_entries` (100 000): `/First` and `/Next` are
+   a linked structure in a file anyone can write, and a cycle has no other stop.
+
+2. **`f01` cannot test what test 1.15 is about.** It has an outline - Typst writes one - but it is
+   a single entry, "Chapter 3". One entry cannot tell a depth-first walk from a breadth-first one,
+   and it cannot tell a walk that comes back up from one that stops at the first leaf. `h13_outline`
+   carries six entries over three levels with two roots, which distinguishes all three, and its
+   expected order is a public constant `OUTLINE_TREE` that the builder and the test both read - so
+   the assertion cannot drift into a copy of whatever the builder happened to emit. `f01` is
+   asserted too, as the case that proves the reader works on a file we did not write.
+
+3. **`lopdf` decrypts on load and removes `/Encrypt` from the trailer.** The obvious predicate,
+   `document.trailer.has(b"Encrypt")`, is false for every encrypted document that `lopdf` could
+   open - because opening it is what removed the entry. The evidence that survives is
+   `Document::encryption_state`, so `is_encrypted` checks that first and the trailer second (for a
+   document loaded some other way). Caught by the test, which is the only reason it is not a
+   silent "no document is ever encrypted".
+
+4. **Two byte searches replaced by object lookups.** `read_metadata` decided `encrypted` and
+   `has_struct_tree` by searching the raw file for `/Encrypt` and `/StructTreeRoot`. Both find the
+   string wherever it occurs - inside a content stream, inside a text string - so a document
+   *about* PDF accessibility reported a structure tree it does not have, which is precisely the
+   corpus this project gets pointed at. Both now come from the object tree, with the byte search
+   kept as the fallback for a file `lopdf` cannot parse but PDFium opened: a wrong "yes" on a
+   structure-tree hint costs a look (D3 makes it a hint only), and a wrong "no" on encryption would
+   be a lie in the report.
+
+5. **XMP is kept as bytes and read for three fields.** `dc:title`, `dc:creator` and `dc:language`,
+   scanned with `quick-xml` rather than modelled as RDF: a general RDF parser is a dependency and
+   an attack surface in exchange for three strings, and the packet is kept whole anyway so nothing
+   is lost by the narrow read. A packet that is not UTF-8 yields nothing rather than a lossy
+   decode - a plausible wrong author name is worse than no author name. Which of XMP and `/Info`
+   wins when they disagree is Phase 4's question, and Phase 1 only has to make both available.
+
+Note for Phase 4: `read_xmp` is written and tested but nothing calls it yet - `DocMetadata` still
+carries only the `/Info` values. Wiring the precedence rule is metadata work and belongs with the
+rest of it.
+Evidence: `cargo nextest run --workspace` - 57 passed.
+Affects: D3, D13.10, D18, IMPLEMENTATION_PLAN Phase 1 detail 6 and test 1.15, IR_SKETCH
+`OutlineEntry`, `thresholds.toml` `limits.max_outline_entries`,
+`crates/oc-model/src/extract.rs`, `crates/oc-pdf/src/{outline.rs,meta.rs,inspect.rs,pdfium/doc.rs}`,
+`crates/oc-testkit/src/handmade.rs`.

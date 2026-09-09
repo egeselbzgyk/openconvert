@@ -14,7 +14,7 @@
 //! Every builder writes the same bytes on every run: no timestamps, no document id, no
 //! randomness. That is what lets a fixture be committed and compared.
 
-use pdf_writer::{Content, Finish, Name, Pdf, Rect, Ref, Str};
+use pdf_writer::{Content, Finish, Name, Pdf, Rect, Ref, Str, TextStr};
 
 /// Helvetica, one of the fourteen fonts every reader has, so no font has to be embedded and
 /// the file stays small enough to read in a diff.
@@ -69,6 +69,7 @@ pub fn all() -> Vec<(&'static str, Vec<u8>)> {
         ("h10_inline_image", h10_inline_image()),
         ("h11_pixel_bomb", h11_pixel_bomb()),
         ("h12_decompression_bomb", h12_decompression_bomb()),
+        ("h13_outline", h13_outline()),
     ]
 }
 
@@ -228,6 +229,34 @@ pub fn h12_decompression_bomb() -> Vec<u8> {
     )
 }
 
+/// The outline `h13` carries, as `(title, level)` in the order it must be read.
+///
+/// Three levels and two roots, because a tree that is only one level deep cannot tell a
+/// depth-first walk from a breadth-first one, and one root cannot tell a walk that returns to
+/// the top from one that stops at the first leaf. Public so the test asserts against the same
+/// list the builder wrote rather than a copy of it that could drift.
+pub const OUTLINE_TREE: [(&str, u16); 6] = [
+    ("Part One", 0),
+    ("Chapter 1", 1),
+    ("Section 1.1", 2),
+    ("Section 1.2", 2),
+    ("Chapter 2", 1),
+    ("Part Two", 0),
+];
+
+/// h13 - a document whose only interesting feature is its outline (test 1.15).
+///
+/// `f01` has an outline too, but a single entry called "Chapter 3": enough to prove one is
+/// read, not enough to prove it is read *depth-first with the right levels*, which is the
+/// assertion. Both are checked; this is the one that can fail.
+pub fn h13_outline() -> Vec<u8> {
+    build(
+        Page::default()
+            .text(FIXTURE_ORIGIN, "AB")
+            .outline(&OUTLINE_TREE),
+    )
+}
+
 /// A document with `count` empty pages, for the `--max-pages` guard.
 ///
 /// Not one of the committed fixtures: three thousand empty page dictionaries are a third of a
@@ -295,6 +324,7 @@ struct Page {
     inline_image: bool,
     declared_image_size: Option<i32>,
     content_padding: Option<usize>,
+    outline: Vec<(&'static str, u16)>,
 }
 
 impl Page {
@@ -325,6 +355,12 @@ impl Page {
 
     fn full_page_image(mut self) -> Self {
         self.full_page_image = true;
+        self
+    }
+
+    /// Give the document an outline, as `(title, level)` in reading order.
+    fn outline(mut self, tree: &[(&'static str, u16)]) -> Self {
+        self.outline = tree.to_vec();
         self
     }
 
@@ -361,6 +397,9 @@ fn build(page: Page) -> Vec<u8> {
     let font_id = Ref::new(5);
     let image_id = Ref::new(6);
     let smask_id = Ref::new(7);
+    // The outline root and its items follow, one object each.
+    let outline_root = Ref::new(8);
+    let outline_first = 9;
 
     let mut content = Content::new();
     if page.full_page_image {
@@ -408,7 +447,14 @@ fn build(page: Page) -> Vec<u8> {
         b"openconvert-fixture".to_vec(),
         b"openconvert-fixture".to_vec(),
     ));
-    pdf.catalog(catalog).pages(tree);
+    {
+        let mut written = pdf.catalog(catalog);
+        written.pages(tree);
+        if !page.outline.is_empty() {
+            written.outlines(outline_root);
+        }
+        written.finish();
+    }
     pdf.pages(tree).kids([page_id]).count(1);
 
     {
@@ -468,6 +514,10 @@ fn build(page: Page) -> Vec<u8> {
         }
     }
 
+    if !page.outline.is_empty() {
+        write_outline(&mut pdf, &page.outline, outline_root, outline_first);
+    }
+
     match &compressed {
         Some(bytes) => {
             let mut stream = pdf.stream(content_id, bytes);
@@ -479,6 +529,66 @@ fn build(page: Page) -> Vec<u8> {
         }
     }
     pdf.finish()
+}
+
+/// Write an outline tree from a flat `(title, level)` list in reading order.
+///
+/// The flat form is how a reader thinks about a table of contents and how the test asserts;
+/// the file wants a doubly-linked tree of `/First`, `/Last`, `/Next`, `/Prev` and `/Parent`.
+/// Converting between them here is what makes the fixture's expected order something written
+/// down rather than inferred from whatever the builder happened to emit.
+fn write_outline(pdf: &mut Pdf, tree: &[(&'static str, u16)], root: Ref, first_id: i32) {
+    let id_of = |index: usize| Ref::new(first_id + i32::try_from(index).unwrap_or(i32::MAX));
+
+    // For each entry, its parent (the nearest earlier entry one level up) and its siblings.
+    let parents: Vec<Option<usize>> = tree
+        .iter()
+        .enumerate()
+        .map(|(index, (_, level))| {
+            tree[..index]
+                .iter()
+                .rposition(|(_, other)| *other + 1 == *level)
+        })
+        .collect();
+    let children = |parent: Option<usize>| -> Vec<usize> {
+        (0..tree.len())
+            .filter(|index| parents[*index] == parent)
+            .collect()
+    };
+
+    let roots = children(None);
+    {
+        let mut written = pdf.outline(root);
+        if let (Some(first), Some(last)) = (roots.first(), roots.last()) {
+            written.first(id_of(*first)).last(id_of(*last));
+        }
+        written.count(i32::try_from(roots.len()).unwrap_or(i32::MAX));
+        written.finish();
+    }
+
+    for (index, (title, _)) in tree.iter().enumerate() {
+        let siblings = children(parents[index]);
+        let position = siblings.iter().position(|s| *s == index).unwrap_or(0);
+        let mine = children(Some(index));
+
+        let mut item = pdf.outline_item(id_of(index));
+        item.title(TextStr(title));
+        match parents[index] {
+            Some(parent) => item.parent(id_of(parent)),
+            None => item.parent(root),
+        };
+        if let Some(previous) = position.checked_sub(1).and_then(|p| siblings.get(p)) {
+            item.prev(id_of(*previous));
+        }
+        if let Some(next) = siblings.get(position + 1) {
+            item.next(id_of(*next));
+        }
+        if let (Some(first), Some(last)) = (mine.first(), mine.last()) {
+            item.first(id_of(*first)).last(id_of(*last));
+            item.count(i32::try_from(mine.len()).unwrap_or(i32::MAX));
+        }
+        item.finish();
+    }
 }
 
 /// An inline image drawn over the whole page, as raw content-stream bytes.

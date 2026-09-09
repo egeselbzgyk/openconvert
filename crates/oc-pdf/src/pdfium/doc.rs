@@ -68,8 +68,8 @@ impl PdfiumDoc {
         let pages = u32::try_from(document.pages().len()).unwrap_or(u32::MAX);
         limits.check_pages(pages)?;
 
-        let metadata = read_metadata(&document, bytes);
         let structure = lopdf::Document::load_mem(bytes).ok();
+        let metadata = read_metadata(&document, bytes, structure.as_ref());
         Ok(Self {
             document,
             metadata,
@@ -165,6 +165,10 @@ impl PdfDoc for PdfiumDoc {
 
     fn page_images(&self, index: u32) -> Result<Vec<ImageRef>, PdfError> {
         self.page_images_impl(index)
+    }
+
+    fn outline(&self) -> Vec<oc_model::extract::OutlineEntry> {
+        crate::outline::read_outline(&self.document, &self.limits)
     }
 
     fn page_image_stats(&self, index: u32) -> Result<PageImageStats, PdfError> {
@@ -581,10 +585,17 @@ fn is_undecodable_control(
 
 /// Read the document metadata `inspect` reports.
 ///
-/// The struct-tree check is a byte search rather than a parse: PDFium exposes no predicate
-/// for it, and `inspect` only needs to know whether one is present, not what is in it.
-/// Phase 1 reads the tree properly through `lopdf` when it needs the hints inside.
-fn read_metadata(document: &PdfDocument<'_>, bytes: &[u8]) -> DocMetadata {
+/// PDFium answers for `/Info`; the file's own object tree answers for encryption and for the
+/// structure tree, because PDFium exposes no predicate for either and the byte search this
+/// used to do finds `/StructTreeRoot` in the *text* of a document about PDF accessibility.
+/// When `lopdf` cannot parse a file PDFium opened, both fall back to the byte search rather
+/// than to `false`: a wrong "yes" on a structure-tree hint costs a look, a wrong "no" on
+/// encryption would be a lie in the report.
+fn read_metadata(
+    document: &PdfDocument<'_>,
+    bytes: &[u8],
+    structure: Option<&lopdf::Document>,
+) -> DocMetadata {
     use pdfium_render::prelude::PdfDocumentMetadataTagType as Tag;
 
     let metadata = document.metadata();
@@ -602,8 +613,12 @@ fn read_metadata(document: &PdfDocument<'_>, bytes: &[u8]) -> DocMetadata {
         author: tag(Tag::Author),
         // An encrypted document that opened is one whose user password was empty or supplied;
         // the permission flags do not block conversion (D13.11).
-        encrypted: find_bytes(bytes, b"/Encrypt"),
-        has_struct_tree: find_bytes(bytes, b"/StructTreeRoot"),
+        encrypted: structure
+            .map_or_else(|| find_bytes(bytes, b"/Encrypt"), crate::meta::is_encrypted),
+        has_struct_tree: structure.map_or_else(
+            || find_bytes(bytes, b"/StructTreeRoot"),
+            crate::meta::has_struct_tree,
+        ),
         permissions: read_permissions(document),
     }
 }

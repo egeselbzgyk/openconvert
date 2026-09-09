@@ -53,6 +53,9 @@ pub struct Limits {
     pub max_decompressed_stream_bytes: u64,
     pub max_image_pixels: u64,
     pub max_xref_chain: u32,
+    /// How many outline entries are walked before the walk gives up. A bound on a linked
+    /// structure in the file, not a budget: a cyclic `/Next` chain has no other stop.
+    pub max_outline_entries: u32,
     pub stage_deadline_secs: u64,
 }
 
@@ -66,6 +69,7 @@ impl Default for Limits {
             max_decompressed_stream_bytes: clamp_u64(limits.max_decompressed_stream_bytes),
             max_image_pixels: clamp_u64(limits.max_image_pixels),
             max_xref_chain: clamp_u32(limits.max_xref_chain),
+            max_outline_entries: clamp_u32(limits.max_outline_entries),
             stage_deadline_secs: clamp_u64(limits.stage_deadline_secs),
         }
     }
@@ -152,6 +156,7 @@ fn defaults_come_from_thresholds() {
     assert_eq!(limits.max_image_pixels, 100_000_000);
     assert_eq!(limits.max_decompressed_stream_bytes, 268_435_456);
     assert_eq!(limits.max_xref_chain, 128);
+    assert_eq!(limits.max_outline_entries, 100_000);
 }
 
 /// Every check refuses one past its allowance and accepts exactly its allowance.

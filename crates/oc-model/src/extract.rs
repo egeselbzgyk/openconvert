@@ -231,3 +231,18 @@ pub struct ImageRef {
     pub effective_dpi: f32,
     pub kind: ImageKind,
 }
+
+/// One entry in a document's outline — a PDF bookmark.
+///
+/// The outline is the strongest structural signal a PDF carries, and the only one a producer
+/// writes deliberately: Phase 4 prefers it over every heuristic it has when the two disagree.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct OutlineEntry {
+    pub title: String,
+    /// Depth in the tree, zero for a top-level entry.
+    pub level: u16,
+    /// The page it points at, when the destination could be resolved. `None` for an entry
+    /// whose action is something other than "go to a page in this document" — a URI, a
+    /// launch, a remote destination.
+    pub page: Option<u32>,
+}
