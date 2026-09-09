@@ -30,6 +30,22 @@ One section per completed phase, listing new CLI flags, new IR fields, new warni
 - New: `canonical::to_canonical_json` and `canonical::CanonError` — sorted keys, `ir_version` first,
   NFC strings, `f32` at two decimals, non-finite floats rejected instead of written as `null`.
 
+### Fixtures (`xtask`, `corpus/`)
+
+- New: `cargo run -p xtask -- fixtures` compiles the three Typst sources in-process to
+  `target/fixtures/` and records them in `corpus/manifest.json` with `producer_stratum = "ours(Typst)"`.
+  `--keep-structtree` emits the `__tagged` variants instead (D18).
+- New: `corpus/fixtures/typst/{f01_prose_single_column,f02_two_column,f03_image_only}.typ` and
+  `corpus/fixtures/assets/scan_page_01.png`, plus its generator
+  `eval/src/oc_eval/generate/scan_sim.py`.
+
+### Supply-chain policy
+
+- Changed: `deny.toml` now excludes `xtask` and audits only what ships, with every rule absolute.
+- New: `deny.tools.toml` audits the developer tooling with the same licence, ban and source policy;
+  its advisories are reported by a non-blocking CI step rather than enforced. `docs/SECURITY.md` 9
+  states the scope of each gate.
+
 ### Producer detection (`oc-pdf`)
 
 - New: `producer::ProducerFamily` (nine variants; `PdfTeX` serialises as `pdfTeX` to match D18's

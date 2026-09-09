@@ -15,3 +15,7 @@ serde_json.workspace = true
 toml.workspace = true
 sha2.workspace = true
 lopdf.workspace = true
+typst.workspace = true
+typst-pdf.workspace = true
+typst-layout.workspace = true
+typst-assets.workspace = true

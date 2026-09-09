@@ -1,0 +1,374 @@
+//! `cargo xtask fixtures` — compile the Typst fixture sources into PDFs.
+//!
+//! Typst is linked in and driven in-process (`DECISIONS.md` Appendix A, `TEST_CORPUS.md`
+//! §6.1): regenerating a fixture needs no external tool, no font installed on the machine,
+//! and no network. Only the fonts `typst-assets` embeds are visible to the compiler, so the
+//! same source produces the same page on every platform.
+//!
+//! Struct trees are stripped by default (D18). Typst tags its PDFs, and the real world is
+//! 12.6 % tagged — a fixture that hands the pipeline a structure tree tests a path most
+//! books will never take. `--keep-structtree` emits the tagged variants instead, named
+//! `<fixture>__tagged.pdf`, for the Phase 4 bucket that wants them.
+
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+use anyhow::{anyhow, bail, Context, Result};
+// `Library::default()` and `Library::builder()` come from this extension trait, not from
+// `Library` itself.
+use typst::LibraryExt as _;
+
+/// The Typst project root. Sources reach the shared assets as `../assets/...`, so the root
+/// has to be the directory above them, exactly as the plan specifies
+/// (`World { root: corpus/fixtures, .. }`).
+const FIXTURE_ROOT: &str = "corpus/fixtures";
+
+/// Where the `.typ` sources live, relative to the workspace root.
+const SOURCE_DIR: &str = "corpus/fixtures/typst";
+
+/// Where compiled PDFs are written. Git-ignored: they are build output, reproducible from
+/// the sources beside them.
+const OUTPUT_DIR: &str = "target/fixtures";
+
+/// Suffix for the tagged variants (D18's separate bucket).
+const TAGGED_SUFFIX: &str = "__tagged";
+
+/// The corpus stratum every fixture this task produces belongs to (D18).
+const STRATUM: &str = "ours(Typst)";
+
+/// The virtual path the source is compiled under, relative to [`FIXTURE_ROOT`]. It sits in
+/// `typst/` so that a source's own `../assets/...` reference resolves the same way it would
+/// if the file were read from disk. Every fixture is compiled alone, so one name serves for
+/// all of them.
+const MAIN_VPATH: &str = "typst/main.typ";
+
+/// A fixed date handed to Typst's `datetime`, so nothing in a fixture can depend on the day
+/// it was built. The fixtures set `date: none` anyway; this closes the door rather than
+/// trusting them to keep doing so.
+const FIXED_DATE: (i32, u8, u8) = (2026, 1, 1);
+
+/// Compile one `.typ` source and return the PDF bytes.
+///
+/// `tagged` maps straight onto `PdfOptions::tagged`, so the untagged variant never grows a
+/// structure tree in the first place. That is a stronger guarantee than D18's "struct trees
+/// are stripped": there is nothing left to strip, and no marked-content operators are left
+/// behind in the content streams either.
+pub fn compile_fixture(root: &Path, source_path: &Path, tagged: bool) -> Result<Vec<u8>> {
+    let text = std::fs::read_to_string(source_path)
+        .with_context(|| format!("cannot read {}", source_path.display()))?;
+    let world = FixtureWorld::new(root.join(FIXTURE_ROOT), text)?;
+
+    let compiled = typst::compile::<typst_layout::PagedDocument>(&world);
+    let document = compiled.output.map_err(|errors| {
+        anyhow!(
+            "{} does not compile:\n{}",
+            source_path.display(),
+            errors
+                .iter()
+                .map(|e| format!("  {}", e.message))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    })?;
+
+    let options = typst_pdf::PdfOptions {
+        // A stable identifier keyed to the fixture, so the PDF's own id does not move
+        // between runs. `Smart::Auto` would hash the title, and two of the three fixtures
+        // would then share one.
+        ident: typst::foundations::Smart::Custom(fixture_stem(source_path)?),
+        creator: typst::foundations::Smart::Auto,
+        // No creation timestamp: a fixture that changes with the clock is not a fixture.
+        timestamp: None,
+        page_ranges: None,
+        standards: typst_pdf::PdfStandards::default(),
+        tagged,
+        pretty: false,
+    };
+    typst_pdf::pdf(&document, &options).map_err(|errors| {
+        anyhow!(
+            "{} does not export to PDF:\n{}",
+            source_path.display(),
+            errors
+                .iter()
+                .map(|e| format!("  {}", e.message))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    })
+}
+
+/// The `.typ` sources, sorted, so output order does not depend on the filesystem.
+pub fn source_paths(root: &Path) -> Result<Vec<PathBuf>> {
+    let dir = root.join(SOURCE_DIR);
+    let mut sources: Vec<PathBuf> = std::fs::read_dir(&dir)
+        .with_context(|| format!("cannot read {}", dir.display()))?
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .filter(|path| path.extension().is_some_and(|ext| ext == "typ"))
+        .collect();
+    sources.sort();
+    Ok(sources)
+}
+
+fn fixture_stem(source_path: &Path) -> Result<String> {
+    source_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .map(str::to_owned)
+        .ok_or_else(|| anyhow!("{} has no usable file stem", source_path.display()))
+}
+
+/// Compile every fixture and record it in the corpus manifest.
+pub fn run(root: &Path, keep_structtree: bool) -> Result<()> {
+    let sources = source_paths(root)?;
+    if sources.is_empty() {
+        bail!("no .typ sources in {}", root.join(SOURCE_DIR).display());
+    }
+
+    let out_dir = root.join(OUTPUT_DIR);
+    std::fs::create_dir_all(&out_dir)?;
+
+    let mut entries = BTreeMap::new();
+    for source in &sources {
+        let stem = fixture_stem(source)?;
+        let name = if keep_structtree {
+            format!("{stem}{TAGGED_SUFFIX}")
+        } else {
+            stem
+        };
+        let bytes = compile_fixture(root, source, keep_structtree)?;
+        let out_path = out_dir.join(format!("{name}.pdf"));
+        std::fs::write(&out_path, &bytes)
+            .with_context(|| format!("cannot write {}", out_path.display()))?;
+        println!(
+            "{} -> {} ({} bytes)",
+            source.display(),
+            out_path.display(),
+            bytes.len()
+        );
+        entries.insert(name, (source.clone(), bytes));
+    }
+
+    update_manifest(root, &entries, keep_structtree)
+}
+
+/// Record the compiled fixtures in `corpus/manifest.json` (D18: every corpus file carries a
+/// producer stratum and a licence, and `ours(*)` is capped at 40 % of the corpus).
+fn update_manifest(
+    root: &Path,
+    entries: &BTreeMap<String, (PathBuf, Vec<u8>)>,
+    tagged: bool,
+) -> Result<()> {
+    use sha2::{Digest, Sha256};
+
+    let manifest_path = root.join("corpus/manifest.json");
+    let text = std::fs::read_to_string(&manifest_path)
+        .with_context(|| format!("cannot read {}", manifest_path.display()))?;
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&text).context("corpus/manifest.json is not valid JSON")?;
+
+    let files = manifest
+        .get_mut("files")
+        .and_then(|f| f.as_array_mut())
+        .ok_or_else(|| anyhow!("corpus/manifest.json has no `files` array"))?;
+
+    for (name, (source, bytes)) in entries {
+        let digest: String = Sha256::digest(bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        let entry = serde_json::json!({
+            "id": name,
+            "title": name,
+            "source": {
+                "name": "synthetic-generator",
+                "url": "https://github.com/openconvert/openconvert",
+                "retrieved_date": "2026-09-09"
+            },
+            "license": {
+                "name": "CC0-1.0",
+                "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+                "verified_by": "maintainer",
+                "verified_date": "2026-09-09"
+            },
+            "sha256": digest,
+            "file_size_bytes": bytes.len(),
+            "category": "simple",
+            "producer_stratum": STRATUM,
+            "producer_raw": "Typst 0.15.1",
+            "tagged": tagged,
+            "holdout": false,
+            "ground_truth_type": "none",
+            "generator": "typst-0.15.1",
+            "defect_injection": [],
+            "source_path": source
+                .strip_prefix(root)
+                .unwrap_or(source)
+                .to_string_lossy()
+                .replace('\\', "/")
+        });
+        // Replace in place if the id is already known, so re-running is idempotent.
+        match files
+            .iter()
+            .position(|f| f.get("id").and_then(|i| i.as_str()) == Some(name.as_str()))
+        {
+            Some(index) => files[index] = entry,
+            None => files.push(entry),
+        }
+    }
+
+    files.sort_by(|a, b| {
+        a.get("id")
+            .and_then(|i| i.as_str())
+            .cmp(&b.get("id").and_then(|i| i.as_str()))
+    });
+
+    let mut out = serde_json::to_string_pretty(&manifest)?;
+    out.push('\n');
+    std::fs::write(&manifest_path, out)
+        .with_context(|| format!("cannot write {}", manifest_path.display()))?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// The compilation environment
+// ---------------------------------------------------------------------------
+
+/// A Typst `World` over exactly one source and the fixture asset directory.
+///
+/// Only the fonts `typst-assets` embeds are visible, and only files under
+/// `corpus/fixtures` are readable. Nothing on the developer's machine can change what a
+/// fixture compiles to, which is what makes "regenerate and diff" a meaningful check.
+struct FixtureWorld {
+    root: PathBuf,
+    library: typst::utils::LazyHash<typst::Library>,
+    book: typst::utils::LazyHash<typst::text::FontBook>,
+    fonts: Vec<typst::text::Font>,
+    main: typst::syntax::FileId,
+    source: typst::syntax::Source,
+}
+
+impl FixtureWorld {
+    fn new(root: PathBuf, text: String) -> Result<Self> {
+        let fonts: Vec<typst::text::Font> = typst_assets::fonts()
+            .flat_map(|data| {
+                let bytes = typst::foundations::Bytes::new(data.to_vec());
+                typst::text::Font::iter(bytes)
+            })
+            .collect();
+        if fonts.is_empty() {
+            bail!("typst-assets provided no fonts; the `fonts` feature must be enabled");
+        }
+
+        let book = typst::text::FontBook::from_fonts(&fonts);
+        let vpath = typst::syntax::VirtualPath::new(MAIN_VPATH)
+            .map_err(|e| anyhow!("{MAIN_VPATH} is not a usable virtual path: {e:?}"))?;
+        let main =
+            typst::syntax::RootedPath::new(typst::syntax::VirtualRoot::Project, vpath).intern();
+
+        Ok(Self {
+            root,
+            library: typst::utils::LazyHash::new(typst::Library::default()),
+            book: typst::utils::LazyHash::new(book),
+            fonts,
+            main,
+            source: typst::syntax::Source::new(main, text),
+        })
+    }
+
+    fn read(&self, id: typst::syntax::FileId) -> typst::diag::FileResult<Vec<u8>> {
+        let path = id
+            .vpath()
+            .realize(&self.root)
+            .map_err(|_| typst::diag::FileError::AccessDenied)?;
+        std::fs::read(&path).map_err(|e| typst::diag::FileError::from_io(e, &path))
+    }
+}
+
+impl typst::World for FixtureWorld {
+    fn library(&self) -> &typst::utils::LazyHash<typst::Library> {
+        &self.library
+    }
+
+    fn book(&self) -> &typst::utils::LazyHash<typst::text::FontBook> {
+        &self.book
+    }
+
+    fn main(&self) -> typst::syntax::FileId {
+        self.main
+    }
+
+    fn source(&self, id: typst::syntax::FileId) -> typst::diag::FileResult<typst::syntax::Source> {
+        if id == self.main {
+            return Ok(self.source.clone());
+        }
+        // A fixture that imports another file would need a real loader; none does, and a
+        // clear error beats silently compiling something unexpected.
+        Err(typst::diag::FileError::NotFound(
+            id.vpath().get_without_slash().into(),
+        ))
+    }
+
+    fn file(
+        &self,
+        id: typst::syntax::FileId,
+    ) -> typst::diag::FileResult<typst::foundations::Bytes> {
+        self.read(id).map(typst::foundations::Bytes::new)
+    }
+
+    fn font(&self, index: usize) -> Option<typst::text::Font> {
+        self.fonts.get(index).cloned()
+    }
+
+    fn today(
+        &self,
+        _offset: Option<typst::foundations::Duration>,
+    ) -> Option<typst::foundations::Datetime> {
+        let (year, month, day) = FIXED_DATE;
+        typst::foundations::Datetime::from_ymd(year, month, day)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests (written first — IMPLEMENTATION_PLAN §0.2). Row 0.20 of the Phase 0 table.
+// ---------------------------------------------------------------------------
+
+/// The workspace root, from this crate's manifest directory, so the test does not depend on
+/// the working directory a runner happens to choose.
+#[cfg(test)]
+fn workspace_root_for_test() -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(std::path::Path::to_path_buf)
+        .expect("xtask has a parent directory")
+}
+
+#[test]
+fn typst_fixtures_are_reproducible() {
+    use crate::fixtures::{compile_fixture, source_paths, workspace_root_for_test};
+
+    let root = workspace_root_for_test();
+    let sources = source_paths(&root).expect("the fixture sources are readable");
+    assert_eq!(
+        sources.len(),
+        3,
+        "expected f01/f02/f03 in {SOURCE_DIR}, found {sources:?}"
+    );
+
+    for source in &sources {
+        let first = compile_fixture(&root, source, false).expect("first compilation");
+        let second = compile_fixture(&root, source, false).expect("second compilation");
+        assert_eq!(
+            first,
+            second,
+            "compiling {} twice produced different bytes; if this is inherent to Typst the \
+             fallback is R7 §D.2 — commit the PDFs as golden binaries and add a nightly \
+             regenerate-and-diff job",
+            source.display()
+        );
+        assert!(
+            first.starts_with(b"%PDF-"),
+            "{} did not produce a PDF",
+            source.display()
+        );
+    }
+}

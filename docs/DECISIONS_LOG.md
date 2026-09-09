@@ -321,3 +321,75 @@ Evidence: `cargo nextest run -p oc-pdf` — 9 passed. The table covers all nine 
 whitespace does not defeat it), and the two serialised spellings.
 Affects: D13.10, D18, IMPLEMENTATION_PLAN Phase 0 detail 4 and test 0.13,
 `crates/oc-pdf/src/producer.rs`, Phase 1 (`InfoDict`), Phase 7 (stratum mapping).
+
+## 2026-09-09 · Q1 resolved: the advisory gate is scoped to what ships · Phase 0
+Context: `DECISIONS.md` Appendix A and `TEST_CORPUS.md` §6.1 require Typst fixtures compiled in-process
+via the `typst` + `typst-pdf` crates. Adding them takes the lockfile from 233 to 447 crates and makes
+`cargo deny check` report seven advisories — two of them live vulnerabilities in `quick-xml` 0.38.4
+(RUSTSEC-2026-0194 quadratic attribute parsing, RUSTSEC-2026-0195 unbounded namespace allocation),
+reached through `citationberg` → `hayagriva` → `typst-library`, with no in-range fix because
+`citationberg` 0.7.0 requires `^0.38` while the fix landed in 0.41. The other five are unmaintained
+notices: `rustybuzz`, `ttf-parser` (via `krilla` → `typst-pdf`), `bincode`, `yaml-rust` (via `syntect` →
+`two-face`), `paste` (via `biblatex`). Meanwhile §1.4 sets `ignore = []` and A0.2 requires the gate to
+pass. Both cannot hold. Ruled by the maintainer: solve it without changing how the program works, and
+solve it so it does not recur.
+Decision: **split the audit surface along the line that actually matters — what ships versus what
+builds — rather than accumulating per-advisory exceptions.**
+- `deny.toml` gains `[graph] exclude = ["xtask"]` and keeps every rule absolute: `exceptions = []`,
+  `ignore = []`, advisories enforced. It audits the shipped crates and nothing else. Excluding a crate
+  drops only dependencies nothing else needs, so everything `xtask` shares with a shipped crate is still
+  audited there.
+- New `deny.tools.toml` audits `xtask`'s graph with the **same licence allow-list** (a build tool is not
+  a reason to accept a licence the project would refuse elsewhere) and the same ban and source rules,
+  because those are obligations of the repository rather than of the binary: a GPL build tool would
+  still make this repo's Apache-2.0 licence a lie, and an unexpected git source is an attack on the
+  maintainer's machine whether or not it ships. Advisories there are reported on every build as a
+  `continue-on-error` CI step, not enforced.
+- `docs/SECURITY.md` §9 now states the scope of each gate, so the document and CI agree.
+Why this and not the alternatives: a per-id `ignore` list is precisely the thing that recurs — every
+Typst release reshuffles a tree of 214 crates we do not control, and each reshuffle would mean another
+exception and another review date. Moving `xtask` out of the workspace (D14 says one workspace) would
+hide the finding behind repo layout instead of accepting it, and would leave the tooling tree unaudited
+for licences too, which is worse. Committing the fixture PDFs as golden binaries would give up
+`cargo xtask fixtures`, which TEST_CORPUS §6.1 ratifies and which Phase 7's mutation fixtures build on.
+The threat-model argument is real and not a fig leaf: `xtask` has no user, no untrusted input — it reads
+`.typ` sources and a `pdfium.lock` this repository authors — and is never linked into the engine, the
+CLI or the desktop app. A denial-of-service parsing bug there has no attacker and no victim.
+Evidence: `cargo deny check` — advisories ok, bans ok, licenses ok, sources ok, with the Typst crates
+present in the workspace. `cargo deny --config deny.tools.toml check licenses bans sources` — bans ok,
+licenses ok, sources ok. `cargo deny --config deny.tools.toml check advisories` — FAILED with the seven
+findings above, reported by the non-blocking CI step.
+Affects: D14, D15, D18, SECURITY.md §9, IMPLEMENTATION_PLAN §1.2 and §1.4, `deny.toml`,
+`deny.tools.toml`, `.github/workflows/ci.yml`, `xtask`.
+
+## 2026-09-09 · Fixtures: tagging is turned off at export, not stripped afterwards · Phase 0
+Context: Phase 0's fixture recipe is `typst::compile` → `typst_pdf::pdf` → "`strip_structtree` over the
+`lopdf` document — remove `/StructTreeRoot`, `/MarkInfo` and marked-content wrappers by default" (D18:
+Typst tags PDFs by default while the real world is 12.6 % tagged).
+Decision: **`PdfOptions { tagged: false }`**, so no structure tree is ever produced. No `lopdf`
+post-processing step exists. The end state D18 asks for is reached more completely: `/StructTreeRoot` and
+`/MarkInfo` are absent (verified by byte search), and — unlike stripping — the marked-content operators
+inside the content streams are absent too, which the plan's own wording admits a stripper would have to
+chase separately. The tagged bucket is the same call with `tagged: true`, written as
+`<fixture>__tagged.pdf`, and `/StructTreeRoot` is present in those.
+Two further details the plan leaves open:
+- **The Typst project root is `corpus/fixtures`, and the source is compiled at the virtual path
+  `typst/main.typ`.** The fixture sources reference the shared asset as `../assets/scan_page_01.png`, so
+  a root at `corpus/fixtures/typst` makes that path escape the root and f03 fails to compile. The plan's
+  own `World { root: corpus/fixtures, .. }` is right; the virtual path has to sit one level down to match.
+- **`ident` is the fixture's file stem, not `Smart::Auto`.** `Auto` hashes the title and author, and
+  `f03_image_only.typ` sets `title: none, author: ()` — so it would share a document identifier with any
+  other untitled fixture. `timestamp: None` and `today()` pinned to a fixed date keep the clock out of
+  the output entirely.
+**A finding for tests 0.14–0.16.** Typst 0.15.1 writes `/Creator = "Typst 0.15.1"` and **no `/Producer`
+at all**. The plan's expected `inspect --json` has this inverted — it shows `"producer": "Typst 0.15.1"`
+and `"creator": null`. The snapshots must follow the file, not the plan. This also makes the `/Creator`
+fallback in `producer_family` (item 0.7) load-bearing rather than defensive: without it every Typst
+fixture would classify as `Unknown`.
+Evidence: `cargo nextest run -p xtask` — `fixtures::typst_fixtures_are_reproducible` passes, so
+compiling each source twice yields byte-identical PDFs and R7 §D.2's golden-binary fallback is not
+needed. `cargo run -p xtask -- fixtures` produces f01 (14 154 B), f02 (16 390 B), f03 (59 450 B), all
+two pages; `--keep-structtree` produces the three `__tagged` variants, all carrying `/StructTreeRoot`.
+`pypdfium2` reads the metadata quoted above.
+Affects: D18, IMPLEMENTATION_PLAN Phase 0 fixture recipe and the expected `inspect --json`, tests
+0.14–0.16, `xtask/src/fixtures.rs`, `corpus/manifest.json`.

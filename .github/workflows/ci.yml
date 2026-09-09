@@ -19,8 +19,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # What ships: licences, bans, sources and advisories, all hard gates, no exceptions.
       - uses: EmbarkStudios/cargo-deny-action@v2      # cargo-deny 0.20.x
         with: { command: check, arguments: --all-features }
+      # What builds: the same licence, ban and source policy over the developer tooling,
+      # which is a repository obligation regardless of what ships.
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: --config deny.tools.toml --all-features licenses bans sources
+      # Advisories in the tooling tree are reported, not enforced. See deny.tools.toml for
+      # why, and docs/SECURITY.md 9 for the scope of each gate.
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        continue-on-error: true
+        with:
+          command: check
+          arguments: --config deny.tools.toml --all-features advisories
 
   test:
     strategy:

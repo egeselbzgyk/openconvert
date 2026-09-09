@@ -1,0 +1,76 @@
+# cargo-deny policy for developer tooling — `xtask` and its dependency tree.
+#
+# Why this file exists at all
+# ---------------------------
+# `deny.toml` audits what ships. This file audits what builds. The split is deliberate and
+# permanent, and it exists because the two have genuinely different threat models, not
+# because one of them was inconvenient:
+#
+#   * A shipped crate runs on a user's machine, over a PDF that user did not write, with no
+#     one watching. That is the whole reason `docs/SECURITY.md` exists. `deny.toml` therefore
+#     admits no exceptions of any kind.
+#   * `xtask` runs on a maintainer's machine and on CI, over `.typ` sources and a
+#     `pdfium.lock` this repository authors and reviews. It is never linked into the engine,
+#     the CLI or the desktop app, and it is never packaged. A denial-of-service parsing bug
+#     reached through it has no attacker and no victim.
+#
+# What is still enforced here, and why
+# ------------------------------------
+# Licences, bans and sources are obligations of the *repository*, not of the binary: a
+# GPL-licensed build tool would still make this repository's Apache-2.0 licence a lie (D15),
+# and a dependency pulled from an unexpected git source is a supply-chain attack on the
+# maintainer's machine whether or not the result ships. So those three run as hard gates,
+# with exactly the same allow-list as `deny.toml`.
+#
+# Advisories are *reported* here, not enforced: CI's `deny` job runs
+# `cargo deny --config deny.tools.toml check advisories` as a `continue-on-error` step, so a
+# new advisory in the Typst tree is visible on every build without turning an unfixable
+# upstream transitive into a stop-the-line event for work that has nothing to do with it.
+# As of 2026-09-09 there are seven, all reachable only through `typst`/`typst-pdf`, none with
+# an in-range fix; they are listed with their paths in docs/DECISIONS_LOG.md.
+#
+# The rule for anyone editing this file: a crate that ships is audited by `deny.toml` and
+# nothing else. Adding a crate here does not weaken that, because `deny.toml`'s graph is
+# computed from the shipped crates and would pick it up the moment one of them depended on it.
+
+[graph]
+all-features = true
+targets = [
+  "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu",
+  "x86_64-pc-windows-msvc", "aarch64-apple-darwin", "x86_64-apple-darwin",
+]
+
+[licenses]
+version = 2
+allow = [
+  "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "MIT", "MIT-0",
+  "BSD-2-Clause", "BSD-3-Clause", "ISC", "MPL-2.0",
+  "Unicode-3.0", "Unicode-DFS-2016", "Zlib", "CC0-1.0",
+]
+# Identical to `deny.toml`'s list, deliberately: a build tool is not a reason to accept a
+# licence the project would not accept anywhere else. `typst-assets` embeds fonts, but the
+# crate itself is MIT/Apache-2.0, so no font-licence allowance is needed here.
+confidence-threshold = 0.93
+exceptions = []
+
+[bans]
+multiple-versions = "allow"   # a build tool's tree is wide and not ours to deduplicate
+wildcards = "deny"
+deny = [
+  # The dependency firewall of D13.9 is about shipped crates, but a build tool has no
+  # business opening a socket either: `xtask vendor-pdfium` shells out to curl precisely so
+  # that no HTTP client enters this workspace at all.
+  { name = "openssl-sys", reason = "use rustls; no system OpenSSL anywhere in this repository" },
+  { name = "reqwest", wrappers = [] },
+  { name = "hyper", wrappers = [] },
+]
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git      = "deny"
+allow-registry   = ["https://github.com/rust-lang/crates.io-index"]

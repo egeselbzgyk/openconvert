@@ -55,6 +55,16 @@ time      = { version = "0.3", features = ["formatting", "macros"] }
 rayon = "1"
 # --- net (oc-net only) ---
 ureq = { version = "3", features = ["rustls"] }
+# --- fixtures (xtask only; never shipped) ---
+# Typst-sourced fixtures are compiled in-process so regeneration needs no external tool
+# (DECISIONS.md Appendix A, TEST_CORPUS 6.1). Pinned exactly: a Typst bump changes fixture
+# bytes and must be a reviewed commit that regenerates them and reviews the snapshot diff.
+typst        = "=0.15.1"
+typst-pdf    = "=0.15.1"
+# `PagedDocument` - what `typst::compile` produces and `typst_pdf::pdf` consumes - lives here
+# and is not re-exported by the `typst` facade.
+typst-layout = "=0.15.1"
+typst-assets = { version = "=0.15.1", features = ["fonts"] }
 # --- dev ---
 insta     = { version = "1.48", features = ["json", "redactions", "filters"] }
 proptest  = "1.11"

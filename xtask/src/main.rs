@@ -2,6 +2,7 @@
 //!
 //! Everything here is build- and test-time tooling. Nothing in `xtask` ships.
 
+mod fixtures;
 mod vendor_pdfium;
 
 use std::path::{Path, PathBuf};
@@ -13,6 +14,8 @@ usage: cargo run -p xtask -- <task>
 
 tasks:
   vendor-pdfium     fetch the pinned PDFium binary for this host and unpack it to vendor/
+  fixtures          compile the Typst fixture sources to target/fixtures/
+                      --keep-structtree   emit the tagged variants instead (D18)
 ";
 
 fn main() -> Result<()> {
@@ -21,6 +24,10 @@ fn main() -> Result<()> {
 
     match task.as_deref() {
         Some("vendor-pdfium") => vendor_pdfium::run(&root),
+        Some("fixtures") => {
+            let keep_structtree = std::env::args().any(|a| a == "--keep-structtree");
+            fixtures::run(&root, keep_structtree)
+        }
         Some(other) => {
             eprint!("{USAGE}");
             bail!("unknown task `{other}`")

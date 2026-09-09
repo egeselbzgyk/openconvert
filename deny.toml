@@ -1,5 +1,18 @@
 [graph]
 all-features = true
+# The audit surface of this file is *what ships to users*. `xtask` is developer tooling: it
+# runs on a maintainer's machine and on CI, over fixture sources this repository authors, and
+# not one byte of it reaches a user or is linked into the engine, the CLI or the desktop app.
+# Excluding it here is what lets the rules below stay absolute - `exceptions = []`,
+# `ignore = []`, no negotiation - for every crate that does ship.
+#
+# `xtask` is not unaudited. `deny.tools.toml` applies the same licence, ban and source policy
+# to it, because those are obligations of the repository rather than of the binary, and
+# reports its advisories separately. See docs/SECURITY.md 9 and docs/DECISIONS_LOG.md.
+#
+# Excluding a crate only drops dependencies that nothing else needs: anything `xtask` shares
+# with a shipped crate stays in this graph.
+exclude = ["xtask"]
 targets = [
   "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu",
   "x86_64-pc-windows-msvc", "aarch64-apple-darwin", "x86_64-apple-darwin",

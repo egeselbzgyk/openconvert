@@ -50,7 +50,7 @@ replaced by the phase that owns it.
 | 0.17 | `cli::inspect_json_is_valid_and_stable` | `openconvert` | integration | `test`, `no-network` | — |
 | 0.18 | `events::hello_is_first_stderr_line` | `openconvert` | integration | `test` | — |
 | 0.19 | `cli::exit_code_2_on_bad_args` | `openconvert` | integration | `test` | — |
-| 0.20 | `fixtures::typst_fixtures_are_reproducible` | `xtask` | fixture/CI | `test` | — |
+| 0.20 | `fixtures::typst_fixtures_are_reproducible` | `xtask` | fixture/CI | `test` | green |
 | 0.21 | `assertions::assertion_runner_understands_all_kinds` | `oc-testkit` | unit | `test` | — |
 | 0.22 | `engine::spawn_receives_hello` | `apps/desktop/ui` | integration (Vitest + Tauri mock) | `ui` | — |
 | 0.23 | `no_ignored_tests` | `xtask` | CI-gate | `lint` | — |
