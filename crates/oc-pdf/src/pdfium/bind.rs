@@ -119,15 +119,17 @@ impl PdfBackend for PdfiumBackend {
 }
 
 impl crate::inspect::PdfOpen for PdfiumBackend {
-    fn open(
+    fn open_with_limits(
         &self,
         bytes: &[u8],
         password: Option<&str>,
+        limits: &oc_core::limits::Limits,
     ) -> Result<Box<dyn crate::inspect::PdfDoc>, PdfError> {
         Ok(Box::new(crate::pdfium::PdfiumDoc::open(
             self.pdfium,
             bytes,
             password,
+            *limits,
         )?))
     }
 }

@@ -38,6 +38,13 @@ const GREY_LEVEL: u8 = 235;
 
 /// Eight-bit samples, for both the image and its mask.
 const BITS_PER_COMPONENT: i32 = 8;
+
+/// The side h11 claims. Squared it is 1.6 gigapixels, sixteen times the shipped allowance.
+const BOMB_IMAGE_SIDE_PX: i32 = 40_000;
+
+/// How much h12's content stream expands to. Small enough to build in a moment, large
+/// enough that no reasonable cap lets it through unnoticed.
+const BOMB_CONTENT_BYTES: usize = 8 * 1024 * 1024;
 const IMAGE_SIDE_PX: usize = 8;
 
 /// The font name Tesseract gives the invisible layer it writes over a scan (R3 §4). A
@@ -60,6 +67,8 @@ pub fn all() -> Vec<(&'static str, Vec<u8>)> {
         ("h08_overlap_distinct", h08_overlap_distinct()),
         ("h09_image_smask", h09_image_smask()),
         ("h10_inline_image", h10_inline_image()),
+        ("h11_pixel_bomb", h11_pixel_bomb()),
+        ("h12_decompression_bomb", h12_decompression_bomb()),
     ]
 }
 
@@ -192,6 +201,65 @@ pub fn h10_inline_image() -> Vec<u8> {
     build(Page::default().inline_image())
 }
 
+/// h11 - an image that *claims* to be 40 000 x 40 000 pixels.
+///
+/// 1.6 gigapixels; believing it and allocating four bytes each would ask for 6.4 GB. The
+/// stream behind the claim is sixty-four bytes, which is the shape of the attack: the file is
+/// small, the promise is not. Test 1.10 requires this to be refused before anything decodes.
+pub fn h11_pixel_bomb() -> Vec<u8> {
+    build(
+        Page::default()
+            .full_page_image()
+            .declared_image_size(BOMB_IMAGE_SIDE_PX),
+    )
+}
+
+/// h12 - a page whose content stream decompresses to far more than it costs to store.
+///
+/// Eight mebibytes of whitespace, which deflate takes down to a few kilobytes: a ratio around
+/// a thousand to one. Whitespace rather than random bytes because it is legal content-stream
+/// syntax, so the file stays a valid PDF that a reader opens normally - the bomb is in what it
+/// costs to read, not in being malformed.
+pub fn h12_decompression_bomb() -> Vec<u8> {
+    build(
+        Page::default()
+            .text(FIXTURE_ORIGIN, "AB")
+            .content_padding(BOMB_CONTENT_BYTES),
+    )
+}
+
+/// A document with `count` empty pages, for the `--max-pages` guard.
+///
+/// Not one of the committed fixtures: three thousand empty page dictionaries are a third of a
+/// megabyte of nothing anyone would review, and the only thing the test needs from them is
+/// that there are three thousand and one. Built where it is used instead.
+pub fn many_pages(count: usize) -> Vec<u8> {
+    let catalog = Ref::new(1);
+    let tree = Ref::new(2);
+    let first_page = 3;
+
+    let page_ids: Vec<Ref> = (0..count)
+        .map(|i| Ref::new(first_page + i32::try_from(i).unwrap_or(i32::MAX)))
+        .collect();
+
+    let mut pdf = Pdf::new();
+    pdf.set_file_id((
+        b"openconvert-fixture".to_vec(),
+        b"openconvert-fixture".to_vec(),
+    ));
+    pdf.catalog(catalog).pages(tree);
+    pdf.pages(tree)
+        .kids(page_ids.iter().copied())
+        .count(i32::try_from(count).unwrap_or(i32::MAX));
+    for id in &page_ids {
+        pdf.page(*id)
+            .parent(tree)
+            .media_box(Rect::new(PAGE[0], PAGE[1], PAGE[2], PAGE[3]))
+            .finish();
+    }
+    pdf.finish()
+}
+
 /// The overdraw fixture at an arbitrary separation.
 ///
 /// Kept public so the PDFium merge threshold recorded in `docs/DECISIONS_LOG.md` can be
@@ -225,6 +293,8 @@ struct Page {
     full_page_image: bool,
     image_smask: bool,
     inline_image: bool,
+    declared_image_size: Option<i32>,
+    content_padding: Option<usize>,
 }
 
 impl Page {
@@ -255,6 +325,18 @@ impl Page {
 
     fn full_page_image(mut self) -> Self {
         self.full_page_image = true;
+        self
+    }
+
+    /// Declare the page image to be this many pixels on a side, whatever its stream holds.
+    fn declared_image_size(mut self, side_px: i32) -> Self {
+        self.declared_image_size = Some(side_px);
+        self
+    }
+
+    /// Pad the content stream with this many bytes of whitespace, then compress it.
+    fn content_padding(mut self, bytes: usize) -> Self {
+        self.content_padding = Some(bytes);
         self
     }
 
@@ -310,6 +392,14 @@ fn build(page: Page) -> Vec<u8> {
     if page.inline_image {
         content.extend_from_slice(&inline_image_operator());
     }
+    let compressed = page.content_padding.and_then(|bytes| {
+        // Whitespace between operators is legal and ignored, so the page renders exactly as
+        // it would without it. Compressed, it is what makes the file small and the read big.
+        content.extend(std::iter::repeat_n(b' ', bytes));
+        let mut stream = lopdf::Stream::new(lopdf::Dictionary::new(), content.clone());
+        stream.compress().ok()?;
+        Some(stream.content)
+    });
 
     let mut pdf = Pdf::new();
     // A fixed file id: without one, `pdf-writer` leaves the trailer's /ID absent, and with a
@@ -353,11 +443,10 @@ fn build(page: Page) -> Vec<u8> {
         // any of these fixtures; that an image covers the page does.
         let pixels = vec![GREY_LEVEL; IMAGE_SIDE_PX * IMAGE_SIDE_PX];
         let mut image = pdf.image_xobject(image_id, &pixels);
-        image
-            .width(IMAGE_SIDE_PX as i32)
-            .height(IMAGE_SIDE_PX as i32)
-            .color_space()
-            .device_gray();
+        // The declared size is what a reader believes and what a limit has to be checked
+        // against; the stream behind it stays sixty-four bytes.
+        let side = page.declared_image_size.unwrap_or(IMAGE_SIDE_PX as i32);
+        image.width(side).height(side).color_space().device_gray();
         image.bits_per_component(BITS_PER_COMPONENT);
         if page.image_smask {
             image.s_mask(smask_id);
@@ -379,7 +468,16 @@ fn build(page: Page) -> Vec<u8> {
         }
     }
 
-    pdf.stream(content_id, &content).finish();
+    match &compressed {
+        Some(bytes) => {
+            let mut stream = pdf.stream(content_id, bytes);
+            stream.filter(pdf_writer::Filter::FlateDecode);
+            stream.finish();
+        }
+        None => {
+            pdf.stream(content_id, &content).finish();
+        }
+    }
     pdf.finish()
 }
 

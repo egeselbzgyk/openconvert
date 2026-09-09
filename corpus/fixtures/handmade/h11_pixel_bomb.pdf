@@ -1,0 +1,89 @@
+%PDF-1.7
+%€€€€
+
+1 0 obj
+<<
+  /Type /Catalog
+  /Pages 2 0 R
+>>
+endobj
+
+2 0 obj
+<<
+  /Type /Pages
+  /Kids [3 0 R]
+  /Count 1
+>>
+endobj
+
+3 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 200 800]
+  /Contents 4 0 R
+  /Resources <<
+    /Font <<
+      /F1 5 0 R
+    >>
+    /XObject <<
+      /Im1 6 0 R
+    >>
+  >>
+>>
+endobj
+
+5 0 obj
+<<
+  /Type /Font
+  /Subtype /Type1
+  /BaseFont /Helvetica
+  /Encoding /WinAnsiEncoding
+>>
+endobj
+
+6 0 obj
+<<
+  /Length 64
+  /Type /XObject
+  /Subtype /Image
+  /Width 40000
+  /Height 40000
+  /ColorSpace /DeviceGray
+  /BitsPerComponent 8
+>>
+stream
+λλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλλ
+endstream
+endobj
+
+4 0 obj
+<<
+  /Length 30
+>>
+stream
+q
+200 0 0 800 0 0 cm
+/Im1 Do
+Q
+endstream
+endobj
+
+xref
+0 7
+0000000000 65535 f
+0000000016 00000 n
+0000000070 00000 n
+0000000134 00000 n
+0000000664 00000 n
+0000000327 00000 n
+0000000433 00000 n
+trailer
+<<
+  /Size 7
+  /Root 1 0 R
+  /ID [(openconvert-fixture) (openconvert-fixture)]
+>>
+startxref
+747
+%%EOF

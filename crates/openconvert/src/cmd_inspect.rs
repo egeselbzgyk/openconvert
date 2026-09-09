@@ -15,6 +15,14 @@ const E_PDFIUM: &str = "E_PDFIUM_ABI";
 const E_INPUT: &str = "E_INPUT";
 const E_PDF: &str = "E_PDF";
 
+/// A resource limit refused the document (D13.2, R8 §A2).
+///
+/// Exit 2 rather than 1, and its own code, because it is a *configuration* outcome: the
+/// file is outside the budget this run was given, and the operator's next move is to raise
+/// the limit or to reject the file. That is the same decision whether the refusal came at
+/// the door or three hundred pages in, which is what makes one code right for both.
+const E_LIMIT: &str = "E_LIMIT_EXCEEDED";
+
 /// Run the subcommand, returning the process exit code.
 ///
 /// Nothing here returns `Result` to `main`: an error has to reach the caller as an event on
@@ -48,12 +56,21 @@ pub fn run<W: Write>(
         return ExitCode::Usage;
     }
 
+    let mut limits = oc_core::limits::Limits::default();
+    if let Some(max_pages) = args.max_pages {
+        limits.max_pages = max_pages;
+    }
     let options = InspectOptions {
+        limits,
         pages: args.pages.clone(),
         password: args.password.clone(),
     };
     let report = match inspect(&backend, &args.input, &options) {
         Ok(report) => report,
+        Err(oc_pdf::error::PdfError::LimitExceeded(exceeded)) => {
+            events.fatal(E_LIMIT, &exceeded.to_string());
+            return ExitCode::Usage;
+        }
         Err(error) => {
             events.fatal(E_PDF, &error.to_string());
             return ExitCode::Failed;

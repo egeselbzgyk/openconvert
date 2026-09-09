@@ -15,6 +15,8 @@ use crate::geom::{PageGeometry, PdfRect, Rotate};
 use crate::glyphs::{family_key, PageGlyphs, STAGE};
 use crate::images::{classify_image, effective_dpi};
 use crate::inspect::{DocMetadata, PdfDoc};
+use crate::limits::check_image;
+use oc_core::limits::Limits;
 use oc_model::extract::{CharHistogram, FontId, FontInfo, Glyph, ImageId, ImageRef, PageRef};
 use oc_model::ledger::{LedgerEntry, Reason};
 
@@ -34,6 +36,9 @@ const INVISIBLE_ALPHA: u8 = 0;
 pub struct PdfiumDoc {
     document: PdfDocument<'static>,
     metadata: DocMetadata,
+    /// What this conversion is allowed to consume. Fixed at open time: a limit that can be
+    /// changed halfway through a document is not a limit.
+    limits: Limits,
     /// The same file, parsed as PDF objects.
     ///
     /// PDFium answers "where is it and how big"; the object tree answers "what does the file
@@ -52,17 +57,24 @@ impl PdfiumDoc {
         pdfium: &'static Pdfium,
         bytes: &[u8],
         password: Option<&str>,
+        limits: Limits,
     ) -> Result<Self, PdfError> {
         let document = pdfium
             .load_pdf_from_byte_vec(bytes.to_vec(), password)
             .map_err(|source| PdfError::Open {
                 message: source.to_string(),
             })?;
+        // The door (Phase 1 detail 8). Checked here, before any page is read, because the
+        // cost of a degenerate document is per page.
+        let pages = u32::try_from(document.pages().len()).unwrap_or(u32::MAX);
+        limits.check_pages(pages)?;
+
         let metadata = read_metadata(&document, bytes);
         let structure = lopdf::Document::load_mem(bytes).ok();
         Ok(Self {
             document,
             metadata,
+            limits,
             structure,
         })
     }
@@ -220,11 +232,11 @@ impl PdfiumDoc {
 
         // The file's view of the same draws. Discarded unless it agrees on the count, which
         // is the check that makes matching by position sound rather than hopeful.
-        let facts = self
-            .structure
-            .as_ref()
-            .and_then(|structure| crate::pdfium::page_image_facts(structure, index))
-            .filter(|facts| facts.len() == objects.len());
+        let facts = match self.structure.as_ref() {
+            Some(structure) => crate::pdfium::page_image_facts(structure, index, &self.limits)?,
+            None => None,
+        }
+        .filter(|facts| facts.len() == objects.len());
 
         let mut images = Vec::with_capacity(objects.len());
         for (position, object) in objects.iter().enumerate() {
@@ -251,6 +263,8 @@ impl PdfiumDoc {
             };
 
             let intrinsic_px = (pixels(image.width()), pixels(image.height()));
+            // Before anything decodes, composites or allocates for this image.
+            check_image(intrinsic_px.0, intrinsic_px.1, &self.limits)?;
             let fact = facts
                 .as_ref()
                 .and_then(|facts| facts.get(position))

@@ -794,3 +794,61 @@ Affects: D13.11, IMPLEMENTATION_PLAN Phase 1 detail 4 and test 1.9, IR_SKETCH `I
 `thresholds.toml` `[images]`, `crates/oc-model/src/extract.rs`,
 `crates/oc-pdf/src/{images.rs,inspect.rs,pdfium/{doc.rs,images.rs}}`,
 `crates/oc-testkit/src/handmade.rs`.
+
+## 2026-09-09 · Resource limits: where they are checked, and two substituted magnitudes · Phase 1
+Context: item 1.6 implements `oc_core::limits` and `oc_pdf::limits` against tests 1.10, 1.11, 1.20.
+
+1. **`max_image_pixels` is a pixel count, not a byte count.** The plan's detail 8 writes the check
+   as `width * height * bpc / 8` compared against `limits.max_image_pixels`, which compares bytes
+   to pixels. The threshold's own evidence line names Pillow's `MAX_IMAGE_PIXELS`, which is a pixel
+   count, and the value 100 000 000 is that order of magnitude. Implemented as pixels. Bits per
+   component vary by at most an order of magnitude and the allowance has two to spare, so the unit
+   choice does not change which files are refused - but it changes what the error message means,
+   and a limit whose number means something different from its name is a limit nobody can tune.
+
+2. **`open_with_limits` is the door.** `PdfOpen` gains a limits-carrying open and `open` defaults to
+   the shipped set. The page-count guard runs inside it, immediately after PDFium reports the count
+   and before any page is touched. That is what test 1.20 means by "at the door": a guard on first
+   page access would let a hundred-thousand-page document cost a hundred thousand page parses
+   before declining. `PdfiumDoc` holds its `Limits` for the life of the document - a limit that can
+   change halfway through is not a limit - and `InspectOptions` carries them so `--max-pages`
+   reaches it.
+
+3. **A limit refusal is exit 2, not exit 1**, with its own fatal code `E_LIMIT_EXCEEDED`. §2.4 gives
+   exit 2 to "usage, job-spec or configuration error; nothing was attempted", and that is what this
+   is: the file is outside the budget this run was configured with, and the operator's next move -
+   raise the limit, or reject the file - is the same whether the refusal came at the door or three
+   hundred pages in. One code for both, rather than a distinction that changes nothing.
+
+4. **Two magnitudes in test 1.11 are substituted, deliberately.** The plan asks for a stream
+   declaring 8 GiB and an assertion that process RSS stays under 300 MB. The fixture expands to
+   8 MiB from 8.9 KB - a ratio near a thousand to one, which is the attack - and the refusal is
+   demonstrated against a 1 MiB cap rather than the shipped 256 MiB one. Reasons: proving the
+   inequality at the shipped cap would mean allocating a quarter of a gigabyte in CI to watch a
+   comparison succeed, and asserting a process RSS figure measures the allocator rather than the
+   code. Peak memory is bounded by construction - `lopdf` caps each filter layer as it decodes, so
+   nested filters cannot expand past the cap once per layer either - and the test asserts the
+   second half that stops it passing vacuously: under the shipped cap the same fixture reads fine,
+   so the refusal is the limit acting rather than the file being unreadable.
+
+5. **The cap is applied where the content is actually read.** `read_page_content` was, for one
+   commit, called only from its own test while `page_image_facts` still used the uncapped
+   `get_and_decode_page_content` - a limit that exists and enforces nothing. `page_image_facts` now
+   returns `Result<Option<_>>`: `Ok(None)` still degrades when `lopdf` simply cannot parse a page,
+   but a *limit* refusal propagates, because reading a hostile stream and then shrugging is worse
+   than not reading it. Test 1.11 asserts both routes.
+
+Fixtures added: `h11_pixel_bomb` (an image XObject declaring 40 000 x 40 000 behind a 64-byte
+stream) and `h12_decompression_bomb` (8.9 KB of deflate over 8 MiB of content-stream whitespace,
+which keeps the file a valid PDF that renders normally). `oc_testkit::handmade::many_pages(n)` is
+*not* committed as a fixture: three thousand empty page dictionaries are a third of a megabyte that
+nobody would review, and the only thing the test needs from them is that there are 3001 of them.
+
+`check_xref_chain` exists and has no caller yet. `lopdf` does its own xref traversal and exposes no
+hook; the check is there for the parse path Phase 14 owns, and it is unit-tested rather than
+pretended to be wired.
+Evidence: `cargo nextest run --workspace` - 45 passed.
+Affects: D13.2, R8 §A2, IMPLEMENTATION_PLAN Phase 1 detail 8 and §2.1/§2.4, `thresholds.toml`
+`[limits]`, `crates/oc-core/src/limits.rs`, `crates/oc-pdf/src/{limits.rs,error.rs,inspect.rs}`,
+`crates/oc-pdf/src/pdfium/{bind.rs,doc.rs,images.rs}`, `crates/openconvert/src/{cli.rs,cmd_inspect.rs}`,
+`crates/oc-testkit/src/handmade.rs`.

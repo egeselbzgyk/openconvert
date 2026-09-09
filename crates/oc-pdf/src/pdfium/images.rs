@@ -14,6 +14,9 @@
 //! needed to; a *wrongly asserted* mask would make it drop pixels.
 
 use lopdf::{Document, Object, ObjectId};
+use oc_core::limits::Limits;
+
+use crate::error::PdfError;
 
 /// What the file says about one image draw, in the order the page draws them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -24,11 +27,24 @@ pub(crate) struct ImageFacts {
 
 /// The image draws of one page, in content-stream order.
 ///
-/// `None` when the page's structure could not be read at all, which the caller reports as a
-/// page whose image flags are unknown rather than as a page without masks.
-pub(crate) fn page_image_facts(document: &Document, index: u32) -> Option<Vec<ImageFacts>> {
-    let page_id = page_id(document, index)?;
-    let content = document.get_and_decode_page_content(page_id).ok()?;
+/// `Ok(None)` when the page's structure could not be read at all, which the caller reports as
+/// a page whose image flags are unknown rather than as a page without masks. `Err` only when
+/// a *limit* refused the page — a decompression bomb is not a parse failure to shrug at, and
+/// degrading to "no masks here" would be reading a hostile stream and then ignoring it.
+pub(crate) fn page_image_facts(
+    document: &Document,
+    index: u32,
+    limits: &Limits,
+) -> Result<Option<Vec<ImageFacts>>, PdfError> {
+    let Some(page_id) = page_id(document, index) else {
+        return Ok(None);
+    };
+    // The cap is applied here, on the read itself, rather than being checked afterwards on a
+    // buffer that has already been allocated.
+    let raw = crate::limits::read_page_content(document, page_id, limits)?;
+    let Ok(content) = lopdf::content::Content::decode(&raw) else {
+        return Ok(None);
+    };
     let resources = xobject_resources(document, page_id);
 
     let mut facts = Vec::new();
@@ -72,7 +88,7 @@ pub(crate) fn page_image_facts(document: &Document, index: u32) -> Option<Vec<Im
             _ => {}
         }
     }
-    Some(facts)
+    Ok(Some(facts))
 }
 
 /// `/Subtype /Image`, the only XObject kind that is one.

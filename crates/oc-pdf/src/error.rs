@@ -37,6 +37,12 @@ pub enum PdfError {
     #[error("cannot open the PDF: {message}")]
     Open { message: String },
 
+    /// A declared or reached quantity exceeded what this conversion is allowed to consume
+    /// (D13.2, R8 §A2). Both numbers are carried so the message says whether to raise the
+    /// limit or to distrust the file.
+    #[error("{0}")]
+    LimitExceeded(#[from] oc_core::limits::LimitExceeded),
+
     /// One page could not be read. The index is included because a document that fails on
     /// page 812 of 900 is a different problem from one that fails on page 0.
     #[error("page {index}: {message}")]

@@ -31,6 +31,12 @@ pub struct InspectArgs {
     pub pages: Vec<u32>,
     pub password: Option<String>,
     pub progress: Progress,
+    /// Refuse a document with more pages than this, before any page is read.
+    ///
+    /// The flag lands in Phase 1 rather than with the rest of the resource controls in
+    /// Phase 14, because a limit that is added after the code it bounds is a limit with a
+    /// window in it (Phase 1 detail 8). `None` means the shipped default.
+    pub max_pages: Option<u32>,
 }
 
 /// Why a command line was rejected. Every one of these is exit code 2 (§2.4).
@@ -55,7 +61,7 @@ openconvert — PDF to reflowable EPUB
 
 usage:
   openconvert inspect <INPUT.pdf> [--json] [--pages <RANGE>] [--password <STRING>]
-                                  [--progress none|json]
+                                  [--progress none|json] [--max-pages <N>]
   openconvert --version
   openconvert --help
 
@@ -63,6 +69,7 @@ usage:
   --pages <RANGE>      e.g. 1-10,20 (one-based, as printed)
   --password <STRING>  or the OC_PDF_PASSWORD environment variable
   --progress json      NDJSON events on stderr; stdout stays data only
+  --max-pages <N>      refuse a document with more pages than this
 ";
 
 /// Parse the arguments after the program name.
@@ -89,6 +96,7 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, CliErro
         pages: Vec::new(),
         password: std::env::var("OC_PDF_PASSWORD").ok(),
         progress: Progress::None,
+        max_pages: None,
     };
 
     while let Some(arg) = args.next() {
@@ -113,6 +121,13 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, CliErro
                         })
                     }
                 };
+            }
+            "--max-pages" => {
+                let value = args.next().ok_or(CliError::MissingValue("--max-pages"))?;
+                parsed.max_pages = Some(value.parse().map_err(|_| CliError::BadValue {
+                    what: "--max-pages value",
+                    value,
+                })?);
             }
             "--help" | "-h" => return Ok(Command::Print(USAGE.to_owned())),
             other if other.starts_with('-') => {

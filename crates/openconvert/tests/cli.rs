@@ -99,3 +99,48 @@ fn exit_code_2_on_bad_args() {
     let output = Command::new(binary()).output().expect("the binary runs");
     assert_eq!(output.status.code(), Some(2));
 }
+
+/// `--max-pages` reaches the door, and a refusal is a configuration outcome rather than a
+/// conversion failure (§2.4).
+///
+/// The unit test for the guard itself is `oc_pdf::limits::max_pages_refuses_at_the_door`;
+/// this one exists because a flag that parses but is never threaded anywhere would pass that
+/// test and still do nothing.
+#[test]
+fn max_pages_flag_refuses_the_document() {
+    let output = Command::new(binary())
+        .arg("inspect")
+        .arg(fixture("f01_prose_single_column"))
+        .arg("--json")
+        .arg("--max-pages")
+        .arg("1")
+        .arg("--progress")
+        .arg("json")
+        .output()
+        .expect("the binary runs");
+
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("E_LIMIT_EXCEEDED"), "stderr: {stderr}");
+    assert!(stderr.contains("max_pages"), "stderr: {stderr}");
+    assert!(
+        output.stdout.is_empty(),
+        "a refused document writes no report to stdout"
+    );
+
+    // f01 has two pages, so the same file with the allowance it needs still works.
+    let ok = Command::new(binary())
+        .arg("inspect")
+        .arg(fixture("f01_prose_single_column"))
+        .arg("--json")
+        .arg("--max-pages")
+        .arg("2")
+        .output()
+        .expect("the binary runs");
+    assert_eq!(ok.status.code(), Some(0));
+}

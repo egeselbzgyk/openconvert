@@ -30,6 +30,9 @@ pub struct InspectOptions {
     pub pages: Vec<u32>,
     /// The user password, for an encrypted document.
     pub password: Option<String>,
+    /// What this run is allowed to consume. `Default` is the shipped set from
+    /// `thresholds.toml`; `--max-pages` overrides one field of it.
+    pub limits: oc_core::limits::Limits,
 }
 
 /// The machine-readable answer to "what is this file?".
@@ -133,7 +136,8 @@ pub fn inspect(
         .map(|b| format!("{b:02x}"))
         .collect();
 
-    let document = backend.open(&bytes, options.password.as_deref())?;
+    let document =
+        backend.open_with_limits(&bytes, options.password.as_deref(), &options.limits)?;
     let metadata = document.doc_info();
     let page_count = document.page_count();
 
@@ -206,7 +210,22 @@ pub fn inspect(
 /// Anything that can open a PDF. Separate from [`crate::backend::PdfBackend`] so that
 /// `inspect` can be tested against a stub without a library on disk.
 pub trait PdfOpen {
-    fn open(&self, bytes: &[u8], password: Option<&str>) -> Result<Box<dyn PdfDoc>, PdfError>;
+    /// Open a document under an explicit resource budget.
+    ///
+    /// This is the door: the page-count guard is applied here, before a single page is
+    /// touched, because the cost of a degenerate document is paid per page and the only
+    /// useful moment to decline is the one before the first one (Phase 1 detail 8).
+    fn open_with_limits(
+        &self,
+        bytes: &[u8],
+        password: Option<&str>,
+        limits: &oc_core::limits::Limits,
+    ) -> Result<Box<dyn PdfDoc>, PdfError>;
+
+    /// Open under the shipped defaults.
+    fn open(&self, bytes: &[u8], password: Option<&str>) -> Result<Box<dyn PdfDoc>, PdfError> {
+        self.open_with_limits(bytes, password, &oc_core::limits::Limits::default())
+    }
 }
 
 /// Geometry reaches the report at two decimals, the same precision canonical JSON uses

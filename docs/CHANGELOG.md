@@ -175,3 +175,13 @@ Rust field name, and a capital letter there trips `non_snake_case` under `-D war
 - New fixtures `h09_image_smask` and `h10_inline_image`, the only ones for which those two
   flags are true.
 - New thresholds `images.{full_page_area_ratio, strip_aspect_ratio, ornament_max_side_pt}`.
+
+### Resource limits (`oc-core`, `oc-pdf`, `openconvert`, `oc-testkit`)
+
+- New: `oc_core::limits::{Limits, LimitExceeded}` — the shipped budget, from `thresholds.toml`.
+- New: `oc_pdf::limits::{check_image, read_page_content}` and `PdfError::LimitExceeded`.
+- New: `PdfOpen::open_with_limits`, which is where the page-count guard runs — before any
+  page is touched. `open` keeps the shipped defaults.
+- New: `openconvert inspect --max-pages <N>`. A limit refusal exits **2** with
+  `E_LIMIT_EXCEEDED`: it is a configuration outcome, not a conversion failure.
+- New fixtures `h11_pixel_bomb` and `h12_decompression_bomb`.

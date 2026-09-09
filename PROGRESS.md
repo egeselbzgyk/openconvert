@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 1
-CURRENT_ITEM: 1.6 — resource limits (tests 1.10, 1.11, 1.20)
+CURRENT_ITEM: 1.7 — encryption (tests 1.12, 1.13, 1.14)
 LAST_UPDATED: 2026-09-09
 
 ---
@@ -42,33 +42,37 @@ LAST_UPDATED: 2026-09-09
 
 ## Current work item
 
-**Phase 1, item 1.6 — resource limits (tests 1.10, 1.11, 1.20).** Items 1.1–1.5 are done:
-hand-made fixtures, glyph extraction (tests 1.1–1.4), the metamorphic invariants (1.5–1.7), the
-broken-text mutation (1.8) and images (1.9).
+**Phase 1, item 1.7 — encryption (tests 1.12, 1.13, 1.14).** Items 1.1–1.6 are done: hand-made
+fixtures, glyph extraction (1.1–1.4), metamorphic invariants (1.5–1.7), the broken-text mutation
+(1.8), images (1.9) and resource limits (1.10, 1.11, 1.20).
 
-Next is RED, three tests together because they are one mechanism:
-1.10 `image_pixel_bomb_is_refused_before_decode` (a dictionary declaring 40000 × 40000 →
-`Err(PdfError::LimitExceeded { limit: "max_image_pixels" })`, **no allocation**);
-1.11 `decompression_bomb_is_bounded` (a stream declaring 8 GiB decompressed errors at exactly
-`max_decompressed_stream_bytes`, RSS growth < 300 MB); 1.20 `max_pages_refuses_at_the_door`
-(a 3001-page document with `--max-pages 3000` errors before page 1 is parsed).
+Next is RED, three tests:
+1.12 `encrypted_empty_user_password_opens` (an AES-128 empty-user-password PDF opens with no
+`--password`); 1.13 `encrypted_with_password_requires_flag` (an `openconvert` integration test:
+without `--password` → exit 2 and `fatal{E_PASSWORD_REQUIRED}`; with it → exit 0);
+1.14 `owner_password_permissions_recorded_not_enforced` (conversion proceeds; the report carries
+`permissions.print == false`).
 
-Then implement `oc-pdf::limits` per Phase 1 detail 8: `width * height * bpc / 8` checked against
-`limits.max_image_pixels` *before* any decode; a bounded decompression sink capped at
-`limits.max_decompressed_stream_bytes` (`lopdf` has `get_page_content_with_limit`, which is the
-hook); xref/ObjStm depth capped at `limits.max_xref_chain`; `--max-pages` refused at the door. All
-four thresholds already exist in `thresholds.toml` under `[limits]`. `RLIMIT_AS` / job-object
-memory is Phase 14, but **the flag and the config plumbing land here** so limits are never
-retrofitted. `PdfError::LimitExceeded` does not exist yet.
+Then implement `oc-pdf::encrypt` per Phase 1 detail 7 and D13.11/RT D12: try the empty user
+password first; on failure require `--password` or a password file; read the owner-password
+permission flags and **record them in the report without enforcing them** — a permission bit is
+the publisher's request to a viewer, not a lock, and a converter that honoured it would refuse to
+convert books its user legitimately owns.
 
-The bomb fixtures are hand-made: a `/Width 40000 /Height 40000` image XObject whose stream is a few
-bytes, and a zlib stream of highly compressible data declaring a huge length. Both belong in
-`oc_testkit::handmade` beside h01–h10.
+Fixtures: encrypted PDFs are the one kind `pdf-writer` cannot build — it has no encryption support.
+Options, in preference order: (a) `lopdf` 0.45 has an `encryption` module, so `oc_testkit::mutate`
+could gain an `encrypt` recipe alongside the three that exist; (b) commit small encrypted PDFs
+generated once out of band. (a) keeps every fixture reproducible from source, which is the reason
+`xtask handmade-fixtures` exists at all — check what `lopdf::encryption` actually exposes first.
 
-Remaining Phase 1 items after 1.6: 1.7 encryption (1.12–1.14) · 1.8 outline (1.15) ·
-1.9 fuzz-lite (1.16) · 1.10 dump-stage (1.17) · 1.11 the poppler oracle (1.18) ·
-1.12 cancellation (1.19) · then VD-d, the ten-PDF image spike that blocks Phase 4's image policy.
-VD-d now has its first fixture: `h09_image_smask`.
+`PdfError::Open` currently swallows PDFium's password failure into a string; 1.13 needs it
+distinguished, so a `PdfError::PasswordRequired` variant is part of this item. Note the exit code
+it needs is **2**, which `E_LIMIT_EXCEEDED` already established the route for in `cmd_inspect`.
+
+Remaining Phase 1 items after 1.7: 1.8 outline (1.15) · 1.9 fuzz-lite (1.16) ·
+1.10 dump-stage (1.17) · 1.11 the poppler oracle (1.18) · 1.12 cancellation (1.19) · then VD-d,
+the ten-PDF image spike that blocks Phase 4's image policy. VD-d has its first fixture,
+`h09_image_smask`.
 
 ## Notes
 
@@ -80,7 +84,7 @@ Carried forward, in the order a fresh session needs them:
   Pinned to `chromium/7881` (151.0.7881.0) in `xtask/pdfium.lock`, lands in the git-ignored
   `vendor/pdfium/<triple>/`, needs `curl` and `tar` on PATH. CI runs it before `nextest`.
 - **Fixtures**: `cargo run -p xtask -- fixtures` (Typst f01–f03 into the git-ignored
-  `target/fixtures/`), `-- handmade-fixtures` (h01–h10, committed), `-- mutations` (committed).
+  `target/fixtures/`), `-- handmade-fixtures` (h01–h12, committed), `-- mutations` (committed).
 - **No stage may treat the backend's glyph order as reading order.** Measured in item 1.3: PDFium
   reorders the lines of a page under `/Rotate 90`. Reading order is Phase 3's, from geometry.
 - **Open from item 1.4, for Phase 2/3:** PDFium reports a line-break hyphen as **U+0002** with
@@ -155,3 +159,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-09  P1.3      oc-pdf metamorphic invariants + oc-testkit mutate (tests 1.5-1.7)   bd96e3a
 2026-09-09  P1.4      oc-pdf broken-text: control-char counter + strip_tounicode (test 1.8)  928f9d7
 2026-09-09  P1.5      oc-pdf images: ImageRef, DPI, kind, smask/inline via lopdf (test 1.9)  053ad54
+2026-09-09  P1.6      oc-core/oc-pdf resource limits + --max-pages (tests 1.10, 1.11, 1.20)

@@ -69,8 +69,8 @@ replaced by the phase that owns it.
 | 1.7 | `metamorphic::prop_content_stream_reorder_invariance` | `oc-pdf` | metamorphic | `test`, `proptest-deep` | green |
 | 1.8 | `inspect::stripped_tounicode_page_classifies_broken_text` | `oc-pdf` | fixture (mutation) | `test` | green |
 | 1.9 | `images::image_only_page_extracts_one_image_with_dpi` | `oc-pdf` | fixture (f03) | `test` | green |
-| 1.10 | `image_pixel_bomb_is_refused_before_decode` | `oc-pdf` | unit | `test` | — |
-| 1.11 | `decompression_bomb_is_bounded` | `oc-pdf` | fixture | `test` | — |
+| 1.10 | `limits::image_pixel_bomb_is_refused_before_decode` | `oc-pdf` | fixture (h11) | `test` | green |
+| 1.11 | `limits::decompression_bomb_is_bounded` | `oc-pdf` | fixture (h12) | `test` | green |
 | 1.12 | `encrypted_empty_user_password_opens` | `oc-pdf` | fixture | `test` | — |
 | 1.13 | `encrypted_with_password_requires_flag` | `openconvert` | integration | `test` | — |
 | 1.14 | `owner_password_permissions_recorded_not_enforced` | `oc-pdf` | fixture | `test` | — |
@@ -79,4 +79,4 @@ replaced by the phase that owns it.
 | 1.17 | `dump_stage_ingest_snapshot_h01` | `oc-core` | snapshot | `test` | — |
 | 1.18 | `differential_pdftotext_coverage_f01` | `oc-pdf` | integration (oracle) | `test` | — |
 | 1.19 | `cancel_is_observed_inside_page_loop` | `oc-core` | integration | `test` | — |
-| 1.20 | `max_pages_refuses_at_the_door` | `oc-core` | unit | `test` | — |
+| 1.20 | `limits::max_pages_refuses_at_the_door` | `oc-pdf` | integration | `test` | green |
