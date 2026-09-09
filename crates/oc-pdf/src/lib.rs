@@ -7,6 +7,7 @@
 
 pub mod backend;
 pub mod classify;
+pub mod dump;
 pub mod encrypt;
 pub mod error;
 pub mod geom;

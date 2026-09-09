@@ -210,3 +210,74 @@ fn encrypted_with_password_requires_flag() {
     // not, and both convert.
     assert_eq!(parsed["document"]["permissions"]["print"], true);
 }
+
+/// `dump-stage ingest` writes one canonical-JSON object per line, deterministically.
+///
+/// The unit-level assertion on the dump's *shape* is `oc_pdf::dump`'s snapshot (test 1.17);
+/// this is the assertion that the subcommand exists, streams, and keeps stdout a data channel.
+#[test]
+fn dump_stage_ingest_streams_one_object_per_line() {
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/fixtures/handmade/h13_outline.pdf");
+
+    let run = || {
+        let output = Command::new(binary())
+            .arg("dump-stage")
+            .arg("ingest")
+            .arg(&fixture)
+            .output()
+            .expect("the binary runs");
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        output.stdout
+    };
+
+    let first = run();
+    assert_eq!(
+        first,
+        run(),
+        "two dumps of the same file must be byte-identical (D13.8)"
+    );
+
+    let text = String::from_utf8(first).expect("the dump is UTF-8");
+    let lines: Vec<&str> = text.lines().collect();
+    // One header plus one line per page, which for h13 is one page.
+    assert_eq!(lines.len(), 2, "{lines:?}");
+
+    let header: serde_json::Value = serde_json::from_str(lines[0]).expect("the header is JSON");
+    assert_eq!(header["schema"], "openconvert.dump.ingest/1");
+    assert_eq!(header["stage"], "ingest");
+    assert_eq!(header["outline"].as_array().map(Vec::len), Some(6));
+    // `ir_version` leads the object, which is what D13.3 asks of canonical JSON and what a
+    // reader needs before it can interpret anything after it.
+    assert!(lines[0].starts_with(r#"{"ir_version":"#), "{}", lines[0]);
+
+    let page: serde_json::Value = serde_json::from_str(lines[1]).expect("the page is JSON");
+    assert_eq!(page["index"], 0);
+    assert_eq!(page["c_raw"]["A"], 1);
+}
+
+/// A stage that cannot be dumped yet says so, and says it as a usage error.
+#[test]
+fn dump_stage_rejects_an_unimplemented_stage() {
+    let output = Command::new(binary())
+        .arg("dump-stage")
+        .arg("layout")
+        .arg(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../corpus/fixtures/handmade/h01_two_glyphs.pdf"),
+        )
+        .arg("--progress")
+        .arg("json")
+        .output()
+        .expect("the binary runs");
+
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("E_UNKNOWN_STAGE"), "stderr: {stderr}");
+    assert!(output.stdout.is_empty());
+}

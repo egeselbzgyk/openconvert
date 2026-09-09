@@ -20,6 +20,7 @@ pub enum Progress {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
     Inspect(InspectArgs),
+    DumpStage(DumpStageArgs),
     /// `--help` or `--version`: print and exit successfully.
     Print(String),
 }
@@ -39,6 +40,18 @@ pub struct InspectArgs {
     pub max_pages: Option<u32>,
 }
 
+/// `dump-stage <STAGE> <INPUT>`: everything a stage produced, as canonical JSON.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DumpStageArgs {
+    /// One of the twelve stage names. Only `ingest` can be dumped so far, and the command
+    /// says so rather than pretending the others produce nothing.
+    pub stage: String,
+    pub input: PathBuf,
+    pub password: Option<String>,
+    pub progress: Progress,
+    pub limits: oc_core::limits::Limits,
+}
+
 /// Why a command line was rejected. Every one of these is exit code 2 (§2.4).
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum CliError {
@@ -54,6 +67,8 @@ pub enum CliError {
     BadValue { what: &'static str, value: String },
     #[error("inspect needs exactly one input file")]
     InputCount,
+    #[error("dump-stage needs a stage name and exactly one input file")]
+    DumpStageArgs,
 }
 
 pub const USAGE: &str = "\
@@ -61,6 +76,8 @@ openconvert — PDF to reflowable EPUB
 
 usage:
   openconvert inspect <INPUT.pdf> [--json] [--pages <RANGE>] [--password <STRING>]
+                                  [--progress none|json] [--max-pages <N>]
+  openconvert dump-stage <STAGE> <INPUT.pdf> [--password <STRING>]
                                   [--progress none|json] [--max-pages <N>]
   openconvert --version
   openconvert --help
@@ -70,6 +87,9 @@ usage:
   --password <STRING>  or the OC_PDF_PASSWORD environment variable
   --progress json      NDJSON events on stderr; stdout stays data only
   --max-pages <N>      refuse a document with more pages than this
+
+  dump-stage writes one canonical-JSON object per line: a header, then one per page.
+  <STAGE> is one of the twelve stage names; only `ingest` is implemented so far.
 ";
 
 /// Parse the arguments after the program name.
@@ -86,6 +106,7 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, CliErro
             )))
         }
         "inspect" => {}
+        "dump-stage" => return parse_dump_stage(args),
         other => return Err(CliError::UnknownSubcommand(other.to_owned())),
     }
 
@@ -143,6 +164,63 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, CliErro
             Ok(Command::Inspect(parsed))
         }
         _ => Err(CliError::InputCount),
+    }
+}
+
+/// Parse `dump-stage <STAGE> <INPUT>`, having already consumed the subcommand.
+///
+/// The stage is positional and first because it is not optional: "dump a stage" without
+/// saying which is not a request.
+fn parse_dump_stage<I: Iterator<Item = String>>(mut args: I) -> Result<Command, CliError> {
+    let mut positional = Vec::new();
+    let mut parsed = DumpStageArgs {
+        stage: String::new(),
+        input: PathBuf::new(),
+        password: std::env::var("OC_PDF_PASSWORD").ok(),
+        progress: Progress::None,
+        limits: oc_core::limits::Limits::default(),
+    };
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--password" => {
+                parsed.password = Some(args.next().ok_or(CliError::MissingValue("--password"))?);
+            }
+            "--progress" => {
+                let value = args.next().ok_or(CliError::MissingValue("--progress"))?;
+                parsed.progress = match value.as_str() {
+                    "none" => Progress::None,
+                    "json" => Progress::Json,
+                    _ => {
+                        return Err(CliError::BadValue {
+                            what: "--progress value",
+                            value,
+                        })
+                    }
+                };
+            }
+            "--max-pages" => {
+                let value = args.next().ok_or(CliError::MissingValue("--max-pages"))?;
+                parsed.limits.max_pages = value.parse().map_err(|_| CliError::BadValue {
+                    what: "--max-pages value",
+                    value,
+                })?;
+            }
+            "--help" | "-h" => return Ok(Command::Print(USAGE.to_owned())),
+            other if other.starts_with('-') => {
+                return Err(CliError::UnknownOption(other.to_owned()))
+            }
+            other => positional.push(other.to_owned()),
+        }
+    }
+
+    match positional.len() {
+        2 => {
+            parsed.input = PathBuf::from(&positional[1]);
+            parsed.stage = positional.remove(0);
+            Ok(Command::DumpStage(parsed))
+        }
+        _ => Err(CliError::DumpStageArgs),
     }
 }
 

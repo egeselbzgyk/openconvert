@@ -997,3 +997,41 @@ crash". Nothing crashed across ~22 200 inputs on `chromium/7881`.
 Evidence: `cargo nextest run --workspace` - 61 passed. The fuzz binary is ~12 s, now the slowest
 test in the suite by an order of magnitude, which is the price of the plan's 20 000 figure.
 Affects: RT A5.2, IMPLEMENTATION_PLAN Phase 1 test 1.16, `crates/oc-pdf/tests/fuzz_lite.rs`.
+
+## 2026-09-10 · The dump is NDJSON, and CharHistogram stops leaking its representation · Phase 1
+Context: item 1.10 implements `oc-pdf::dump` and `openconvert dump-stage` against test 1.17.
+
+1. **The dump is one canonical-JSON object per line, not one document.** RT B4 puts a real book's
+   extraction layer at tens of megabytes and Phase 1 detail 9 says to stream it per page. A single
+   top-level array cannot be streamed without either holding the whole document or hand-rolling the
+   commas, and it cannot be read with `head` or grepped by page. So: a header line, then one line
+   per page. Peak memory is one page regardless of the book, and a nine-hundred-page dump starts
+   appearing immediately rather than after a minute of silence.
+
+2. **`CharHistogram` had a `derive(Serialize)` that leaked its representation.** It stores ASCII in
+   a flat `Vec<u32>` of 128 slots because that is where nearly every character in a Latin-script
+   book lands - a good decision for the counting, a terrible one for the JSON. Derived, every page
+   of every dump carried 128 mostly-zero entries: unreadable in a diff, and megabytes of nothing
+   over a book. It now serialises as what it *is* - a map from character to count, in code-point
+   order, which is exactly what `iter` already yields. Its own test asserts that, separately from
+   the snapshot, because 128 zeroes look like noise and noise is what gets skimmed past.
+
+3. **`dump-stage` is the second subcommand, and the parser grew a branch rather than a dependency.**
+   §2.1 says the CLI is hand-rolled until `convert` arrives with its twenty flags. Two subcommands
+   with four shared flags is still under that line. The stage name is positional and first, because
+   "dump a stage" without saying which is not a request; a stage that has no dump yet is
+   `E_UNKNOWN_STAGE` and **exit 2**, since it is a usage error rather than a failed conversion.
+
+4. **The snapshot is of the canonical text, not of a serde value.** `insta::assert_snapshot!` over
+   the string `to_canonical_json` produced, rather than `assert_json_snapshot!` over the structure.
+   That makes the snapshot a test of the canonical form itself - key order, two-decimal geometry,
+   `ir_version` first - which is otherwise only tested by Phase 0's own unit tests on synthetic
+   input. A change to D13.3's rendering now shows up here, on real extracted data.
+
+Note: `h01` classifies as `blank`, not `text`, in the snapshot. Two visible characters is below
+`pageclass.text_min_visible_chars`, and that is the classifier working - a two-glyph test fixture is
+not a page of prose. Worth knowing before someone reads the snapshot and files a bug.
+Evidence: `cargo nextest run --workspace` - 65 passed.
+Affects: D13.3, D13.8, RT B4, IMPLEMENTATION_PLAN Phase 1 detail 9 and test 1.17, §2.1, §2.4,
+`crates/oc-model/src/extract.rs`, `crates/oc-pdf/src/dump.rs`,
+`crates/openconvert/src/{cli.rs,cmd_dump_stage.rs,main.rs}`.

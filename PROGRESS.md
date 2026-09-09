@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 1
-CURRENT_ITEM: 1.10 — dump-stage ingest (test 1.17)
+CURRENT_ITEM: 1.11 — the poppler oracle (test 1.18)
 LAST_UPDATED: 2026-09-10
 
 ---
@@ -42,33 +42,33 @@ LAST_UPDATED: 2026-09-10
 
 ## Current work item
 
-**Phase 1, item 1.10 — `dump-stage ingest` (test 1.17).** Items 1.1–1.9 are done: hand-made
+**Phase 1, item 1.11 — the poppler oracle (test 1.18).** Items 1.1–1.10 are done: hand-made
 fixtures, glyph extraction (1.1–1.4), metamorphic invariants (1.5–1.7), the broken-text mutation
 (1.8), images (1.9), resource limits (1.10, 1.11, 1.20), encryption (1.12–1.14),
-outlines/metadata (1.15) and fuzz-lite (1.16).
+outlines/metadata (1.15), fuzz-lite (1.16) and `dump-stage ingest` (1.17).
 
-Next is RED: test 1.17 `dump_stage_ingest_snapshot_h01` — an `insta` snapshot of the canonical
-JSON of the extraction layer for `h01_two_glyphs`. Then:
+Next is RED: test 1.18 `differential_pdftotext_coverage_f01` — every word `pdftotext` extracts from
+`f01` appears in our glyph stream after NFC (R9 §B.5).
 
-1. Assemble an `IngestDump` from what already exists: `PageGlyphs` (glyphs, fonts, removed,
-   `c_raw`, stats, class), `page_images`, `outline`, `doc_info`. Every one of those types already
-   derives `Serialize`; the work is the shape of the document, not the plumbing.
-2. `oc_model::canonical::to_canonical_json` for the bytes — sorted keys, geometry at 0.01 pt,
-   NFC, no NaN, `ir_version` first (D13.3). It exists and is tested from Phase 0 item 0.2.
-3. `crates/openconvert/src/cmd_dump_stage.rs` plus `openconvert dump-stage <stage> <input>`.
-   §2.1's CLI is hand-rolled; this is the second subcommand, so the parser grows a branch rather
-   than a dependency.
-4. **Stream it per page.** RT B4: a real book's extraction layer is tens of megabytes, so the CLI
-   writes page by page rather than building one value and serialising it. The snapshot only ever
-   covers a two-glyph fixture.
+Three things this item has to settle, in order:
 
-Watch for: `c_raw` is a `CharHistogram` whose `Serialize` is the internal `ascii: Vec<u32>` — 128
-mostly-zero entries would make an unreadable snapshot and a huge dump. It needs a `Serialize` that
-writes only the characters present, which is what `CharHistogram::iter` already yields.
+1. **`pdftotext` is not shipped and may not be present.** D15 bans Poppler from the shipped tree
+   (GPL); it is a CI-only oracle binary. So the test runs only when `pdftotext` is on `PATH` — and
+   **not** by being `#[ignore]`d, which CLAUDE.md and `xtask ci-lint` both forbid. It has to be a
+   test that *passes* when the oracle is absent while saying so, or a cargo feature named in
+   `docs/TEST_MATRIX.md` and turned on by a CI job. The plan says the CI `test` job installs
+   `poppler-utils`, so the feature route is the one that matches: add the feature, add it to
+   `.github/workflows/ci.yml`, list it in the matrix.
+2. **What "appears in our glyph stream" means.** Our stream has no words yet — Phase 2 assembles
+   them. So the comparison is over the concatenated `ch` sequence with whitespace removed, NFC on
+   both sides, asserting containment of each `pdftotext` word. Not equality: `pdftotext` inserts
+   its own spacing and line breaks, which is exactly the reconstruction Phase 2 will do
+   differently.
+3. **A word `pdftotext` gets and we do not is a real finding**, not a reason to weaken the test.
+   Record it before adjusting anything.
 
-Remaining Phase 1 items after 1.10: 1.11 the poppler oracle (1.18) · 1.12 cancellation (1.19) ·
-then VD-d, the ten-PDF image spike that blocks Phase 4's image policy. VD-d has its first fixture,
-`h09_image_smask`.
+Remaining Phase 1 items after 1.11: 1.12 cancellation (1.19) · then VD-d, the ten-PDF image spike
+that blocks Phase 4's image policy. VD-d has its first fixture, `h09_image_smask`.
 
 ## Notes
 
@@ -159,3 +159,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-09  P1.7      oc-pdf encryption: permissions recorded not enforced (tests 1.12-1.14)  a825fc5
 2026-09-10  P1.8      oc-pdf outline walk + meta from the object tree (test 1.15)  d815ad3
 2026-09-10  P1.9      oc-pdf fuzz-lite: random, truncated and corrupted inputs (test 1.16)  d9f18aa
+2026-09-10  P1.10     oc-pdf dump + openconvert dump-stage ingest (test 1.17)

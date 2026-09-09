@@ -215,3 +215,13 @@ Rust field name, and a capital letter there trips `non_snake_case` under `-D war
   and xref at the end of the file); single-byte corruption reaches one in 93–98 %. Both
   generators are kept and the reach figure is asserted by its own test, so it cannot decay
   silently. See `docs/DECISIONS_LOG.md`.
+
+### `dump-stage ingest` (`oc-model`, `oc-pdf`, `openconvert`)
+
+- New: `oc_pdf::dump::{DumpHeader, DumpPage, header, page}` and
+  `openconvert dump-stage <STAGE> <INPUT.pdf>` — one canonical-JSON object per line, a header
+  then one per page, streamed so peak memory is one page (RT B4).
+- **Changed:** `CharHistogram` serialises as a character-to-count map instead of its internal
+  128-slot ASCII array, which was putting 128 mostly-zero entries into every page of every
+  dump.
+- An unimplemented stage is `E_UNKNOWN_STAGE` and exit 2.

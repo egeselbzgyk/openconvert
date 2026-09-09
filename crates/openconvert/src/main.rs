@@ -6,6 +6,7 @@
 //! happened.
 
 mod cli;
+mod cmd_dump_stage;
 mod cmd_inspect;
 
 use std::io::Write;
@@ -43,6 +44,15 @@ fn run() -> ExitCode {
             let stdout = std::io::stdout();
             let mut stdout = stdout.lock();
             let code = cmd_inspect::run(&inspect, &mut events, &mut stdout);
+            let _ = stdout.flush();
+            code
+        }
+        Ok(Command::DumpStage(dump)) => {
+            let mut events =
+                EventSink::new(std::io::stderr().lock(), dump.progress == Progress::Json);
+            let stdout = std::io::stdout();
+            let mut stdout = stdout.lock();
+            let code = cmd_dump_stage::run(&dump, &mut events, &mut stdout);
             let _ = stdout.flush();
             code
         }

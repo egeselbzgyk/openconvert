@@ -59,12 +59,34 @@ pub struct FontInfo {
 ///
 /// ASCII is a flat array because that is where nearly every character in a Latin-script book
 /// lands, and everything else is a `BTreeMap` so the counts iterate in a deterministic order.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CharHistogram {
     /// Counts for U+0000..U+007F.
     ascii: Vec<u32>,
     /// Counts for everything above, ordered.
     tail: BTreeMap<char, u32>,
+}
+
+/// Serialised as a map from character to count, in code-point order — **not** as the two
+/// fields above.
+///
+/// The flat ASCII array is a representation choice, and serialising it would put a hundred and
+/// twenty-eight mostly-zero entries into every page of every dump, which is both unreadable
+/// and, over a three-hundred-page book, megabytes of nothing. The map is also the honest shape
+/// of the value: a `CharHistogram` *is* a multiset of characters, and `iter` already yields it
+/// in the deterministic order canonical JSON needs (D13.3).
+impl Serialize for CharHistogram {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+
+        let mut map = serializer.serialize_map(None)?;
+        for (ch, count) in self.iter() {
+            // A one-character string, because a JSON key is a string and canonical JSON
+            // refuses any other kind (`CanonError::KeyNotString`).
+            map.serialize_entry(ch.encode_utf8(&mut [0u8; 4]), &count)?;
+        }
+        map.end()
+    }
 }
 
 /// The size of the flat ASCII table.
