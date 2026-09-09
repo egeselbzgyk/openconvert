@@ -2,9 +2,9 @@
 
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
-STATUS: BLOCKED
+STATUS: IN_PROGRESS
 CURRENT_PHASE: 0
-CURRENT_ITEM: 0.8 — `xtask fixtures` Typst fixture generation — BLOCKED on the question below
+CURRENT_ITEM: 0.9 — `oc-pdf::inspect` + the `inspect` JSON report (tests 0.14–0.16, not yet written)
 LAST_UPDATED: 2026-09-09
 
 ---
@@ -12,7 +12,64 @@ LAST_UPDATED: 2026-09-09
 ## How to use this file
 
 - `STATUS` is one of `IN_PROGRESS` · `BLOCKED` · `COMPLETE`.
-- Set `STATUS: BLOCKED` **only** when a decision is needed that `docs/DECISIONS.md` does not settle. Write the question under `## Blocked` and stop.
+- Set `STATUS: IN_PROGRESS` **only** when a decision is needed that `docs/DECISIONS.md` does not settle. Write the question under `## Blocked
+
+_(empty — Q1 resolved 2026-09-09; see `docs/DECISIONS_LOG.md`)_
+
+## Notes` short: what a fresh session needs in order to resume, nothing else.
+
+---
+
+## Phases
+
+- [ ] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
+      *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
+      *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
+- [ ] **Phase 1** — PDF inspection and ingestion  *(includes the PDFium image/SMask spike = VD-d)*
+- [ ] **Phase 2** — Text assembly and normalization  *(normalization `N`, ledger, furniture inputs, language)*
+- [ ] **Phase 3** — Layout  *(blocks, columns, reading order, paragraphs, dehyphenation; VD-b must close)*
+- [ ] **Phase 4** — Structure  *(headings, outline/TOC, book structure, lists, footnotes, captions, quotes/verse, tables, images, metadata)*
+- [ ] **Phase 5** — EPUB generation, Tier-1 validator, EPUBCheck CI gate
+- [ ] **Phase 6** — Structural validation, repair loop, report, CI DOM checks  *(VD-f if the validation pack ships)*
+- [ ] **Phase 7** — Corpus v1, eval harness, benchmarks, real-world holdout
+- [ ] **Phase 8** — AI abstraction (no real model yet)
+- [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
+- [ ] **Phase 10** — AI-assisted decisions (the four tasks)
+- [ ] **Phase 11** — BYO providers
+- [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
+- [ ] **Phase 13** — OCR  *(VD-g must close)*
+- [ ] **Phase 14** — Security hardening
+- [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
+
+## Current work item
+
+**Phase 0, item 0.9 - `oc-pdf::inspect`.** Nothing written yet. The fixtures now exist, so this is the
+last piece of the First Milestone's data path.
+
+Next step is RED: write tests 0.14-0.16 (`inspect::inspect_f01_prose_single_column`,
+`inspect_f02_two_column`, `inspect_f03_image_only`) as insta snapshots over
+`openconvert.inspect/1` JSON, then implement `PdfDoc` (page_count, doc_info, page_geometry,
+page_char_stats, page_image_stats) on the PDFium backend and `inspect(doc, opts) -> InspectReport`.
+
+Two things to carry in, both in `docs/DECISIONS_LOG.md`:
+- **Typst writes /Creator, not /Producer.** The plan's expected JSON has `"producer": "Typst 0.15.1"`
+  and `"creator": null`; the actual files are the reverse. Snapshots follow the file. The `/Creator`
+  fallback in `producer_family` is what makes these fixtures classify as `Typst` at all.
+- Snapshots redact `source.path`, `source.sha256`, `source.bytes`, `engine_version` and the producer
+  string; `visible_chars` is NOT redacted - it is the assertion.
+
+Per-page counters come from PDFium characters: `render_mode()` 3 or zero-alpha `fill_color()` is
+invisible, `is_generated()` is excluded from every count, U+FFFD and PUA are counted separately, and a
+`font_name()` containing `GlyphLessFont` sets the flag. No text is assembled and no Glyph struct is
+materialised in this phase - counters only.
+
+Done in this branch: the workspace bootstrap (1.1-1.9) and items 0.1-0.8 - `geom::Rect` and
+`ids::BlockId`; `IR_VERSION` and `canonical::to_canonical_json`; the `oc-core::thresholds` codegen and
+lint; `oc-pdf::geom` page-space normalisation; `xtask vendor-pdfium` and the PDFium binding with its
+startup probe; `oc-pdf::classify`; `oc-pdf::producer`; `xtask fixtures`. Every open design question
+decided along the way is written up in `docs/DECISIONS_LOG.md` - read that before changing any of them.
+
+## Blocked` and stop.
 - Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
 - Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
 
@@ -422,9 +479,13 @@ sources, `corpus/fixtures/assets/scan_page_01.png`, and its generator
 - `GOLDEN_BLOCK_ID_CHAPTER_3 = "SDMLH752SA"` in `ids.rs` is a committed golden value. If that assertion
   ever fails, the id derivation changed and `IR_VERSION` must change in the same commit (D13.3).
 - Commit messages carry **no** Claude Code attribution footer (maintainer's instruction, 2026-09-09).
-- `xtask` has `vendor-pdfium` only. Phase 0's Definition of Done still needs `thresholds-lint` (the rule
-  is already implemented as `oc_core::thresholds::lint`; xtask only has to call it), `ci-lint`,
-  `fixtures` and `stage-sidecars`. Each is its own work item.
+- `xtask` has `vendor-pdfium` and `fixtures`. Phase 0's Definition of Done still needs
+  `thresholds-lint` (the rule is already implemented as `oc_core::thresholds::lint`; xtask only has to
+  call it), `ci-lint` and `stage-sidecars`. Each is its own work item.
+- **Two cargo-deny configs now.** `deny.toml` audits what ships and admits no exceptions;
+  `deny.tools.toml` audits `xtask` with the same licence/ban/source policy and reports its advisories
+  without blocking. Run both: `cargo deny check` and
+  `cargo deny --config deny.tools.toml check licenses bans sources`.
 
 ## Completed items log
 
@@ -437,3 +498,4 @@ sources, `corpus/fixtures/assets/scan_page_01.png`, and its generator
 2026-09-09  P0.5      xtask vendor-pdfium + oc-pdf PDFium binding and probe (test 0.7)             5059a98
 2026-09-09  P0.6      oc-pdf: page classification (tests 0.9-0.12 + mixed/blank/dict test)        97ddfd8
 2026-09-09  P0.7      oc-pdf: producer-family detection (test 0.13)                              4788213
+2026-09-09  P0.8      xtask fixtures + audit-surface split resolving Q1 (test 0.20)              57df06e
