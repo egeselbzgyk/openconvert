@@ -172,4 +172,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-10  P1.10     oc-pdf dump + openconvert dump-stage ingest (test 1.17)  0ccbd1b
 2026-09-10  P1.11     oc-pdf differential pdftotext oracle behind a feature (test 1.18)  2a9aa8f
 2026-09-10  P1.perf   oc-pdf: page ids read once, not per page (O(n^2) fix)                6908601
-2026-09-10  P1.12     oc-core cancel/progress + openconvert control channel (test 1.19)
+2026-09-10  P1.12     oc-core cancel/progress + openconvert control channel (test 1.19)  69734e5
