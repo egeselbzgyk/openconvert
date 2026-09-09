@@ -172,4 +172,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-10  P1.8      oc-pdf outline walk + meta from the object tree (test 1.15)  d815ad3
 2026-09-10  P1.9      oc-pdf fuzz-lite: random, truncated and corrupted inputs (test 1.16)  d9f18aa
 2026-09-10  P1.10     oc-pdf dump + openconvert dump-stage ingest (test 1.17)  0ccbd1b
-2026-09-10  P1.11     oc-pdf differential pdftotext oracle behind a feature (test 1.18)
+2026-09-10  P1.11     oc-pdf differential pdftotext oracle behind a feature (test 1.18)  2a9aa8f
