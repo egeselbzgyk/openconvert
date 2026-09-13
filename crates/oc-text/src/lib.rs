@@ -4,6 +4,7 @@
 
 pub mod fold;
 pub mod freq;
+pub mod lang;
 pub mod lines;
 pub mod normalize;
 pub mod stats;

@@ -156,6 +156,58 @@
       "generator": "typst-0.15.1",
       "defect_injection": [],
       "source_path": "corpus/fixtures/typst/f03_image_only.typ"
+    },
+    {
+      "id": "f04_german_prose",
+      "title": "f04_german_prose",
+      "source": {
+        "name": "synthetic-generator",
+        "url": "https://github.com/openconvert/openconvert",
+        "retrieved_date": "2026-09-09"
+      },
+      "license": {
+        "name": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "verified_by": "maintainer",
+        "verified_date": "2026-09-09"
+      },
+      "sha256": "da4d7f1ba763f9b7a9bdeaeae3d8dc341bdf1cf4e0c4f23c2e223cdd5683429c",
+      "file_size_bytes": 14329,
+      "category": "simple",
+      "producer_stratum": "ours(Typst)",
+      "producer_raw": "Typst 0.15.1",
+      "tagged": false,
+      "holdout": false,
+      "ground_truth_type": "none",
+      "generator": "typst-0.15.1",
+      "defect_injection": [],
+      "source_path": "corpus/fixtures/typst/f04_german_prose.typ"
+    },
+    {
+      "id": "f05_turkish_prose",
+      "title": "f05_turkish_prose",
+      "source": {
+        "name": "synthetic-generator",
+        "url": "https://github.com/openconvert/openconvert",
+        "retrieved_date": "2026-09-09"
+      },
+      "license": {
+        "name": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "verified_by": "maintainer",
+        "verified_date": "2026-09-09"
+      },
+      "sha256": "9084d803d0c9c24c7238cca6dd23ac8ad14f843438cd8153b86dcca69ad9daa9",
+      "file_size_bytes": 13566,
+      "category": "simple",
+      "producer_stratum": "ours(Typst)",
+      "producer_raw": "Typst 0.15.1",
+      "tagged": false,
+      "holdout": false,
+      "ground_truth_type": "none",
+      "generator": "typst-0.15.1",
+      "defect_injection": [],
+      "source_path": "corpus/fixtures/typst/f05_turkish_prose.typ"
     }
   ]
 }

@@ -1544,3 +1544,33 @@ Evidence: `eval/src/oc_eval/generate/wordfreq.py`, `crates/oc-text/src/freq/en.s
 Standard Ebooks' public-domain dedication; D15 allow-list; R10 §4.4 row 1.
 Affects: `crates/oc-text/src/freq.rs`, `crates/oc-text/src/freq/`, `crates/oc-text/src/stats.rs`,
 `eval/src/oc_eval/generate/wordfreq.py`, D15 (open question: DE/TR sources), PLAN Phase 2 detail 5.
+
+## 2026-09-13 · `whatlang` speaks ISO 639-3 and `dc:language` does not · Phase 2 item 2.10
+`whatlang::Lang::code()` returns three-letter ISO 639-3 codes — `eng`, `deu`, `tur`. BCP-47 requires
+the *shortest* code that exists for a language, and `dc:language` is BCP-47, so a package emitted
+straight from the detector would say `eng` and fail EPUBCheck at the very end of a conversion, which
+is the worst possible place to find out. `lang.rs` carries a 70-entry 639-3 → 639-1 table, one entry
+per language `whatlang` knows, and a test iterates `Lang::all()` asserting every one has a two-letter
+tag — so a `whatlang` bump that adds a language fails at `cargo test` rather than at EPUBCheck.
+
+Two entries are macrolanguage judgements rather than lookups: `cmn` (Mandarin) → `zh` and `pes`
+(Western Persian) → `fa`, because those are the tags a reading system matches a voice to.
+
+**`lang.block_min_confidence` is new, at 0.60.** PIPELINE §4 step 7 and R10 §6.17 both require "the
+top-2 confidence margin" to clear "a fixed floor" without naming the floor. `whatlang`'s `confidence`
+*is* that margin, normalised to 0..1, so this is the floor applied to it. Provisional: the number
+worth fitting is the one that keeps a monolingual book free of spurious per-block tags on the Phase 7
+corpus, and there is no corpus yet.
+
+**Two new Typst fixtures, f04 (German) and f05 (Turkish).** Test 2.19 asks for "three single-language
+fixtures" and only English existed. Both pages are written for the fixture rather than quoted, so
+nothing third-party is redistributed (D18, TEST_CORPUS §1.1), and both are ordinary prose rather than
+sentences chosen to be easy to detect. Turkish is not filler: `ı`, `İ`, `ğ` and `ş` have to survive
+extraction as *themselves*, and a second test asserts they do — if they arrive folded or
+transliterated, `whatlang` may still say Turkish while every lookup key in the pipeline is wrong.
+Hand-made fixtures could not carry them: `to_winansi` writes Latin-1 bytes and Latin-1 has no `ğ`,
+`ş` or `ı`, so this had to be a Typst fixture with a real font.
+
+Evidence: `whatlang` 0.18 `src/lang.rs`; measured on f01/f04/f05 through PDFium `chromium/7881`.
+Affects: `crates/oc-text/src/lang.rs`, `corpus/fixtures/typst/f0{4,5}_*.typ`, `thresholds.toml`,
+`xtask/src/fixtures.rs` (the fixture count assertion).

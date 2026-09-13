@@ -486,6 +486,13 @@ evidence = "R10 §6.17: require >= 5 words before assigning a lang attribute"
 owner = "maintainer"
 review_by = "2028-01-01"
 
+[lang.block_min_confidence]
+value = 0.60
+source = "provisional"
+evidence = "R10 §6.17 / PIPELINE §4 step 7 require the top-2 confidence margin to clear 'a fixed floor' without naming it. whatlang's `confidence` is that margin, normalised to 0..1, so this is the floor applied to it. Provisional: the number to fit is the one that keeps a monolingual book free of spurious per-block tags on the Phase 7 corpus"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [lang.block_override_max_share]
 value = 0.20
 source = "published"

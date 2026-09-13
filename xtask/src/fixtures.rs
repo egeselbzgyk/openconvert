@@ -350,8 +350,8 @@ fn typst_fixtures_are_reproducible() {
     let sources = source_paths(&root).expect("the fixture sources are readable");
     assert_eq!(
         sources.len(),
-        3,
-        "expected f01/f02/f03 in {SOURCE_DIR}, found {sources:?}"
+        5,
+        "expected f01-f05 in {SOURCE_DIR}, found {sources:?}"
     );
 
     for source in &sources {

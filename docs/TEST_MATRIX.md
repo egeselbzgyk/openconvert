@@ -171,3 +171,12 @@ replaced by the phase that owns it.
 | 2.22e | `freq::prose_scores_high_and_glyph_indices_score_zero` | `oc-text` | unit | `test` | green |
 | 2.22f | `freq::an_empty_text_is_unmeasured_not_zero` | `oc-text` | unit | `test` | green |
 | 2.22g | `freq::tokens_are_classified_before_they_are_counted` | `oc-text` | unit | `test` | green |
+| 2.19 | `language::language_detected_en_de_tr` | `openconvert` | fixture (f01, f04, f05) | `test` | green |
+| 2.19a | `language::the_turkish_page_keeps_its_dotted_and_dotless_i` | `openconvert` | fixture (f05) | `test` | green |
+| 2.19b | `lang::every_language_whatlang_knows_has_a_two_letter_tag` | `oc-text` | unit | `test` | green |
+| 2.19c | `lang::the_three_languages_v1_claims_are_named_correctly` | `oc-text` | unit | `test` | green |
+| 2.19d | `lang::a_document_with_no_text_falls_back_and_says_so` | `oc-text` | unit | `test` | green |
+| 2.20 | `lang::block_lang_override_capped` | `oc-text` | unit | `test` | green |
+| 2.20a | `lang::a_single_foreign_block_is_tagged` | `oc-text` | unit | `test` | green |
+| 2.20b | `lang::a_short_block_is_never_tagged` | `oc-text` | unit | `test` | green |
+| 2.20c | `lang::a_block_in_the_documents_own_language_gets_no_attribute` | `oc-text` | unit | `test` | green |
