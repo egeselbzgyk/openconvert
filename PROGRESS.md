@@ -111,6 +111,23 @@ Carried forward, in the order a fresh session needs them:
 - `GOLDEN_BLOCK_ID_CHAPTER_3 = "SDMLH752SA"` in `ids.rs` is a committed golden value. If that
   assertion ever fails, the id derivation changed and `IR_VERSION` must change in the same commit
   (D13.3).
+- **CI works now, and 2026-09-13 was the first time it ever ran.** `ci` triggers on pushes to
+  `main` and on pull requests; Phases 0-2 all happened on `phase/00-bootstrap`, which is neither.
+  Five of eight jobs failed on the first run. Four fixes, all in `docs/DECISIONS_LOG.md`: the
+  Tauri crate is `--exclude`d from the engine jobs and gets its own `desktop` job (it has no Rust
+  tests, and buying "it compiles" inside `--workspace` costs every job a GUI toolchain); `deny`
+  needed its global flags before `check`; the tagged fixtures were never built; and `no-network`
+  reached the registry from inside the namespace. **Work on a branch that opens a pull request
+  from Phase 3 onward** — that is what makes `ci` fire on every push.
+- **Three CI jobs are `if: false` until their phase arrives**, because the commands they call do
+  not exist: `epubcheck` (Phase 5), `dom-checks` (Phase 6) and `no-network`'s
+  `assert-no-net-deps` step (Phase 14). Each carries a comment naming the phase. Until Phase 14
+  the socket ban is enforced by `deny.toml`'s `wrappers` rule in the `deny` job.
+- **A non-embedded base-14 font makes glyph bounding boxes host-dependent**, measured on h01:
+  `bbox.x1` is 80.02 on Windows and macOS, 79.85 on Ubuntu. The *advance* is identical, because
+  the widths come from the PDF's own metrics. D13.8's determinism contract therefore cannot hold
+  for such documents — the substitution happens below us — so **Phase 3's layout rules should
+  prefer the advance box and the origin, which are stable, wherever they have the choice.**
 - **VD-a and VD-d are closed.** VD-b, VD-c, VD-e, VD-f, VD-g still open, each with an owner
   and a blocking phase. VD-b blocks Phase 3.
 - **Open for `DECISIONS.md`, from item 2.9:** which sources build the German and Turkish
@@ -142,8 +159,11 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-13:
 1. **Every named test exists and passes** — all twenty-two rows of the Phase 2 table (2.1–2.22),
    plus about forty additions, each of which exists because something was measured and was not
    what the plan assumed. `docs/TEST_MATRIX.md` lists every one and the CI job that runs it.
-2. **`cargo nextest run --workspace`** — 156 passed, 0 skipped, 0 ignored. **Verified on Windows
-   only**, as in Phases 0 and 1: Linux and macOS are CI's job.
+2. **`cargo nextest run --workspace`** — 156 passed, 0 skipped, 0 ignored, **on all three
+   operating systems**. CI run 34758095844 on `main`, 2026-09-13: `test (ubuntu-latest)`,
+   `test (macos-latest)` and `test (windows-latest)` all green, alongside `lint`, `deny`,
+   `desktop`, `no-network`, `poppler-oracle` and `ui`. This is the first time that claim has
+   been true rather than deferred — see the Notes below.
 3. **clippy** `--workspace --all-targets --all-features --locked -- -D warnings` — clean.
 4. **`cargo fmt --all --check`** — clean.
 5. **`cargo deny check`** — advisories, bans, licenses, sources ok; `deny.tools.toml` ok.
@@ -181,8 +201,10 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-10:
    about twenty more, each of which exists because something was measured and was not what the
    plan assumed. `docs/TEST_MATRIX.md` lists every one and the CI job that runs it.
 2. **`cargo nextest run --workspace`** — 83 passed, 0 skipped, 0 ignored; with
-   `--features poppler-oracle`, 55 passed in `oc-pdf`. **Verified on Windows only**, as in
-   Phase 0: Linux and macOS are CI's job.
+   `--features poppler-oracle`, 55 passed in `oc-pdf`. Verified on Windows at the time; the
+   three-OS claim was cashed on 2026-09-13, when CI first ran (see Notes), and it needed two
+   fixes in this phase's code to hold — the tagged-fixture dependency and h01's host-dependent
+   glyph boxes.
 3. **clippy** `--workspace --all-targets --all-features --locked -- -D warnings` — clean.
 4. **`cargo fmt --all --check`** — clean.
 5. **`cargo deny check`** — advisories, bans, licenses, sources ok; `deny.tools.toml` ok.
@@ -207,9 +229,11 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 1. **Every named test exists and passes** — all 23 rows of the Phase 0 table, plus four additions
    (0.8a, 0.12a, 0.23a, and the committed-assertion-file test), each with its reason in
    `docs/DECISIONS_LOG.md`. `docs/TEST_MATRIX.md` lists every one and the CI job that runs it.
-2. **`cargo nextest run --workspace`** — green, 0 skipped, 0 ignored. **Verified on Windows only.**
-   Linux and macOS are CI's job and have not run yet; this is the one Definition-of-Done item Phase 0
-   cannot claim from this machine.
+2. **`cargo nextest run --workspace`** — green, 0 skipped, 0 ignored. Verified on Windows at the
+   time, and the entry said plainly that Linux and macOS "have not run yet". They ran for the
+   first time on 2026-09-13 and are green (see Notes). The caveat was correct and it stood for
+   four days longer than anyone noticed, because `ci` triggers on `main` and this phase was
+   never on it.
 3. **clippy** `--workspace --all-targets --all-features --locked -- -D warnings` — clean.
 4. **`cargo fmt --all --check`** — clean.
 5. **`cargo deny check`** — advisories, bans, licenses, sources all ok; plus `deny.tools.toml`
