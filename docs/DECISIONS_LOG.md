@@ -1895,3 +1895,26 @@ as good as the column hypothesis, and under `k = 1` there is no split to make. `
 Affects: `crates/oc-layout/src/columns.rs` (`detect_columns` now takes run boxes, the page em and a column
 cap), `crates/oc-layout/src/blocks.rs` (`LayoutLine` carries its segments), `crates/oc-text/src/lines.rs`,
 `crates/openconvert/src/pipeline.rs`, PIPELINE §6, PROGRESS.md carry-forward 2.
+
+## 2026-09-13 · The unwrap factor is 0.45, and page 0 of f01 has four paragraphs, not five · Phase 3
+Two small corrections made while implementing paragraph reconstruction, both recorded because the numbers
+they change are quoted elsewhere.
+
+**`paragraph.line_unwrap_factor` 0.4 → 0.45.** PIPELINE §7 step 4 is explicit: "The generic Calibre HTML
+path uses 0.4 (R10 §6.4); 0.45 is the PDF-path value and is the anchored default here."
+IMPLEMENTATION_PLAN Phase 3 detail 4 quotes 0.4, and `thresholds.toml` was written from the plan. The
+authority order settles it — PIPELINE outranks IMPLEMENTATION_PLAN — so the value is 0.45 and the
+evidence string now says which of Calibre's two defaults it is and why.
+
+**Test 3.6's assertion.** The plan's table says "convention `FirstLineIndent`; 5 paragraphs on page 0".
+Page 0 of `f01` carries a heading and three paragraphs, which is four; there is no fifth. Following the
+rule that the test *name* is the contract and its assertion is measured, the test asserts four and names
+each one. The heading is a paragraph at this stage by construction: `layout` assigns no semantics, and
+"Chapter 3" becomes a `Heading` in Phase 4, where `structure` is what decides that.
+
+Also recorded, because it surprised a test before it surprised a book: "short last line" is measured
+against **the block's own measure**, so two short lines under each other with nothing above them are one
+paragraph, not two. That is the rule working. A paragraph's last line is short *relative to the lines
+above it*, and a block whose every line is short has no long line to be short against.
+
+Affects: `thresholds.toml`, `crates/oc-layout/src/paragraphs.rs`, test 3.6, PIPELINE §7 step 4.

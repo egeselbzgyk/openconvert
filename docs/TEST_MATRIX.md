@@ -228,5 +228,14 @@ replaced by the phase that owns it.
 | 3.5e | `continuity::a_single_page_has_no_boundary_to_measure` | `oc-layout` | unit | `test` | green |
 | 3.5f | `continuity::a_blank_page_is_skipped_not_counted_as_a_break` | `oc-layout` | unit | `test` | green |
 | 3.5g | `columns::a_capped_page_reports_one_column` | `oc-layout` | unit | `test` | green |
+| 3.6 | `layout::paragraph_convention_indent_detected` | `openconvert` | fixture (f01) | `test` | green |
+| 3.6a | `paragraphs::an_indent_starts_a_paragraph_when_nothing_else_marks_one` | `oc-layout` | unit | `test` | green |
+| 3.6b | `paragraphs::a_short_line_ends_its_paragraph` | `oc-layout` | unit | `test` | green |
+| 3.6c | `paragraphs::a_nearly_full_line_does_not_end_a_paragraph` | `oc-layout` | unit | `test` | green |
+| 3.6d | `paragraphs::a_paragraph_merges_across_a_page_break` | `oc-layout` | unit | `test` | green |
+| 3.6e | `paragraphs::a_finished_sentence_does_not_merge_across_a_page_break` | `oc-layout` | unit | `test` | green |
+| 3.6f | `paragraphs::a_hyphen_at_a_page_break_merges_the_paragraph` | `oc-layout` | unit | `test` | green |
+| 3.6g | `paragraphs::joining_lines_does_not_resolve_a_hyphen` | `oc-layout` | unit | `test` | green |
+| 3.6h | `paragraphs::every_paragraph_gets_its_own_id` | `oc-layout` | unit | `test` | green |
 | 3.13 | `layout::layout_stage_is_conserving` | `openconvert` | fixture (f01) | `test` | green |
 | 3.13a | `layout::layout_stage_conservation_violation_errors` | `openconvert` | unit | `test` | green |

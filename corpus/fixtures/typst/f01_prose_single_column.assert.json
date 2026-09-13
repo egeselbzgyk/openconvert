@@ -32,7 +32,7 @@
   {
     "kind": "text_present",
     "text": "pipeline",
-    "note": "dehyphenated across the page break: 'pipe-' + 'line'"
+    "note": "dehyphenated across a line break on page 1: 'pipe-' + 'line'"
   },
   {
     "kind": "lang_tag",

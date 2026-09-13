@@ -222,10 +222,19 @@ pub fn segment_blocks(page: &LayoutPage, t: &Thresholds) -> (Vec<Block>, Segment
             id: mint_id(page.page.index, bbox, &text, &mut minted),
             page: page.page.clone(),
             bbox,
+            // Indent and right gap are re-measured against the block, which is what every
+            // rule that reads them means by them (PIPELINE §7 steps 3 and 4: "relative to the
+            // block's dominant left edge", "short of the block's dominant right edge").
+            // `text` could only measure them against the page, and on a two-column page that
+            // is a number about both columns at once.
             lines: group
                 .iter()
                 .filter_map(|line| page.lines.get(*line))
-                .map(|line| line.line.clone())
+                .map(|line| Line {
+                    indent_pt: line.line.bbox.x0 - bbox.x0,
+                    right_gap_pt: bbox.x1 - line.line.bbox.x1,
+                    ..line.line.clone()
+                })
                 .collect(),
             column: 0,
             kind_hint: BlockKindHint::Text,

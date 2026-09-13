@@ -71,3 +71,47 @@ impl Block {
             .join(" ")
     }
 }
+
+/// How a book marks the start of a paragraph.
+///
+/// One of these per *book*, not per page: a book is internally consistent about it, and
+/// per-document adaptation is the capability R1 §C.4 #3 says nobody in this space fully
+/// exploits. A page is not enough evidence — a chapter opening indents nothing, a page of
+/// dialogue indents everything.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ParagraphConvention {
+    /// The first line of a paragraph is indented; paragraphs follow each other without a gap.
+    FirstLineIndent,
+    /// Paragraphs are separated by extra leading and no line is indented.
+    BlankLine,
+}
+
+/// A paragraph: the lines of one, in order, from wherever they were printed.
+///
+/// One `Para` may span several blocks, several columns and several pages — that is the point
+/// of it. What it does not yet carry is meaning: `spans` (with their styles), `align`, `lang`
+/// and `confidence` are `structure`'s to add in Phase 4, and adding them here with nothing to
+/// fill them would be a field that is always the same value.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Para {
+    pub id: BlockId,
+    /// The blocks this paragraph was assembled from, in reading order.
+    pub blocks: Vec<BlockId>,
+    /// The lines, in reading order, with their block-relative indent and right gap.
+    pub lines: Vec<Line>,
+    /// The paragraph's text: its lines joined, hyphens resolved by `paragraphs` under I-5.
+    pub text: String,
+    /// Whether the paragraph's own first line was indented.
+    pub first_line_indent: bool,
+    /// The pages it covers, first and last.
+    pub pages: (u32, u32),
+}
+
+impl Para {
+    /// Whether the paragraph was assembled from more than one block — across a column
+    /// boundary, a page boundary, or both.
+    pub fn is_merged(&self) -> bool {
+        self.blocks.len() > 1
+    }
+}

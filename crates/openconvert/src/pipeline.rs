@@ -15,11 +15,12 @@ use oc_layout::columns::{
 };
 use oc_layout::continuity::{continuity, Continuity};
 use oc_layout::furniture::{apply_furniture, detect_furniture, PageLines};
+use oc_layout::paragraphs::{infer_convention, reconstruct_paragraphs};
 use oc_layout::reading_order::reading_order;
 use oc_model::extract::{CharHistogram, Glyph, PageRef};
 use oc_model::geom::Rect;
 use oc_model::lang::LangTag;
-use oc_model::layout::Block;
+use oc_model::layout::{Block, Para, ParagraphConvention};
 use oc_model::ledger::{LedgerDelta, StageCheck};
 use oc_model::text::{Line, Run};
 use oc_text::lines::assemble_lines;
@@ -83,6 +84,10 @@ pub struct LayoutStage {
     pub continuity: Continuity,
     /// How many times the column count had to be narrowed before it read that way.
     pub column_retries: u32,
+    /// How this book marks a paragraph start, decided once over the whole of it.
+    pub convention: ParagraphConvention,
+    /// The document's paragraphs, in reading order, across columns and pages.
+    pub paragraphs: Vec<Para>,
     pub delta: LedgerDelta,
     pub check: StageCheck,
 }
@@ -264,6 +269,13 @@ pub fn layout_stage(
         retries += 1;
     }
 
+    // Paragraphs are `paragraphs`' stage, not `layout`'s, and the split matters: `layout` is
+    // Conserving and this is the last point at which that is still true of everything here.
+    // Reconstruction itself adds and removes nothing — it is the dehyphenation inside it that
+    // is Budgeted, and that has its own stage and its own ledger.
+    let convention = infer_convention(&best.pages, &best.blocks, t);
+    let paragraphs = reconstruct_paragraphs(&best.pages, &best.blocks, convention, t);
+
     let after = block_chars(&best.blocks, &best.pages);
     let delta = LedgerDelta::default();
     let check = check_invariants(&before, &after, &delta, stages::LAYOUT, totals)?;
@@ -275,6 +287,8 @@ pub fn layout_stage(
         agreement: best.agreement,
         continuity: best.continuity,
         column_retries: retries,
+        convention,
+        paragraphs,
         delta,
         check,
     })
@@ -343,18 +357,25 @@ struct LayoutPass {
     continuity: Continuity,
 }
 
+/// One line's text, found on the page it came from.
+///
+/// Keyed on the run ids, which are the only part of a `Line` that survives being put into a
+/// block unchanged: `blocks` re-measures the indent and the right gap against the block, so
+/// the line in the block is deliberately not equal to the line on the page.
+pub fn text_of<'a>(page: &'a LayoutPage, line: &Line) -> &'a str {
+    page.lines
+        .iter()
+        .find(|candidate| candidate.line.runs == line.runs)
+        .map(|candidate| candidate.text.as_str())
+        .unwrap_or_default()
+}
+
 /// A block's text, its lines joined by spaces, as the continuity proxy reads it.
 pub fn block_text(block: &Block, page: &LayoutPage) -> String {
     block
         .lines
         .iter()
-        .map(|line| {
-            page.lines
-                .iter()
-                .find(|candidate| candidate.line == *line)
-                .map(|candidate| candidate.text.as_str())
-                .unwrap_or_default()
-        })
+        .map(|line| text_of(page, line))
         .collect::<Vec<_>>()
         .join(" ")
 }
@@ -419,13 +440,7 @@ pub fn block_chars(blocks: &[Vec<Block>], pages: &[LayoutPage]) -> CharHistogram
     for (page_blocks, page) in blocks.iter().zip(pages) {
         for block in page_blocks {
             for line in &block.lines {
-                let text = page
-                    .lines
-                    .iter()
-                    .find(|candidate| candidate.line == *line)
-                    .map(|candidate| candidate.text.clone())
-                    .unwrap_or_default();
-                histogram = histogram.union(&c_of(&text));
+                histogram = histogram.union(&c_of(text_of(page, line)));
             }
         }
     }

@@ -12,11 +12,13 @@ use oc_core::stages;
 use oc_core::thresholds::T;
 use oc_model::extract::{CharHistogram, PageRef};
 use oc_model::lang::LangTag;
-use oc_model::layout::BlockKindHint;
+use oc_model::layout::{BlockKindHint, ParagraphConvention};
 use oc_model::ledger::{LedgerDelta, LedgerEntry, Reason, StageKind};
 use oc_pdf::inspect::PdfOpen;
 use oc_pdf::pdfium::PdfiumBackend;
-use openconvert::pipeline::{furniture_stage, layout_stage, text_stage, LayoutStage, PageInput};
+use openconvert::pipeline::{
+    block_text, furniture_stage, layout_stage, text_stage, LayoutStage, PageInput,
+};
 
 /// Read a fixture and run `text`, `furniture` and `layout` over it, as a conversion would.
 fn layout_of(relative: &str) -> LayoutStage {
@@ -134,21 +136,7 @@ fn layout_stage_conservation_violation_errors() {
 fn blocks_text(layout: &LayoutStage, page: usize) -> Vec<String> {
     layout.blocks[page]
         .iter()
-        .map(|block| {
-            block
-                .lines
-                .iter()
-                .map(|line| {
-                    layout.pages[page]
-                        .lines
-                        .iter()
-                        .find(|candidate| candidate.line == *line)
-                        .map(|candidate| candidate.text.clone())
-                        .unwrap_or_default()
-                })
-                .collect::<Vec<_>>()
-                .join(" ")
-        })
+        .map(|block| block_text(block, &layout.pages[page]))
         .collect()
 }
 
@@ -259,4 +247,32 @@ fn the_false_gutter_is_found_before_continuity_rejects_it() {
         2,
         "the fixture is supposed to look like two columns: {unchecked:?}"
     );
+}
+
+/// Row 3.6. `f01` indents its first lines, and the book-level convention has to see that from
+/// the book rather than from any one page.
+#[test]
+fn paragraph_convention_indent_detected() {
+    let layout = layout_of("../../target/fixtures/f01_prose_single_column.pdf");
+
+    assert_eq!(layout.convention, ParagraphConvention::FirstLineIndent);
+
+    let page0: Vec<&oc_model::layout::Para> = layout
+        .paragraphs
+        .iter()
+        .filter(|para| para.pages.0 == 0)
+        .collect();
+    let texts: Vec<&str> = page0.iter().map(|para| para.text.as_str()).collect();
+    assert_eq!(
+        page0.len(),
+        4,
+        "page 0 is a heading and three paragraphs: {texts:#?}"
+    );
+    assert!(
+        texts[0].starts_with("Chapter 3"),
+        "the heading is its own paragraph here; `structure` gives it its role in Phase 4"
+    );
+    assert!(texts[1].starts_with("It was a dark and stormy night"));
+    assert!(texts[2].starts_with("The office was quiet"));
+    assert!(texts[3].starts_with("Outside, the harbour lights"));
 }

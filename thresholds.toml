@@ -421,9 +421,23 @@ owner = "maintainer"
 review_by = "2028-01-01"
 
 [paragraph.line_unwrap_factor]
-value = 0.4
+value = 0.45
 source = "published"
-evidence = "R10 §6.4: Calibre line-unwrap-factor default 0.4"
+evidence = "PIPELINE §7 step 4: Calibre's `pdf_input` unwrap_factor, the PDF-path value and the anchored default here. R10 §6.4's 0.4 is the generic HTML path's; IMPLEMENTATION_PLAN Phase 3 detail 4 quotes that one, and PIPELINE outranks it (docs/DECISIONS_LOG.md 2026-09-13). A line reaching less than this share of its block's measure ended its paragraph."
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[paragraph.indent_convention_min_share]
+value = 0.05
+source = "provisional"
+evidence = "The share of a book's lines that have to be indented before the book is read as using first-line indentation. A book that indents averages one indented line per paragraph over four to eight lines of paragraph, so 0.12-0.25; a book that separates paragraphs with space indents almost nothing, and what it does indent - block quotes, verse - is well under 0.05. The gap between the two populations is an order of magnitude, which is why the exact figure does not matter much; what matters is that the decision is made once over the whole book, because a book is internally consistent and a page is not enough evidence (PIPELINE §7 step 1, R1 §C.4 #3)."
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[paragraph.extra_leading_ratio]
+value = 1.5
+source = "published"
+evidence = "PIPELINE §7 step 2: same paragraph while the baseline gap is no more than 1.5 x the modal leading. Equivalently pdfminer's line_margin of 0.5 x line height measured as a gap rather than as a step (R2 §B.6), which is where `paragraph.line_margin` comes from; this is the same rule stated in the units the grouping code works in."
 owner = "maintainer"
 review_by = "2028-01-01"
 
