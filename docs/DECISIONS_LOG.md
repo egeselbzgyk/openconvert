@@ -1503,3 +1503,44 @@ Evidence: `corpus/fixtures/handmade/h04_ligature_fi.pdf` (byte 200, `/ToUnicode 
 `dump-stage ingest` on PDFium `chromium/7881`; R2 §B.8; ARCHITECTURE §3.1, §5.2.
 Affects: `crates/oc-testkit/src/handmade.rs`, `crates/openconvert/src/{lib.rs,pipeline.rs}`,
 `crates/openconvert/tests/conservation.rs`, R2 §B.8's claim, Phase 3 content-stream work.
+
+## 2026-09-13 · Word-frequency lists: English ships, German and Turkish are a licence question · Phase 2 item 2.9
+**Only `en.bin` is committed, and that is a licence finding, not an omission.** PLAN Phase 2 detail 5
+says to build EN/DE/TR lists "from CC0/PD text only (Standard Ebooks, DTA plain text,
+Wikisource-TR)". Standard Ebooks dedicates its editions to the public domain under CC0 and English
+is built from twelve of them. DTA and Wikisource-TR host public-domain **works** under **CC-BY-SA
+transcriptions** — a different licence from the one the plan claims for them, and one that is not on
+D15's allow-list for a shipped artefact. Choosing a substitute source, or admitting CC-BY-SA data,
+is a `DECISIONS.md` change and not a script change; the generator refuses any source whose licence
+is not `CC0-1.0`, `PD-US` or `PD`, so the refusal is mechanical rather than a comment. Maintainer
+decision taken 2026-09-13: ship the machinery and the English list now, leave DE/TR to a later
+`wordfreq.py` run.
+
+The shipped English list is **20 000 words, 232 KB**, not the plan's 200 000 / 1.5 MB. Twelve
+Standard Ebooks yield about that many forms above the minimum count of two; `--top-n` is a flag and
+the number grows with the source set. Every source, its SHA-256 and its licence are in
+`crates/oc-text/src/freq/en.sources.json`, committed next to the blob.
+
+**`dict_hit_rate` returns `Option<f32>`, and the `None` is the point.** `Some(0.0)` means "nothing
+here is a word", which is what a page of glyph indices scores and what `broken_text` fires on.
+Returning `0.0` for a language with no list would call every German book broken. `oc-pdf`'s
+`classify_page` already took an `Option`; it now gets a real value for English.
+
+**Tokens are classified before they are counted.** The obvious tokenizer — runs of letters — makes a
+page of glyph indices produce *no tokens at all*, so the rate is unmeasurable on the one input the
+signal exists for, and test 2.22 cannot pass. Whitespace-separated tokens are sorted into three
+kinds instead: a `Word` to look up; `Undecodable`, which counts in the denominator and never hits,
+because a control character where a letter should be is a word that failed to decode rather than
+not-a-word; and `NotEvidence` — numbers, bare punctuation, single letters — counted in neither part
+of the ratio, so a page of dates is neither broken nor measured.
+
+The blob format is a sorted string table plus a `u32` offset index, binary-searched. No FST, no
+perfect hash, no crate: the operation is "does this byte string appear in a sorted list", and a
+format anyone can read with a hex editor is one nobody has to trust. Words are stored **folded**, by
+the same rule `fold_key` applies, so the Turkish list — when it exists — will hold `ısparta` and a
+query for `ISPARTA` will find it.
+
+Evidence: `eval/src/oc_eval/generate/wordfreq.py`, `crates/oc-text/src/freq/en.sources.json`;
+Standard Ebooks' public-domain dedication; D15 allow-list; R10 §4.4 row 1.
+Affects: `crates/oc-text/src/freq.rs`, `crates/oc-text/src/freq/`, `crates/oc-text/src/stats.rs`,
+`eval/src/oc_eval/generate/wordfreq.py`, D15 (open question: DE/TR sources), PLAN Phase 2 detail 5.

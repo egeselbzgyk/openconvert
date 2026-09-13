@@ -163,3 +163,11 @@ replaced by the phase that owns it.
 | 2.18c | `stats::replacement_characters_are_counted_as_a_share_of_the_text` | `oc-text` | unit | `test` | green |
 | 2.18d | `stats::a_page_of_glyph_indices_is_broken_by_both_signals` | `oc-text` | unit | `test` | green |
 | 2.18e | `stats::empty_text_is_not_broken_it_is_empty` | `oc-text` | unit | `test` | green |
+| 2.22 | `broken_text::dict_hit_rate_feeds_broken_text_classification` | `openconvert` | fixture (mutation) | `test` | green |
+| 2.22a | `broken_text::the_unmutated_fixture_passes_both_signals` | `openconvert` | fixture (f01) | `test` | green |
+| 2.22b | `freq::the_english_blob_is_well_formed` | `oc-text` | unit | `test` | green |
+| 2.22c | `freq::common_words_are_in_and_glyph_indices_are_not` | `oc-text` | unit | `test` | green |
+| 2.22d | `freq::a_language_with_no_list_answers_none_not_zero` | `oc-text` | unit | `test` | green |
+| 2.22e | `freq::prose_scores_high_and_glyph_indices_score_zero` | `oc-text` | unit | `test` | green |
+| 2.22f | `freq::an_empty_text_is_unmeasured_not_zero` | `oc-text` | unit | `test` | green |
+| 2.22g | `freq::tokens_are_classified_before_they_are_counted` | `oc-text` | unit | `test` | green |

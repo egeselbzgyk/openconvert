@@ -217,7 +217,11 @@ fn replacement_share(text: &str) -> f32 {
 
 /// A character that stands for something that could not be decoded: the replacement
 /// character, a private-use code point, or a control character that is not layout.
-fn is_undecodable(ch: char) -> bool {
+///
+/// Public because [`crate::freq::dict_hit_rate`] needs the same predicate: a token made of
+/// these is not "not a word", it is a word that failed to decode, and the two have to be
+/// counted differently.
+pub fn is_undecodable(ch: char) -> bool {
     const PRIVATE_USE: [std::ops::RangeInclusive<u32>; 3] =
         [0xE000..=0xF8FF, 0xF0000..=0xFFFFD, 0x100000..=0x10FFFD];
     if ch == char::REPLACEMENT_CHARACTER {

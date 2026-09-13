@@ -1,0 +1,95 @@
+{
+  "lang": "en",
+  "generator": "eval/src/oc_eval/generate/wordfreq.py",
+  "word_count": 20000,
+  "min_count": 2,
+  "min_word_chars": 2,
+  "top_n": 20000,
+  "blob_sha256": "af8b54daff35c685a50dd95aef7b041bd6c4c766f82e7564be61ecc0e3a1ce9c",
+  "sources": [
+    {
+      "name": "herman-melville_moby-dick",
+      "url": "https://codeload.github.com/standardebooks/herman-melville_moby-dick/tar.gz/refs/heads/master",
+      "license": "CC0-1.0",
+      "sha256": "72880954f80d6b680533027f8f261e670b631eae507ccb0fcd281058e5f4f3b5",
+      "files_read": 145
+    },
+    {
+      "name": "jane-austen_pride-and-prejudice",
+      "url": "https://codeload.github.com/standardebooks/jane-austen_pride-and-prejudice/tar.gz/refs/heads/master",
+      "license": "CC0-1.0",
+      "sha256": "ff98310090bd40cd576d8e2a9f01645588512f241fcc977ecf084dde35b03bde",
+      "files_read": 65
+    },
+    {
+      "name": "charles-dickens_a-tale-of-two-cities",
+      "url": "https://codeload.github.com/standardebooks/charles-dickens_a-tale-of-two-cities/tar.gz/refs/heads/master",
+      "license": "CC0-1.0",
+      "sha256": "273a7309cf1a34c2edc11398c9c0f0ec46cf42155c68c0b3e29ca4844c6eb752",
+      "files_read": 54
+    },
+    {
+      "name": "mary-shelley_frankenstein",
+      "url": "https://codeload.github.com/standardebooks/mary-shelley_frankenstein/tar.gz/refs/heads/master",
+      "license": "CC0-1.0",
+      "sha256": "886fae8da3d0d3a10c46be5649917f0370d7793561101155862631841b087cfa",
+      "files_read": 38
+    },
+    {
+      "name": "lewis-carroll_alices-adventures-in-wonderland",
+      "url": "https://codeload.github.com/standardebooks/lewis-carroll_alices-adventures-in-wonderland/tar.gz/refs/heads/master",
+      "license": "CC0-1.0",
+      "sha256": "46e37d759f2d9681f0ec7044467201ff44a540dcf226a9a88aea9514f41df2a4",
+      "files_read": 20
+    },
+    {
+      "name": "arthur-conan-doyle_the-adventures-of-sherlock-holmes",
+      "url": "https://codeload.github.com/standardebooks/arthur-conan-doyle_the-adventures-of-sherlock-holmes/tar.gz/refs/heads/master",
+      "license": "CC0-1.0",
+      "sha256": "207bc2d8f90288c8a534db493350cd61f420612ad28fa417b25eba5c9922270d",
+      "files_read": 16
+    },
+    {
+      "name": "bram-stoker_dracula",
+      "url": "https://codeload.github.com/standardebooks/bram-stoker_dracula/tar.gz/refs/heads/master",
+      "license": "CC0-1.0",
+      "sha256": "0cf2f6a6fcf4adb1e54e1c4f9c8a69dc4c2e59c01315df19776f06538a0ef187",
+      "files_read": 35
+    },
+    {
+      "name": "charlotte-bronte_jane-eyre",
+      "url": "https://codeload.github.com/standardebooks/charlotte-bronte_jane-eyre/tar.gz/refs/heads/master",
+      "license": "CC0-1.0",
+      "sha256": "f0f08401a8f01dd55558b03f7a5ea7a800ad1dc895bdf9c74b0683f0b2b4252e",
+      "files_read": 46
+    },
+    {
+      "name": "george-eliot_middlemarch",
+      "url": "https://codeload.github.com/standardebooks/george-eliot_middlemarch/tar.gz/refs/heads/master",
+      "license": "CC0-1.0",
+      "sha256": "54a4c2ec75623346f7bb5c81d5dba13bc1cf1f3af865f38cbbe0323f9e705e82",
+      "files_read": 102
+    },
+    {
+      "name": "mark-twain_the-adventures-of-tom-sawyer",
+      "url": "https://codeload.github.com/standardebooks/mark-twain_the-adventures-of-tom-sawyer/tar.gz/refs/heads/master",
+      "license": "CC0-1.0",
+      "sha256": "c6fa6e770c2fa4592fe060d2bc8478b71f276a428f0bcf74bc427167135d985d",
+      "files_read": 43
+    },
+    {
+      "name": "jonathan-swift_gullivers-travels",
+      "url": "https://codeload.github.com/standardebooks/jonathan-swift_gullivers-travels/tar.gz/refs/heads/master",
+      "license": "CC0-1.0",
+      "sha256": "ae499248bf7396a73bc0e8c72684bc3da16ebab2b55288b1bee6c7d39436aa72",
+      "files_read": 52
+    },
+    {
+      "name": "h-g-wells_the-war-of-the-worlds",
+      "url": "https://codeload.github.com/standardebooks/h-g-wells_the-war-of-the-worlds/tar.gz/refs/heads/master",
+      "license": "CC0-1.0",
+      "sha256": "e3b2956f5b64eb8e03e2f9d9e948fc7a9b5e20e547913b5cfa8e0e9814208aac",
+      "files_read": 36
+    }
+  ]
+}
