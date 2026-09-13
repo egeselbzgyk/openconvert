@@ -1698,3 +1698,49 @@ operating systems while `bbox` does not.
 
 Evidence: run 34757445462 on `main`, job `test (ubuntu-latest)`.
 Affects: `crates/oc-pdf/src/dump.rs` and its snapshot, D13.8, Phase 3 layout rules.
+
+## 2026-09-13 · VD-b closed: the `hyphenation` crate's patterns are not ours to redistribute · Phase 3
+Context: VD-b blocks Phase 3. The crate's own licence (Apache-2.0 OR MIT) was already confirmed; what was
+open is the licence of the `hyph-utf8` **pattern files** it bundles, and whether DE, TR and EN patterns
+are present at all. `hyphenation = { version = "0.8" }` has sat in the workspace dependency table since
+§1.2 of the plan, unused by any crate.
+
+Decision: **do not depend on `hyphenation`.** It is removed from the workspace dependency table and
+added to the `deny` list in both `deny.toml` and `deny.tools.toml`, with the reason inline. v1 needs no
+Knuth-Liang patterns: PIPELINE §7 dehyphenates with four deterministic tiers plus the committed
+classifier, and hyphenating *for* the reader is the reading system's job in a reflowable EPUB, never
+ours. If a later phase ever wants patterns, take `hyph-de-1996` and `hyph-en-gb` from the upstream master
+files with their headers intact; Turkish and `en-us` need their own decision first.
+
+Evidence: `hyphenation 0.8.4` (`static.crates.io`, sha256
+`bcf4dd4c44ae85155502a52c48739c8a48185d1449fff1963cffee63c28a50f0`, matching the crates.io index
+`cksum`), unpacked and read 2026-09-13.
+
+1. **The languages are present.** `dictionaries/` carries `de-1901`, `de-1996`, `de-ch-1901`, `en-gb`,
+   `en-us` and `tr`, all `.standard.bincode`, alongside 70-odd others; `patterns/` carries the
+   corresponding `.pat.txt` sources. So the "are they there" half of VD-b answers yes.
+2. **The crate ships them stripped of their licence headers.** Every `patterns/*.txt` file in the crate
+   begins with its first pattern — `grep -li 'licen|copyright' patterns/*.txt` matches exactly two files,
+   `hyph-ca.ext.lic.txt` and `hyph-hu.ext.lic.txt`, which are standalone licence texts for the *extended*
+   Catalan and Hungarian patterns. The upstream masters all carry a `% licence:` block; these copies do
+   not.
+3. **The crate disclaims them in its own README** (§License): "`hyph-utf8` hyphenation patterns © their
+   respective owners; see their master files for licensing information." The dual-permissive field on
+   crates.io covers the Rust code and says nothing about the data — which is exactly why a licence
+   scanner cannot catch this and why the ban, not the allow-list, is where it is enforced.
+4. **Upstream, the three languages do not answer the same way** (`hyphenation/tex-hyphen` at
+   `49706f9`, `hyph-utf8/tex/generic/hyph-utf8/patterns/tex/`):
+   - `hyph-de-1996.tex` — **MIT**, © 2013–2018 Deutschsprachige Trennmustermannschaft. On D15's list.
+   - `hyph-en-gb.tex` — **MIT**, © 1992–2016 Wujastyk & Toal. On D15's list.
+   - `hyph-en-us.tex` — a **bespoke permissive notice** ("Copying and distribution of this file, with or
+     without modification, are permitted in any medium without royalty provided the copyright notice and
+     this notice are preserved"), © 1990–2005 Gerard D.C. Kuiken. Permissive in substance, but it is not
+     an SPDX identifier and D15's allow-list is a list of identifiers.
+   - `hyph-tr.tex` — **LPPL 1.0 or later**, © 1987 Pierre A. MacKay, 2008/2011 TUG. **Not on D15's
+     list**, and Turkish is one of v1's three languages.
+5. **And the compiled dictionaries fold in worse.** `hyph-ca.ext` is LGPL-3.0+/GPL-3.0+ (Jaume Ortolà,
+   Riurau Editors) and `hyph-hu.ext` is MPL-1.1/GPL-2.0/LGPL-2.1 (Nagy Bence). Depending on the crate at
+   all puts that data in the build, and D15 bans the GPL family in a shipped artefact outright.
+
+Affects: VD-b (**closed**), D15, `Cargo.toml` §1.2, `deny.toml`, `deny.tools.toml`,
+`docs/LICENSE_AND_DEPENDENCIES.md` §2.1 and note 2, IMPLEMENTATION_PLAN Phase 0 VD table, Phase 3.

@@ -42,6 +42,14 @@ deny = [
   { name = "hyper",    wrappers = [] },
   { name = "ureq",     wrappers = ["oc-net"] },
   { name = "socket2",  wrappers = ["oc-net", "ureq"] },
+  # VD-b, closed 2026-09-13. The crate itself is Apache-2.0/MIT, but it redistributes the
+  # `hyph-utf8` pattern files with their licence headers removed and says so in its own README
+  # ("patterns (c) their respective owners; see their master files"). Upstream, Turkish is
+  # LPPL-1.0+ and `en-us` carries a bespoke permissive notice, neither on D15's allow-list; the
+  # compiled dictionaries also fold in GPL/LGPL/MPL extended Catalan and Hungarian data. The
+  # licence scanner sees only the crate's own dual-permissive field, so the ban is the only
+  # place this can be enforced. See docs/DECISIONS_LOG.md.
+  { name = "hyphenation", wrappers = [], reason = "bundles hyph-utf8 patterns whose own licences (LPPL, GPL/LGPL) are neither declared nor on D15's allow-list" },
 ]
 
 [advisories]

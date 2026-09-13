@@ -41,7 +41,12 @@ lopdf         = { version = "0.45", default-features = false, features = ["serde
 unicode-normalization = "0.1"
 unicode-properties    = "0.1"
 whatlang              = "0.18"
-hyphenation           = { version = "0.8", default-features = false }
+# `hyphenation` is deliberately absent. VD-b closed 2026-09-13: the crate ships its
+# `hyph-utf8` pattern files stripped of their licence headers and disclaims them
+# ("patterns © their respective owners"), and Turkish is LPPL-1.0+ upstream, which D15
+# does not allow. v1 needs no Knuth-Liang patterns at all - dehyphenation is the four
+# tiers plus the committed classifier. `deny.toml` bans the crate so the decision holds.
+# See docs/DECISIONS_LOG.md.
 regex                 = "1"
 # --- epub ---
 # VD-a closed 2026-09-09: zip 8.6.0 is the current stable major (9.0.0 exists only as -preN).
