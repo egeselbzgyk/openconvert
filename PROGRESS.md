@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 2
-CURRENT_ITEM: 2.1 — read PHASE 2 of the plan, then its first work item
-LAST_UPDATED: 2026-09-10
+CURRENT_ITEM: 2.2 — oc-text `normalize.rs`: normalisation `N` (tests 2.1-2.4)
+LAST_UPDATED: 2026-09-13
 
 ---
 
@@ -42,26 +42,24 @@ LAST_UPDATED: 2026-09-10
 
 ## Current work item
 
-**Phase 2 has not been started.** Phase 1 is complete — its Definition of Done is checked below.
+**Phase 2, item 2.2** — `oc-text::normalize`: `N = strip(U+00AD) o expand_ligatures o NFC`,
+tests 2.1-2.4 from the Phase 2 table.
 
-First step: read `docs/IMPLEMENTATION_PLAN.md` PHASE 2 and `docs/PIPELINE.md`'s `text` stage, then
-take the first work item with the TDD loop. Do **not** read them ahead of time; the plan says to
-open a section when the phase needs it.
+Planned item order for Phase 2 (one TDD loop each):
 
-Phase 2 is normalisation `N`, word/line assembly, the ledger, furniture inputs and language
-detection. Three things from Phase 1 land directly on it, in priority order:
+1. ~~2.1 conservation checker (`oc-core::ledger_check` + stage declarations)~~ **done**
+2. 2.2 `oc-text::normalize` - tests 2.1, 2.2, 2.3, 2.4
+3. 2.3 `oc-text::fold` - tests 2.6, 2.7
+4. 2.4 `oc-text::{words,lines}` + superscript flags - tests 2.5, 2.8, 2.9 (new fixtures)
+5. 2.5 `oc-layout::furniture` - tests 2.10-2.14 (new fixtures)
+6. 2.6 conservation across text+furniture end to end - test 2.15
+7. 2.7 `oc-text::stats` - tests 2.18, 2.22
+8. 2.8 `oc-text::lang` + frequency lists - tests 2.19, 2.20
+9. 2.9 `dump-stage text` snapshot - test 2.21
 
-1. **The hyphen problem is Phase 2's to solve, and it is the biggest.** PDFium reports a hard
-   hyphen (U+002D) and a soft hyphen (U+00AD) as the *same* U+0002; `is_hyphen()` says only that a
-   character is a hyphen, never which. Measured against `pdftotext` in item 1.11. So D13.4's
-   `SoftHyphen` reason cannot fire, PIPELINE §369's compound-word rule loses its cheapest signal,
-   and `C_raw` differs from the document at every hyphenated line break.
-2. **`OverdrawDedup` has a budget and no way to consume it** (item 1.2). PDFium collapses
-   overdrawn duplicates before we see them.
-3. Both need the **same** thing: `lopdf` content-stream access to the `Tj`/`TJ` operands. Do them
-   as one piece of work rather than patching twice. `PdfiumDoc` already holds the parsed
-   `lopdf::Document` and `oc_pdf::limits::read_page_content` already reads a page's content stream
-   under the decompression cap, so the plumbing exists.
+Still open from Phase 1, to be folded into the Phase 2 work where it lands:
+the U+0002 hyphen problem and `OverdrawDedup`'s unconsumable budget (both described under
+Notes), which need the same `lopdf` content-stream access to the `Tj`/`TJ` operands.
 
 Also open, and cheap: CI's `test` job runs `xtask fixtures` but never `handmade-fixtures` or
 `mutations`, so a builder change that no longer reproduces the committed fixtures would not be
@@ -194,3 +192,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-10  P1.12     oc-core cancel/progress + openconvert control channel (test 1.19)  69734e5
 2026-09-10  P1.13     oc-pdf image_bytes + VD-d known-answer spike (VD-d closed)             c73476e
 2026-09-10  PHASE 1   COMPLETE - Definition of Done checked; A1.6 measured off reference machine L
+2026-09-13  P2.1      oc-core ledger_check: I-1..I-4 + stage declarations (2.16, 2.17 + 6)  fad617e
