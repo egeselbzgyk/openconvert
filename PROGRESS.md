@@ -3,8 +3,8 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 3
-CURRENT_ITEM: 3.5 — paragraph reconstruction (plan detail 4, tests 3.6/3.7)
+CURRENT_PHASE: 4
+CURRENT_ITEM: 4.1 — read PHASE 4 of the plan, then its first work item
 LAST_UPDATED: 2026-09-13
 
 ---
@@ -26,7 +26,7 @@ LAST_UPDATED: 2026-09-13
       *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
 - [x] **Phase 1** — PDF inspection and ingestion  *(VD-d closed: PDFium composites masks, palettes and colour spaces correctly)*
 - [x] **Phase 2** — Text assembly and normalization  *(all 22 named tests green; EN frequency list ships, DE/TR blocked on a D15 licence decision)*
-- [ ] **Phase 3** — Layout  *(blocks, columns, reading order, paragraphs, dehyphenation; VD-b must close)*
+- [x] **Phase 3** — Layout  *(all 17 named tests green; VD-b closed. A3.2 partial — no corpus to reproduce a gold order from, Phase 7; A3.3 partial — the holdout is English, because D15 has no German source)*
 - [ ] **Phase 4** — Structure  *(headings, outline/TOC, book structure, lists, footnotes, captions, quotes/verse, tables, images, metadata)*
 - [ ] **Phase 5** — EPUB generation, Tier-1 validator, EPUBCheck CI gate
 - [ ] **Phase 6** — Structural validation, repair loop, report, CI DOM checks  *(VD-f if the validation pack ships)*
@@ -42,35 +42,38 @@ LAST_UPDATED: 2026-09-13
 
 ## Current work item
 
-**Phase 3 in progress.** Four items done, on `phase/03-layout`:
+**Phase 3 is complete.** Its Definition of Done is checked below, with two partial rows named as partial.
 
-| Item | What | Tests |
-|---|---|---|
-| 3.1 | VD-b closed: `hyphenation` is banned, not depended on | (gated by `cargo deny check bans`) |
-| 3.2 | `oc-layout::blocks` — Docstrum + Breuel's cover, cross-checked; `layout` wired as a Conserving stage | 3.1, 3.13 + 6 |
-| 3.3 | `oc-layout::columns` + `reading_order` — gutters, XY-cut with pre-masking | 3.2, 3.3, 3.4 + 7 |
-| 3.4 | `oc-layout::continuity` — the column hypothesis checked against the next page, withdrawn if a narrower one reads better | 3.5 + 7 |
+First step for Phase 4: read `docs/IMPLEMENTATION_PLAN.md` PHASE 4 and the sections of
+`docs/PIPELINE.md` §8 that cover the part being built, then take the first work item with the TDD loop.
 
-**Next: paragraph reconstruction** (plan Phase 3 detail 4, PIPELINE §7, tests 3.6 and 3.7). The
-book-level convention by mode, line grouping by leading, paragraph start by indent, paragraph end by the
-short last line (`paragraph.line_unwrap_factor`), and merging across column and page boundaries. Note
-that `Line::indent_pt`/`right_gap_pt` are still measured against the whole page by `text`; PIPELINE §7
-wants them against **the block's dominant edges**, and `blocks` is where that should be recomputed.
+Phase 4 is headings, outline/TOC matching, book structure, lists, footnotes, captions, quotes and verse,
+tables, images and metadata — everything that turns ordered paragraphs into a document tree. It is
+**Conserving throughout**: this stage assigns meaning and never deletes text.
 
-Then, in order: dehyphenation tiers (3.8, 3.10, 3.11, 3.17), the German compound acceptor and the `f06`
-hyphenation fixture (3.9), the classifier and its holdout (3.12), image anchoring, the metamorphic page
-permutation test (3.14), and the dump/snapshot pair (3.15, 3.16).
+**What Phase 3 hands it**, in the order it will be wanted:
 
-**Fixture numbers spent in this phase so far:** `h22_false_gutter` (the plan names `h13`, which Phase 1
-spent on the outline walk). `f02_two_column` was rewritten — it had never had two columns; see
-`docs/DECISIONS_LOG.md`. Taken: **f01–f05**, **h01–h22**. Next free: **f06**, **h23**. The plan's other
-collisions are unchanged: `f06_hyphenation_de` for the plan's `f04`, `f07_verse_and_quote` for its `f05`,
-and Phase 4's `f06`–`f08` shifting to `f08`–`f10`. `h22` was also PROGRESS's suggested replacement for
-test 4.10's `h16`; that one now needs **h23**.
+1. **`Para` is deliberately half a type.** `oc_model::layout::Para` carries id, blocks, lines, text,
+   `first_line_indent` and pages. IR_SKETCH also gives it `spans`, `align`, `lang`, `drop_cap` and
+   `confidence`; those are `structure`'s to fill and were left out rather than shipped always-empty.
+   `oc_model::confidence::{Confidence, Method, Signal}` already exists — dehyphenation uses it — so the
+   pattern for recording *how* a decision was reached is set.
+2. **Drop caps are detected but not attached.** `oc_layout::anchor::drop_caps` returns them per page;
+   `Para::drop_cap` is where they belong once `Para` grows the field, and the `dropcap` CSS class is
+   Phase 5's.
+3. **Image anchors exist and are unpaired.** `oc_layout::anchor::Anchor` says which block an image comes
+   before. Figure-and-caption pairing is Phase 4's (PIPELINE §8.4), and the adjacency it needs is
+   already preserved.
+4. **`f07_verse_and_quote` has not been written.** The plan lists it under Phase 3's Files, but no Phase 3
+   test names it and verse is PIPELINE §8.6. Write it with the test that needs it.
+5. **Fixture numbers.** Taken: **f01–f06**, **h01–h23**. Next free: **f07**, **h24**. The plan's Phase 4
+   numbers `f06`–`f08` therefore shift to **`f08`–`f10`**, and test 4.10's `h16` — already spent twice
+   over — is **`h24`**.
 
 Still open, and cheap: CI's `test` job runs `xtask fixtures` but never `handmade-fixtures` or
 `mutations`, so a builder change that no longer reproduces the committed fixtures is not caught. A
-`--check` mode on those two tasks would close it. This phase changed the builder again (h22's page box).
+`--check` mode on those two tasks would close it. Phase 3 changed the builder again (h22's page box,
+h22 and h23 themselves).
 
 ## Notes
 
@@ -83,6 +86,8 @@ Carried forward, in the order a fresh session needs them:
   `vendor/pdfium/<triple>/`, needs `curl` and `tar` on PATH. CI runs it before `nextest`.
 - **Fixtures**: `cargo run -p xtask -- fixtures` (Typst f01–f03 into the git-ignored
   `target/fixtures/`), `-- handmade-fixtures` (h01–h15, committed), `-- mutations` (committed).
+- **Phase 3's own carry-forwards are in the "Current work item" section above.** The notes below are
+  the standing ones: how to build, what is vendored, and what earlier phases left open.
 - **Carry-forward 2 (columns) is closed.** `text` still clusters a line by baseline alone, and that is
   now deliberate: `layout` detects the columns from run coverage and splits the lines that span a gutter,
   because the split is exactly as good as the column hypothesis, and a hypothesis that can be withdrawn
@@ -92,6 +97,11 @@ Carried forward, in the order a fresh session needs them:
 - **Carry-forward 3 (a budget breach is fatal) is still open**, and still belongs to Phase 6.
 - **No stage may treat the backend's glyph order as reading order.** Measured in item 1.3: PDFium
   reorders the lines of a page under `/Rotate 90`. Reading order is Phase 3's, from geometry.
+- **Carry-forward 1 (soft vs hard hyphen) is still open, and is now less urgent.** Dehyphenation ships
+  without it: the in-document lexicon, the German capital rule and the classifier decide on evidence the
+  document carries in its text rather than on which hyphen scalar the producer wrote. Recovering the
+  distinction would still help, and still needs `lopdf` content-stream access — the same mechanism
+  `OverdrawDedup` needs.
 - **The hyphen marker is half closed (item 2.4).** Extraction now decodes PDFium's U+0002 to
   U+002D, so `C_raw` and every run text are clean. What is *not* recovered is whether the
   source wrote U+002D or U+00AD — PDFium collapses both — so D13.4's `SoftHyphen` reason fires
@@ -139,8 +149,9 @@ Carried forward, in the order a fresh session needs them:
   the widths come from the PDF's own metrics. D13.8's determinism contract therefore cannot hold
   for such documents — the substitution happens below us — so **Phase 3's layout rules should
   prefer the advance box and the origin, which are stable, wherever they have the choice.**
-- **VD-a and VD-d are closed.** VD-b, VD-c, VD-e, VD-f, VD-g still open, each with an owner
-  and a blocking phase. VD-b blocks Phase 3.
+- **VD-a, VD-b and VD-d are closed.** VD-c, VD-e, VD-f and VD-g are still open, each with an owner and a
+  blocking phase; none of them blocks Phase 4. VD-f blocks Phase 6, VD-g blocks Phase 13, and VD-c and
+  VD-e block only the optional dictionary pack (post-v1).
 - **Open for `DECISIONS.md`, from item 2.9:** which sources build the German and Turkish
   word-frequency lists. The plan names DTA plain text and Wikisource-TR as "CC0/PD"; their
   transcriptions are CC-BY-SA, which D15 does not allow in a shipped artefact. English ships
@@ -162,6 +173,65 @@ Carried forward, in the order a fresh session needs them:
 ## Blocked
 
 _(empty — Q1 resolved 2026-09-09; see `docs/DECISIONS_LOG.md`)_
+
+## Phase 3 — Definition of Done
+
+Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-13. **Two rows are partial and both are
+blocked on work outside this phase**; they are marked as such rather than counted as passes.
+
+1. **Every named test exists and passes** — all seventeen rows of the Phase 3 table (3.1–3.17), plus
+   about sixty additions. `docs/TEST_MATRIX.md` lists every one and the CI job that runs it. Three of the
+   plan's fixture numbers were already spent, so test 3.5 uses `h22_false_gutter`, test 3.7 uses
+   `h23_paragraph_across_pages` and test 3.9 uses `f06_hyphenation_de`; the test *names* are unchanged.
+2. **`cargo nextest run --workspace`** — 240 passed, 0 skipped, 0 ignored, locally. The three-OS claim
+   is CI's and is made when this branch merges; Phase 2's was cashed the same way.
+3. **clippy** `--workspace --all-targets --all-features --locked -- -D warnings` — clean.
+4. **`cargo fmt --all --check`** — clean.
+5. **`cargo deny check`** — advisories, bans, licenses, sources ok; `deny.tools.toml` ok. Both configs
+   now ban `hyphenation` (VD-b).
+6. **`cargo run -p xtask -- thresholds-lint`** — clean. **`ci-lint`** — clean: no `#[ignore]`, no
+   unnumbered `TODO`.
+7. **Acceptance criteria A3.1–A3.5.**
+   - **A3.1** (`f02`, left column before right) — `two_column_reading_order_is_left_then_right`.
+     Cashed properly only because the fixture was rewritten: it had never had two columns.
+   - **A3.2** (100 % of gold block orders on any Manhattan corpus file) — **PARTIAL.** There is no
+     corpus and no gold block order to reproduce; both arrive in Phase 7. What exists is the order
+     itself, on `f01`, `f02` and `h22`, plus `prop_single_column_order_is_monotone_in_y` over generated
+     pages and `prop_page_permutation_metamorphic` over three documents. The same shape of partial as
+     Phase 2's A2.3, and the same cause.
+   - **A3.3** (keep-hyphen recall ≥ 0.80 on the holdout, for the DE fixture) — **PARTIAL**, and split in
+     two. The recall is measured and passes — 0.912 over 239 held-out keeps
+     (`hyphen_classifier_keep_recall_on_holdout`) — but the holdout is **English**, because D15 has no
+     German source that may be redistributed and so there is no German training data. The German fixture
+     itself is checked in both directions by `dehyphenate_keeps_german_real_hyphen`, on the rule that
+     needs no lexicon. Closing this row properly needs the DE list, which is the open D15 question from
+     item 2.9.
+   - **A3.4** (layout ledger empty) — `layout_stage_is_conserving`, and
+     `layout_stage_conservation_violation_errors` for the other direction.
+   - **A3.5** (I-5: exactly one hyphen, nothing else) — `dehyphenate_i5_removes_exactly_one_hyphen`
+     (5,000 generated joins) for the operation, `check_invariants` for the ledger, and
+     `dehyphenation_is_ledgered_one_hyphen_at_a_time` end to end on `h23`.
+8. **`docs/CHANGELOG.md`** — Phase 3 entry written.
+9. **No unnumbered TODO/FIXME** — `xtask ci-lint` clean.
+
+**VD-b closed** (2026-09-13): the `hyphenation` crate ships the `hyph-utf8` pattern files with their
+licence headers stripped and disclaims them; Turkish is LPPL-1.0+ upstream and the compiled dictionaries
+fold in GPL/LGPL/MPL extended data. It is banned in both `deny` configs. v1 needs no patterns.
+
+**One file from the plan's Files list is deliberately absent:** `f05_verse_and_quote.typ` (which would be
+`f07` here). No Phase 3 test names it — verse and block quotes are PIPELINE §8.6, and their tests are
+Phase 4's. It is written when the test that needs it is.
+
+**Known gaps carried out of the phase**, each with a named cause:
+
+- `f01`'s committed `pipeline` assertion is not met. The classifier reads `pipe-line` as a real compound,
+  which it was in the nineteenth-century register its training corpus is written in. Fails in the safe
+  direction; the fix is a modern corpus (Phase 7).
+- One block of `f02` is flagged low-confidence: the cover cuts a paragraph's last line off because a line
+  with no ascenders has a shorter inked box. Over-flagging a confidence signal is the safe direction, and
+  the flag changes no segmentation.
+- A `Dehyphenate` budget is a fraction, so a document of a hundred characters breaches it on one
+  legitimate hyphen. A floor on the denominator belongs with the rest of the breach policy, in Phase 6.
 
 ## Phase 2 — Definition of Done
 
@@ -306,3 +376,9 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-13  P3.2      oc-layout blocks: Docstrum + whitespace cover + layout stage (3.1, 3.13 + 6) 36874a1
 2026-09-13  P3.3      oc-layout columns + reading order; f02 rewritten (3.2-3.4 + 7)               adb50d9
 2026-09-13  P3.4      oc-layout continuity + h22; the retry compares hypotheses (3.5 + 7)          7fa85aa
+2026-09-13  P3.5      oc-layout paragraphs: convention, unwrap factor, cross-page merge (3.6 + 8)  0ad7b6a
+2026-09-13  P3.6      oc-text dehyphen tiers + paragraphs stage + I-5 + h23 (3.7/3.8/3.10/3.11/3.17) 7979668
+2026-09-13  P3.7      oc-text compound_de + f06; the capital after the hyphen (3.9 + 8)            f417036
+2026-09-13  P3.8      oc-text classifier + hyphen_clf.py + holdout; keep-recall 0.912 (3.12 + 6)   650a3e6
+2026-09-13  P3.9      openconvert dump_layout + anchor + drop caps; the cover fixed (3.14-3.16 + 12) 0dfd45c
+2026-09-13  PHASE 3   COMPLETE - Definition of Done checked; A3.2 and A3.3 partial, both named
