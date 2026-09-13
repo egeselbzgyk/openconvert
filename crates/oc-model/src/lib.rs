@@ -13,9 +13,11 @@
 pub const IR_VERSION: u32 = 1;
 
 pub mod canonical;
+pub mod confidence;
 pub mod extract;
 pub mod geom;
 pub mod ids;
 pub mod lang;
+pub mod layout;
 pub mod ledger;
 pub mod text;

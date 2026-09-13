@@ -10,7 +10,12 @@
 //! `0.3 × 7 = 2.1` it does not belong, against `0.3 × 12 = 3.6` it does, and it does.
 //!
 //! Columns are not this stage's business. Two columns printed at the same height cluster into
-//! one line here, and `layout` splits them in Phase 3 — the order is deliberate (R2 §D.3).
+//! one line here, and `layout` splits them in Phase 3, at the gutters it has detected — the
+//! order is deliberate (R2 §D.3), and splitting here instead would mean guessing at a gutter
+//! from inside a stage that cannot see the page's projection. What this stage does do is
+//! refuse to put two columns in one *run*: `words` breaks a run at any gap wider than
+//! `text.line_split_gap_em`, so the run boxes `layout` projects are column-safe even while
+//! the lines built from them are not.
 
 use oc_core::thresholds::Thresholds;
 use oc_model::geom::Rect;

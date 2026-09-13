@@ -238,6 +238,13 @@ evidence = "R2 §B.3 / R10 §6.2 / PIPELINE §4 step 1: cluster glyphs by baseli
 owner = "maintainer"
 review_by = "2028-01-01"
 
+[text.line_split_gap_em]
+value = 1.2
+source = "provisional"
+evidence = "A horizontal gap this wide, in ems of the glyph before it, is not a word space: it is two columns, or two table cells, and a *run* is broken there. Not a line: where the columns are is `layout`'s to say, from the x-projection of these run boxes, and the lines are split at the gutters that projection finds. What this number buys is that the boxes being projected do not themselves span a gutter. A word space is 0.25-0.33 em by design and justification stretches it to at most about 1 em before a typesetter rebreaks the line; a column gutter is 2 em or more (Typst's default is 4 % of the measure, which is 2.0 em on f02; book practice is a pica or wider, 1.2 em at 10 pt). The floor is set at the narrow end of gutter practice rather than the wide end of word spacing, because merging two columns interleaves two arguments while splitting a wide space costs a line boundary that `paragraphs` puts back."
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [text.superscript_size_ratio_max]
 value = 0.80
 source = "published"
@@ -350,6 +357,62 @@ evidence = "R2 §B.3"
 owner = "maintainer"
 review_by = "2028-01-01"
 
+[layout.columns.gutter_min_width_em]
+value = 0.5
+source = "provisional"
+evidence = "PIPELINE §6 step 2 asks for a gutter at least 1.5 x the modal word space. The modal word space is a `text`-stage quantity measured over glyph advances and is not carried on a `Line`, so the bar is expressed in ems, estimated as the page's median line-box height: a word space is 0.25-0.33 em in most book faces, so 1.5 of them is 0.4-0.5 em, and the higher end is taken because a false gutter interleaves two columns while a missed one only costs the column split. Revisit when the word-space statistic is carried forward."
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.columns.gutter_emptiness_min]
+value = 0.98
+source = "provisional"
+evidence = "PIPELINE §6 step 2, marked provisional there. The fraction of a candidate gutter that must be free of ink within the vertical span that qualifies it. Not 1.0, so that a descender or a single crossing rule does not destroy a gutter that is otherwise clean for the height of the page."
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.columns.gutter_height_share_min]
+value = 0.6
+source = "provisional"
+evidence = "PIPELINE §6 step 2, marked provisional there. How much of the text height the qualifying span must cover. Below the whole height on purpose: a full-width floating title crosses the gutter near the top of the page, and a criterion measured over the whole height would lose the gutter to it - which is the very configuration pre-masking exists for."
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.columns.continuity_break_max]
+value = 0.30
+source = "provisional"
+evidence = "PIPELINE §6 step 4, marked provisional there: if the text fails to run on across more than this share of page boundaries, the column hypothesis is suspect and the page set is laid out again with one column fewer. A rate, never a single boundary - most pages of a novel end mid-sentence, but a chapter end does not, and a document of four pages has three samples."
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.columns.max_column_retries]
+value = 2
+source = "provisional"
+evidence = "PIPELINE §6 step 4: 'Bounded to two retries, then accept and warn.' The bound matters more than the number - a search that keeps narrowing eventually reaches one column, which reads every page top to bottom and is never wrong-looking enough to stop itself."
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.block.agreement_iou_min]
+value = 0.8
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 3 detail 1: block-boundary IoU < 0.8 between Docstrum and the whitespace cover flags the block low-confidence. The number is the plan's, not a published one; it is a disagreement alarm rather than a decision, so it is cheap to move once the Phase 7 corpus says how often it fires per producer stratum."
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.block.separator_height_ratio]
+value = 0.5
+source = "provisional"
+evidence = "A maximal white rectangle separates two lines only if it is at least this fraction of the page's median line height thick. The band between two lines of one paragraph is the leading minus the line height - a couple of points at book settings - while a paragraph or heading break is half a line or more. Measured against the *obstacle* sizes, deliberately: Docstrum already reads the distance distribution, and a cross-check that read the same statistic would not be one. Matches pdfminer's line_margin of 0.5 x line height in magnitude (R2 §B.6) without being the same measurement."
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[dehyphen.classifier_margin_min]
+value = 0.25
+source = "provisional"
+evidence = "How far from zero the classifier's log-odds have to be before its verdict is used at all. A quarter of a logit is a probability between 0.44 and 0.56 - a coin toss - and a coin toss keeps the hyphen, because a spurious hyphen is visible and a wrong join is silent (PIPELINE §7, RT C4). The number trades join-recall for keep-recall at the margin only; the shipped model's holdout keep-recall is measured through this rule rather than on the raw sign."
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [paragraph.line_margin]
 value = 0.5
 source = "published"
@@ -365,9 +428,23 @@ owner = "maintainer"
 review_by = "2028-01-01"
 
 [paragraph.line_unwrap_factor]
-value = 0.4
+value = 0.45
 source = "published"
-evidence = "R10 §6.4: Calibre line-unwrap-factor default 0.4"
+evidence = "PIPELINE §7 step 4: Calibre's `pdf_input` unwrap_factor, the PDF-path value and the anchored default here. R10 §6.4's 0.4 is the generic HTML path's; IMPLEMENTATION_PLAN Phase 3 detail 4 quotes that one, and PIPELINE outranks it (docs/DECISIONS_LOG.md 2026-09-13). A line reaching less than this share of its block's measure ended its paragraph."
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[paragraph.indent_convention_min_share]
+value = 0.05
+source = "provisional"
+evidence = "The share of a book's lines that have to be indented before the book is read as using first-line indentation. A book that indents averages one indented line per paragraph over four to eight lines of paragraph, so 0.12-0.25; a book that separates paragraphs with space indents almost nothing, and what it does indent - block quotes, verse - is well under 0.05. The gap between the two populations is an order of magnitude, which is why the exact figure does not matter much; what matters is that the decision is made once over the whole book, because a book is internally consistent and a page is not enough evidence (PIPELINE §7 step 1, R1 §C.4 #3)."
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[paragraph.extra_leading_ratio]
+value = 1.5
+source = "published"
+evidence = "PIPELINE §7 step 2: same paragraph while the baseline gap is no more than 1.5 x the modal leading. Equivalently pdfminer's line_margin of 0.5 x line height measured as a gap rather than as a step (R2 §B.6), which is where `paragraph.line_margin` comes from; this is the same rule stated in the units the grouping code works in."
 owner = "maintainer"
 review_by = "2028-01-01"
 

@@ -98,6 +98,15 @@ impl BlockId {
 /// id is more useful in a bug report than a panic in the middle of a conversion.
 const MALFORMED_ID: &str = "!MALFORMED";
 
+/// Serialised as the base32 text, never as the ten raw bytes: a block id appears in JSON,
+/// in XHTML `id` attributes and in `overrides.json` keys, and those three have to agree
+/// character for character.
+impl serde::Serialize for BlockId {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
 impl core::fmt::Debug for BlockId {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "BlockId({})", self.as_str())

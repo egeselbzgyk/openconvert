@@ -63,6 +63,9 @@ deny = [
   { name = "openssl-sys", reason = "use rustls; no system OpenSSL anywhere in this repository" },
   { name = "reqwest", wrappers = [] },
   { name = "hyper", wrappers = [] },
+  # VD-b (closed 2026-09-13): the pattern data this crate redistributes is a repository-level
+  # licence obligation, so it is banned for the tooling tree too. See docs/DECISIONS_LOG.md.
+  { name = "hyphenation", wrappers = [], reason = "bundles hyph-utf8 patterns whose own licences are neither declared nor on D15's allow-list" },
 ]
 
 [advisories]

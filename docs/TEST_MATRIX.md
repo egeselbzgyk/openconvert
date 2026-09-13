@@ -4,6 +4,8 @@ Every test added by the project, the crate it lives in, and the CI job that runs
 Required by the Phase 0 First Milestone (item 6) and by the Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3 item 7).
 
 A row numbered `N.Na` is an addition to the plan's table, with its reason in `docs/DECISIONS_LOG.md`.
+Rows 3.18 and 3.19 are whole steps of PIPELINE §6 (image anchoring, drop caps) that the plan's Phase 3
+table does not name a test for; they are numbered past the table rather than squeezed into it.
 
 `Status`: `written` = the test exists and is RED · `green` = it exists and passes · `—` = not yet written.
 A test is never `#[ignore]`d; a test that cannot run everywhere is gated behind a cargo feature and the
@@ -199,3 +201,98 @@ replaced by the phase that owns it.
 | 2.20b | `lang::a_short_block_is_never_tagged` | `oc-text` | unit | `test` | green |
 | 2.20c | `lang::a_block_in_the_documents_own_language_gets_no_attribute` | `oc-text` | unit | `test` | green |
 | 2.21 | `dump_text::dump_stage_text_snapshot_f01` | `openconvert` | snapshot | `test` | green |
+
+**Fixture numbers.** The plan's Phase 3 fixture names collide with numbers earlier phases spent, so
+`f04_hyphenation_de` is **`f06_hyphenation_de`**, test 3.5's `h13` is **`h22_false_gutter`**, and test
+3.7's fixture is **`h23_paragraph_across_pages`** (the plan names `f01`, whose hyphenated break is
+within a page rather than across one). The test *name* is the contract; the fixture number is
+indicative (PROGRESS.md).
+
+## Phase 3
+
+| # | Test | Crate | Kind | CI job | Status |
+|---|---|---|---|---|---|
+| 3.1 | `layout::blocks_docstrum_and_whitespace_agree_on_f01` | `openconvert` | fixture (f01) | `test` | green |
+| 3.1a | `blocks::blank_line_separates_two_blocks` | `oc-layout` | unit | `test` | green |
+| 3.1b | `blocks::a_gutter_is_not_crossed_by_a_block` | `oc-layout` | unit | `test` | green |
+| 3.1c | `blocks::a_single_line_page_is_one_block` | `oc-layout` | unit | `test` | green |
+| 3.1d | `blocks::disagreement_flags_the_block_low_confidence` | `oc-layout` | unit | `test` | green |
+| 3.1e | `blocks::every_block_gets_its_own_id` | `oc-layout` | unit | `test` | green |
+| 3.2 | `layout::two_column_reading_order_is_left_then_right` | `openconvert` | fixture (f02) | `test` | green |
+| 3.3 | `layout::floating_title_is_premasked_not_split` | `openconvert` | fixture (f02) | `test` | green |
+| 3.4 | `reading_order::prop_single_column_order_is_monotone_in_y` | `oc-layout` | property | `test` | green |
+| 3.4a | `reading_order::a_two_column_page_is_read_down_then_across` | `oc-layout` | unit | `test` | green |
+| 3.4b | `reading_order::a_masked_block_with_nothing_below_it_goes_last` | `oc-layout` | unit | `test` | green |
+| 3.2a | `columns::a_wide_valley_between_two_bodies_of_text_is_a_gutter` | `oc-layout` | unit | `test` | green |
+| 3.2b | `columns::the_blank_half_of_a_short_column_is_not_a_gutter` | `oc-layout` | unit | `test` | green |
+| 3.2c | `columns::a_single_column_page_has_no_gutter` | `oc-layout` | unit | `test` | green |
+| 3.3a | `columns::a_crossing_title_does_not_destroy_the_gutter` | `oc-layout` | unit | `test` | green |
+| 3.3b | `columns::a_block_that_crosses_the_gutter_is_marked_a_floating_title` | `oc-layout` | unit | `test` | green |
+| 3.5 | `layout::cross_page_continuity_downgrades_column_count` | `openconvert` | fixture (h22) | `test` | green |
+| 3.5a | `layout::the_false_gutter_is_found_before_continuity_rejects_it` | `openconvert` | fixture (h22) | `test` | green |
+| 3.5b | `continuity::a_sentence_that_crosses_a_page_boundary_is_continuous` | `oc-layout` | unit | `test` | green |
+| 3.5c | `continuity::a_page_that_ends_its_sentence_is_not_evidence_of_continuity` | `oc-layout` | unit | `test` | green |
+| 3.5d | `continuity::an_uppercase_start_breaks_continuity_even_without_punctuation` | `oc-layout` | unit | `test` | green |
+| 3.5e | `continuity::a_single_page_has_no_boundary_to_measure` | `oc-layout` | unit | `test` | green |
+| 3.5f | `continuity::a_blank_page_is_skipped_not_counted_as_a_break` | `oc-layout` | unit | `test` | green |
+| 3.5g | `columns::a_capped_page_reports_one_column` | `oc-layout` | unit | `test` | green |
+| 3.6 | `layout::paragraph_convention_indent_detected` | `openconvert` | fixture (f01) | `test` | green |
+| 3.6a | `paragraphs::an_indent_starts_a_paragraph_when_nothing_else_marks_one` | `oc-layout` | unit | `test` | green |
+| 3.6b | `paragraphs::a_short_line_ends_its_paragraph` | `oc-layout` | unit | `test` | green |
+| 3.6c | `paragraphs::a_nearly_full_line_does_not_end_a_paragraph` | `oc-layout` | unit | `test` | green |
+| 3.6d | `paragraphs::a_paragraph_merges_across_a_page_break` | `oc-layout` | unit | `test` | green |
+| 3.6e | `paragraphs::a_finished_sentence_does_not_merge_across_a_page_break` | `oc-layout` | unit | `test` | green |
+| 3.6f | `paragraphs::a_hyphen_at_a_page_break_merges_the_paragraph` | `oc-layout` | unit | `test` | green |
+| 3.6g | `paragraphs::joining_lines_does_not_resolve_a_hyphen` | `oc-layout` | unit | `test` | green |
+| 3.6h | `paragraphs::every_paragraph_gets_its_own_id` | `oc-layout` | unit | `test` | green |
+| 3.7 | `layout::paragraph_merges_across_page_break` | `openconvert` | fixture (h23) | `test` | green |
+| 3.7a | `layout::dehyphenation_is_ledgered_one_hyphen_at_a_time` | `openconvert` | fixture (h23) | `test` | green |
+| 3.7b | `layout::the_lexicon_is_built_from_the_document` | `openconvert` | fixture (h23) | `test` | green |
+| 3.8 | `dehyphen::dehyphenate_joins_when_indoc_evidence` | `oc-text` | unit | `test` | green |
+| 3.8a | `dehyphen::dehyphenate_keeps_when_the_document_spells_it_with_a_hyphen` | `oc-text` | unit | `test` | green |
+| 3.8b | `dehyphen::a_document_that_spells_it_both_ways_decides_nothing` | `oc-text` | unit | `test` | green |
+| 3.8c | `lexicon::the_documents_own_words_answer_for_it` | `oc-text` | unit | `test` | green |
+| 3.8d | `lexicon::a_hyphenated_word_is_held_whole` | `oc-text` | unit | `test` | green |
+| 3.8e | `lexicon::a_line_break_is_not_a_word` | `oc-text` | unit | `test` | green |
+| 3.8f | `lexicon::punctuation_is_stripped_from_the_ends_of_words` | `oc-text` | unit | `test` | green |
+| 3.8g | `lexicon::folding_is_the_documents_own` | `oc-text` | unit | `test` | green |
+| 3.10 | `dehyphen::dehyphenate_fails_closed_on_unknown` | `oc-text` | unit | `test` | green |
+| 3.10a | `dehyphen::an_uppercase_continuation_is_not_a_candidate_in_english` | `oc-text` | unit | `test` | green |
+| 3.10b | `dehyphen::an_uppercase_continuation_is_still_a_candidate_in_german` | `oc-text` | unit | `test` | green |
+| 3.10c | `dehyphen::a_number_range_is_never_joined` | `oc-text` | unit | `test` | green |
+| 3.10d | `dehyphen::a_line_without_a_hyphen_is_not_a_candidate` | `oc-text` | unit | `test` | green |
+| 3.10e | `dehyphen::a_non_breaking_hyphen_is_not_a_line_break` | `oc-text` | unit | `test` | green |
+| 3.10f | `dehyphen::two_attested_halves_that_also_form_a_word_go_to_the_classifier` | `oc-text` | unit | `test` | green |
+| 3.11 | `dehyphen::dehyphenate_i5_removes_exactly_one_hyphen` | `oc-text` | property | `test` | green |
+| 3.17 | `dehyphen::turkish_agglutinative_join_prefers_keep` | `oc-text` | unit | `test` | green |
+| 3.9 | `layout::dehyphenate_keeps_german_real_hyphen` | `openconvert` | fixture (f06) | `test` | green |
+| 3.9a | `layout::the_german_fixture_removes_exactly_one_hyphen` | `openconvert` | fixture (f06) | `test` | green |
+| 3.9b | `compound_de::an_uppercase_continuation_is_a_real_hyphen` | `oc-text` | unit | `test` | green |
+| 3.9c | `compound_de::a_lowercase_continuation_is_a_broken_word` | `oc-text` | unit | `test` | green |
+| 3.9d | `compound_de::a_compound_of_two_attested_words_is_accepted` | `oc-text` | unit | `test` | green |
+| 3.9e | `compound_de::a_linking_morpheme_at_the_seam_is_allowed` | `oc-text` | unit | `test` | green |
+| 3.9f | `compound_de::the_longest_linking_morpheme_wins` | `oc-text` | unit | `test` | green |
+| 3.9g | `compound_de::a_word_with_no_attested_parts_is_not_a_compound` | `oc-text` | unit | `test` | green |
+| 3.9h | `compound_de::a_two_letter_part_is_not_a_compound_seam` | `oc-text` | unit | `test` | green |
+| 3.12 | `hyphen_holdout::hyphen_classifier_keep_recall_on_holdout` | `oc-text` | golden-decision | `test` | green |
+| 3.12a | `hyphen_holdout::the_training_manifest_matches_the_committed_model` | `oc-text` | unit | `test` | green |
+| 3.12b | `classifier::the_shipped_model_is_readable` | `oc-text` | unit | `test` | green |
+| 3.12c | `classifier::the_hash_is_the_one_the_trainer_uses` | `oc-text` | unit | `test` | green |
+| 3.12d | `classifier::the_feature_set_matches_the_trainer` | `oc-text` | unit | `test` | green |
+| 3.12e | `classifier::a_low_margin_is_undecided_and_therefore_keeps` | `oc-text` | unit | `test` | green |
+| 3.10g | `dehyphen::an_unattested_pair_the_model_is_sure_about_is_decided` | `oc-text` | unit | `test` | green |
+| 3.14 | `layout_metamorphic::prop_page_permutation_metamorphic` | `openconvert` | metamorphic | `test` | green |
+| 3.15 | `dump_layout::dump_stage_layout_snapshot_f02` | `openconvert` | snapshot | `test` | green |
+| 3.15a | `dump_layout::dump_stage_layout_header_f02` | `openconvert` | snapshot | `test` | green |
+| 3.16 | `dump_layout::digest_f01_layout` | `openconvert` | digest snapshot | `test` | green |
+| 3.16a | `dump_layout::digest_h22_layout` | `openconvert` | digest snapshot | `test` | green |
+| 3.18 | `layout::an_image_only_page_keeps_its_image_in_the_flow` | `openconvert` | fixture (f03) | `test` | green |
+| 3.18a | `anchor::an_image_is_anchored_before_the_block_below_it` | `oc-layout` | unit | `test` | green |
+| 3.18b | `anchor::an_image_below_everything_goes_last` | `oc-layout` | unit | `test` | green |
+| 3.18c | `anchor::an_image_on_a_page_with_no_text_is_still_anchored` | `oc-layout` | unit | `test` | green |
+| 3.18d | `anchor::two_images_at_one_anchor_keep_their_order` | `oc-layout` | unit | `test` | green |
+| 3.19 | `anchor::a_large_single_glyph_beside_text_is_a_drop_cap` | `oc-layout` | unit | `test` | green |
+| 3.19a | `anchor::a_lone_large_glyph_is_not_a_drop_cap` | `oc-layout` | unit | `test` | green |
+| 3.19b | `anchor::a_body_sized_single_glyph_is_not_a_drop_cap` | `oc-layout` | unit | `test` | green |
+| 3.13 | `layout::layout_stage_is_conserving` | `openconvert` | fixture (f01) | `test` | green |
+| 3.13a | `layout::layout_stage_conservation_violation_errors` | `openconvert` | unit | `test` | green |

@@ -348,10 +348,13 @@ fn typst_fixtures_are_reproducible() {
 
     let root = workspace_root_for_test();
     let sources = source_paths(&root).expect("the fixture sources are readable");
-    assert_eq!(
-        sources.len(),
-        5,
-        "expected f01-f05 in {SOURCE_DIR}, found {sources:?}"
+    // Every Typst fixture the repository has, whatever the count is today: the test's
+    // subject is that compiling one twice gives the same bytes, and a hard-coded count turns
+    // "a phase added a fixture" into a failure that says nothing about reproducibility.
+    // The floor is what Phase 0 shipped, so an empty or missing directory still fails.
+    assert!(
+        sources.len() >= 5,
+        "expected at least f01-f05 in {SOURCE_DIR}, found {sources:?}"
     );
 
     for source in &sources {

@@ -31,6 +31,10 @@ fn read(relative: &str) -> Vec<PageInput> {
     (0..document.page_count())
         .map(|index| PageInput {
             page: PageRef::new(index),
+            width_pt: document
+                .page_geometry(index)
+                .expect("the page has geometry")
+                .width_pt(),
             height_pt: document
                 .page_geometry(index)
                 .expect("the page has geometry")
@@ -39,6 +43,7 @@ fn read(relative: &str) -> Vec<PageInput> {
                 .page_glyphs(index)
                 .expect("the page extracts")
                 .glyphs,
+            images: document.page_images(index).unwrap_or_default(),
         })
         .collect()
 }

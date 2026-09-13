@@ -380,3 +380,107 @@ rows of the Phase 2 table are green, plus about forty additions.
   orchestrator cannot live in `oc-core`, which owns `thresholds` and is therefore a dependency
   of every stage crate.
 - New: `dump-stage text`.
+
+## Phase 3 — Layout
+
+The document stops being a page of boxes and becomes an ordered sequence of paragraphs.
+Blocks, columns, reading order, paragraph reconstruction and dehyphenation. All seventeen rows
+of the Phase 3 table are green, plus about sixty additions. VD-b is closed.
+
+### Blocks, cross-checked (`oc-layout::blocks`)
+
+- New: `segment_blocks` — Docstrum's between-line rule as the primary segmenter, Breuel's
+  maximal-white-rectangle cover as an independent second reading, and a per-block IoU between
+  the two. Disagreement below `layout.block.agreement_iou_min` flags the block; Docstrum's
+  answer stands either way.
+- New in `oc-model`: `Block`, `BlockKindHint`, and `Serialize` for `BlockId`. Block identity
+  is minted here and is the document's from now on (D13.3).
+- **Corrected:** the between-line vector is measured between line *boxes*, not centroids. A
+  paragraph's short last line has its centroid far to the left of the line above it, and the
+  centroid reading cut it into a block of its own on every paragraph of `f01` — best IoU
+  0.038, which is exactly what the cross-check is for. Docstrum's neighbours are characters,
+  and a centroid is a property of a line.
+- **Three faults in the cover**, all found by dumping it: the forty-rectangle budget was being
+  spent on rectangles that separate nothing, so the search now runs per column; a result is
+  grown to maximality and kept only if it reaches both edges of its region; and two columns
+  are separated by the page's column hypothesis rather than by a rectangle neither column's
+  search could hold. Ten flags on `f02` fell to one, and the one that remains has a named
+  cause in `docs/DECISIONS_LOG.md`.
+
+### Columns and reading order (`oc-layout::columns`, `::reading_order`)
+
+- New: `detect_columns` over the x-projection of run coverage, with the condition PIPELINE
+  leaves implicit — **a valley is a gutter only if there is text on both sides of it** within
+  the vertical span that qualified it. Without it the blank lower half of a short column is a
+  252 pt gutter, which is what `f02` reported.
+- New: `reading_order` — recursive XY-cut with pre-masking, the split direction from the
+  region's own valleys, and masked elements put back before the first block they sit above
+  and share a column with. No learned model, and the evidence says there should not be one:
+  XY-Cut++ 0.988 BLEU-4 against LayoutReader's 0.788, and 100 % against 96.0 % on the
+  Manhattan layouts a book is made of (R2 §B.2).
+- **Decided:** columns are detected *before* segmentation, from run boxes rather than block
+  boxes, because PIPELINE §6 step 2 projects glyph coverage and because a column hypothesis
+  that can be withdrawn has to be able to withdraw the line splits it implied.
+
+### Cross-page continuity (`oc-layout::continuity`)
+
+- New: the check R10 §6.5 calls the highest-value deterministic signal in the pipeline. A
+  wrong column count reorders a page and a reordered page stops flowing into the next, so the
+  document is laid out, the break rate measured, and laid out again with one column fewer.
+- **Decided:** the re-run has to read *better*. `f02` is a genuine two-column document whose
+  single page boundary falls at the end of a sentence; the literal rule downgrades it on that
+  one sample and interleaves the page test 3.2 exists to protect.
+
+### Paragraphs (`oc-layout::paragraphs`)
+
+- New: the book-level convention by mode, line grouping by leading, the short-last-line cue,
+  and the merge across column and page boundaries. New in `oc-model`: `Para`,
+  `ParagraphConvention`.
+- New stage `paragraphs`, Budgeted over `Dehyphenate` and nothing else, and **I-5 is now
+  checked in the ledger**: an entry under that reason is exactly one U+002D or U+2010 leaving,
+  never an addition, never two characters.
+- **Corrected:** `paragraph.line_unwrap_factor` 0.4 → 0.45. PIPELINE names 0.45 as the PDF
+  path's value and 0.4 as the generic HTML one, and PIPELINE outranks the plan.
+
+### Dehyphenation (`oc-text::dehyphen`, `::compound_de`)
+
+- New: the four tiers in PIPELINE's order, with the in-document lexicon first among the
+  evidence — a book about pipelines contains the word `pipeline`, and its own vocabulary costs
+  nothing and beats any dictionary. Fail closed throughout: nothing decided means keep.
+- New: the German rules. An upper-case continuation means the hyphen is real — German
+  capitalises a noun at its first letter and nowhere else — and that keeps `Nord-Süd-Achse`
+  whole without consulting anything. The Fugenlaut-aware compound acceptor takes an
+  attestation predicate rather than a word list, because D15's German list does not exist yet
+  and the document's own vocabulary does.
+- New: the tiny classifier — 8,192 hashed character features, FNV-1a, 32 KB of float32,
+  trained by `eval/src/oc_eval/train/hyphen_clf.py` from the same twelve CC0 Standard Ebooks
+  the word list comes from, and committed with its training manifest and its holdout.
+  **Holdout keep-recall 0.912, join-recall 0.930**, against R2 §B.7's 85.8 % for this kind of
+  model and 31.7 % for the dictionary-only baseline it replaces.
+- **Measured, and honest about it:** `f01`'s `pipeline` is *not* rejoined. The classifier reads
+  `pipe-line` as a real compound, which it was in the nineteenth-century register the training
+  corpus is written in. It fails in the safe direction — a visible hyphen rather than a
+  corrupted word — and the fix is a corpus with a modern register, which is Phase 7's.
+
+### Anchoring, drop caps, and the dump (`oc-layout::anchor`, `openconvert::dump_layout`)
+
+- New: images anchored before the first block below them, and nothing dropped — an image on a
+  page with no text at all still reaches the flow.
+- New: drop-cap detection. A single oversized glyph *with text beside it*; a lone one is a
+  display initial on a title page.
+- New: `dump-stage layout`, which writes what the stage decided rather than what it measured —
+  including the per-block disagreement and the column retries, which are what a wrong
+  conversion is diagnosed from.
+
+### Fixtures and supply chain
+
+- **`f02_two_column` rewritten.** It had never had two columns: its page was tall enough to
+  hold every line in the first one, so every "two column" assertion over it passed vacuously.
+- New: `h22_false_gutter` (five pages with a valley that is not a gutter) and
+  `h23_paragraph_across_pages` (a paragraph and a word broken at the same page break), and
+  `f06_hyphenation_de`.
+- **VD-b closed: `hyphenation` is banned, not depended on.** The crate ships the `hyph-utf8`
+  pattern files with their licence headers stripped and disclaims them in its own README;
+  upstream, Turkish is LPPL-1.0+ and `en-us` carries a bespoke non-SPDX notice, and the
+  compiled dictionaries fold in GPL/LGPL/MPL extended data. None of that is visible to a
+  licence scanner, so the ban is where it is enforced.

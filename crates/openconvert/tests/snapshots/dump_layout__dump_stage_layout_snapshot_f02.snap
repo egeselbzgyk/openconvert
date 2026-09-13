@@ -1,0 +1,18 @@
+---
+source: crates/openconvert/tests/dump_layout.rs
+expression: "format!(\"columns {columns:?}\\ngutters {}\\n{}\", page.gutters.len(),\nrows.join(\"\\n\"))"
+---
+columns ["[57,291]", "[307,543]"]
+gutters 1
+#0 col=0 FloatingTitle iou=1.00 low=false [178,56,417,67] On the Measurement of Columns
+#1 col=0 Text iou=1.00 low=false [57,80,133,90] Introduction
+#2 col=0 Text iou=1.00 low=false [57,96,290,165] Column detection is the first stage at which a g
+#3 col=0 Text iou=1.00 low=false [57,174,290,255] A column is not a property of the page descripti
+#4 col=0 Text iou=1.00 low=false [57,263,290,344] The gutter of this page is the widest vertical b
+#5 col=0 Text iou=1.00 low=false [57,353,290,444] The floating title is the interesting complicati
+#6 col=0 Text iou=1.00 low=false [57,459,103,469] Method
+#7 col=0 Text iou=0.82 low=false [57,475,290,542] The left column continues for long enough that t
+#8 col=0 Text iou=1.00 low=false [57,553,292,645] Reading order is then a recursive cut. The page 
+#9 col=1 Text iou=1.00 low=false [308,80,351,90] Results
+#10 col=1 Text iou=0.73 low=true [307,96,541,141] The right column begins here and continues to th
+#11 col=1 Text iou=0.83 low=false [307,150,543,231] A wrong one is not subtly wrong. It reads the fi

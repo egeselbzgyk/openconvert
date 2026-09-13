@@ -1698,3 +1698,388 @@ operating systems while `bbox` does not.
 
 Evidence: run 34757445462 on `main`, job `test (ubuntu-latest)`.
 Affects: `crates/oc-pdf/src/dump.rs` and its snapshot, D13.8, Phase 3 layout rules.
+
+## 2026-09-13 · VD-b closed: the `hyphenation` crate's patterns are not ours to redistribute · Phase 3
+Context: VD-b blocks Phase 3. The crate's own licence (Apache-2.0 OR MIT) was already confirmed; what was
+open is the licence of the `hyph-utf8` **pattern files** it bundles, and whether DE, TR and EN patterns
+are present at all. `hyphenation = { version = "0.8" }` has sat in the workspace dependency table since
+§1.2 of the plan, unused by any crate.
+
+Decision: **do not depend on `hyphenation`.** It is removed from the workspace dependency table and
+added to the `deny` list in both `deny.toml` and `deny.tools.toml`, with the reason inline. v1 needs no
+Knuth-Liang patterns: PIPELINE §7 dehyphenates with four deterministic tiers plus the committed
+classifier, and hyphenating *for* the reader is the reading system's job in a reflowable EPUB, never
+ours. If a later phase ever wants patterns, take `hyph-de-1996` and `hyph-en-gb` from the upstream master
+files with their headers intact; Turkish and `en-us` need their own decision first.
+
+Evidence: `hyphenation 0.8.4` (`static.crates.io`, sha256
+`bcf4dd4c44ae85155502a52c48739c8a48185d1449fff1963cffee63c28a50f0`, matching the crates.io index
+`cksum`), unpacked and read 2026-09-13.
+
+1. **The languages are present.** `dictionaries/` carries `de-1901`, `de-1996`, `de-ch-1901`, `en-gb`,
+   `en-us` and `tr`, all `.standard.bincode`, alongside 70-odd others; `patterns/` carries the
+   corresponding `.pat.txt` sources. So the "are they there" half of VD-b answers yes.
+2. **The crate ships them stripped of their licence headers.** Every `patterns/*.txt` file in the crate
+   begins with its first pattern — `grep -li 'licen|copyright' patterns/*.txt` matches exactly two files,
+   `hyph-ca.ext.lic.txt` and `hyph-hu.ext.lic.txt`, which are standalone licence texts for the *extended*
+   Catalan and Hungarian patterns. The upstream masters all carry a `% licence:` block; these copies do
+   not.
+3. **The crate disclaims them in its own README** (§License): "`hyph-utf8` hyphenation patterns © their
+   respective owners; see their master files for licensing information." The dual-permissive field on
+   crates.io covers the Rust code and says nothing about the data — which is exactly why a licence
+   scanner cannot catch this and why the ban, not the allow-list, is where it is enforced.
+4. **Upstream, the three languages do not answer the same way** (`hyphenation/tex-hyphen` at
+   `49706f9`, `hyph-utf8/tex/generic/hyph-utf8/patterns/tex/`):
+   - `hyph-de-1996.tex` — **MIT**, © 2013–2018 Deutschsprachige Trennmustermannschaft. On D15's list.
+   - `hyph-en-gb.tex` — **MIT**, © 1992–2016 Wujastyk & Toal. On D15's list.
+   - `hyph-en-us.tex` — a **bespoke permissive notice** ("Copying and distribution of this file, with or
+     without modification, are permitted in any medium without royalty provided the copyright notice and
+     this notice are preserved"), © 1990–2005 Gerard D.C. Kuiken. Permissive in substance, but it is not
+     an SPDX identifier and D15's allow-list is a list of identifiers.
+   - `hyph-tr.tex` — **LPPL 1.0 or later**, © 1987 Pierre A. MacKay, 2008/2011 TUG. **Not on D15's
+     list**, and Turkish is one of v1's three languages.
+5. **And the compiled dictionaries fold in worse.** `hyph-ca.ext` is LGPL-3.0+/GPL-3.0+ (Jaume Ortolà,
+   Riurau Editors) and `hyph-hu.ext` is MPL-1.1/GPL-2.0/LGPL-2.1 (Nagy Bence). Depending on the crate at
+   all puts that data in the build, and D15 bans the GPL family in a shipped artefact outright.
+
+Affects: VD-b (**closed**), D15, `Cargo.toml` §1.2, `deny.toml`, `deny.tools.toml`,
+`docs/LICENSE_AND_DEPENDENCIES.md` §2.1 and note 2, IMPLEMENTATION_PLAN Phase 0 VD table, Phase 3.
+
+## 2026-09-13 · Docstrum's between-line vector is measured between boxes, not centroids · Phase 3
+Context: block segmentation, PIPELINE §6 step 1. The literal reading of Docstrum — nearest-neighbour
+vectors with the between-line band [45°, 135°] — was implemented over line *centroids*, since `text` has
+already done the within-line half and a line is what is left to link.
+
+Decision: measure the vector between the two line **boxes** instead: horizontal separation (zero when
+they overlap on x, the gap when they do not) against the difference of their vertical middles. The angle
+band and the 1.3 multiplier are unchanged and still do the work the paper gives them.
+
+Evidence: on `f01` page 0 the centroid reading produced seven blocks where the page has three, and every
+spurious boundary was in the same place — before a paragraph's last line. A short last line's centroid
+sits far to the left of the full-measure line above it (211.1 pt versus 144.6 pt on `f01`), so the
+centroid-to-centroid vector comes out at 169°, outside the between-line band, and the line that ends
+every paragraph is cut into a block of its own. The cross-check saw it immediately: best IoU 0.038 on
+block 0, which is exactly what the whitespace cover is there to catch. With the box reading, `f01`
+segments into 3 + 1 blocks and every IoU is 1.0.
+
+The mistake is not in the paper. Docstrum's between-line neighbours are *characters* — a glyph and the
+glyph directly beneath it — so its vector is vertical whenever one line sits under another, whatever the
+two lines' widths. A centroid is a property of a line; Docstrum never had one.
+
+Affects: `crates/oc-layout/src/blocks.rs`, test 3.1, PIPELINE §6 step 1.
+
+## 2026-09-13 · `segment_blocks` takes a page, not a line slice · Phase 3
+Context: IMPLEMENTATION_PLAN Phase 3 gives the signature
+`segment_blocks(lines: &[Line], t: &Thresholds) -> (Vec<Block>, SegmentationAgreement)`.
+
+Decision: take a `LayoutPage` — the page reference, its size, and the surviving lines each paired with
+its text. Returned `Block`s are otherwise unconstructible: `Block.page` is a `PageRef` and `BlockId` is
+derived from `page_index ‖ bbox ‖ first 64 chars` (D13.3), so both the page index and the line text have
+to be in scope. The line text is carried on the input rather than recomputed because `furniture` has
+already filtered the lines, and a `Line`'s run indices point into a page's runs that this crate does not
+hold.
+
+Same for the page's own box: the whitespace cover needs a bound to search inside, and it uses the text
+area rather than the page, since a page's margins are the largest white rectangles on it by a wide
+margin and they separate nothing.
+
+Affects: IMPLEMENTATION_PLAN Phase 3 Architecture, `crates/oc-layout/src/blocks.rs`,
+`crates/openconvert/src/pipeline.rs` (`PageInput`/`TextPage` gain `width_pt`).
+
+## 2026-09-13 · f02 had never had two columns, and a line had never been split at a gutter · Phase 3
+Context: Phase 3 tests 3.2 and 3.3 are the two-column reading-order assertions, over
+`f02_two_column.pdf`. Measuring the fixture before asserting on it turned up two separate faults, one in
+the fixture and one carried forward from Phase 2.
+
+**The fixture.** `f02` sets `columns: 2` on a 297 mm page with 20 mm margins — 51 lines to a column — and
+carries 17 lines of body text. Typst fills the first column before the second, so every line of it was in
+the *left* column and the right column was empty. Every "two column" assertion over it passed vacuously,
+including the reading-order one: `The left column continues` did precede `The right column begins`,
+because both were in the same column, one above the other.
+
+Decision: give the fixture enough text to fill a column, and put an explicit `#colbreak()` before the
+section that begins the right column. The page size, margins, gutter, header, footer and floating title
+are unchanged, so the furniture evidence and the hyphenated line breaks the Phase 1 and 2 tests read are
+all still there. The column break is explicit rather than by overflow so that a line-breaking difference
+between Typst versions cannot silently move the boundary back to where it was. Page 0's `visible_chars`
+goes 786 → 3038 in the inspect snapshot; page 1 is untouched.
+
+Shrinking the page instead was tried first and rejected: at 110 mm the 20 mm margin is 18 % of the page
+height, the running header falls outside `layout.furniture.band_ratio`'s 8 % band, and the fixture stops
+being a document furniture detection can see at all.
+
+**The line split.** With a real right column, `text` assembled the two columns' lines into single lines
+spanning the page — the carry-forward recorded in PROGRESS.md as item 2, "`text` clusters a line by
+baseline alone". A line that spans a gutter is not repairable downstream: it has one bounding box across
+both columns, one indent and one right gap, and Docstrum then links it to both columns at once. On `f02`
+this produced blocks 486 pt wide containing lines from both columns.
+
+Decision: split a baseline cluster at any gap wider than `text.line_split_gap_em` (1.2 em), and break a
+*run* at the same gap so that a run never spans one either. This is not column detection — it makes no
+claim about where the columns are — it is a refusal to assert that two things the page kept 16 pt apart
+are one line. The inserted space is whitespace and outside `C`, so nothing is ledgered and the
+conservation law is untouched.
+
+Evidence: `f02` page 0, gutter measured at 290.7–306.7 pt (16.0 pt, 1.7 em at 9.5 pt) against a widest
+justified word space well under 1 em. After the split, column detection finds exactly one gutter,
+`ColumnLayout` is `[(56.7, 290.7), (306.7, 542.6)]`, and the twelve blocks of page 0 each sit in one
+column.
+
+Affects: `corpus/fixtures/typst/f02_two_column.typ`, its inspect snapshot, `crates/oc-text/src/lines.rs`,
+`crates/oc-text/src/words.rs`, `thresholds.toml` (`text.line_split_gap_em`), PROGRESS.md carry-forward 2
+(**closed**), tests 3.2 and 3.3.
+
+## 2026-09-13 · A gutter is a valley with text on both sides of it · Phase 3
+Context: PIPELINE §6 step 2 defines a gutter as a valley in the x-projection that is wide enough, empty
+enough, and empty over enough of the text height. Implemented literally, that admits two things that are
+not gutters: the blank lower half of a short column, and the page's own outer margin. On `f02` the first
+one fired — the right column ends at 42 % of the page height, so every strip below it is tall and empty,
+and the detector reported a 252 pt "gutter" running to the right edge of the text.
+
+Decision: add the condition that makes a gutter a gutter — **text on both sides of it, within the same
+vertical window that qualified it**. The blank half of a short column has text to its left and nothing to
+its right; the outer margin has text on one side only. Both are rejected by the same clause, and no new
+threshold is needed.
+
+The test is applied per one-point strip rather than per merged run, deliberately: the strips of the real
+gutter and the strips of the blank half of the column are adjacent, so a run-level test would ask for
+text to the right of the *page* and throw away the real gutter with the false one.
+
+Evidence: `columns::the_blank_half_of_a_short_column_is_not_a_gutter`, and `f02` page 0, where the
+reported gutter goes from (290.7, 542.7) to (290.7, 306.7).
+
+Affects: `crates/oc-layout/src/columns.rs`, PIPELINE §6 step 2, tests 3.2 and 3.3.
+
+## 2026-09-13 · The column retry compares hypotheses instead of assuming the narrower one · Phase 3
+Context: PIPELINE §6 step 4 — "if continuity breaks on more than 30 % of pages, the column hypothesis is
+wrong → re-run with k−1 columns. Bounded to two retries, then accept and warn."
+
+Decision: keep the rule and add one condition — **the re-run has to read better.** A narrower hypothesis
+is adopted only when its continuity break rate is strictly lower than the one it replaces.
+
+Evidence: `f02` is a genuine two-column document of two pages. It has exactly one page boundary, and that
+boundary falls at the end of a sentence, because the section ends there. The literal rule measures a 100 %
+break rate, downgrades a correct two-column page to one column, and interleaves it — the very failure test
+3.2 exists to catch. Under the comparison, the one-column reading of `f02` breaks the same boundary for
+the same reason, is not better, and is not adopted.
+
+The condition costs one extra layout pass and it is what makes the retry evidence rather than a reflex: a
+break rate is a statement about a document, and a document's own alternative reading is the only baseline
+available for it.
+
+Also recorded: the fixture the plan names for this test (`h13`, "false gutter") is `h13_outline`, which
+Phase 1 spent on the outline walk. Following the rule PROGRESS.md sets out — the test name is the
+contract, the fixture number is indicative — this is **`h22_false_gutter`**, five pages with a 75 pt
+empty band down the middle of every line. Nothing on those pages says whether it is a gutter; the
+evidence is between the pages, which is the point R10 §6.5 is making.
+
+Affects: `crates/openconvert/src/pipeline.rs`, `crates/oc-layout/src/continuity.rs`,
+`crates/oc-testkit/src/handmade.rs` (h22), thresholds `layout.columns.continuity_break_max` and
+`layout.columns.max_column_retries`, test 3.5, PIPELINE §6 step 4.
+
+## 2026-09-13 · Columns are detected before blocks, from run coverage · Phase 3
+Context: PIPELINE §6 lists segmentation first and column detection second. Implemented in that order, the
+column retry of step 4 cannot do anything: by the time the columns are known, the blocks have already
+been built across or within them, and re-running with `k−1` produces the same blocks and the same order.
+
+Decision: detect columns **first**, from the x-projection of *run* boxes — which is what §6 step 2 says
+the projection is over ("project glyph coverage onto x"), not block boxes — then split any line that
+spans a gutter, then segment, then order. Segmentation is unchanged; what changes is that the hypothesis
+it works from is a hypothesis, and can be withdrawn.
+
+That also puts the Phase-2 carry-forward in its proper place. A line spanning a gutter has one box, one
+indent and one right gap across both columns; splitting it is `layout`'s job because the split is exactly
+as good as the column hypothesis, and under `k = 1` there is no split to make. `words` breaks a *run* at
+`text.line_split_gap_em`, which is all the projection needs to see the valley.
+
+Affects: `crates/oc-layout/src/columns.rs` (`detect_columns` now takes run boxes, the page em and a column
+cap), `crates/oc-layout/src/blocks.rs` (`LayoutLine` carries its segments), `crates/oc-text/src/lines.rs`,
+`crates/openconvert/src/pipeline.rs`, PIPELINE §6, PROGRESS.md carry-forward 2.
+
+## 2026-09-13 · The unwrap factor is 0.45, and page 0 of f01 has four paragraphs, not five · Phase 3
+Two small corrections made while implementing paragraph reconstruction, both recorded because the numbers
+they change are quoted elsewhere.
+
+**`paragraph.line_unwrap_factor` 0.4 → 0.45.** PIPELINE §7 step 4 is explicit: "The generic Calibre HTML
+path uses 0.4 (R10 §6.4); 0.45 is the PDF-path value and is the anchored default here."
+IMPLEMENTATION_PLAN Phase 3 detail 4 quotes 0.4, and `thresholds.toml` was written from the plan. The
+authority order settles it — PIPELINE outranks IMPLEMENTATION_PLAN — so the value is 0.45 and the
+evidence string now says which of Calibre's two defaults it is and why.
+
+**Test 3.6's assertion.** The plan's table says "convention `FirstLineIndent`; 5 paragraphs on page 0".
+Page 0 of `f01` carries a heading and three paragraphs, which is four; there is no fifth. Following the
+rule that the test *name* is the contract and its assertion is measured, the test asserts four and names
+each one. The heading is a paragraph at this stage by construction: `layout` assigns no semantics, and
+"Chapter 3" becomes a `Heading` in Phase 4, where `structure` is what decides that.
+
+Also recorded, because it surprised a test before it surprised a book: "short last line" is measured
+against **the block's own measure**, so two short lines under each other with nothing above them are one
+paragraph, not two. That is the rule working. A paragraph's last line is short *relative to the lines
+above it*, and a block whose every line is short has no long line to be short against.
+
+Affects: `thresholds.toml`, `crates/oc-layout/src/paragraphs.rs`, test 3.6, PIPELINE §7 step 4.
+
+## 2026-09-13 · Dehyphenation: what the tiers decide, and what they deliberately do not · Phase 3
+Three things worth recording from implementing PIPELINE §7 step 6, all of them about the *shape* of the
+answer rather than the code.
+
+**1. `f01`'s `pipeline` is a classifier case, and the deterministic tiers keep the hyphen.**
+`f01_prose_single_column.assert.json` asserts that `pipe-` + `line` comes out as `pipeline`. It does not,
+yet, and that is the fail-closed rule working exactly as specified: the document never uses the word
+`pipeline` anywhere else, so the in-document tier abstains; the English list contains `pipe` and `line`
+as independent words, so tier T4's "both halves attested" rule says *keep*; and PIPELINE §7's fail-closed
+condition — joined form absent from the in-document dictionary, absent from the lexicon, halves both
+attested — is met exactly. This residual is precisely the population R2 §B.7 measures the classifier on,
+where a dictionary-only baseline scores 31.7 % keep-recall against the classifier's 85.8 %. The assertion
+is an acceptance artefact for Phase 5 and stays as it is; test 3.7 uses `h23`, whose join the *document's
+own vocabulary* settles, so that it tests the merge and the join rather than the tier that has not landed.
+
+**2. A fractional budget cannot be measured on a hundred-character document.** The first `h23` carried
+one legitimate hyphen in 110 non-whitespace characters — nine parts in a thousand against
+`conservation.budget.dehyphenate`'s five — and the stage refused the conversion. Nothing was wrong with
+either the removal or the budget: a fraction of a very small number is dominated by its numerator. The
+fixture was lengthened to a little over 200 characters, which is the least a document can be and still
+have a single hyphen measured against a five-in-a-thousand allowance. Recorded because the same
+arithmetic will come back on the first one-page real document, and the answer there is a *floor* on the
+budget denominator, which is Phase 6's to decide with the rest of the breach policy.
+
+**3. The in-document lexicon carries its own locale.** Folding is locale-sensitive in one of v1's three
+languages, and a lexicon built with Turkish folding and queried with invariant folding looks up keys
+nobody wrote. The tag is stored on `DocLexicon` at build time rather than passed at each lookup, so the
+two cannot disagree.
+
+Affects: `crates/oc-text/src/dehyphen/`, `crates/oc-layout/src/paragraphs.rs`,
+`crates/oc-core/src/stages/paragraphs.rs`, `crates/oc-core/src/ledger_check.rs` (I-5),
+`crates/oc-testkit/src/handmade.rs` (h23), tests 3.7, 3.8, 3.10, 3.11, 3.17.
+
+## 2026-09-13 · German: the capital after the hyphen decides it, without a lexicon · Phase 3
+Context: plan Phase 3 detail 5 gives German "a dependency-free compound acceptor: try each internal split
+point, accept when both halves (allowing `-s-`/`-n-`/`-es-` Fugenlaute) are attested". That needs
+somewhere to look words up, and D15's German frequency list does not exist — the sources the plan named
+are CC-BY-SA (item 2.9, still open).
+
+Decision: two rules, not one.
+
+1. **An upper-case continuation means the hyphen is real**, and this needs no lexicon at all. German
+   capitalises a noun at its first letter and nowhere else, so a word broken across a line always
+   continues in lower case: `Fahr-` / `zeug`, never `Fahr-` / `Zeug`. A capital after the break is a
+   hyphen the author wrote. This is the orthography rather than a frequency heuristic, and it is what
+   decides test 3.9's `Nord-` / `Süd-Achse`.
+2. **The compound acceptor** for the lower-case case, written against an attestation *predicate* rather
+   than against a list. In v1 the predicate is the document's own vocabulary, which exists today; when
+   the German list ships it is one argument rather than a rewrite.
+
+The acceptor's floor of three characters per part is load-bearing: `an`, `ab` and `in` are all German
+words, so a two-character floor finds a compound seam in almost every word it is shown.
+
+Also, two smaller things from the same item:
+
+- **`f06_hyphenation_de` forces its two line breaks** with `#linebreak()` instead of letting Typst's
+  hyphenation patterns place them. What the fixture has to guarantee is that `Nord-` ends a line and
+  `Süd-Achse` begins the next; a fixture whose subject moves when an upstream pattern file is updated is
+  a fixture that tests the upstream. The geometry is identical either way.
+- **`typst_fixtures_are_reproducible` no longer asserts a fixture count of five.** Its subject is that
+  compiling a fixture twice produces the same bytes; a hard-coded count turns "a phase added a fixture"
+  into a failure that says nothing about reproducibility. The floor of five stays, so an empty directory
+  still fails.
+
+Affects: `crates/oc-text/src/compound_de.rs`, `crates/oc-text/src/dehyphen/tiers.rs`,
+`corpus/fixtures/typst/f06_hyphenation_de.typ`, `xtask/src/fixtures.rs`, test 3.9.
+
+## 2026-09-13 · The classifier, trained on the word list's own sources · Phase 3
+Context: plan Phase 3 detail 5 and test 3.12 — "a kilobyte-scale logistic/CRF over character features,
+trained by `eval/` with its weights committed", gated at keep-hyphen recall ≥ 0.80 on a 2,000-item
+holdout.
+
+Decision: train it from the **same twelve CC0 Standard Ebooks the English word-frequency list is built
+from**, because that licence question is already settled (D15) and a training set is as much a shipped
+artefact as a word list — the weights are derived from it. Keep examples are the corpus's genuinely
+hyphenated types split at their own hyphen (`well-known` → `well` / `known`); join examples are ordinary
+types split at a seeded interior point. Eight thousand hashed features, FNV-1a, 32 KB of float32 — the
+"≈ 30 KB" the plan budgets.
+
+Evidence, from `crates/oc-text/src/dehyphen/model.sources.json`: 39,817 types seen, 21,263 training
+examples of which 717 are keeps, 2,000 held out of which 239 are keeps, split by type so no word appears
+on both sides. **Holdout keep-recall 0.912, join-recall 0.930, balanced accuracy 0.921** — against R2
+§B.7's 85.8 % and 92.38 % for the same kind of model, and against a dictionary-only baseline's 31.7 %.
+
+Two things this changes downstream, both worth naming:
+
+**The split points are approximations.** A real line break falls where a hyphenation pattern allows one;
+ours fall at a seeded interior point, because the patterns are not ours to redistribute (VD-b). It costs
+the model the finer grain of *where* a typesetter would break, not *whether* a break is a break.
+
+**`f01`'s `pipeline` now has a measured answer, and it is the wrong one.** The classifier scores
+`pipe` / `line` at +0.96 — a confident *keep* — so `f01` comes out as `pipe- line` and its committed
+assertion is not met. The cause is visible in the data: the training corpus is twelve nineteenth-century
+novels, `pipe-line` is a perfectly ordinary spelling in that register, and the modern compound never
+appears. This is one of the ~7 % of joins the model gets wrong, it fails in the safe direction — a
+visible hyphen rather than a corrupted word — and the fix is a corpus with a modern register, which is
+Phase 7's. The assertion stays as it is: it is a correct expectation of a finished system and an honest
+record of the gap.
+
+Affects: `eval/src/oc_eval/train/hyphen_clf.py`, `crates/oc-text/src/dehyphen/classifier.rs`,
+`crates/oc-text/src/dehyphen/model.bin` + `model.sources.json`, `eval/data/hyphen_holdout.jsonl`,
+`thresholds.toml` (`dehyphen.classifier_margin_min`), tests 3.10 and 3.12, Phase 7 corpus.
+
+## 2026-09-13 · The whitespace cover searches one column at a time · Phase 3
+Context: the layout dump made the cross-check visible for the first time, and on `f02` it flagged ten of
+fifteen blocks — on a fixture whose segmentation is plainly right. A cross-check that fires on a clean
+page teaches everyone to ignore it, so it was worth finding out why before blessing a snapshot of it.
+
+Three faults, each found by the one before it:
+
+1. **The rectangle budget was being spent on the wrong page.** `layout.whitespace.max_rectangles` is 40,
+   PdfPig's number — measured for finding *column separators* over a whole page. Used for block
+   segmentation, the biggest forty rectangles of a two-column page are the gutter, the ragged right
+   edges and the empty foot of the shorter column; the bands between paragraphs, the only rectangles
+   that separate anything, were never emitted. **The cover now runs once per column**, with its own
+   budget and only that column's obstacles. Ten flags fell to three.
+2. **A rectangle that separates nothing was still being emitted.** The white wedge left by a paragraph's
+   short last line is maximal and large, and it reaches neither pair of the region's opposite edges. A
+   separator does: a band crosses the column, a gutter runs down it. Emission is now filtered on that,
+   and because the branch and bound narrows a candidate at every pivot, each result is **grown to
+   maximality** before the test — a band found inside one branch had been narrowed to that branch's
+   width and would have failed a test it deserved to pass.
+3. **The two columns were being joined by the grouping, not by the cover.** Two lines at the same height
+   in different columns overlap vertically, and neither column's cover contains a rectangle spanning the
+   gutter — it cannot, since each searches its own column. They are now separated by the *page's* column
+   hypothesis, which is where that fact lives.
+
+**What is left, and why it stays.** One block of `f02` is still flagged: the cover cuts `pages.` off from
+the three lines above it. A line box is an *inked* box, so a line with no ascenders is shorter than its
+neighbours and the band above it is 5.2 pt against a 4.5 pt floor, where Docstrum — measuring baseline to
+baseline — sees nothing unusual. Fixing it properly means giving each line the slug it was set in rather
+than the ink it carries, which needs an ascent and a descent this stage does not have. It is left as it
+is because the direction is right: over-flagging a confidence signal costs a line in a report, and the
+flag changes no segmentation — Docstrum's answer stands either way.
+
+Affects: `crates/oc-layout/src/blocks.rs`, tests 3.1 and 3.15, `layout.whitespace.max_rectangles`.
+
+## 2026-09-13 · A digest may not carry anything derived from geometry · Phase 3
+Context: `digest_h22_layout` passed on Windows and failed on Ubuntu in CI, on one field and by one unit:
+`min_agreement_iou_milli` 101 against 102.
+
+Cause: the digest was written to be the thing that *can* be asserted across hosts — "counts and totals,
+no geometry" — and then two of its fields were computed from geometry. An IoU is a ratio of areas, and
+`h22` is set in a non-embedded base-14 face, so its glyph boxes differ between operating systems by a
+couple of hundredths of a point (`docs/DECISIONS_LOG.md`, 2026-09-13, and D13.8's contract, which cannot
+hold for such a document). Rounding to thousandths does not make a derived quantity stable; it only
+moves the boundary it is unstable at.
+
+Decision: `min_agreement_iou_milli` is **removed**. How many blocks were flagged is the *decision* the
+cross-check produced and it stays (`low_confidence_blocks`); how nearly each one missed is a measurement,
+and it belongs in the dump, where it already is.
+
+`paragraph_candidates` had the same flaw for a different reason and was fixed rather than removed: it
+counted lines with `indent_pt > 0.0`, a strict comparison against a float carrying the same hundredths.
+It now counts lines indented by at least `paragraph.indent_min_em`, which no rounding difference can
+cross and which is also what the word means to the stage that reads it. The numbers it reports changed
+in a way worth recording: `h22` went 25 → 0, because under the one-column hypothesis its lines are not
+split at the false gutter and every line starts at the same margin — the old 25 *was* the instability,
+counted.
+
+Evidence: run 34777494044, job `test (ubuntu-latest)`; `test (macos-latest)` and `test (windows-latest)`
+passed, which is what a one-host-in-three failure looks like when the cause is font substitution.
+
+Affects: `crates/openconvert/src/dump_layout.rs`, tests 3.16 and its `h22` companion, D13.8.

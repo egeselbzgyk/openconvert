@@ -1,0 +1,26 @@
+---
+source: crates/openconvert/tests/dump_layout.rs
+expression: "digest(&layout, &T)"
+---
+{
+  "pages": 2,
+  "blocks": 4,
+  "blocks_per_page": [
+    3,
+    1
+  ],
+  "columns_per_page": [
+    1,
+    1
+  ],
+  "lines": 14,
+  "paragraph_candidates": 2,
+  "low_confidence_blocks": 0,
+  "continuity_held": 0,
+  "continuity_boundaries": 1,
+  "column_retries": 0,
+  "anchors": 0,
+  "drop_caps": 0,
+  "removed_chars": 0,
+  "added_chars": 0
+}

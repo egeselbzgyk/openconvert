@@ -1,0 +1,114 @@
+{
+  "buckets": 8192,
+  "counts": {
+    "holdout": 2000,
+    "holdout_keep": 239,
+    "training": 21263,
+    "training_keep": 717,
+    "types_seen": 39817
+  },
+  "format": "OCHYPH1",
+  "generator": "oc_eval.train.hyphen_clf",
+  "metrics": {
+    "holdout": {
+      "accuracy": 0.9275,
+      "balanced_accuracy": 0.9208596770093067,
+      "join_recall": 0.9295854628052242,
+      "keep_recall": 0.9121338912133892
+    },
+    "training": {
+      "accuracy": 0.919719700888868,
+      "balanced_accuracy": 0.9355765767490332,
+      "join_recall": 0.9185729582400467,
+      "keep_recall": 0.9525801952580195
+    }
+  },
+  "note": "Keep-recall is the metric that matters; raw accuracy is misleading because ~98 % of line-break hyphens should be removed (R2 \u00a7B.7).",
+  "seed": 20260913,
+  "sources": [
+    {
+      "files_read": 145,
+      "license": "CC0-1.0",
+      "name": "herman-melville_moby-dick",
+      "sha256": "72880954f80d6b680533027f8f261e670b631eae507ccb0fcd281058e5f4f3b5",
+      "url": "https://codeload.github.com/standardebooks/herman-melville_moby-dick/tar.gz/refs/heads/master"
+    },
+    {
+      "files_read": 65,
+      "license": "CC0-1.0",
+      "name": "jane-austen_pride-and-prejudice",
+      "sha256": "ff98310090bd40cd576d8e2a9f01645588512f241fcc977ecf084dde35b03bde",
+      "url": "https://codeload.github.com/standardebooks/jane-austen_pride-and-prejudice/tar.gz/refs/heads/master"
+    },
+    {
+      "files_read": 54,
+      "license": "CC0-1.0",
+      "name": "charles-dickens_a-tale-of-two-cities",
+      "sha256": "273a7309cf1a34c2edc11398c9c0f0ec46cf42155c68c0b3e29ca4844c6eb752",
+      "url": "https://codeload.github.com/standardebooks/charles-dickens_a-tale-of-two-cities/tar.gz/refs/heads/master"
+    },
+    {
+      "files_read": 38,
+      "license": "CC0-1.0",
+      "name": "mary-shelley_frankenstein",
+      "sha256": "886fae8da3d0d3a10c46be5649917f0370d7793561101155862631841b087cfa",
+      "url": "https://codeload.github.com/standardebooks/mary-shelley_frankenstein/tar.gz/refs/heads/master"
+    },
+    {
+      "files_read": 20,
+      "license": "CC0-1.0",
+      "name": "lewis-carroll_alices-adventures-in-wonderland",
+      "sha256": "46e37d759f2d9681f0ec7044467201ff44a540dcf226a9a88aea9514f41df2a4",
+      "url": "https://codeload.github.com/standardebooks/lewis-carroll_alices-adventures-in-wonderland/tar.gz/refs/heads/master"
+    },
+    {
+      "files_read": 16,
+      "license": "CC0-1.0",
+      "name": "arthur-conan-doyle_the-adventures-of-sherlock-holmes",
+      "sha256": "207bc2d8f90288c8a534db493350cd61f420612ad28fa417b25eba5c9922270d",
+      "url": "https://codeload.github.com/standardebooks/arthur-conan-doyle_the-adventures-of-sherlock-holmes/tar.gz/refs/heads/master"
+    },
+    {
+      "files_read": 35,
+      "license": "CC0-1.0",
+      "name": "bram-stoker_dracula",
+      "sha256": "0cf2f6a6fcf4adb1e54e1c4f9c8a69dc4c2e59c01315df19776f06538a0ef187",
+      "url": "https://codeload.github.com/standardebooks/bram-stoker_dracula/tar.gz/refs/heads/master"
+    },
+    {
+      "files_read": 46,
+      "license": "CC0-1.0",
+      "name": "charlotte-bronte_jane-eyre",
+      "sha256": "f0f08401a8f01dd55558b03f7a5ea7a800ad1dc895bdf9c74b0683f0b2b4252e",
+      "url": "https://codeload.github.com/standardebooks/charlotte-bronte_jane-eyre/tar.gz/refs/heads/master"
+    },
+    {
+      "files_read": 102,
+      "license": "CC0-1.0",
+      "name": "george-eliot_middlemarch",
+      "sha256": "54a4c2ec75623346f7bb5c81d5dba13bc1cf1f3af865f38cbbe0323f9e705e82",
+      "url": "https://codeload.github.com/standardebooks/george-eliot_middlemarch/tar.gz/refs/heads/master"
+    },
+    {
+      "files_read": 43,
+      "license": "CC0-1.0",
+      "name": "mark-twain_the-adventures-of-tom-sawyer",
+      "sha256": "c6fa6e770c2fa4592fe060d2bc8478b71f276a428f0bcf74bc427167135d985d",
+      "url": "https://codeload.github.com/standardebooks/mark-twain_the-adventures-of-tom-sawyer/tar.gz/refs/heads/master"
+    },
+    {
+      "files_read": 52,
+      "license": "CC0-1.0",
+      "name": "jonathan-swift_gullivers-travels",
+      "sha256": "ae499248bf7396a73bc0e8c72684bc3da16ebab2b55288b1bee6c7d39436aa72",
+      "url": "https://codeload.github.com/standardebooks/jonathan-swift_gullivers-travels/tar.gz/refs/heads/master"
+    },
+    {
+      "files_read": 36,
+      "license": "CC0-1.0",
+      "name": "h-g-wells_the-war-of-the-worlds",
+      "sha256": "e3b2956f5b64eb8e03e2f9d9e948fc7a9b5e20e547913b5cfa8e0e9814208aac",
+      "url": "https://codeload.github.com/standardebooks/h-g-wells_the-war-of-the-worlds/tar.gz/refs/heads/master"
+    }
+  ]
+}

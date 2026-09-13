@@ -1,5 +1,6 @@
 ---
 source: crates/oc-pdf/src/inspect.rs
+assertion_line: 373
 expression: report
 ---
 {
@@ -37,7 +38,7 @@ expression: report
       "rotate": 0,
       "class": "text",
       "class_confidence": 1.0,
-      "visible_chars": 786,
+      "visible_chars": 3038,
       "invisible_chars": 0,
       "replacement_chars": 0,
       "pua_chars": 0,
