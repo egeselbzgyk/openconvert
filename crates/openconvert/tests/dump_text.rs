@@ -31,6 +31,10 @@ fn read(relative: &str) -> Vec<PageInput> {
     (0..document.page_count())
         .map(|index| PageInput {
             page: PageRef::new(index),
+            width_pt: document
+                .page_geometry(index)
+                .expect("the page has geometry")
+                .width_pt(),
             height_pt: document
                 .page_geometry(index)
                 .expect("the page has geometry")

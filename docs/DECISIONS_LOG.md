@@ -1744,3 +1744,44 @@ Evidence: `hyphenation 0.8.4` (`static.crates.io`, sha256
 
 Affects: VD-b (**closed**), D15, `Cargo.toml` §1.2, `deny.toml`, `deny.tools.toml`,
 `docs/LICENSE_AND_DEPENDENCIES.md` §2.1 and note 2, IMPLEMENTATION_PLAN Phase 0 VD table, Phase 3.
+
+## 2026-09-13 · Docstrum's between-line vector is measured between boxes, not centroids · Phase 3
+Context: block segmentation, PIPELINE §6 step 1. The literal reading of Docstrum — nearest-neighbour
+vectors with the between-line band [45°, 135°] — was implemented over line *centroids*, since `text` has
+already done the within-line half and a line is what is left to link.
+
+Decision: measure the vector between the two line **boxes** instead: horizontal separation (zero when
+they overlap on x, the gap when they do not) against the difference of their vertical middles. The angle
+band and the 1.3 multiplier are unchanged and still do the work the paper gives them.
+
+Evidence: on `f01` page 0 the centroid reading produced seven blocks where the page has three, and every
+spurious boundary was in the same place — before a paragraph's last line. A short last line's centroid
+sits far to the left of the full-measure line above it (211.1 pt versus 144.6 pt on `f01`), so the
+centroid-to-centroid vector comes out at 169°, outside the between-line band, and the line that ends
+every paragraph is cut into a block of its own. The cross-check saw it immediately: best IoU 0.038 on
+block 0, which is exactly what the whitespace cover is there to catch. With the box reading, `f01`
+segments into 3 + 1 blocks and every IoU is 1.0.
+
+The mistake is not in the paper. Docstrum's between-line neighbours are *characters* — a glyph and the
+glyph directly beneath it — so its vector is vertical whenever one line sits under another, whatever the
+two lines' widths. A centroid is a property of a line; Docstrum never had one.
+
+Affects: `crates/oc-layout/src/blocks.rs`, test 3.1, PIPELINE §6 step 1.
+
+## 2026-09-13 · `segment_blocks` takes a page, not a line slice · Phase 3
+Context: IMPLEMENTATION_PLAN Phase 3 gives the signature
+`segment_blocks(lines: &[Line], t: &Thresholds) -> (Vec<Block>, SegmentationAgreement)`.
+
+Decision: take a `LayoutPage` — the page reference, its size, and the surviving lines each paired with
+its text. Returned `Block`s are otherwise unconstructible: `Block.page` is a `PageRef` and `BlockId` is
+derived from `page_index ‖ bbox ‖ first 64 chars` (D13.3), so both the page index and the line text have
+to be in scope. The line text is carried on the input rather than recomputed because `furniture` has
+already filtered the lines, and a `Line`'s run indices point into a page's runs that this crate does not
+hold.
+
+Same for the page's own box: the whitespace cover needs a bound to search inside, and it uses the text
+area rather than the page, since a page's margins are the largest white rectangles on it by a wide
+margin and they separate nothing.
+
+Affects: IMPLEMENTATION_PLAN Phase 3 Architecture, `crates/oc-layout/src/blocks.rs`,
+`crates/openconvert/src/pipeline.rs` (`PageInput`/`TextPage` gain `width_pt`).

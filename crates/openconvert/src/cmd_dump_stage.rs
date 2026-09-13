@@ -181,6 +181,7 @@ fn write_text_dump(
             .map_err(|error| error.to_string())?;
         input.push(openconvert::pipeline::PageInput {
             page: oc_model::extract::PageRef::new(index),
+            width_pt: geometry.width_pt(),
             height_pt: geometry.height_pt(),
             glyphs: glyphs.glyphs,
         });

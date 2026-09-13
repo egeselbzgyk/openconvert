@@ -350,6 +350,20 @@ evidence = "R2 §B.3"
 owner = "maintainer"
 review_by = "2028-01-01"
 
+[layout.block.agreement_iou_min]
+value = 0.8
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 3 detail 1: block-boundary IoU < 0.8 between Docstrum and the whitespace cover flags the block low-confidence. The number is the plan's, not a published one; it is a disagreement alarm rather than a decision, so it is cheap to move once the Phase 7 corpus says how often it fires per producer stratum."
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.block.separator_height_ratio]
+value = 0.5
+source = "provisional"
+evidence = "A maximal white rectangle separates two lines only if it is at least this fraction of the page's median line height thick. The band between two lines of one paragraph is the leading minus the line height - a couple of points at book settings - while a paragraph or heading break is half a line or more. Measured against the *obstacle* sizes, deliberately: Docstrum already reads the distance distribution, and a cross-check that read the same statistic would not be one. Matches pdfminer's line_margin of 0.5 x line height in magnitude (R2 §B.6) without being the same measurement."
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [paragraph.line_margin]
 value = 0.5
 source = "published"

@@ -199,3 +199,16 @@ replaced by the phase that owns it.
 | 2.20b | `lang::a_short_block_is_never_tagged` | `oc-text` | unit | `test` | green |
 | 2.20c | `lang::a_block_in_the_documents_own_language_gets_no_attribute` | `oc-text` | unit | `test` | green |
 | 2.21 | `dump_text::dump_stage_text_snapshot_f01` | `openconvert` | snapshot | `test` | green |
+
+## Phase 3
+
+| # | Test | Crate | Kind | CI job | Status |
+|---|---|---|---|---|---|
+| 3.1 | `layout::blocks_docstrum_and_whitespace_agree_on_f01` | `openconvert` | fixture (f01) | `test` | green |
+| 3.1a | `blocks::blank_line_separates_two_blocks` | `oc-layout` | unit | `test` | green |
+| 3.1b | `blocks::a_gutter_is_not_crossed_by_a_block` | `oc-layout` | unit | `test` | green |
+| 3.1c | `blocks::a_single_line_page_is_one_block` | `oc-layout` | unit | `test` | green |
+| 3.1d | `blocks::disagreement_flags_the_block_low_confidence` | `oc-layout` | unit | `test` | green |
+| 3.1e | `blocks::every_block_gets_its_own_id` | `oc-layout` | unit | `test` | green |
+| 3.13 | `layout::layout_stage_is_conserving` | `openconvert` | fixture (f01) | `test` | green |
+| 3.13a | `layout::layout_stage_conservation_violation_errors` | `openconvert` | unit | `test` | green |

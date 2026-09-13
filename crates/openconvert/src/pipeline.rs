@@ -1,4 +1,4 @@
-//! The `text` and `furniture` stages, driven end to end under the conservation law.
+//! The `text`, `furniture` and `layout` stages, driven end to end under the conservation law.
 //!
 //! Each stage is run and then immediately checked: `C(D_before) ⊎ Added == C(D_after) ⊎
 //! Removed`, the reasons it cited are ones it declared, and its cumulative removals are
@@ -9,9 +9,11 @@
 use oc_core::ledger_check::{c_of, check_invariants, ConservationError, ReasonTotals};
 use oc_core::stages;
 use oc_core::thresholds::Thresholds;
+use oc_layout::blocks::{segment_blocks, LayoutLine, LayoutPage, SegmentationAgreement};
 use oc_layout::furniture::{apply_furniture, detect_furniture, PageLines};
 use oc_model::extract::{CharHistogram, Glyph, PageRef};
 use oc_model::lang::LangTag;
+use oc_model::layout::Block;
 use oc_model::ledger::{LedgerDelta, StageCheck};
 use oc_model::text::{Line, Run};
 use oc_text::lines::assemble_lines;
@@ -22,6 +24,7 @@ use oc_text::words::assemble_runs;
 #[derive(Clone, Debug, PartialEq)]
 pub struct PageInput {
     pub page: PageRef,
+    pub width_pt: f32,
     pub height_pt: f32,
     pub glyphs: Vec<Glyph>,
 }
@@ -30,6 +33,7 @@ pub struct PageInput {
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextPage {
     pub page: PageRef,
+    pub width_pt: f32,
     pub height_pt: f32,
     pub runs: Vec<Run>,
     pub lines: Vec<Line>,
@@ -54,6 +58,20 @@ pub struct FurnitureStage {
     pub delta: LedgerDelta,
     /// The printed page number recovered per page, bound for `PageRef.label` and `page-list`.
     pub labels: Vec<Option<String>>,
+    /// Per page, which of `text`'s lines survived, by index. `furniture` reduces a line to
+    /// its text, and `layout` needs the geometry back — the indent, the right gap and the
+    /// run ids — so the way back to the `Line` has to be carried rather than re-derived.
+    pub kept: Vec<Vec<usize>>,
+    pub check: StageCheck,
+}
+
+/// What `layout` produced: blocks, cross-checked, with an empty ledger.
+#[derive(Clone, Debug)]
+pub struct LayoutStage {
+    pub pages: Vec<LayoutPage>,
+    pub blocks: Vec<Vec<Block>>,
+    pub agreement: Vec<SegmentationAgreement>,
+    pub delta: LedgerDelta,
     pub check: StageCheck,
 }
 
@@ -88,6 +106,7 @@ pub fn text_stage(
         let lines = assemble_lines(&assembly.runs, t);
         pages.push(TextPage {
             page: page.page.clone(),
+            width_pt: page.width_pt,
             height_pt: page.height_pt,
             runs: assembly.runs,
             lines,
@@ -127,6 +146,23 @@ pub fn furniture_stage(
     let verdicts = detect_furniture(&pages, lang, t);
     let outcome = apply_furniture(&pages, &verdicts);
 
+    // The verdicts are page-major and line-aligned with the input, so survival is readable
+    // straight off them; a line that stayed is a line `layout` still has the geometry of.
+    let mut kept = Vec::with_capacity(pages.len());
+    let mut offset = 0usize;
+    for page in &pages {
+        kept.push(
+            (0..page.lines.len())
+                .filter(|line| {
+                    verdicts
+                        .get(offset + line)
+                        .is_none_or(|verdict| verdict.kind.is_none())
+                })
+                .collect(),
+        );
+        offset += page.lines.len();
+    }
+
     let after = line_chars(&outcome.pages);
     let check = check_invariants(&before, &after, &outcome.delta, stages::FURNITURE, totals)?;
 
@@ -134,8 +170,100 @@ pub fn furniture_stage(
         pages: outcome.pages,
         delta: outcome.delta,
         labels: outcome.labels,
+        kept,
         check,
     })
+}
+
+/// Run `layout`: group the surviving lines into blocks and cross-check the segmentation.
+///
+/// Conserving, and checked as such: the stage rearranges text into blocks and may not change
+/// one character of it, so its ledger is empty and I-3 reduces to plain multiset equality
+/// (PIPELINE §6).
+pub fn layout_stage(
+    text: &TextStage,
+    furniture: &FurnitureStage,
+    totals: &mut ReasonTotals,
+    t: &Thresholds,
+) -> Result<LayoutStage, ConservationError> {
+    let before = line_chars(&furniture.pages);
+
+    let pages: Vec<LayoutPage> = text
+        .pages
+        .iter()
+        .enumerate()
+        .map(|(index, page)| LayoutPage {
+            page: page.page.clone(),
+            width_pt: page.width_pt,
+            height_pt: page.height_pt,
+            lines: furniture
+                .kept
+                .get(index)
+                .map(Vec::as_slice)
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|line| page.lines.get(*line))
+                .map(|line| LayoutLine {
+                    line: line.clone(),
+                    text: line_text(&page.runs, line),
+                })
+                .collect(),
+        })
+        .collect();
+
+    let mut blocks = Vec::with_capacity(pages.len());
+    let mut agreement = Vec::with_capacity(pages.len());
+    for page in &pages {
+        let (page_blocks, page_agreement) = segment_blocks(page, t);
+        blocks.push(page_blocks);
+        agreement.push(page_agreement);
+    }
+
+    let after = block_chars(&blocks, &pages);
+    let delta = LedgerDelta::default();
+    let check = check_invariants(&before, &after, &delta, stages::LAYOUT, totals)?;
+
+    Ok(LayoutStage {
+        pages,
+        blocks,
+        agreement,
+        delta,
+        check,
+    })
+}
+
+/// One line's text, assembled from the page's runs.
+///
+/// The same flattening `furniture` does, and it has to stay the same: `layout`'s "before"
+/// multiset is the one `furniture` left behind, so a different join here would show up as a
+/// conservation violation in a stage that changed nothing.
+pub fn line_text(runs: &[Run], line: &Line) -> String {
+    line.runs
+        .iter()
+        .filter_map(|id| runs.get(id.0 as usize))
+        .map(|run| run.text.as_str())
+        .collect::<String>()
+        .trim()
+        .to_owned()
+}
+
+/// `C` of the segmented blocks — every line of every block, through the same flattening.
+pub fn block_chars(blocks: &[Vec<Block>], pages: &[LayoutPage]) -> CharHistogram {
+    let mut histogram = CharHistogram::new();
+    for (page_blocks, page) in blocks.iter().zip(pages) {
+        for block in page_blocks {
+            for line in &block.lines {
+                let text = page
+                    .lines
+                    .iter()
+                    .find(|candidate| candidate.line == *line)
+                    .map(|candidate| candidate.text.clone())
+                    .unwrap_or_default();
+                histogram = histogram.union(&c_of(&text));
+            }
+        }
+    }
+    histogram
 }
 
 /// `C` of the glyph stream: the document as extraction left it.
