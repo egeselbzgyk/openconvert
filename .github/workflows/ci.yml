@@ -1,6 +1,15 @@
 name: ci
-on: { pull_request: {}, push: { branches: [main] } }
-concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
+# `phase/**` is here because of what its absence cost. Phases 0, 1 and 2 were all developed on
+# `phase/00-bootstrap`, which matched neither trigger, so this workflow did not run once in four
+# days — and three Definition-of-Done entries said "Linux and macOS are CI's job" the whole time.
+# When it finally ran, five of eight jobs failed, two of them on code from Phase 1.
+on: { pull_request: {}, push: { branches: [main, "phase/**"] } }
+# Keyed on the branch *name* rather than on `github.ref`, so that a pull request and a push to
+# the same branch land in one group instead of two: `head_ref` is `phase/03-layout` for the pull
+# request and `ref_name` is `phase/03-layout` for the push, while their `github.ref` values are
+# `refs/pull/N/merge` and `refs/heads/phase/03-layout` and would never collide. Without this,
+# opening a pull request on a phase branch doubles every run.
+concurrency: { group: "ci-${{ github.head_ref || github.ref_name }}", cancel-in-progress: true }
 env: { CARGO_TERM_COLOR: always, RUSTFLAGS: "-D warnings", INSTA_UPDATE: "no" }
 
 # Why the engine jobs say `--exclude openconvert-desktop`:

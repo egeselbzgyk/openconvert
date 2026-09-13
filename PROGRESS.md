@@ -117,8 +117,12 @@ Carried forward, in the order a fresh session needs them:
   Tauri crate is `--exclude`d from the engine jobs and gets its own `desktop` job (it has no Rust
   tests, and buying "it compiles" inside `--workspace` costs every job a GUI toolchain); `deny`
   needed its global flags before `check`; the tagged fixtures were never built; and `no-network`
-  reached the registry from inside the namespace. **Work on a branch that opens a pull request
-  from Phase 3 onward** — that is what makes `ci` fire on every push.
+  reached the registry from inside the namespace.
+- **`ci` now watches `phase/**` as well as `main`**, so a phase branch cannot go dark again the
+  way `phase/00-bootstrap` did. The concurrency group is keyed on the branch *name*, so opening a
+  pull request on a phase branch does not double every run. Opening one anyway is still worth
+  doing when the phase is ready to review — it is the review that a pull request buys, not the
+  CI, which fires either way now.
 - **Three CI jobs are `if: false` until their phase arrives**, because the commands they call do
   not exist: `epubcheck` (Phase 5), `dom-checks` (Phase 6) and `no-network`'s
   `assert-no-net-deps` step (Phase 14). Each carries a comment naming the phase. Until Phase 14
