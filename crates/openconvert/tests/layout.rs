@@ -205,3 +205,58 @@ fn floating_title_is_premasked_not_split() {
         "the title is pre-masked, not sorted with the columns"
     );
 }
+
+/// Row 3.5. A page can carry a valley as deep and as tall as a gutter and still be one
+/// column, and nothing on the page says which it is. The evidence is between the pages: read
+/// as two columns the text stops running on at every boundary, and read as one it never does.
+#[test]
+fn cross_page_continuity_downgrades_column_count() {
+    let layout = layout_of("../../corpus/fixtures/handmade/h22_false_gutter.pdf");
+
+    assert!(
+        layout.column_retries > 0,
+        "the two-column hypothesis was never questioned"
+    );
+    for (index, columns) in layout.columns.iter().enumerate() {
+        assert_eq!(
+            columns.count(),
+            1,
+            "page {index} kept its false gutter: {:?}",
+            columns.gutters
+        );
+    }
+    assert!(
+        layout.continuity.rate() >= 0.9,
+        "continuity after the downgrade is {} over {} boundaries",
+        layout.continuity.rate(),
+        layout.continuity.boundaries
+    );
+}
+
+/// And the control: the fixture really does look like two columns before the check runs, so
+/// the downgrade is a decision rather than a detector that never fires.
+#[test]
+fn the_false_gutter_is_found_before_continuity_rejects_it() {
+    let layout = layout_of("../../corpus/fixtures/handmade/h22_false_gutter.pdf");
+    assert!(layout.continuity.boundaries >= 4, "a rate needs samples");
+
+    // Page 0's ink, projected as `layout` projects it, with the continuity check taken away.
+    let ink: Vec<oc_model::geom::Rect> = layout.pages[0]
+        .lines
+        .iter()
+        .flat_map(|line| line.segments.iter().map(|segment| segment.bbox))
+        .collect();
+    let em = oc_layout::columns::median_height(
+        &layout.pages[0]
+            .lines
+            .iter()
+            .map(|line| line.bbox())
+            .collect::<Vec<_>>(),
+    );
+    let unchecked = oc_layout::columns::detect_columns(&ink, em, usize::MAX, &T);
+    assert_eq!(
+        unchecked.count(),
+        2,
+        "the fixture is supposed to look like two columns: {unchecked:?}"
+    );
+}

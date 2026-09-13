@@ -78,6 +78,7 @@ pub fn all() -> Vec<(&'static str, Vec<u8>)> {
         ("h19_constant_band_number", h19_constant_band_number()),
         ("h20_recto_verso", h20_recto_verso()),
         ("h21_band_is_sole_content", h21_band_is_sole_content()),
+        ("h22_false_gutter", h22_false_gutter()),
     ]
 }
 
@@ -474,6 +475,59 @@ pub fn h15_indexed_colour() -> Vec<u8> {
 /// The palette `h15` declares: entry 0 is red, entry 1 is blue.
 pub const INDEXED_PALETTE: [[u8; 3]; 2] = [[255, 0, 0], [0, 0, 255]];
 
+/// The page box `h22` needs: wide enough for two columns of twelve-point text.
+const WIDE_PAGE: [f32; 4] = [0.0, 0.0, 400.0, 300.0];
+
+/// Where `h22` sets its left and right halves, and the baselines it uses.
+const FALSE_GUTTER_LEFT_X: f32 = 20.0;
+const FALSE_GUTTER_RIGHT_X: f32 = 220.0;
+const FALSE_GUTTER_TOP_Y: f32 = 260.0;
+const FALSE_GUTTER_LEADING: f32 = 20.0;
+
+/// How many pages `h22` has, and how many full lines each carries. Five pages give four
+/// boundaries, which is enough for a *rate* to mean something; one boundary is a coin.
+const FALSE_GUTTER_PAGES: usize = 5;
+const FALSE_GUTTER_FULL_LINES: usize = 5;
+
+/// h22 — five pages with a tall empty band down the middle that is not a gutter (test 3.5).
+///
+/// Every line is written in two halves with 75 pt of nothing between them, so the
+/// x-projection has a valley as deep and as tall as a real gutter's, flanked by text on both
+/// sides. Nothing about the page says which reading is right, and that is the point: the
+/// evidence is not on the page, it is *between* pages.
+///
+/// Read as two columns, each page emits its left halves and then its right halves, so the
+/// page ends on `… to a full stop.` and the next begins with a capital-free line that has
+/// nothing to do with it — continuity breaks at every boundary. Read as one column, each page
+/// ends on its last left-only line, which stops mid-sentence and runs straight into the next
+/// page. The one-column reading is the one that makes the book read like a book, and the
+/// re-run is what finds that out (R10 §6.5).
+pub fn h22_false_gutter() -> Vec<u8> {
+    let pages: Vec<Page> = (0..FALSE_GUTTER_PAGES)
+        .map(|index| {
+            let mut page = Page::default().media_box(WIDE_PAGE);
+            for line in 0..FALSE_GUTTER_FULL_LINES {
+                let y = FALSE_GUTTER_TOP_Y - line as f32 * FALSE_GUTTER_LEADING;
+                page = page
+                    .text(
+                        (FALSE_GUTTER_LEFT_X, y),
+                        &format!("page {index} line {line} of"),
+                    )
+                    .text(
+                        (FALSE_GUTTER_RIGHT_X, y),
+                        &format!("prose to a full stop {line}."),
+                    );
+            }
+            // The last line of the page has no right half, so the two readings end the page
+            // on different words. Without it both readings end on the same line and the
+            // continuity proxy cannot tell them apart.
+            let y = FALSE_GUTTER_TOP_Y - FALSE_GUTTER_FULL_LINES as f32 * FALSE_GUTTER_LEADING;
+            page.text((FALSE_GUTTER_LEFT_X, y), "and the sentence goes on")
+        })
+        .collect();
+    build_pages(pages)
+}
+
 /// The outline `h13` carries, as `(title, level)` in the order it must be read.
 ///
 /// Three levels and two roots, because a tree that is only one level deep cannot tell a
@@ -577,6 +631,9 @@ struct Page {
     char_spacing: Option<f32>,
     /// Declare `/Differences [200 /fi]` over WinAnsi, so U+FB01 has a byte to be shown as.
     ligature_encoding: bool,
+    /// A page box of this page's own. `None` is [`PAGE`], the tall narrow box everything
+    /// that is not about geometry uses.
+    media_box: Option<[f32; 4]>,
 }
 
 /// One `BT … ET` block: where it starts, what it says, and at what size.
@@ -608,6 +665,13 @@ impl Page {
     /// it had to know the font metrics to compute.
     fn char_spacing(mut self, points: f32) -> Self {
         self.char_spacing = Some(points);
+        self
+    }
+
+    /// Give the page a box of its own, for the fixtures whose subject is where things sit
+    /// across the width of a page rather than what they say.
+    fn media_box(mut self, box_: [f32; 4]) -> Self {
+        self.media_box = Some(box_);
         self
     }
 
@@ -727,10 +791,11 @@ fn build_pages(pages: Vec<Page>) -> Vec<u8> {
             content.end_text();
         }
         {
+            let box_ = page.media_box.unwrap_or(PAGE);
             let mut written = pdf.page(*page_id);
             written
                 .parent(tree)
-                .media_box(Rect::new(PAGE[0], PAGE[1], PAGE[2], PAGE[3]))
+                .media_box(Rect::new(box_[0], box_[1], box_[2], box_[3]))
                 .contents(*content_id);
             written.resources().fonts().pair(Name(b"F1"), font_id);
             written.finish();

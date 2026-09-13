@@ -12,6 +12,7 @@ publish      = false
 oc-core = { path = "../oc-core", version = "0.1.0" }
 oc-model = { path = "../oc-model", version = "0.1.0" }
 oc-text = { path = "../oc-text", version = "0.1.0" }
+unicode-properties.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

@@ -1849,3 +1849,49 @@ Evidence: `columns::the_blank_half_of_a_short_column_is_not_a_gutter`, and `f02`
 reported gutter goes from (290.7, 542.7) to (290.7, 306.7).
 
 Affects: `crates/oc-layout/src/columns.rs`, PIPELINE §6 step 2, tests 3.2 and 3.3.
+
+## 2026-09-13 · The column retry compares hypotheses instead of assuming the narrower one · Phase 3
+Context: PIPELINE §6 step 4 — "if continuity breaks on more than 30 % of pages, the column hypothesis is
+wrong → re-run with k−1 columns. Bounded to two retries, then accept and warn."
+
+Decision: keep the rule and add one condition — **the re-run has to read better.** A narrower hypothesis
+is adopted only when its continuity break rate is strictly lower than the one it replaces.
+
+Evidence: `f02` is a genuine two-column document of two pages. It has exactly one page boundary, and that
+boundary falls at the end of a sentence, because the section ends there. The literal rule measures a 100 %
+break rate, downgrades a correct two-column page to one column, and interleaves it — the very failure test
+3.2 exists to catch. Under the comparison, the one-column reading of `f02` breaks the same boundary for
+the same reason, is not better, and is not adopted.
+
+The condition costs one extra layout pass and it is what makes the retry evidence rather than a reflex: a
+break rate is a statement about a document, and a document's own alternative reading is the only baseline
+available for it.
+
+Also recorded: the fixture the plan names for this test (`h13`, "false gutter") is `h13_outline`, which
+Phase 1 spent on the outline walk. Following the rule PROGRESS.md sets out — the test name is the
+contract, the fixture number is indicative — this is **`h22_false_gutter`**, five pages with a 75 pt
+empty band down the middle of every line. Nothing on those pages says whether it is a gutter; the
+evidence is between the pages, which is the point R10 §6.5 is making.
+
+Affects: `crates/openconvert/src/pipeline.rs`, `crates/oc-layout/src/continuity.rs`,
+`crates/oc-testkit/src/handmade.rs` (h22), thresholds `layout.columns.continuity_break_max` and
+`layout.columns.max_column_retries`, test 3.5, PIPELINE §6 step 4.
+
+## 2026-09-13 · Columns are detected before blocks, from run coverage · Phase 3
+Context: PIPELINE §6 lists segmentation first and column detection second. Implemented in that order, the
+column retry of step 4 cannot do anything: by the time the columns are known, the blocks have already
+been built across or within them, and re-running with `k−1` produces the same blocks and the same order.
+
+Decision: detect columns **first**, from the x-projection of *run* boxes — which is what §6 step 2 says
+the projection is over ("project glyph coverage onto x"), not block boxes — then split any line that
+spans a gutter, then segment, then order. Segmentation is unchanged; what changes is that the hypothesis
+it works from is a hypothesis, and can be withdrawn.
+
+That also puts the Phase-2 carry-forward in its proper place. A line spanning a gutter has one box, one
+indent and one right gap across both columns; splitting it is `layout`'s job because the split is exactly
+as good as the column hypothesis, and under `k = 1` there is no split to make. `words` breaks a *run* at
+`text.line_split_gap_em`, which is all the projection needs to see the valley.
+
+Affects: `crates/oc-layout/src/columns.rs` (`detect_columns` now takes run boxes, the page em and a column
+cap), `crates/oc-layout/src/blocks.rs` (`LayoutLine` carries its segments), `crates/oc-text/src/lines.rs`,
+`crates/openconvert/src/pipeline.rs`, PIPELINE §6, PROGRESS.md carry-forward 2.

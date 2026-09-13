@@ -36,7 +36,7 @@ use oc_model::extract::PageRef;
 use oc_model::geom::Rect;
 use oc_model::ids::BlockId;
 use oc_model::layout::{Block, BlockKindHint};
-use oc_model::text::Line;
+use oc_model::text::{Line, RunId};
 
 /// The stage the blocks this module mints belong to.
 pub const STAGE: &str = "layout";
@@ -60,7 +60,20 @@ const MIN_RECTANGLE_AREA_SQ_PT: i64 = 1;
 /// The number of collision suffixes a `BlockId` has (D13.3: the last base32 character).
 const COLLISION_SUFFIXES: u8 = 32;
 
-/// One line, with the text a [`BlockId`] is derived from.
+/// One stretch of a line in one style: a run, reduced to what `layout` needs of it.
+///
+/// Segments are what the column projection is taken over, because they are the closest thing
+/// to glyph coverage that survives this far: `words` breaks a run at any gap wider than
+/// `text.line_split_gap_em`, so a segment never spans a gutter even when the line built from
+/// it does.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Segment {
+    pub run: RunId,
+    pub bbox: Rect,
+    pub text: String,
+}
+
+/// One line, with the text a [`BlockId`] is derived from and the segments it is made of.
 ///
 /// The text is carried alongside rather than recomputed, because assembling it needs the
 /// page's runs and by this stage the lines have been filtered by `furniture`, so their run
@@ -69,6 +82,7 @@ const COLLISION_SUFFIXES: u8 = 32;
 pub struct LayoutLine {
     pub line: Line,
     pub text: String,
+    pub segments: Vec<Segment>,
 }
 
 impl LayoutLine {
@@ -76,7 +90,51 @@ impl LayoutLine {
     pub fn bbox(&self) -> Rect {
         self.line.bbox
     }
+
+    /// Rebuild a line from a subset of its segments — what splitting at a gutter produces.
+    ///
+    /// Everything that can be re-derived is: the box, the text, and whether the line ends on
+    /// a hyphen, which is a different question once the line stops at the gutter.
+    pub fn from_segments(source: &LayoutLine, segments: Vec<Segment>) -> Option<Self> {
+        let bbox = segments
+            .iter()
+            .map(|segment| segment.bbox)
+            .reduce(|a, b| Rect {
+                x0: a.x0.min(b.x0),
+                y0: a.y0.min(b.y0),
+                x1: a.x1.max(b.x1),
+                y1: a.y1.max(b.y1),
+            })?;
+        let text = segments
+            .iter()
+            .map(|segment| segment.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let ends_with_hyphen = text
+            .trim_end()
+            .chars()
+            .next_back()
+            .is_some_and(|ch| HYPHENS.contains(&ch));
+        Some(Self {
+            line: Line {
+                runs: segments.iter().map(|segment| segment.run).collect(),
+                bbox,
+                baseline_y: source.line.baseline_y,
+                ends_with_hyphen,
+                // Indent and right gap are measured against the block once there is one; a
+                // fragment of a line has no block yet, so they are left for `blocks` to fill.
+                indent_pt: 0.0,
+                right_gap_pt: 0.0,
+            },
+            text: text.trim().to_owned(),
+            segments,
+        })
+    }
 }
+
+/// The hyphens a line may end on. Same set as `oc_text::lines`, and for the same reason: it
+/// is the definition of "ends with a hyphen", not an inventory of what survived `N`.
+const HYPHENS: [char; 4] = ['\u{002D}', '\u{2010}', '\u{2011}', '\u{00AD}'];
 
 /// One page as `layout` receives it: furniture already removed.
 #[derive(Clone, Debug, PartialEq)]
@@ -707,7 +765,7 @@ mod tests {
         };
         LayoutLine {
             line: Line {
-                runs: Vec::new(),
+                runs: vec![RunId(0)],
                 bbox,
                 baseline_y: y0 + 8.0,
                 ends_with_hyphen: text.ends_with('-'),
@@ -715,6 +773,11 @@ mod tests {
                 right_gap_pt: 0.0,
             },
             text: text.to_owned(),
+            segments: vec![Segment {
+                run: RunId(0),
+                bbox,
+                text: text.to_owned(),
+            }],
         }
     }
 

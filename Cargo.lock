@@ -3453,6 +3453,7 @@ dependencies = [
  "oc-text",
  "proptest",
  "thiserror 2.0.20",
+ "unicode-properties",
 ]
 
 [[package]]

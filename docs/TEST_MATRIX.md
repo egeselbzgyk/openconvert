@@ -220,5 +220,13 @@ replaced by the phase that owns it.
 | 3.2c | `columns::a_single_column_page_has_no_gutter` | `oc-layout` | unit | `test` | green |
 | 3.3a | `columns::a_crossing_title_does_not_destroy_the_gutter` | `oc-layout` | unit | `test` | green |
 | 3.3b | `columns::a_block_that_crosses_the_gutter_is_marked_a_floating_title` | `oc-layout` | unit | `test` | green |
+| 3.5 | `layout::cross_page_continuity_downgrades_column_count` | `openconvert` | fixture (h22) | `test` | green |
+| 3.5a | `layout::the_false_gutter_is_found_before_continuity_rejects_it` | `openconvert` | fixture (h22) | `test` | green |
+| 3.5b | `continuity::a_sentence_that_crosses_a_page_boundary_is_continuous` | `oc-layout` | unit | `test` | green |
+| 3.5c | `continuity::a_page_that_ends_its_sentence_is_not_evidence_of_continuity` | `oc-layout` | unit | `test` | green |
+| 3.5d | `continuity::an_uppercase_start_breaks_continuity_even_without_punctuation` | `oc-layout` | unit | `test` | green |
+| 3.5e | `continuity::a_single_page_has_no_boundary_to_measure` | `oc-layout` | unit | `test` | green |
+| 3.5f | `continuity::a_blank_page_is_skipped_not_counted_as_a_break` | `oc-layout` | unit | `test` | green |
+| 3.5g | `columns::a_capped_page_reports_one_column` | `oc-layout` | unit | `test` | green |
 | 3.13 | `layout::layout_stage_is_conserving` | `openconvert` | fixture (f01) | `test` | green |
 | 3.13a | `layout::layout_stage_conservation_violation_errors` | `openconvert` | unit | `test` | green |

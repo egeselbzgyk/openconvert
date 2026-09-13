@@ -9,11 +9,15 @@
 use oc_core::ledger_check::{c_of, check_invariants, ConservationError, ReasonTotals};
 use oc_core::stages;
 use oc_core::thresholds::Thresholds;
-use oc_layout::blocks::{segment_blocks, LayoutLine, LayoutPage, SegmentationAgreement};
-use oc_layout::columns::{assign_columns, detect_columns, ColumnLayout};
+use oc_layout::blocks::{segment_blocks, LayoutLine, LayoutPage, Segment, SegmentationAgreement};
+use oc_layout::columns::{
+    assign_columns, detect_columns, median_height, split_lines_at_gutters, ColumnLayout,
+};
+use oc_layout::continuity::{continuity, Continuity};
 use oc_layout::furniture::{apply_furniture, detect_furniture, PageLines};
 use oc_layout::reading_order::reading_order;
 use oc_model::extract::{CharHistogram, Glyph, PageRef};
+use oc_model::geom::Rect;
 use oc_model::lang::LangTag;
 use oc_model::layout::Block;
 use oc_model::ledger::{LedgerDelta, StageCheck};
@@ -74,6 +78,11 @@ pub struct LayoutStage {
     pub blocks: Vec<Vec<Block>>,
     pub columns: Vec<ColumnLayout>,
     pub agreement: Vec<SegmentationAgreement>,
+    /// How well the document read across its own page boundaries under the hypothesis that
+    /// was kept.
+    pub continuity: Continuity,
+    /// How many times the column count had to be narrowed before it read that way.
+    pub column_retries: u32,
     pub delta: LedgerDelta,
     pub check: StageCheck,
 }
@@ -191,7 +200,7 @@ pub fn layout_stage(
 ) -> Result<LayoutStage, ConservationError> {
     let before = line_chars(&furniture.pages);
 
-    let pages: Vec<LayoutPage> = text
+    let source: Vec<LayoutPage> = text
         .pages
         .iter()
         .enumerate()
@@ -209,39 +218,145 @@ pub fn layout_stage(
                 .map(|line| LayoutLine {
                     line: line.clone(),
                     text: line_text(&page.runs, line),
+                    segments: line
+                        .runs
+                        .iter()
+                        .filter_map(|id| page.runs.get(id.0 as usize))
+                        .map(|run| Segment {
+                            run: run.id,
+                            bbox: run.bbox,
+                            text: run.text.trim().to_owned(),
+                        })
+                        .filter(|segment| !segment.text.is_empty())
+                        .collect(),
                 })
                 .collect(),
         })
         .collect();
 
-    let mut blocks = Vec::with_capacity(pages.len());
-    let mut columns = Vec::with_capacity(pages.len());
-    let mut agreement = Vec::with_capacity(pages.len());
-    for page in &pages {
-        let (mut page_blocks, page_agreement) = segment_blocks(page, t);
-        let layout = detect_columns(&page_blocks, t);
+    // The column hypothesis, checked by its consequences (PIPELINE §6 step 4). A wrong one
+    // reorders the page, and a reordered page stops flowing into the next; so the document is
+    // laid out, its cross-page continuity measured, and — only if a narrower hypothesis
+    // actually reads better — laid out again with one column fewer.
+    let mut best = lay_out(&source, usize::MAX, t);
+    let mut retries = 0u32;
+    let max_break = t.layout.columns.continuity_break_max as f32;
+    let max_retries = u32::try_from(t.layout.columns.max_column_retries.max(0)).unwrap_or(0);
+    while best.continuity.break_rate() > max_break && retries < max_retries {
+        let narrower = best
+            .columns
+            .iter()
+            .map(oc_layout::columns::ColumnLayout::count)
+            .max()
+            .unwrap_or(1)
+            .saturating_sub(1);
+        if narrower < 1 {
+            break;
+        }
+        let candidate = lay_out(&source, narrower, t);
+        // A re-run that does not read better is not evidence. Without this comparison a
+        // genuine two-column document whose one page boundary happens to fall at the end of a
+        // sentence would be downgraded on a single sample.
+        if candidate.continuity.break_rate() >= best.continuity.break_rate() {
+            break;
+        }
+        best = candidate;
+        retries += 1;
+    }
+
+    let after = block_chars(&best.blocks, &best.pages);
+    let delta = LedgerDelta::default();
+    let check = check_invariants(&before, &after, &delta, stages::LAYOUT, totals)?;
+
+    Ok(LayoutStage {
+        pages: best.pages,
+        blocks: best.blocks,
+        columns: best.columns,
+        agreement: best.agreement,
+        continuity: best.continuity,
+        column_retries: retries,
+        delta,
+        check,
+    })
+}
+
+/// One pass of the layout stage at a given column cap: columns, the line splits they imply,
+/// blocks, reading order, and the continuity that results.
+fn lay_out(source: &[LayoutPage], limit: usize, t: &Thresholds) -> LayoutPass {
+    let mut pages = Vec::with_capacity(source.len());
+    let mut blocks = Vec::with_capacity(source.len());
+    let mut columns = Vec::with_capacity(source.len());
+    let mut agreement = Vec::with_capacity(source.len());
+
+    for page in source {
+        let ink: Vec<Rect> = page
+            .lines
+            .iter()
+            .flat_map(|line| line.segments.iter().map(|segment| segment.bbox))
+            .collect();
+        let em = median_height(&page.lines.iter().map(LayoutLine::bbox).collect::<Vec<_>>());
+        let layout = detect_columns(&ink, em, limit, t);
+
+        let page = LayoutPage {
+            lines: split_lines_at_gutters(&page.lines, &layout),
+            ..page.clone()
+        };
+        let (mut page_blocks, page_agreement) = segment_blocks(&page, t);
         assign_columns(&mut page_blocks, &layout);
-        // No masks yet: `ingest` carries images and rules, and anchoring them is this
-        // phase's last item. Blocks that span columns are pre-masked either way.
+        // No masks yet: `ingest` carries images and rules, and anchoring them is this phase's
+        // last item. Blocks that span columns are pre-masked either way.
         reading_order(&mut page_blocks, &layout, &[], t);
         let (page_blocks, page_agreement) = into_reading_order(page_blocks, page_agreement);
+
+        pages.push(page);
         blocks.push(page_blocks);
         columns.push(layout);
         agreement.push(page_agreement);
     }
 
-    let after = block_chars(&blocks, &pages);
-    let delta = LedgerDelta::default();
-    let check = check_invariants(&before, &after, &delta, stages::LAYOUT, totals)?;
+    let reading: Vec<Vec<String>> = blocks
+        .iter()
+        .zip(&pages)
+        .map(|(page_blocks, page)| {
+            page_blocks
+                .iter()
+                .map(|block| block_text(block, page))
+                .collect()
+        })
+        .collect();
 
-    Ok(LayoutStage {
+    LayoutPass {
+        continuity: continuity(&reading),
         pages,
         blocks,
         columns,
         agreement,
-        delta,
-        check,
-    })
+    }
+}
+
+/// One attempt at laying out the document, kept whole so two can be compared.
+struct LayoutPass {
+    pages: Vec<LayoutPage>,
+    blocks: Vec<Vec<Block>>,
+    columns: Vec<ColumnLayout>,
+    agreement: Vec<SegmentationAgreement>,
+    continuity: Continuity,
+}
+
+/// A block's text, its lines joined by spaces, as the continuity proxy reads it.
+pub fn block_text(block: &Block, page: &LayoutPage) -> String {
+    block
+        .lines
+        .iter()
+        .map(|line| {
+            page.lines
+                .iter()
+                .find(|candidate| candidate.line == *line)
+                .map(|candidate| candidate.text.as_str())
+                .unwrap_or_default()
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Put a page's blocks into reading order, carrying the agreement vectors with them.

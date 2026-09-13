@@ -18,9 +18,13 @@
 //! and a page whose best valley is shallow or interrupted falls back to one column with a
 //! warning rather than guessing (PIPELINE §6, failure modes).
 
+use std::collections::BTreeMap;
+
 use oc_core::thresholds::Thresholds;
 use oc_model::geom::Rect;
 use oc_model::layout::{Block, BlockKindHint};
+
+use crate::blocks::{LayoutLine, Segment};
 
 /// The resolution of the projection, in points. One point is finer than any gutter this is
 /// asked about and coarse enough that a 600 pt page is 600 bins.
@@ -109,21 +113,20 @@ impl ColumnLayout {
 /// anything else about the page.
 const MIN_COLUMN_SHARE_TO_COUNT: f32 = 0.25;
 
-/// Find the page's columns from the x-projection of its blocks.
-pub fn detect_columns(blocks: &[Block], t: &Thresholds) -> ColumnLayout {
-    let boxes: Vec<Rect> = blocks.iter().map(|block| block.bbox).collect();
-    let Some(area) = text_area(&boxes) else {
+/// Find the page's columns from the x-projection of its ink.
+///
+/// `boxes` are run boxes, not line boxes: a line may span a gutter — that is the whole
+/// problem — while a run may not, because `words` breaks one at any gap wider than
+/// `text.line_split_gap_em`. `em` is the page's em, from the median line height. `limit` caps
+/// how many columns may be returned, which is how the cross-page continuity check re-runs the
+/// page with one column fewer (PIPELINE §6 step 4); pass `usize::MAX` for no cap.
+pub fn detect_columns(boxes: &[Rect], em: f32, limit: usize, t: &Thresholds) -> ColumnLayout {
+    let Some(area) = text_area(boxes) else {
         return ColumnLayout::single(0.0, 0.0);
     };
-
-    // The em comes from the *lines*, not the blocks: a block of five lines is five times
-    // too tall to be anyone's em.
-    let em = median_height(
-        &blocks
-            .iter()
-            .flat_map(|block| block.lines.iter().map(|line| line.bbox))
-            .collect::<Vec<_>>(),
-    );
+    if limit <= 1 {
+        return ColumnLayout::single(area.x0, area.x1);
+    }
     let min_width = em * t.layout.columns.gutter_min_width_em as f32;
     let min_emptiness = t.layout.columns.gutter_emptiness_min as f32;
     let min_height_share = t.layout.columns.gutter_height_share_min as f32;
@@ -141,13 +144,13 @@ pub fn detect_columns(blocks: &[Block], t: &Thresholds) -> ColumnLayout {
             x1: area.x0 + (index + 1) as f32 * BIN_PT,
             y1: area.y1,
         };
-        let (from, span) = free_window(strip, &boxes, min_emptiness);
+        let (from, span) = free_window(strip, boxes, min_emptiness);
         share[index] = span / text_height;
         // Tall and empty is not enough, and this is the condition that separates a gutter
         // from the rest of the page's whitespace. The blank lower half of a short column is
         // tall and empty; so is the outer margin. What makes a valley a *gutter* is text on
         // both sides of it at the same heights, which neither of those has.
-        *flag = share[index] >= min_height_share && flanked(strip, from, from + span, &boxes);
+        *flag = share[index] >= min_height_share && flanked(strip, from, from + span, boxes);
     }
 
     let mut gutters = Vec::new();
@@ -169,7 +172,7 @@ pub fn detect_columns(blocks: &[Block], t: &Thresholds) -> ColumnLayout {
                             x1,
                             y1: area.y1,
                         },
-                        &boxes,
+                        boxes,
                     );
                     gutters.push(Gutter {
                         x0,
@@ -187,6 +190,14 @@ pub fn detect_columns(blocks: &[Block], t: &Thresholds) -> ColumnLayout {
 
     if gutters.is_empty() {
         return ColumnLayout::single(area.x0, area.x1);
+    }
+
+    // Under a cap, the strongest valleys survive: a gutter's score is its width times its
+    // emptiness, so the one that goes is the shallowest or the narrowest.
+    if gutters.len() + 1 > limit {
+        gutters.sort_by(|a, b| b.score.total_cmp(&a.score));
+        gutters.truncate(limit.saturating_sub(1));
+        gutters.sort_by(|a, b| a.x0.total_cmp(&b.x0));
     }
 
     let mut columns = Vec::with_capacity(gutters.len() + 1);
@@ -221,6 +232,48 @@ fn flanked(strip: Rect, from: f32, to: f32, boxes: &[Rect]) -> bool {
         .iter()
         .any(|b| b.x0 >= strip.x1 && b.x1 > strip.x1 && overlaps(b));
     left && right
+}
+
+/// Split any line that spans a gutter into one line per column.
+///
+/// This is the repair PROGRESS.md carried forward from Phase 2: `text` clusters a line by
+/// baseline alone, so two columns printed at the same height arrive as one line with one
+/// bounding box, one indent and one right gap across both of them. Every paragraph rule that
+/// reads those fields would be reading a number about two columns at once.
+///
+/// It happens *here*, after the columns are known, and not in `text`, because the split is
+/// exactly as good as the column hypothesis is. When the continuity check disbelieves that
+/// hypothesis and re-runs the page with one column fewer, these lines are not split — and
+/// that is what makes the re-run mean something rather than being the same answer computed
+/// twice.
+pub fn split_lines_at_gutters(lines: &[LayoutLine], columns: &ColumnLayout) -> Vec<LayoutLine> {
+    if columns.count() < 2 {
+        return lines.to_vec();
+    }
+    let mut split = Vec::with_capacity(lines.len());
+    for line in lines {
+        if line.segments.len() < 2 {
+            split.push(line.clone());
+            continue;
+        }
+        let mut by_column: BTreeMap<u8, Vec<Segment>> = BTreeMap::new();
+        for segment in &line.segments {
+            by_column
+                .entry(columns.column_of(segment.bbox))
+                .or_default()
+                .push(segment.clone());
+        }
+        if by_column.len() < 2 {
+            split.push(line.clone());
+            continue;
+        }
+        for (_, segments) in by_column {
+            if let Some(part) = LayoutLine::from_segments(line, segments) {
+                split.push(part);
+            }
+        }
+    }
+    split
 }
 
 /// The tallest contiguous vertical window over which a strip is at least `min_emptiness`
@@ -333,7 +386,25 @@ mod tests {
     use oc_core::thresholds::T;
     use oc_model::extract::PageRef;
     use oc_model::ids::BlockId;
-    use oc_model::text::Line;
+
+    /// The run boxes of a body of text: one 10 pt line every 12 pt, as a page sets them.
+    fn ink(x0: f32, y0: f32, x1: f32, y1: f32) -> Vec<Rect> {
+        let mut boxes = Vec::new();
+        let mut top = y0;
+        while top + 10.0 <= y1 {
+            boxes.push(Rect {
+                x0,
+                y0: top,
+                x1,
+                y1: top + 10.0,
+            });
+            top += 12.0;
+        }
+        boxes
+    }
+
+    /// The page's em, as `detect_columns` is always called with it.
+    const EM: f32 = 10.0;
 
     fn block_at(x0: f32, y0: f32, x1: f32, y1: f32) -> Block {
         let bbox = Rect { x0, y0, x1, y1 };
@@ -341,24 +412,7 @@ mod tests {
             id: BlockId::derive(0, bbox, ""),
             page: PageRef::new(0),
             bbox,
-            lines: (0..((y1 - y0) / 12.0).max(1.0) as usize)
-                .map(|row| {
-                    let top = y0 + row as f32 * 12.0;
-                    Line {
-                        runs: Vec::new(),
-                        bbox: Rect {
-                            x0,
-                            y0: top,
-                            x1,
-                            y1: (top + 10.0).min(y1),
-                        },
-                        baseline_y: top + 8.0,
-                        ends_with_hyphen: false,
-                        indent_pt: 0.0,
-                        right_gap_pt: 0.0,
-                    }
-                })
-                .collect(),
+            lines: Vec::new(),
             column: 0,
             kind_hint: BlockKindHint::Text,
             furniture: None,
@@ -366,16 +420,15 @@ mod tests {
         }
     }
 
-    fn two_columns() -> Vec<Block> {
-        vec![
-            block_at(50.0, 50.0, 240.0, 400.0),
-            block_at(300.0, 50.0, 490.0, 400.0),
-        ]
+    fn two_columns() -> Vec<Rect> {
+        let mut boxes = ink(50.0, 50.0, 240.0, 400.0);
+        boxes.extend(ink(300.0, 50.0, 490.0, 400.0));
+        boxes
     }
 
     #[test]
     fn a_wide_valley_between_two_bodies_of_text_is_a_gutter() {
-        let layout = detect_columns(&two_columns(), &T);
+        let layout = detect_columns(&two_columns(), EM, usize::MAX, &T);
         assert_eq!(layout.count(), 2, "{:?}", layout.gutters);
         assert!(layout.gutters[0].x0 >= 240.0 && layout.gutters[0].x1 <= 300.0);
         assert!(layout.gutters[0].score > 0.0);
@@ -385,11 +438,9 @@ mod tests {
     /// and empty and is not a gutter, because there is nothing on the far side of it.
     #[test]
     fn the_blank_half_of_a_short_column_is_not_a_gutter() {
-        let blocks = vec![
-            block_at(50.0, 50.0, 240.0, 400.0),
-            block_at(300.0, 50.0, 490.0, 120.0),
-        ];
-        let layout = detect_columns(&blocks, &T);
+        let mut boxes = ink(50.0, 50.0, 240.0, 400.0);
+        boxes.extend(ink(300.0, 50.0, 490.0, 120.0));
+        let layout = detect_columns(&boxes, EM, usize::MAX, &T);
         assert_eq!(layout.count(), 2, "the real gutter is still found");
         for gutter in &layout.gutters {
             assert!(
@@ -402,7 +453,7 @@ mod tests {
     /// One column of prose has no gutter, and the fallback is one column rather than a guess.
     #[test]
     fn a_single_column_page_has_no_gutter() {
-        let layout = detect_columns(&[block_at(50.0, 50.0, 490.0, 400.0)], &T);
+        let layout = detect_columns(&ink(50.0, 50.0, 490.0, 400.0), EM, usize::MAX, &T);
         assert_eq!(layout.count(), 1);
         assert!(layout.gutters.is_empty());
     }
@@ -411,18 +462,42 @@ mod tests {
     /// qualifying span is a share of the text height rather than all of it.
     #[test]
     fn a_crossing_title_does_not_destroy_the_gutter() {
-        let mut blocks = two_columns();
-        blocks.push(block_at(150.0, 20.0, 400.0, 40.0));
-        let layout = detect_columns(&blocks, &T);
+        let mut boxes = two_columns();
+        boxes.push(Rect {
+            x0: 150.0,
+            y0: 20.0,
+            x1: 400.0,
+            y1: 40.0,
+        });
+        let layout = detect_columns(&boxes, EM, usize::MAX, &T);
         assert_eq!(layout.count(), 2, "{:?}", layout.gutters);
+    }
+
+    /// Under a cap of one column there are no gutters, whatever the page looks like: this is
+    /// how the continuity check re-runs a page it does not believe.
+    #[test]
+    fn a_capped_page_reports_one_column() {
+        let layout = detect_columns(&two_columns(), EM, 1, &T);
+        assert_eq!(layout.count(), 1);
+        assert!(layout.gutters.is_empty());
     }
 
     /// And the block that crosses it is marked, because that is what `reading_order` masks.
     #[test]
     fn a_block_that_crosses_the_gutter_is_marked_a_floating_title() {
-        let mut blocks = two_columns();
-        blocks.push(block_at(150.0, 20.0, 400.0, 40.0));
-        let layout = detect_columns(&blocks, &T);
+        let mut boxes = two_columns();
+        boxes.push(Rect {
+            x0: 150.0,
+            y0: 20.0,
+            x1: 400.0,
+            y1: 40.0,
+        });
+        let layout = detect_columns(&boxes, EM, usize::MAX, &T);
+        let mut blocks = vec![
+            block_at(50.0, 50.0, 240.0, 400.0),
+            block_at(300.0, 50.0, 490.0, 400.0),
+            block_at(150.0, 20.0, 400.0, 40.0),
+        ];
         assign_columns(&mut blocks, &layout);
 
         assert_eq!(blocks[2].kind_hint, BlockKindHint::FloatingTitle);

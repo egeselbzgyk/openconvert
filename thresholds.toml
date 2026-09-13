@@ -241,7 +241,7 @@ review_by = "2028-01-01"
 [text.line_split_gap_em]
 value = 1.2
 source = "provisional"
-evidence = "A horizontal gap this wide, in ems of the glyph before it, is not a word space: the baseline cluster is two columns, or two table cells, and is split there. A word space is 0.25-0.33 em by design and justification stretches it to at most about 1 em before a typesetter rebreaks the line; a column gutter is 2 em or more (Typst's default is 4 % of the measure, which is 2.0 em on f02; book practice is a pica or wider, 1.2 em at 10 pt). The floor is set at the narrow end of gutter practice rather than the wide end of word spacing, because merging two columns interleaves two arguments while splitting a wide space costs a line boundary that `paragraphs` puts back."
+evidence = "A horizontal gap this wide, in ems of the glyph before it, is not a word space: it is two columns, or two table cells, and a *run* is broken there. Not a line: where the columns are is `layout`'s to say, from the x-projection of these run boxes, and the lines are split at the gutters that projection finds. What this number buys is that the boxes being projected do not themselves span a gutter. A word space is 0.25-0.33 em by design and justification stretches it to at most about 1 em before a typesetter rebreaks the line; a column gutter is 2 em or more (Typst's default is 4 % of the measure, which is 2.0 em on f02; book practice is a pica or wider, 1.2 em at 10 pt). The floor is set at the narrow end of gutter practice rather than the wide end of word spacing, because merging two columns interleaves two arguments while splitting a wide space costs a line boundary that `paragraphs` puts back."
 owner = "maintainer"
 review_by = "2027-06-30"
 
@@ -375,6 +375,20 @@ review_by = "2027-06-30"
 value = 0.6
 source = "provisional"
 evidence = "PIPELINE §6 step 2, marked provisional there. How much of the text height the qualifying span must cover. Below the whole height on purpose: a full-width floating title crosses the gutter near the top of the page, and a criterion measured over the whole height would lose the gutter to it - which is the very configuration pre-masking exists for."
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.columns.continuity_break_max]
+value = 0.30
+source = "provisional"
+evidence = "PIPELINE §6 step 4, marked provisional there: if the text fails to run on across more than this share of page boundaries, the column hypothesis is suspect and the page set is laid out again with one column fewer. A rate, never a single boundary - most pages of a novel end mid-sentence, but a chapter end does not, and a document of four pages has three samples."
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.columns.max_column_retries]
+value = 2
+source = "provisional"
+evidence = "PIPELINE §6 step 4: 'Bounded to two retries, then accept and warn.' The bound matters more than the number - a search that keeps narrowing eventually reaches one column, which reads every page top to bottom and is never wrong-looking enough to stop itself."
 owner = "maintainer"
 review_by = "2027-06-30"
 

@@ -4,5 +4,6 @@
 
 pub mod blocks;
 pub mod columns;
+pub mod continuity;
 pub mod furniture;
 pub mod reading_order;
