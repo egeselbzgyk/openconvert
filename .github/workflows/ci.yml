@@ -68,6 +68,9 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --project eval
       - run: cargo run -p xtask -- fixtures           # compile the Typst fixtures
+      # And D18's separate tagged bucket. `meta::struct_tree_is_read_from_the_catalogue`
+      # reads `f01_..__tagged.pdf`, which only the flag produces.
+      - run: cargo run -p xtask -- fixtures --keep-structtree
       - run: cargo nextest run --workspace --exclude openconvert-desktop --locked --profile ci
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -102,9 +105,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@nextest
       - run: cargo run -p xtask -- vendor-pdfium && cargo run -p xtask -- fixtures
+      # Everything the run below will need, fetched and compiled while there is still a
+      # network. `cargo nextest run` shells out to `cargo metadata`, which resolves the whole
+      # workspace including `xtask`'s dependencies — so a registry warmed only by building
+      # the engine leaves it reaching for `static.crates.io` from inside the namespace, which
+      # is exactly the failure this job is supposed to be able to distinguish from a real one.
+      - run: cargo fetch --locked
       # The engine only. The Tauri shell's binary is not what this job is about, and
       # building it here would drag in the GUI toolchain for nothing.
       - run: cargo build -p openconvert --locked --bins
+      - run: cargo nextest list -p oc-core -p openconvert --locked -E 'test(convert_) or test(inspect_)'
       - name: conversions under an empty network namespace
         run: |
           sudo unshare -n -- sudo -u "$USER" env "PATH=$PATH" \

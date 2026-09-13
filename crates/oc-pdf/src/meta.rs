@@ -168,8 +168,15 @@ fn compiled(name: &str) -> Document {
         .join("../../target/fixtures")
         .join(format!("{name}.pdf"));
     let bytes = std::fs::read(&path).unwrap_or_else(|error| {
+        // The tagged variants come from a *different* invocation, and a message that named
+        // only the plain one sent CI's first red run looking in the wrong place.
+        let flag = if name.ends_with("__tagged") {
+            " --keep-structtree"
+        } else {
+            ""
+        };
         panic!(
-            "missing fixture {}: {error}; run `cargo run -p xtask -- fixtures`",
+            "missing fixture {}: {error}; run `cargo run -p xtask -- fixtures{flag}`",
             path.display()
         )
     });
