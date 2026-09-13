@@ -116,7 +116,7 @@ fn dump_stage_layout_header_f02() {
 #[test]
 fn digest_f01_layout() {
     let layout = lay_out("../../target/fixtures/f01_prose_single_column.pdf");
-    insta::assert_json_snapshot!(digest(&layout));
+    insta::assert_json_snapshot!(digest(&layout, &T));
 }
 
 /// The digest of the document whose column hypothesis was withdrawn, because the number that
@@ -124,5 +124,5 @@ fn digest_f01_layout() {
 #[test]
 fn digest_h22_layout() {
     let layout = lay_out("../../corpus/fixtures/handmade/h22_false_gutter.pdf");
-    insta::assert_json_snapshot!(digest(&layout));
+    insta::assert_json_snapshot!(digest(&layout, &T));
 }

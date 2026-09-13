@@ -1,6 +1,6 @@
 ---
 source: crates/openconvert/tests/dump_layout.rs
-expression: digest(&layout)
+expression: "digest(&layout, &T)"
 ---
 {
   "pages": 2,
@@ -14,9 +14,8 @@ expression: digest(&layout)
     1
   ],
   "lines": 14,
-  "paragraph_candidates": 10,
+  "paragraph_candidates": 2,
   "low_confidence_blocks": 0,
-  "min_agreement_iou_milli": 1000,
   "continuity_held": 0,
   "continuity_boundaries": 1,
   "column_retries": 0,

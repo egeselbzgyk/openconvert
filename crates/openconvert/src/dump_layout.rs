@@ -185,11 +185,18 @@ pub fn pages(layout: &LayoutStage) -> Vec<DumpPage> {
 
 /// The structural digest of a laid-out document (Phase 3 test 3.16).
 ///
-/// Counts and totals, no geometry. A snapshot of the full dump changes whenever a box moves by
-/// a hundredth of a point — which is exactly what a host-dependent glyph box does
-/// (`docs/DECISIONS_LOG.md`, 2026-09-13) — so the thing that is asserted across machines is
-/// the *shape* of the answer: how many blocks, in how many columns, how much the segmenters
-/// disagreed, what the ledger says.
+/// Counts and totals, **no geometry and nothing derived from geometry**. A snapshot of the
+/// full dump changes whenever a box moves by a hundredth of a point — which is exactly what a
+/// host-dependent glyph box does (`docs/DECISIONS_LOG.md`, 2026-09-13) — so the thing that is
+/// asserted across machines is the *shape* of the answer: how many blocks, in how many
+/// columns, how many the segmenters disagreed about, what the ledger says.
+///
+/// The second half of that sentence was learned the hard way. This digest carried the page's
+/// worst block-boundary IoU in thousandths, on the reasoning that an integer is stable — but
+/// an IoU is a ratio of *areas*, so it inherits every hundredth of a point the boxes carry.
+/// `h22` measured 101 on Windows and 102 on Ubuntu and the committed snapshot failed in CI.
+/// How many blocks were flagged is the decision the cross-check produced, and it is here;
+/// how nearly each one missed is a measurement, and it belongs in the dump, where it is.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Digest {
     pub pages: u32,
@@ -199,7 +206,6 @@ pub struct Digest {
     pub lines: u32,
     pub paragraph_candidates: u32,
     pub low_confidence_blocks: u32,
-    pub min_agreement_iou_milli: u32,
     pub continuity_held: u32,
     pub continuity_boundaries: u32,
     pub column_retries: u32,
@@ -210,18 +216,12 @@ pub struct Digest {
 }
 
 /// Reduce a laid-out document to its digest.
-pub fn digest(layout: &LayoutStage) -> Digest {
+pub fn digest(layout: &LayoutStage, t: &Thresholds) -> Digest {
     let blocks_per_page: Vec<u32> = layout
         .blocks
         .iter()
         .map(|page| u32::try_from(page.len()).unwrap_or(u32::MAX))
         .collect();
-    let min_iou = layout
-        .agreement
-        .iter()
-        .map(oc_layout::blocks::SegmentationAgreement::min_iou)
-        .fold(1.0f32, f32::min);
-
     Digest {
         pages: u32::try_from(layout.pages.len()).unwrap_or(u32::MAX),
         blocks: blocks_per_page.iter().sum(),
@@ -237,16 +237,30 @@ pub fn digest(layout: &LayoutStage) -> Digest {
             .flat_map(|page| page.iter())
             .map(|block| u32::try_from(block.lines.len()).unwrap_or(u32::MAX))
             .sum(),
+        // Lines indented by at least `paragraph.indent_min_em`, not by *anything at all*.
+        // "Indented by more than zero" is a strict comparison on a float that carries every
+        // hundredth of a point a glyph box does, and on a document set in a substituted
+        // base-14 face those hundredths differ between operating systems. A whole em cannot
+        // be crossed by a rounding difference, and it is also what the word "indented" means
+        // to the stage that reads it (PIPELINE §7 step 3).
         paragraph_candidates: layout
-            .blocks
+            .pages
             .iter()
-            .flat_map(|page| page.iter())
-            .map(|block| {
-                u32::try_from(
-                    block
+            .zip(&layout.blocks)
+            .map(|(page, blocks)| {
+                let em = oc_layout::columns::median_height(
+                    &page
                         .lines
                         .iter()
-                        .filter(|line| line.indent_pt > 0.0)
+                        .map(|line| line.line.bbox)
+                        .collect::<Vec<_>>(),
+                );
+                let minimum = em * t.paragraph.indent_min_em as f32;
+                u32::try_from(
+                    blocks
+                        .iter()
+                        .flat_map(|block| block.lines.iter())
+                        .filter(|line| line.indent_pt >= minimum)
                         .count(),
                 )
                 .unwrap_or(u32::MAX)
@@ -257,9 +271,6 @@ pub fn digest(layout: &LayoutStage) -> Digest {
             .iter()
             .map(|page| u32::try_from(page.low_confidence_count()).unwrap_or(u32::MAX))
             .sum(),
-        // Milli-IoU, as an integer: a float in a committed digest is a snapshot that changes
-        // when a compiler changes its rounding.
-        min_agreement_iou_milli: (min_iou * 1000.0).round().max(0.0) as u32,
         continuity_held: layout.continuity.held,
         continuity_boundaries: layout.continuity.boundaries,
         column_retries: layout.column_retries,

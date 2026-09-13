@@ -2055,3 +2055,31 @@ is because the direction is right: over-flagging a confidence signal costs a lin
 flag changes no segmentation — Docstrum's answer stands either way.
 
 Affects: `crates/oc-layout/src/blocks.rs`, tests 3.1 and 3.15, `layout.whitespace.max_rectangles`.
+
+## 2026-09-13 · A digest may not carry anything derived from geometry · Phase 3
+Context: `digest_h22_layout` passed on Windows and failed on Ubuntu in CI, on one field and by one unit:
+`min_agreement_iou_milli` 101 against 102.
+
+Cause: the digest was written to be the thing that *can* be asserted across hosts — "counts and totals,
+no geometry" — and then two of its fields were computed from geometry. An IoU is a ratio of areas, and
+`h22` is set in a non-embedded base-14 face, so its glyph boxes differ between operating systems by a
+couple of hundredths of a point (`docs/DECISIONS_LOG.md`, 2026-09-13, and D13.8's contract, which cannot
+hold for such a document). Rounding to thousandths does not make a derived quantity stable; it only
+moves the boundary it is unstable at.
+
+Decision: `min_agreement_iou_milli` is **removed**. How many blocks were flagged is the *decision* the
+cross-check produced and it stays (`low_confidence_blocks`); how nearly each one missed is a measurement,
+and it belongs in the dump, where it already is.
+
+`paragraph_candidates` had the same flaw for a different reason and was fixed rather than removed: it
+counted lines with `indent_pt > 0.0`, a strict comparison against a float carrying the same hundredths.
+It now counts lines indented by at least `paragraph.indent_min_em`, which no rounding difference can
+cross and which is also what the word means to the stage that reads it. The numbers it reports changed
+in a way worth recording: `h22` went 25 → 0, because under the one-column hypothesis its lines are not
+split at the false gutter and every line starts at the same margin — the old 25 *was* the instability,
+counted.
+
+Evidence: run 34777494044, job `test (ubuntu-latest)`; `test (macos-latest)` and `test (windows-latest)`
+passed, which is what a one-host-in-three failure looks like when the cause is font substitution.
+
+Affects: `crates/openconvert/src/dump_layout.rs`, tests 3.16 and its `h22` companion, D13.8.
