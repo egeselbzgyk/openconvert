@@ -11,15 +11,33 @@ CI job that enables that feature is named here (`IMPLEMENTATION_PLAN.md` §0.2).
 
 ## CI jobs (`.github/workflows/ci.yml`)
 
-| Job | Runs |
-|---|---|
-| `lint` | `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, `xtask ci-lint`, `xtask thresholds-lint` |
-| `deny` | `cargo deny check --all-features` |
-| `test` | `cargo nextest run --workspace --locked --profile ci` on ubuntu-latest, macos-latest, windows-latest |
-| `no-network` | conversion + inspection tests under `unshare -n`; `xtask assert-no-net-deps` |
-| `epubcheck` | `oc-validate --features epubcheck`, `xtask epubcheck-corpus --max-errors 0` |
-| `dom-checks` | Playwright DOM assertions (Chromium) |
-| `ui` | Vitest + lint for `apps/desktop/ui` |
+`ci` runs on every pull request and on pushes to `main`.
+
+| Job | Runs | On |
+|---|---|---|
+| `lint` | `cargo fmt --all --check`, `cargo clippy --workspace --exclude openconvert-desktop --all-targets --all-features -- -D warnings`, `xtask ci-lint`, `xtask thresholds-lint` | now |
+| `deny` | `cargo deny --all-features check`, and the same licence/ban/source policy over `deny.tools.toml` | now |
+| `test` | `cargo nextest run --workspace --exclude openconvert-desktop --locked --profile ci` on ubuntu-latest, macos-latest, windows-latest | now |
+| `desktop` | GTK/WebKit, `ui/dist`, a staged sidecar, then clippy over `openconvert-desktop` | now |
+| `no-network` | conversion + inspection tests under `unshare -n` | now |
+| `poppler-oracle` | `oc-pdf --features poppler-oracle`, the differential `pdftotext` tests | now |
+| `ui` | Vitest + lint for `apps/desktop/ui` | now |
+| `epubcheck` | `oc-validate --features epubcheck`, `xtask epubcheck-corpus --max-errors 0` | **Phase 5** |
+| `dom-checks` | Playwright DOM assertions (Chromium) | **Phase 6** |
+| `no-network` → `assert-no-net-deps` | `xtask assert-no-net-deps` (one step, not a job) | **Phase 14** |
+
+**The last three are `if: false`**, because the commands they call do not exist yet. A job that
+reports red for a reason unrelated to the code under review teaches everyone to ignore the colour,
+which is worse than an absent job; the comment above each one names the phase that turns it on.
+Until Phase 14, the socket ban is enforced by `deny.toml`'s `wrappers` rule inside `deny`, which is
+a build-time property rather than a weaker check.
+
+**Why the engine jobs exclude `openconvert-desktop`:** the Tauri crate has no Rust tests — test 0.22
+is a Vitest test in `apps/desktop/ui`, in the `ui` job — so its only assertion is that it compiles,
+and buying that inside `--workspace` costs every job on every OS a GUI toolchain, a built
+`ui/dist`, and a staged sidecar that `tauri-build` resolves at build time. It is bought once, on
+Linux, in `desktop`. `cargo fmt --all` and `cargo deny` still cover the crate. See
+`docs/DECISIONS_LOG.md`, 2026-09-13.
 
 `.github/workflows/nightly.yml` declares `full-corpus`, `webkit-dom`, `mutation-testing`,
 `proptest-deep` (`PROPTEST_CASES=4096`), `bench`, `live-llm-cassette-refresh`, `ace-a11y`; each body is
