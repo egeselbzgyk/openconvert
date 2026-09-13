@@ -1458,3 +1458,48 @@ Evidence: measured on f01, h19, h20 and h21 through PDFium `chromium/7881`; PIPE
 R10 §6.6, R1 §C.2 #7.
 Affects: `crates/oc-layout/src/furniture.rs`, `crates/oc-text/src/words.rs`,
 `crates/oc-testkit/src/handmade.rs`, `crates/oc-model/src/text.rs`, `thresholds.toml`.
+
+## 2026-09-13 · PDFium expands ligatures, and h04 was never a ligature fixture · Phase 2 item 2.7
+Two findings, one on top of the other, both found by running the conservation law end to end.
+
+**h04 drew `?n`, not `ﬁn`.** `to_winansi` mapped every character outside WinAnsi's byte range to
+`?`, and U+FB01 is outside it. The fixture's own comment said the ligature "is written through the
+font's own encoding below"; nothing wrote it. Every Phase 1 test that carried h04 through unchanged
+passed by carrying through a question mark. It now shows byte 200 with a `/ToUnicode` CMap declaring
+that byte to be U+FB01 — how a real typesetter ships a ligature.
+
+**And PDFium expands it anyway.** With a correct CMap in the file, `chromium/7881` hands back `f`,
+`i`, `n`. Tried both with `/Differences [200 /fi]` over WinAnsi and with the CMap alone: same answer.
+R2 §B.8 states the opposite — "PDFium does not expand ligatures, so `ﬁ ﬂ ﬀ ﬃ ﬄ ﬅ ﬆ` arrive in the
+char stream and are mapped explicitly" — and that is not reproduced on this build.
+
+What changes, and what does not:
+
+- **`N` keeps its ligature table.** The contract is about the text, not about which component
+  expanded it. Another backend, another PDFium build, or a `/ToUnicode` PDFium declines to honour
+  all put the ligature back in the stream, and the unit tests (2.1, and the whole-block test) pin
+  the mapping regardless.
+- **`LigatureExpand` will rarely fire on PDFium-sourced text.** Its budget is therefore unspent and
+  its `Added` side untested by any fixture — which is why the property half of test 2.15 generates
+  U+FB00–FB06 directly into the glyph stream rather than relying on a PDF to deliver one.
+- **The expansion is invisible to the ledger, like the hyphen marker.** `C_raw` is counted after
+  extraction, so a document containing one scalar and a `C_raw` containing two is a backend-fidelity
+  gap, not a conservation violation: the law holds from `C_raw` onward and says nothing about the
+  step before it. Auditing that step means decoding the content stream against each font's
+  `/ToUnicode` — the same mechanism the soft-hyphen distinction and the `OverdrawDedup` count need,
+  and it stays with them in Phase 3.
+- The end-to-end test asserts what is true either way: the word arrives whole, no U+FB00–FB06 reaches
+  the output, and the equation balances whichever component did the expanding.
+
+Also in this item: the pipeline wiring is a **library target on `openconvert`**, not `oc-core`.
+ARCHITECTURE §3.1 puts the orchestrator in `oc-core`, and it cannot go there — `oc-core` owns
+`thresholds`, every stage crate reads its numbers from it (D17), so `oc-pdf`, `oc-text` and
+`oc-layout` all depend on `oc-core` and `oc-core` cannot depend on them without a cycle. The binary
+is the one crate allowed to depend on everything. What stays in `oc-core` is everything that does not
+need a stage: thresholds, the conservation checker, the stage declarations, cancel, events, exit
+codes.
+
+Evidence: `corpus/fixtures/handmade/h04_ligature_fi.pdf` (byte 200, `/ToUnicode <C8> <FB01>`),
+`dump-stage ingest` on PDFium `chromium/7881`; R2 §B.8; ARCHITECTURE §3.1, §5.2.
+Affects: `crates/oc-testkit/src/handmade.rs`, `crates/openconvert/src/{lib.rs,pipeline.rs}`,
+`crates/openconvert/tests/conservation.rs`, R2 §B.8's claim, Phase 3 content-stream work.

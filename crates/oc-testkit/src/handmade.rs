@@ -101,10 +101,47 @@ pub fn h03_cropbox_offset() -> Vec<u8> {
     )
 }
 
+/// The byte h04 shows for the `fi` ligature, and the glyph name it is mapped to.
+///
+/// WinAnsi has no code for U+FB01, so the fixture cannot simply write it: a byte encoding can
+/// only say what its table says. The document declares `/Differences [200 /fi]` over WinAnsi,
+/// shows byte 200, and carries a `/ToUnicode` CMap saying that byte 200 is U+FB01 — which is
+/// how a real typesetter ships a ligature, and the only way this fixture is a ligature fixture
+/// at all. The CMap is not optional: with the glyph name alone PDFium resolves `fi` through
+/// the Adobe glyph list and hands back two characters, expanding the ligature itself and
+/// leaving `N` nothing to do.
+///
+/// h04 was not a ligature fixture until Phase 2 item 2.7 looked. `to_winansi` mapped every
+/// unrepresentable character to `?`, so the page drew `?n`, and every test that carried it
+/// through unchanged passed by carrying through a question mark. See `docs/DECISIONS_LOG.md`.
+pub const LIGATURE_CODE: u8 = 200;
+pub const LIGATURE_GLYPH: &str = "fi";
+
+/// The `/ToUnicode` CMap h04 carries: byte 200 is U+FB01, and nothing else is claimed.
+const LIGATURE_TO_UNICODE: &[u8] = br"/CIDInit /ProcSet findresource begin
+12 dict begin
+begincmap
+/CMapName /OpenConvert-Ligature def
+/CMapType 2 def
+1 begincodespacerange
+<00> <FF>
+endcodespacerange
+1 beginbfchar
+<C8> <FB01>
+endbfchar
+endcmap
+CMapName currentdict /CMap defineresource pop
+end
+end";
+
 /// h04 — the `fi` ligature as a single code point, which normalisation `N` expands in
 /// Phase 2. Phase 1 only has to carry it through unchanged.
 pub fn h04_ligature_fi() -> Vec<u8> {
-    build(Page::default().text(FIXTURE_ORIGIN, "\u{FB01}n"))
+    build(
+        Page::default()
+            .text(FIXTURE_ORIGIN, "\u{FB01}n")
+            .ligature_encoding(),
+    )
 }
 
 /// h05 — an OCR sandwich: a full-page image with an invisible text layer over it, drawn in
@@ -538,6 +575,8 @@ struct Page {
     /// The `Tc` character-spacing operand, in points. `None` leaves it at the PDF default
     /// of zero.
     char_spacing: Option<f32>,
+    /// Declare `/Differences [200 /fi]` over WinAnsi, so U+FB01 has a byte to be shown as.
+    ligature_encoding: bool,
 }
 
 /// One `BT … ET` block: where it starts, what it says, and at what size.
@@ -569,6 +608,11 @@ impl Page {
     /// it had to know the font metrics to compute.
     fn char_spacing(mut self, points: f32) -> Self {
         self.char_spacing = Some(points);
+        self
+    }
+
+    fn ligature_encoding(mut self) -> Self {
+        self.ligature_encoding = true;
         self
     }
 
@@ -709,9 +753,10 @@ fn build(page: Page) -> Vec<u8> {
     let font_id = Ref::new(5);
     let image_id = Ref::new(6);
     let smask_id = Ref::new(7);
+    let to_unicode_id = Ref::new(8);
     // The outline root and its items follow, one object each.
-    let outline_root = Ref::new(8);
-    let outline_first = 9;
+    let outline_root = Ref::new(9);
+    let outline_first = 10;
 
     let mut content = Content::new();
     if page.full_page_image {
@@ -795,9 +840,19 @@ fn build(page: Page) -> Vec<u8> {
         written.finish();
     }
 
-    pdf.type1_font(font_id)
-        .base_font(Name(page.font_name.unwrap_or(BASE_FONT).as_bytes()))
-        .encoding_predefined(Name(b"WinAnsiEncoding"));
+    {
+        let mut font = pdf.type1_font(font_id);
+        font.base_font(Name(page.font_name.unwrap_or(BASE_FONT).as_bytes()));
+        if page.ligature_encoding {
+            font.to_unicode(to_unicode_id);
+            font.encoding_predefined(Name(b"WinAnsiEncoding"));
+        } else {
+            font.encoding_predefined(Name(b"WinAnsiEncoding"));
+        }
+    }
+    if page.ligature_encoding {
+        pdf.stream(to_unicode_id, LIGATURE_TO_UNICODE);
+    }
 
     if page.full_page_image {
         // Eight by eight mid-grey pixels, uncompressed. A scan's content does not matter to
@@ -985,6 +1040,10 @@ Q
 /// font with no `ToUnicode` produces in the wild.
 fn to_winansi(text: &str) -> Vec<u8> {
     text.chars()
-        .map(|c| u8::try_from(u32::from(c)).unwrap_or(b'?'))
+        .map(|c| match c {
+            // The one character with a byte only because the fixture gave it one.
+            '\u{FB01}' => LIGATURE_CODE,
+            other => u8::try_from(u32::from(other)).unwrap_or(b'?'),
+        })
         .collect()
 }

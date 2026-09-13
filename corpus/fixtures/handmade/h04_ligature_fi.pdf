@@ -35,37 +35,64 @@ endobj
   /Type /Font
   /Subtype /Type1
   /BaseFont /Helvetica
+  /ToUnicode 8 0 R
   /Encoding /WinAnsiEncoding
 >>
 endobj
 
+8 0 obj
+<<
+  /Length 260
+>>
+stream
+/CIDInit /ProcSet findresource begin
+12 dict begin
+begincmap
+/CMapName /OpenConvert-Ligature def
+/CMapType 2 def
+1 begincodespacerange
+<00> <FF>
+endcodespacerange
+1 beginbfchar
+<C8> <FB01>
+endbfchar
+endcmap
+CMapName currentdict /CMap defineresource pop
+end
+end
+endstream
+endobj
+
 4 0 obj
 <<
-  /Length 33
+  /Length 35
 >>
 stream
 BT
 /F1 12 Tf
 72 700 Td
-(?n) Tj
+<C86E> Tj
 ET
 endstream
 endobj
 
 xref
-0 6
-0000000000 65535 f
+0 9
+0000000006 65535 f
 0000000016 00000 n
 0000000070 00000 n
 0000000134 00000 n
-0000000393 00000 n
+0000000726 00000 n
 0000000287 00000 n
+0000000007 00000 f
+0000000000 00000 f
+0000000412 00000 n
 trailer
 <<
-  /Size 6
+  /Size 9
   /Root 1 0 R
   /ID [(openconvert-fixture) (openconvert-fixture)]
 >>
 startxref
-479
+814
 %%EOF

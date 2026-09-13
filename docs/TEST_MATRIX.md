@@ -152,3 +152,8 @@ replaced by the phase that owns it.
 | 2.10a | `furniture::digits_mask_so_page_twelve_and_page_one_hundred_match` | `oc-layout` | unit | `test` | green |
 | 2.11a | `furniture::roman_numerals_are_page_numbers_too` | `oc-layout` | unit | `test` | green |
 | 2.10b | `furniture::edit_distance_is_normalised_by_length` | `oc-layout` | unit | `test` | green |
+| 2.15 | `conservation::conservation_i1_holds_across_text_and_furniture` | `openconvert` | fixture (f01, f02) | `test` | green |
+| 2.15a | `conservation::conservation_i1_holds_over_generated_documents` | `openconvert` | property (200) | `test`, `proptest-deep` | green |
+| 2.15b | `conservation::an_inferred_space_is_never_ledgered` | `openconvert` | property | `test`, `proptest-deep` | green |
+| 2.15c | `conservation::a_ligature_reaches_the_flow_expanded_and_balanced` | `openconvert` | fixture (h04) | `test` | green |
+| 2.15d | `conservation::a_budget_breach_stops_the_stage` | `openconvert` | fixture (h20) | `test` | green |
