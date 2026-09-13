@@ -67,6 +67,20 @@ Phase 3 is blocks, columns, reading order, paragraph reconstruction and dehyphen
    in Phase 6. Until then a breach aborts the conversion. Recorded so it is a decision rather
    than an oversight.
 
+**Before writing a fixture, check what the number is already taken by.** The plan's fixture
+numbers were assigned before any phase spent one, and two of them now collide:
+
+| The plan says | Already taken by | Use |
+|---|---|---|
+| `f04_hyphenation_de` (Phase 3) | `f04_german_prose` (item 2.10) | `f06_hyphenation_de` |
+| `f05_verse_and_quote` (Phase 3) | `f05_turkish_prose` (item 2.10) | `f07_verse_and_quote` |
+| `f06`–`f08` (Phase 4) | — | shift to `f08`–`f10` |
+| `h16` "two figures one caption" (test 4.10) | `h16_superscript_marker` (item 2.5) | `h22` |
+
+Taken today: **f01–f05** and **h01–h21**. Next free: **f06**, **h22**. The rule, which Phase 2
+already followed for h16–h21: *the test name is the contract and never moves; the fixture number
+is indicative, so take the next free one and record the mapping in `docs/TEST_MATRIX.md`.*
+
 Also open, and cheap, and more valuable now than it was: CI's `test` job runs `xtask fixtures`
 but never `handmade-fixtures` or `mutations`, so a builder change that no longer reproduces the
 committed fixtures is not caught. Phase 2 changed that builder three times — `text_at`,
