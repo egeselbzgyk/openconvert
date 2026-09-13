@@ -4,12 +4,25 @@ name: ci
 # days — and three Definition-of-Done entries said "Linux and macOS are CI's job" the whole time.
 # When it finally ran, five of eight jobs failed, two of them on code from Phase 1.
 on: { pull_request: {}, push: { branches: [main, "phase/**"] } }
-# Keyed on the branch *name* rather than on `github.ref`, so that a pull request and a push to
-# the same branch land in one group instead of two: `head_ref` is `phase/03-layout` for the pull
-# request and `ref_name` is `phase/03-layout` for the push, while their `github.ref` values are
-# `refs/pull/N/merge` and `refs/heads/phase/03-layout` and would never collide. Without this,
-# opening a pull request on a phase branch doubles every run.
-concurrency: { group: "ci-${{ github.head_ref || github.ref_name }}", cancel-in-progress: true }
+# Namespaced by event, and deliberately so. `github.head_ref` is the *pull request author's*
+# branch name, and this repository is public: anyone may fork it, name a branch `main`, and open
+# a pull request. A group keyed on the bare name would then put that stranger's run in the same
+# group as a push to `main` and, with `cancel-in-progress`, let them cancel the run that gates a
+# release, from the outside, at will. Prefixing the event puts `ci-pull_request-main` and
+# `ci-push-main` beyond each other's reach.
+#
+# `refs/heads/…` is not a fix for this: a branch may legally be *named* `refs/heads/main`, and
+# `head_ref` reports the short name, so the forged value collides just as well.
+#
+# The cost is that a pull request on a phase branch runs CI twice, once per event. That is minutes
+# of runner time against an availability hole reachable by anyone on the internet.
+#
+# `cancel-in-progress` is off for `main`: superseding the gate run of a merged commit loses the
+# only evidence that the merged tree is green. Every other ref keeps it, so a phase branch still
+# cancels its own superseded runs.
+concurrency:
+  group: "ci-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}"
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 env: { CARGO_TERM_COLOR: always, RUSTFLAGS: "-D warnings", INSTA_UPDATE: "no" }
 
 # Why the engine jobs say `--exclude openconvert-desktop`:

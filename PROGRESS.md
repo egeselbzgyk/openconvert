@@ -133,10 +133,12 @@ Carried forward, in the order a fresh session needs them:
   needed its global flags before `check`; the tagged fixtures were never built; and `no-network`
   reached the registry from inside the namespace.
 - **`ci` now watches `phase/**` as well as `main`**, so a phase branch cannot go dark again the
-  way `phase/00-bootstrap` did. The concurrency group is keyed on the branch *name*, so opening a
-  pull request on a phase branch does not double every run. Opening one anyway is still worth
-  doing when the phase is ready to review — it is the review that a pull request buys, not the
-  CI, which fires either way now.
+  way `phase/00-bootstrap` did. Opening a pull request is still worth doing when a phase is ready
+  to review; what it buys is the review, not the CI, which fires either way now — and it does
+  cost a second run, because the concurrency group is namespaced by event. That namespacing is
+  not incidental: `head_ref` is the pull request author's branch name, this repository is public,
+  and a group keyed on the bare name would let a stranger who names a fork branch `main` cancel
+  the run that gates a release. `cancel-in-progress` is off for `main` for the same reason.
 - **Three CI jobs are `if: false` until their phase arrives**, because the commands they call do
   not exist: `epubcheck` (Phase 5), `dom-checks` (Phase 6) and `no-network`'s
   `assert-no-net-deps` step (Phase 14). Each carries a comment naming the phase. Until Phase 14
