@@ -1951,3 +1951,37 @@ two cannot disagree.
 Affects: `crates/oc-text/src/dehyphen/`, `crates/oc-layout/src/paragraphs.rs`,
 `crates/oc-core/src/stages/paragraphs.rs`, `crates/oc-core/src/ledger_check.rs` (I-5),
 `crates/oc-testkit/src/handmade.rs` (h23), tests 3.7, 3.8, 3.10, 3.11, 3.17.
+
+## 2026-09-13 · German: the capital after the hyphen decides it, without a lexicon · Phase 3
+Context: plan Phase 3 detail 5 gives German "a dependency-free compound acceptor: try each internal split
+point, accept when both halves (allowing `-s-`/`-n-`/`-es-` Fugenlaute) are attested". That needs
+somewhere to look words up, and D15's German frequency list does not exist — the sources the plan named
+are CC-BY-SA (item 2.9, still open).
+
+Decision: two rules, not one.
+
+1. **An upper-case continuation means the hyphen is real**, and this needs no lexicon at all. German
+   capitalises a noun at its first letter and nowhere else, so a word broken across a line always
+   continues in lower case: `Fahr-` / `zeug`, never `Fahr-` / `Zeug`. A capital after the break is a
+   hyphen the author wrote. This is the orthography rather than a frequency heuristic, and it is what
+   decides test 3.9's `Nord-` / `Süd-Achse`.
+2. **The compound acceptor** for the lower-case case, written against an attestation *predicate* rather
+   than against a list. In v1 the predicate is the document's own vocabulary, which exists today; when
+   the German list ships it is one argument rather than a rewrite.
+
+The acceptor's floor of three characters per part is load-bearing: `an`, `ab` and `in` are all German
+words, so a two-character floor finds a compound seam in almost every word it is shown.
+
+Also, two smaller things from the same item:
+
+- **`f06_hyphenation_de` forces its two line breaks** with `#linebreak()` instead of letting Typst's
+  hyphenation patterns place them. What the fixture has to guarantee is that `Nord-` ends a line and
+  `Süd-Achse` begins the next; a fixture whose subject moves when an upstream pattern file is updated is
+  a fixture that tests the upstream. The geometry is identical either way.
+- **`typst_fixtures_are_reproducible` no longer asserts a fixture count of five.** Its subject is that
+  compiling a fixture twice produces the same bytes; a hard-coded count turns "a phase added a fixture"
+  into a failure that says nothing about reproducibility. The floor of five stays, so an empty directory
+  still fails.
+
+Affects: `crates/oc-text/src/compound_de.rs`, `crates/oc-text/src/dehyphen/tiers.rs`,
+`corpus/fixtures/typst/f06_hyphenation_de.typ`, `xtask/src/fixtures.rs`, test 3.9.

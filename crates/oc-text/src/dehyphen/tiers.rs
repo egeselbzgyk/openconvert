@@ -3,6 +3,7 @@
 use oc_model::confidence::Signal;
 use oc_model::lang::LangTag;
 
+use crate::compound_de;
 use crate::freq;
 
 use super::{joined, Decision, DocLexicon, HyphenAction, Tier};
@@ -55,6 +56,34 @@ pub fn in_document(head: &str, tail: &str, doc: &DocLexicon) -> Option<Decision>
         }
         _ => Some(Decision::new(HyphenAction::Keep, Tier::InDocument, signals)),
     }
+}
+
+/// **T4, German first.** The orthography and the compound acceptor (`compound_de`).
+///
+/// Before the frequency list, because it answers a question the list cannot: German has no
+/// shipped list yet (D15), and even with one the capital after the hyphen is decisive on its
+/// own. What the acceptor needs is somewhere to look words up, and in v1 that is the
+/// document's own vocabulary — which is why the lexicon is passed here and not only to T3.
+pub fn german(head: &str, tail: &str, doc: &DocLexicon) -> Option<Decision> {
+    if compound_de::hyphen_is_real(head, tail) {
+        return Some(Decision::new(
+            HyphenAction::Keep,
+            Tier::Lexicon,
+            vec![Signal::new("de_capital_after_hyphen", 1.0)],
+        ));
+    }
+    let split = compound_de::split_compound(&joined(head, tail), |word| doc.plain_count(word) > 0)?;
+    Some(Decision::new(
+        HyphenAction::Join,
+        Tier::Lexicon,
+        vec![
+            Signal::new("de_compound_parts", 2.0),
+            Signal::new(
+                "de_compound_fugen",
+                f32::from(u8::from(split.fugen.is_some())),
+            ),
+        ],
+    ))
 }
 
 /// **T4 — the language frequency list.**

@@ -139,6 +139,11 @@ pub fn dehyphenate(left: &str, right: &str, doc: &DocLexicon, lang: &LangTag) ->
     if let Some(decision) = tiers::in_document(&head, &tail, doc) {
         return decision;
     }
+    if lang.primary() == "de" {
+        if let Some(decision) = tiers::german(&head, &tail, doc) {
+            return decision;
+        }
+    }
     if let Some(decision) = tiers::lexicon(&head, &tail, lang) {
         return decision;
     }

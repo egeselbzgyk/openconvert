@@ -106,6 +106,14 @@ impl DocLexicon {
         self.count(&super::hyphenated(head, tail), true)
     }
 
+    /// How often an unhyphenated word occurs in the document.
+    ///
+    /// The attestation predicate the German compound acceptor is given: "is this a word" is
+    /// answered by the book, because D15's German frequency list does not exist yet.
+    pub fn plain_count(&self, word: &str) -> u32 {
+        self.count(word, false)
+    }
+
     /// The locale this lexicon was folded with.
     pub fn lang(&self) -> &LangTag {
         &self.lang

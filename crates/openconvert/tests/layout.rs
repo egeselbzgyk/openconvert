@@ -385,3 +385,51 @@ fn the_lexicon_is_built_from_the_document() {
     assert!(!stage.lexicon.is_empty());
     assert!(stage.lexicon.joined_count("pipe", "line") >= 1);
 }
+
+/// Row 3.9. A German compound broken at its own hyphen is not rejoined, and one broken
+/// inside a word is.
+///
+/// Both directions in one fixture, because getting either one right alone is easy and the
+/// pair is what the language actually demands: `Nord-Süd-Achse` must survive, and
+/// `Eisen-` / `bahn` must not.
+#[test]
+fn dehyphenate_keeps_german_real_hyphen() {
+    let stage = paragraphs_of("../../target/fixtures/f06_hyphenation_de.pdf", LangTag::DE);
+    let text = stage
+        .paragraphs
+        .iter()
+        .map(|para| para.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        text.contains("Nord-Süd-Achse"),
+        "the compound's own hyphen was eaten: {text}"
+    );
+    assert!(
+        !text.contains("NordSüd"),
+        "the halves were welded together: {text}"
+    );
+    assert!(
+        text.contains("Eisenbahn"),
+        "a word broken inside itself was not rejoined: {text}"
+    );
+    assert!(
+        !text.contains("Eisen- bahn"),
+        "the line break survived the join: {text}"
+    );
+}
+
+/// And the ledger agrees about which of the two was the removal.
+#[test]
+fn the_german_fixture_removes_exactly_one_hyphen() {
+    let stage = paragraphs_of("../../target/fixtures/f06_hyphenation_de.pdf", LangTag::DE);
+    let entries = stage.delta.entries();
+    assert_eq!(
+        entries.len(),
+        1,
+        "one join, one entry, and the kept hyphen has nothing to record: {entries:#?}"
+    );
+    assert_eq!(entries[0].reason, Reason::Dehyphenate);
+    assert_eq!(entries[0].text, "-");
+}

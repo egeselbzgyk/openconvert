@@ -200,6 +200,12 @@ replaced by the phase that owns it.
 | 2.20c | `lang::a_block_in_the_documents_own_language_gets_no_attribute` | `oc-text` | unit | `test` | green |
 | 2.21 | `dump_text::dump_stage_text_snapshot_f01` | `openconvert` | snapshot | `test` | green |
 
+**Fixture numbers.** The plan's Phase 3 fixture names collide with numbers earlier phases spent, so
+`f04_hyphenation_de` is **`f06_hyphenation_de`**, test 3.5's `h13` is **`h22_false_gutter`**, and test
+3.7's fixture is **`h23_paragraph_across_pages`** (the plan names `f01`, whose hyphenated break is
+within a page rather than across one). The test *name* is the contract; the fixture number is
+indicative (PROGRESS.md).
+
 ## Phase 3
 
 | # | Test | Crate | Kind | CI job | Status |
@@ -257,5 +263,14 @@ replaced by the phase that owns it.
 | 3.10f | `dehyphen::two_attested_halves_that_also_form_a_word_are_left_undecided` | `oc-text` | unit | `test` | green |
 | 3.11 | `dehyphen::dehyphenate_i5_removes_exactly_one_hyphen` | `oc-text` | property | `test` | green |
 | 3.17 | `dehyphen::turkish_agglutinative_join_prefers_keep` | `oc-text` | unit | `test` | green |
+| 3.9 | `layout::dehyphenate_keeps_german_real_hyphen` | `openconvert` | fixture (f06) | `test` | green |
+| 3.9a | `layout::the_german_fixture_removes_exactly_one_hyphen` | `openconvert` | fixture (f06) | `test` | green |
+| 3.9b | `compound_de::an_uppercase_continuation_is_a_real_hyphen` | `oc-text` | unit | `test` | green |
+| 3.9c | `compound_de::a_lowercase_continuation_is_a_broken_word` | `oc-text` | unit | `test` | green |
+| 3.9d | `compound_de::a_compound_of_two_attested_words_is_accepted` | `oc-text` | unit | `test` | green |
+| 3.9e | `compound_de::a_linking_morpheme_at_the_seam_is_allowed` | `oc-text` | unit | `test` | green |
+| 3.9f | `compound_de::the_longest_linking_morpheme_wins` | `oc-text` | unit | `test` | green |
+| 3.9g | `compound_de::a_word_with_no_attested_parts_is_not_a_compound` | `oc-text` | unit | `test` | green |
+| 3.9h | `compound_de::a_two_letter_part_is_not_a_compound_seam` | `oc-text` | unit | `test` | green |
 | 3.13 | `layout::layout_stage_is_conserving` | `openconvert` | fixture (f01) | `test` | green |
 | 3.13a | `layout::layout_stage_conservation_violation_errors` | `openconvert` | unit | `test` | green |
