@@ -1613,3 +1613,48 @@ Evidence: `crates/openconvert/tests/snapshots/dump_text__dump_stage_text_f01_pag
 after; PIPELINE §4 step 3; R10 §6.2.
 Affects: `crates/oc-text/src/words.rs`, `thresholds.toml`, `crates/openconvert/src/dump_text.rs`,
 `crates/openconvert/src/cmd_dump_stage.rs`.
+
+## 2026-09-13 · The first CI run, and what it found · CI
+Context: `ci` triggers on `push: branches: [main]` and on pull requests. Phases 0, 1 and 2 were all
+developed on `phase/00-bootstrap`, which is neither — so until `main` was pushed today, **the CI
+workflow had never executed once**. Three Definition-of-Done entries say "Linux and macOS are CI's
+job"; that sentence was never cashed. Five of eight jobs failed on the first run.
+
+**Four failures, one cause: the Tauri crate cannot build inside `--workspace` on a bare runner.**
+`test (ubuntu)`, `no-network` and `lint` died on `glib-sys` — no GTK or WebKit on the image.
+`test (macos)` and `test (windows)` died on `resource path bin/openconvert-<triple> doesn't exist`:
+`tauri-build` resolves `externalBin` at build time, the sidecar is staged by
+`xtask stage-sidecars`, and CI never ran it. It builds locally only because a Windows sidecar and a
+built `ui/dist` happen to be sitting in the git-ignored directories from Phase 0.
+
+The fix is not to install a GUI toolchain in five jobs across three operating systems. **The Tauri
+crate has no Rust tests at all** — test 0.22, the engine handshake, is a Vitest test in
+`apps/desktop/ui` and runs in the `ui` job, which was green — so its only assertion is "it
+compiles". That assertion is bought once, on Linux, in a new `desktop` job that installs the
+toolchain, builds `ui/dist`, builds the engine, stages the sidecar and runs clippy over the crate.
+The engine jobs say `--exclude openconvert-desktop`. `cargo fmt --all` and `cargo deny` still cover
+it; neither builds it. Phase 12 owns the UI and Phase 15 owns cross-platform packaging, and that job
+is where the matrix goes when they arrive.
+
+**`deny` failed on argument order, in all three of its steps.** `--config` and `--all-features` are
+*global* options in cargo-deny and must precede `check`; `cargo-deny-action` appends its
+`arguments` after the subcommand, so `check --config deny.tools.toml … licenses bans sources` was
+parsed with `licenses` as a subcommand — `unrecognized subcommand 'licenses'`. The action also runs
+in a musl container that cannot honour `rust-toolchain.toml`
+(`override toolchain '1.98.1-x86_64-unknown-linux-musl' is not installed`). Replaced with
+`taiki-e/install-action` plus direct invocations on the host toolchain, verified locally.
+
+**Two jobs and one step assert things that do not exist yet**, and would have gone red the moment
+`test` went green: `epubcheck` calls `xtask fetch-epubcheck` and `epubcheck-corpus` (Phase 5),
+`dom-checks` needs `tests/dom` (Phase 6), and `no-network`'s last step calls
+`xtask assert-no-net-deps` (Phase 14). All three are now `if: false` with a comment naming the phase
+that turns them on — the idiom this file already uses for `nightly-placeholder`. A job that reports
+red for a reason unrelated to the code under review teaches everyone to ignore the colour, which is
+worse than an absent job. The socket ban is meanwhile enforced by `deny.toml`'s `wrappers` rule in
+the `deny` job, which is a build-time property and not the weaker of the two.
+
+**The lesson worth keeping:** a per-phase branch that CI does not watch accumulates exactly this.
+Phase 3 onward runs on branches that open a pull request, so `ci` fires on every push.
+
+Evidence: run 34755670348 on `main`, 2026-09-13.
+Affects: `.github/workflows/ci.yml`, `docs/TEST_MATRIX.md` (the CI-jobs table), PROGRESS.md.
