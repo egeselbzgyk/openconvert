@@ -104,6 +104,11 @@ Carried forward, in the order a fresh session needs them:
   (D13.3).
 - **VD-a and VD-d are closed.** VD-b, VD-c, VD-e, VD-f, VD-g still open, each with an owner
   and a blocking phase.
+- **`example_pdfs/` is the maintainer's local smoke set, added 2026-09-13.** Four real books —
+  English, German, Portuguese and a Turkish scan — git-ignored and never redistributed; two of the
+  four are in copyright. Not corpus, not holdout, no threshold fitted on it. It is what to point
+  `convert` at from **Phase 5** onward, when an EPUB first comes out the other end. Described in
+  `docs/TEST_CORPUS.md` §7.5a, including which two could become real corpus entries.
 - Commit messages carry **no** Claude Code attribution footer (maintainer's instruction, 2026-09-09).
 - Local tool versions: rustc 1.98.1, cargo-nextest 0.9.143, cargo-deny 0.20.2.
 

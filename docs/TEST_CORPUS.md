@@ -261,6 +261,32 @@ Enforced in CI per §7.1's checks. Beyond the automated gate: treat the §2 sour
 
 A clearly separate, non-redistributed area (a `LOCAL_EVAL_ONLY.md` plus a download script requiring an explicit opt-in flag) for anything like the CommonCrawl/SAFEDOCS PDF corpus — useful for local robustness/fuzzing but never part of the redistributed open-source test suite. The redistribution boundary is a deliberate, hard-to-bypass-by-accident mechanism (a separate opt-in flag and a separate script), not a policy note a contributor could miss.
 
+### 7.5a `example_pdfs/` — the maintainer's local smoke set
+
+A git-ignored folder at the repository root (`/example_pdfs` in `.gitignore`) holding real books
+the maintainer added on 2026-09-13 as something to point the converter at once it can produce an
+EPUB. It is **not** corpus and **not** holdout: nothing in it is redistributed, nothing in it has a
+`license` block, no threshold is fitted on it, and no CI job reads it. It sits under the same
+redistribution boundary as §7.5's `LOCAL_EVAL_ONLY` area, and for the same reason — two of the four
+files are in copyright.
+
+| File | Language | Status |
+|---|---|---|
+| `01_The_Lightning_Thief.pdf` | en | **In copyright** (Riordan, 2005). Local use only, never committed, never quoted in a fixture, never used in a published score. |
+| `Aus dem Leben eines Taugenichts…Project Gutenberg eBook.pdf` | de | Public domain (Eichendorff, 1826), via Project Gutenberg. Could become a real corpus entry after a dated licence check per §1.1. |
+| `Queirós, Eça de - O Crime do Padre Amaro.pdf` | pt | Public domain (1875). Portuguese — outside the three languages v1 claims, which makes it useful precisely as the case where `dc:language` detection and `fold_key` must not guess. |
+| `yorgunsavascirom00kema.pdf` | tr | **Assume in copyright** (Kemal Tahir, 1965); an Internet Archive scan, ~37 MB. Turkish, scanned: the OCR path (Phase 13) and the dotted/dotless i (R10 §6.3) in one file. Local use only. |
+
+**What it is good for**, and when: an end-to-end smoke run from **Phase 5** onward, when `convert`
+first produces an EPUB — four real producers, four languages, one of them a scan, at sizes
+(0.9–37 MB) no fixture reaches. **What it is not good for**: any number that goes in a report. The
+corpus of §3 and the frozen holdout of §7.6 are what carry the release gate, and admitting a file to
+either needs an individual dated licence check (§1.1), which two of these four cannot pass.
+
+If the maintainer wants any of them to become corpus, the two public-domain ones are the candidates
+and the route is §7.1's manifest entry with a populated `license` block, not a copy into
+`corpus/fixtures/`.
+
 ### 7.6 Holdout unit and sourcing target
 
 **Unit.** For books and papers the holdout unit is the **document** — one monograph, one paper, one scan is one unit regardless of page count. **DocLayNet pages are units only within the page-level layout stratum**, which is scored and reported separately and can never be counted toward, or substituted for, the ≥ 100 real-document holdout of Principle 4. This closes the per-page shortcut explicitly: a hundred pages from six PDFs exercise six producers, and producer diversity is the property the holdout exists to measure.
