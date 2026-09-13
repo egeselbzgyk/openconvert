@@ -382,7 +382,7 @@ pub fn paragraphs_stage(
         built.paragraphs.iter().map(|para| para.text.as_str()),
         &lang,
     );
-    let delta = dehyphenate_paragraphs(&mut built, &lexicon, &lang, stages::PARAGRAPHS.name);
+    let delta = dehyphenate_paragraphs(&mut built, &lexicon, &lang, stages::PARAGRAPHS.name, t);
 
     let after = paragraph_chars(&built.paragraphs);
     let check = check_invariants(&before, &after, &delta, stages::PARAGRAPHS, totals)?;

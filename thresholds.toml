@@ -406,6 +406,13 @@ evidence = "A maximal white rectangle separates two lines only if it is at least
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[dehyphen.classifier_margin_min]
+value = 0.25
+source = "provisional"
+evidence = "How far from zero the classifier's log-odds have to be before its verdict is used at all. A quarter of a logit is a probability between 0.44 and 0.56 - a coin toss - and a coin toss keeps the hyphen, because a spurious hyphen is visible and a wrong join is silent (PIPELINE §7, RT C4). The number trades join-recall for keep-recall at the margin only; the shipped model's holdout keep-recall is measured through this rule rather than on the raw sign."
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [paragraph.line_margin]
 value = 0.5
 source = "published"

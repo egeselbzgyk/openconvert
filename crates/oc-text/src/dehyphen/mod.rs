@@ -34,9 +34,11 @@
 //! the reader can fix it; a wrong join corrupts a word silently *and conserves the character
 //! multiset exactly*.
 
+pub mod classifier;
 pub mod lexicon;
 pub mod tiers;
 
+use oc_core::thresholds::Thresholds;
 use oc_model::confidence::{Confidence, Signal};
 use oc_model::lang::LangTag;
 
@@ -100,6 +102,20 @@ impl Decision {
         }
     }
 
+    /// A verdict that carries a number — the classifier's log-odds — rather than only a
+    /// predicate. The score is recorded whichever way the verdict went, because a report that
+    /// shows why a hyphen stayed is worth as much as one that shows why it went.
+    pub(crate) fn with_score(
+        action: HyphenAction,
+        tier: Tier,
+        signals: Vec<Signal>,
+        score: f32,
+    ) -> Self {
+        let mut decision = Self::new(action, tier, signals);
+        decision.confidence = decision.confidence.with_score(score);
+        decision
+    }
+
     fn new(action: HyphenAction, tier: Tier, signals: Vec<Signal>) -> Self {
         let confidence = match action {
             HyphenAction::Undecided => Confidence::fallback(signals),
@@ -119,7 +135,13 @@ impl Decision {
 /// that follows it. Both are whole lines, not words: the pieces are taken from their ends
 /// here, so that a caller cannot get the tokenisation subtly different from the one the
 /// lexicon was built with.
-pub fn dehyphenate(left: &str, right: &str, doc: &DocLexicon, lang: &LangTag) -> Decision {
+pub fn dehyphenate(
+    left: &str,
+    right: &str,
+    doc: &DocLexicon,
+    lang: &LangTag,
+    t: &Thresholds,
+) -> Decision {
     let Some((head, tail)) = pieces(left, right) else {
         return Decision::new(
             HyphenAction::Keep,
@@ -148,8 +170,14 @@ pub fn dehyphenate(left: &str, right: &str, doc: &DocLexicon, lang: &LangTag) ->
         return decision;
     }
 
-    // The classifier's slot. Until it is trained and committed, the residual falls through to
-    // the fail-closed default, which is what it would do for a low-margin case anyway.
+    // What the tiers left open is the residual the classifier exists for, and it is not a
+    // rare case: a book's own vocabulary says nothing about a word it uses once.
+    if let Some(decision) = classifier::classify(&head, &tail, lang, t) {
+        if decision.action != HyphenAction::Undecided {
+            return decision;
+        }
+    }
+
     Decision::new(
         HyphenAction::Undecided,
         Tier::FailClosed,
@@ -213,6 +241,7 @@ pub fn hyphenated(head: &str, tail: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use oc_core::thresholds::T;
     use oc_model::confidence::Method;
     use proptest::prelude::*;
 
@@ -225,7 +254,7 @@ mod tests {
     #[test]
     fn dehyphenate_joins_when_indoc_evidence() {
         let doc = lexicon(&["the pipeline ran the length of the valley"], &LangTag::EN);
-        let decision = dehyphenate("a broken pipe-", "line here", &doc, &LangTag::EN);
+        let decision = dehyphenate("a broken pipe-", "line here", &doc, &LangTag::EN, &T);
 
         assert_eq!(decision.action, HyphenAction::Join);
         assert_eq!(decision.tier, Tier::InDocument);
@@ -236,7 +265,7 @@ mod tests {
     #[test]
     fn dehyphenate_keeps_when_the_document_spells_it_with_a_hyphen() {
         let doc = lexicon(&["the pipe-line was surveyed twice"], &LangTag::EN);
-        let decision = dehyphenate("a broken pipe-", "line here", &doc, &LangTag::EN);
+        let decision = dehyphenate("a broken pipe-", "line here", &doc, &LangTag::EN, &T);
 
         assert_eq!(decision.action, HyphenAction::Keep);
         assert_eq!(decision.tier, Tier::InDocument);
@@ -247,24 +276,39 @@ mod tests {
     #[test]
     fn a_document_that_spells_it_both_ways_decides_nothing() {
         let doc = lexicon(&["the pipeline and the pipe-line"], &LangTag::EN);
-        let decision = dehyphenate("a broken pipe-", "line here", &doc, &LangTag::EN);
+        let decision = dehyphenate("a broken pipe-", "line here", &doc, &LangTag::EN, &T);
 
         assert_ne!(decision.tier, Tier::InDocument);
     }
 
-    /// Row 3.10, and the rule the whole module is built around. Nothing is attested, nothing
-    /// decides, and the hyphen stays — recorded as a fallback, by a deterministic method.
+    /// Row 3.10, and the rule the whole module is built around. `blan-` / `dish` is in no
+    /// lexicon, the halves are not both attested, and the classifier's log-odds are inside
+    /// its margin — a coin toss. So nothing decides, and the hyphen stays, recorded as a
+    /// fallback rather than as a verdict.
     #[test]
     fn dehyphenate_fails_closed_on_unknown() {
         let doc = lexicon(&["nothing relevant here"], &LangTag::EN);
-        let decision = dehyphenate("the zarquon-", "blivet follows", &doc, &LangTag::EN);
+        let decision = dehyphenate("a bit of blan-", "dish talk", &doc, &LangTag::EN, &T);
 
         assert_eq!(decision.resolved(), HyphenAction::Keep);
         assert_eq!(decision.confidence.method, Method::Deterministic);
         assert!(
             decision.confidence.fallback_used,
-            "a fail-closed keep is not the same claim as a decided keep"
+            "a fail-closed keep is not the same claim as a decided keep: {decision:?}"
         );
+    }
+
+    /// And the case that is *not* fail-closed: unattested, but the model is sure. The keep is
+    /// a verdict, with its score on the record.
+    #[test]
+    fn an_unattested_pair_the_model_is_sure_about_is_decided() {
+        let doc = lexicon(&["nothing relevant here"], &LangTag::EN);
+        let decision = dehyphenate("the zarquon-", "blivet follows", &doc, &LangTag::EN, &T);
+
+        assert_eq!(decision.resolved(), HyphenAction::Keep);
+        assert_eq!(decision.tier, Tier::Classifier);
+        assert!(!decision.confidence.fallback_used);
+        assert!(decision.confidence.score.is_some());
     }
 
     /// Row 3.17. Turkish is agglutinative, so the joined form of a real break is very often a
@@ -273,7 +317,7 @@ mod tests {
     #[test]
     fn turkish_agglutinative_join_prefers_keep() {
         let doc = lexicon(&["kitap okudum"], &LangTag::TR);
-        let decision = dehyphenate("elimdeki kitap-", "larımızdan biri", &doc, &LangTag::TR);
+        let decision = dehyphenate("elimdeki kitap-", "larımızdan biri", &doc, &LangTag::TR, &T);
 
         assert_eq!(decision.resolved(), HyphenAction::Keep);
         assert_ne!(
@@ -287,7 +331,7 @@ mod tests {
     #[test]
     fn an_uppercase_continuation_is_not_a_candidate_in_english() {
         let doc = lexicon(&["nothing"], &LangTag::EN);
-        let decision = dehyphenate("the Anglo-", "Saxon world", &doc, &LangTag::EN);
+        let decision = dehyphenate("the Anglo-", "Saxon world", &doc, &LangTag::EN, &T);
         assert_eq!(decision.tier, Tier::Candidacy);
         assert_eq!(decision.resolved(), HyphenAction::Keep);
     }
@@ -297,7 +341,7 @@ mod tests {
     #[test]
     fn an_uppercase_continuation_is_still_a_candidate_in_german() {
         let doc = lexicon(&["das Fahrzeug steht"], &LangTag::DE);
-        let decision = dehyphenate("ein Fahr-", "Zeug dort", &doc, &LangTag::DE);
+        let decision = dehyphenate("ein Fahr-", "Zeug dort", &doc, &LangTag::DE, &T);
         assert_eq!(decision.action, HyphenAction::Join);
         assert_eq!(decision.tier, Tier::InDocument);
     }
@@ -306,7 +350,7 @@ mod tests {
     #[test]
     fn a_number_range_is_never_joined() {
         let doc = lexicon(&["nothing"], &LangTag::EN);
-        let decision = dehyphenate("in 2019-", "2020 the", &doc, &LangTag::EN);
+        let decision = dehyphenate("in 2019-", "2020 the", &doc, &LangTag::EN, &T);
         assert_eq!(decision.resolved(), HyphenAction::Keep);
     }
 
@@ -314,7 +358,7 @@ mod tests {
     #[test]
     fn a_line_without_a_hyphen_is_not_a_candidate() {
         let doc = lexicon(&["nothing"], &LangTag::EN);
-        let decision = dehyphenate("no hyphen here", "and none here", &doc, &LangTag::EN);
+        let decision = dehyphenate("no hyphen here", "and none here", &doc, &LangTag::EN, &T);
         assert_eq!(decision.tier, Tier::NotACandidate);
     }
 
@@ -323,18 +367,19 @@ mod tests {
     #[test]
     fn a_non_breaking_hyphen_is_not_a_line_break() {
         let doc = lexicon(&["nothing"], &LangTag::EN);
-        let decision = dehyphenate("a non\u{2011}", "breaking one", &doc, &LangTag::EN);
+        let decision = dehyphenate("a non\u{2011}", "breaking one", &doc, &LangTag::EN, &T);
         assert_eq!(decision.tier, Tier::NotACandidate);
     }
 
     /// The frequency list, on a language that has one: `under` and `stand` are both words and
-    /// `understand` is too, so the list alone cannot settle it and the tier abstains.
+    /// `understand` is too, so the list alone cannot settle it and the question goes to the
+    /// classifier. This is the residual R2 §B.7 measures, and it is not a rare case.
     #[test]
-    fn two_attested_halves_that_also_form_a_word_are_left_undecided() {
+    fn two_attested_halves_that_also_form_a_word_go_to_the_classifier() {
         let doc = lexicon(&["nothing relevant"], &LangTag::EN);
-        let decision = dehyphenate("we under-", "stand it", &doc, &LangTag::EN);
+        let decision = dehyphenate("we under-", "stand it", &doc, &LangTag::EN, &T);
+        assert_eq!(decision.tier, Tier::Classifier);
         assert_eq!(decision.resolved(), HyphenAction::Keep);
-        assert!(decision.confidence.fallback_used);
     }
 
     proptest! {

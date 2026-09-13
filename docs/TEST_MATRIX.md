@@ -260,7 +260,7 @@ indicative (PROGRESS.md).
 | 3.10c | `dehyphen::a_number_range_is_never_joined` | `oc-text` | unit | `test` | green |
 | 3.10d | `dehyphen::a_line_without_a_hyphen_is_not_a_candidate` | `oc-text` | unit | `test` | green |
 | 3.10e | `dehyphen::a_non_breaking_hyphen_is_not_a_line_break` | `oc-text` | unit | `test` | green |
-| 3.10f | `dehyphen::two_attested_halves_that_also_form_a_word_are_left_undecided` | `oc-text` | unit | `test` | green |
+| 3.10f | `dehyphen::two_attested_halves_that_also_form_a_word_go_to_the_classifier` | `oc-text` | unit | `test` | green |
 | 3.11 | `dehyphen::dehyphenate_i5_removes_exactly_one_hyphen` | `oc-text` | property | `test` | green |
 | 3.17 | `dehyphen::turkish_agglutinative_join_prefers_keep` | `oc-text` | unit | `test` | green |
 | 3.9 | `layout::dehyphenate_keeps_german_real_hyphen` | `openconvert` | fixture (f06) | `test` | green |
@@ -272,5 +272,12 @@ indicative (PROGRESS.md).
 | 3.9f | `compound_de::the_longest_linking_morpheme_wins` | `oc-text` | unit | `test` | green |
 | 3.9g | `compound_de::a_word_with_no_attested_parts_is_not_a_compound` | `oc-text` | unit | `test` | green |
 | 3.9h | `compound_de::a_two_letter_part_is_not_a_compound_seam` | `oc-text` | unit | `test` | green |
+| 3.12 | `hyphen_holdout::hyphen_classifier_keep_recall_on_holdout` | `oc-text` | golden-decision | `test` | green |
+| 3.12a | `hyphen_holdout::the_training_manifest_matches_the_committed_model` | `oc-text` | unit | `test` | green |
+| 3.12b | `classifier::the_shipped_model_is_readable` | `oc-text` | unit | `test` | green |
+| 3.12c | `classifier::the_hash_is_the_one_the_trainer_uses` | `oc-text` | unit | `test` | green |
+| 3.12d | `classifier::the_feature_set_matches_the_trainer` | `oc-text` | unit | `test` | green |
+| 3.12e | `classifier::a_low_margin_is_undecided_and_therefore_keeps` | `oc-text` | unit | `test` | green |
+| 3.10g | `dehyphen::an_unattested_pair_the_model_is_sure_about_is_decided` | `oc-text` | unit | `test` | green |
 | 3.13 | `layout::layout_stage_is_conserving` | `openconvert` | fixture (f01) | `test` | green |
 | 3.13a | `layout::layout_stage_conservation_violation_errors` | `openconvert` | unit | `test` | green |

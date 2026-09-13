@@ -159,6 +159,7 @@ pub fn dehyphenate_paragraphs(
     lexicon: &DocLexicon,
     lang: &LangTag,
     stage: &'static str,
+    t: &Thresholds,
 ) -> LedgerDelta {
     let mut delta = LedgerDelta::default();
 
@@ -183,7 +184,7 @@ pub fn dehyphenate_paragraphs(
             let decision = if next.is_empty() {
                 None
             } else {
-                Some(dehyphenate(line, next, lexicon, lang))
+                Some(dehyphenate(line, next, lexicon, lang, t))
             };
 
             match decision.as_ref().map(Decision::resolved) {

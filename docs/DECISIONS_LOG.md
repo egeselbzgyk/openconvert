@@ -1985,3 +1985,39 @@ Also, two smaller things from the same item:
 
 Affects: `crates/oc-text/src/compound_de.rs`, `crates/oc-text/src/dehyphen/tiers.rs`,
 `corpus/fixtures/typst/f06_hyphenation_de.typ`, `xtask/src/fixtures.rs`, test 3.9.
+
+## 2026-09-13 · The classifier, trained on the word list's own sources · Phase 3
+Context: plan Phase 3 detail 5 and test 3.12 — "a kilobyte-scale logistic/CRF over character features,
+trained by `eval/` with its weights committed", gated at keep-hyphen recall ≥ 0.80 on a 2,000-item
+holdout.
+
+Decision: train it from the **same twelve CC0 Standard Ebooks the English word-frequency list is built
+from**, because that licence question is already settled (D15) and a training set is as much a shipped
+artefact as a word list — the weights are derived from it. Keep examples are the corpus's genuinely
+hyphenated types split at their own hyphen (`well-known` → `well` / `known`); join examples are ordinary
+types split at a seeded interior point. Eight thousand hashed features, FNV-1a, 32 KB of float32 — the
+"≈ 30 KB" the plan budgets.
+
+Evidence, from `crates/oc-text/src/dehyphen/model.sources.json`: 39,817 types seen, 21,263 training
+examples of which 717 are keeps, 2,000 held out of which 239 are keeps, split by type so no word appears
+on both sides. **Holdout keep-recall 0.912, join-recall 0.930, balanced accuracy 0.921** — against R2
+§B.7's 85.8 % and 92.38 % for the same kind of model, and against a dictionary-only baseline's 31.7 %.
+
+Two things this changes downstream, both worth naming:
+
+**The split points are approximations.** A real line break falls where a hyphenation pattern allows one;
+ours fall at a seeded interior point, because the patterns are not ours to redistribute (VD-b). It costs
+the model the finer grain of *where* a typesetter would break, not *whether* a break is a break.
+
+**`f01`'s `pipeline` now has a measured answer, and it is the wrong one.** The classifier scores
+`pipe` / `line` at +0.96 — a confident *keep* — so `f01` comes out as `pipe- line` and its committed
+assertion is not met. The cause is visible in the data: the training corpus is twelve nineteenth-century
+novels, `pipe-line` is a perfectly ordinary spelling in that register, and the modern compound never
+appears. This is one of the ~7 % of joins the model gets wrong, it fails in the safe direction — a
+visible hyphen rather than a corrupted word — and the fix is a corpus with a modern register, which is
+Phase 7's. The assertion stays as it is: it is a correct expectation of a finished system and an honest
+record of the gap.
+
+Affects: `eval/src/oc_eval/train/hyphen_clf.py`, `crates/oc-text/src/dehyphen/classifier.rs`,
+`crates/oc-text/src/dehyphen/model.bin` + `model.sources.json`, `eval/data/hyphen_holdout.jsonl`,
+`thresholds.toml` (`dehyphen.classifier_margin_min`), tests 3.10 and 3.12, Phase 7 corpus.
