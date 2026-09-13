@@ -129,6 +129,12 @@ impl ReasonTotals {
 pub enum ConservationError {
     /// I-3: a stage that promised not to touch the text touched it.
     ConservingStageMutated { stage: &'static str, reason: Reason },
+    /// I-5: a `Dehyphenate` entry was not exactly one line-break hyphen leaving.
+    DehyphenateNotOneHyphen {
+        stage: &'static str,
+        text: String,
+        added: bool,
+    },
     /// I-2: a stage cited a reason outside its declared set.
     UndeclaredReason { stage: &'static str, reason: Reason },
     /// I-1: the equation does not balance, so text moved without being accounted for.
@@ -157,6 +163,14 @@ pub enum ConservationError {
 impl fmt::Display for ConservationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            ConservationError::DehyphenateNotOneHyphen { stage, text, added } => {
+                let side = if *added { "added" } else { "removed" };
+                write!(
+                    f,
+                    "I-5: stage {stage} {side} {text:?} under Dehyphenate; a dehyphenation \
+                     removes exactly one U+002D or U+2010 and nothing else"
+                )
+            }
             ConservationError::ConservingStageMutated { stage, reason } => {
                 write!(
                     f,
@@ -200,7 +214,13 @@ impl fmt::Display for ConservationError {
 
 impl std::error::Error for ConservationError {}
 
-/// Check invariants I-1 … I-4 for one stage.
+/// The scalars a dehyphenation may remove, and the only ones (PIPELINE §7, I-5).
+///
+/// U+00AD is not among them: a soft hyphen leaves in `text`, under its own reason, and one
+/// arriving here would mean `N` had not run.
+const DEHYPHEN_SCALARS: [char; 2] = ['\u{002D}', '\u{2010}'];
+
+/// Check invariants I-1 … I-5 for one stage.
 ///
 /// `before` and `after` are `C(D)` on either side of the stage — the caller computes them
 /// with [`c_of`], because only the caller knows which of a document's strings are content
@@ -231,6 +251,30 @@ pub fn check_invariants(
             return Err(ConservationError::UndeclaredReason {
                 stage: decl.name,
                 reason,
+            });
+        }
+    }
+
+    // I-5 — a `Dehyphenate` entry removes exactly one scalar in {U+002D, U+2010} and adds
+    // nothing. This is the half of I-5 the ledger can check on its own; the other half — that
+    // the word left behind is the two pieces concatenated and nothing else — is a property of
+    // the join and is checked where the join is made (PIPELINE §7, `oc_text::dehyphen`).
+    //
+    // It is here rather than in the stage because a wrong dehyphenation is invisible to every
+    // other invariant: it removes one character, records it, and every equation still
+    // balances while the book is quietly wrong (RT A1).
+    for entry in delta.entries() {
+        if entry.reason != Reason::Dehyphenate {
+            continue;
+        }
+        let mut scalars = entry.text.chars();
+        let one = scalars.next();
+        let single = matches!(one, Some(ch) if DEHYPHEN_SCALARS.contains(&ch));
+        if entry.added || scalars.next().is_some() || !single {
+            return Err(ConservationError::DehyphenateNotOneHyphen {
+                stage: decl.name,
+                text: entry.text.clone(),
+                added: entry.added,
             });
         }
     }

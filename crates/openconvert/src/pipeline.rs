@@ -15,7 +15,7 @@ use oc_layout::columns::{
 };
 use oc_layout::continuity::{continuity, Continuity};
 use oc_layout::furniture::{apply_furniture, detect_furniture, PageLines};
-use oc_layout::paragraphs::{infer_convention, reconstruct_paragraphs};
+use oc_layout::paragraphs::{dehyphenate_paragraphs, infer_convention, reconstruct_paragraphs};
 use oc_layout::reading_order::reading_order;
 use oc_model::extract::{CharHistogram, Glyph, PageRef};
 use oc_model::geom::Rect;
@@ -23,6 +23,7 @@ use oc_model::lang::LangTag;
 use oc_model::layout::{Block, Para, ParagraphConvention};
 use oc_model::ledger::{LedgerDelta, StageCheck};
 use oc_model::text::{Line, Run};
+use oc_text::dehyphen::DocLexicon;
 use oc_text::lines::assemble_lines;
 use oc_text::normalize::{normalize, LedgerSite};
 use oc_text::words::assemble_runs;
@@ -84,10 +85,6 @@ pub struct LayoutStage {
     pub continuity: Continuity,
     /// How many times the column count had to be narrowed before it read that way.
     pub column_retries: u32,
-    /// How this book marks a paragraph start, decided once over the whole of it.
-    pub convention: ParagraphConvention,
-    /// The document's paragraphs, in reading order, across columns and pages.
-    pub paragraphs: Vec<Para>,
     pub delta: LedgerDelta,
     pub check: StageCheck,
 }
@@ -269,13 +266,6 @@ pub fn layout_stage(
         retries += 1;
     }
 
-    // Paragraphs are `paragraphs`' stage, not `layout`'s, and the split matters: `layout` is
-    // Conserving and this is the last point at which that is still true of everything here.
-    // Reconstruction itself adds and removes nothing — it is the dehyphenation inside it that
-    // is Budgeted, and that has its own stage and its own ledger.
-    let convention = infer_convention(&best.pages, &best.blocks, t);
-    let paragraphs = reconstruct_paragraphs(&best.pages, &best.blocks, convention, t);
-
     let after = block_chars(&best.blocks, &best.pages);
     let delta = LedgerDelta::default();
     let check = check_invariants(&before, &after, &delta, stages::LAYOUT, totals)?;
@@ -287,8 +277,6 @@ pub fn layout_stage(
         agreement: best.agreement,
         continuity: best.continuity,
         column_retries: retries,
-        convention,
-        paragraphs,
         delta,
         check,
     })
@@ -355,6 +343,66 @@ struct LayoutPass {
     columns: Vec<ColumnLayout>,
     agreement: Vec<SegmentationAgreement>,
     continuity: Continuity,
+}
+
+/// What `paragraphs` produced.
+#[derive(Clone, Debug)]
+pub struct ParagraphStage {
+    /// How this book marks a paragraph start, decided once over the whole of it.
+    pub convention: ParagraphConvention,
+    /// The document's paragraphs, in reading order, across columns and pages.
+    pub paragraphs: Vec<Para>,
+    /// The document's own vocabulary, which is what decided most of the hyphens.
+    pub lexicon: DocLexicon,
+    pub delta: LedgerDelta,
+    pub check: StageCheck,
+}
+
+/// Run `paragraphs`: lines into paragraphs, then dehyphenation (PIPELINE §7).
+///
+/// Budgeted over `Dehyphenate` and nothing else. Reconstruction changes no text — it decides
+/// where one paragraph ends and the next begins — so every character this stage removes is a
+/// hyphen at a line break, and I-5 says so entry by entry.
+///
+/// The order inside the stage is not incidental. The in-document lexicon is built from the
+/// paragraphs *before* any hyphen is resolved, because it is evidence about the book and a
+/// lexicon built from already-joined text would be evidence about this function's own
+/// earlier decisions.
+pub fn paragraphs_stage(
+    layout: &LayoutStage,
+    lang: LangTag,
+    totals: &mut ReasonTotals,
+    t: &Thresholds,
+) -> Result<ParagraphStage, ConservationError> {
+    let before = block_chars(&layout.blocks, &layout.pages);
+
+    let convention = infer_convention(&layout.pages, &layout.blocks, t);
+    let mut built = reconstruct_paragraphs(&layout.pages, &layout.blocks, convention, t);
+    let lexicon = DocLexicon::build(
+        built.paragraphs.iter().map(|para| para.text.as_str()),
+        &lang,
+    );
+    let delta = dehyphenate_paragraphs(&mut built, &lexicon, &lang, stages::PARAGRAPHS.name);
+
+    let after = paragraph_chars(&built.paragraphs);
+    let check = check_invariants(&before, &after, &delta, stages::PARAGRAPHS, totals)?;
+
+    Ok(ParagraphStage {
+        convention,
+        paragraphs: built.paragraphs,
+        lexicon,
+        delta,
+        check,
+    })
+}
+
+/// `C` of the reconstructed paragraphs.
+pub fn paragraph_chars(paragraphs: &[Para]) -> CharHistogram {
+    let mut histogram = CharHistogram::new();
+    for para in paragraphs {
+        histogram = histogram.union(&c_of(&para.text));
+    }
+    histogram
 }
 
 /// One line's text, found on the page it came from.

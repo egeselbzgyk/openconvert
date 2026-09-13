@@ -237,5 +237,25 @@ replaced by the phase that owns it.
 | 3.6f | `paragraphs::a_hyphen_at_a_page_break_merges_the_paragraph` | `oc-layout` | unit | `test` | green |
 | 3.6g | `paragraphs::joining_lines_does_not_resolve_a_hyphen` | `oc-layout` | unit | `test` | green |
 | 3.6h | `paragraphs::every_paragraph_gets_its_own_id` | `oc-layout` | unit | `test` | green |
+| 3.7 | `layout::paragraph_merges_across_page_break` | `openconvert` | fixture (h23) | `test` | green |
+| 3.7a | `layout::dehyphenation_is_ledgered_one_hyphen_at_a_time` | `openconvert` | fixture (h23) | `test` | green |
+| 3.7b | `layout::the_lexicon_is_built_from_the_document` | `openconvert` | fixture (h23) | `test` | green |
+| 3.8 | `dehyphen::dehyphenate_joins_when_indoc_evidence` | `oc-text` | unit | `test` | green |
+| 3.8a | `dehyphen::dehyphenate_keeps_when_the_document_spells_it_with_a_hyphen` | `oc-text` | unit | `test` | green |
+| 3.8b | `dehyphen::a_document_that_spells_it_both_ways_decides_nothing` | `oc-text` | unit | `test` | green |
+| 3.8c | `lexicon::the_documents_own_words_answer_for_it` | `oc-text` | unit | `test` | green |
+| 3.8d | `lexicon::a_hyphenated_word_is_held_whole` | `oc-text` | unit | `test` | green |
+| 3.8e | `lexicon::a_line_break_is_not_a_word` | `oc-text` | unit | `test` | green |
+| 3.8f | `lexicon::punctuation_is_stripped_from_the_ends_of_words` | `oc-text` | unit | `test` | green |
+| 3.8g | `lexicon::folding_is_the_documents_own` | `oc-text` | unit | `test` | green |
+| 3.10 | `dehyphen::dehyphenate_fails_closed_on_unknown` | `oc-text` | unit | `test` | green |
+| 3.10a | `dehyphen::an_uppercase_continuation_is_not_a_candidate_in_english` | `oc-text` | unit | `test` | green |
+| 3.10b | `dehyphen::an_uppercase_continuation_is_still_a_candidate_in_german` | `oc-text` | unit | `test` | green |
+| 3.10c | `dehyphen::a_number_range_is_never_joined` | `oc-text` | unit | `test` | green |
+| 3.10d | `dehyphen::a_line_without_a_hyphen_is_not_a_candidate` | `oc-text` | unit | `test` | green |
+| 3.10e | `dehyphen::a_non_breaking_hyphen_is_not_a_line_break` | `oc-text` | unit | `test` | green |
+| 3.10f | `dehyphen::two_attested_halves_that_also_form_a_word_are_left_undecided` | `oc-text` | unit | `test` | green |
+| 3.11 | `dehyphen::dehyphenate_i5_removes_exactly_one_hyphen` | `oc-text` | property | `test` | green |
+| 3.17 | `dehyphen::turkish_agglutinative_join_prefers_keep` | `oc-text` | unit | `test` | green |
 | 3.13 | `layout::layout_stage_is_conserving` | `openconvert` | fixture (f01) | `test` | green |
 | 3.13a | `layout::layout_stage_conservation_violation_errors` | `openconvert` | unit | `test` | green |

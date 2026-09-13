@@ -79,6 +79,7 @@ pub fn all() -> Vec<(&'static str, Vec<u8>)> {
         ("h20_recto_verso", h20_recto_verso()),
         ("h21_band_is_sole_content", h21_band_is_sole_content()),
         ("h22_false_gutter", h22_false_gutter()),
+        ("h23_paragraph_across_pages", h23_paragraph_across_pages()),
     ]
 }
 
@@ -526,6 +527,43 @@ pub fn h22_false_gutter() -> Vec<u8> {
         })
         .collect();
     build_pages(pages)
+}
+
+/// h23 - a paragraph interrupted by a page break, with a word broken across the same break
+/// (test 3.7).
+///
+/// Two failures in one fixture, because they happen together and a repair for either one
+/// alone leaves the other visible. The paragraph has to survive the page boundary, and the
+/// word `pipe-` / `line` has to be rejoined across it. The evidence for the join is on the
+/// page above: the document uses the word `pipeline` in its first sentence, so the
+/// in-document lexicon settles it without any dictionary being consulted (PIPELINE §7 tier
+/// T3). That is deliberate - a fixture that needed the classifier to answer would be testing
+/// the classifier rather than the merge.
+///
+/// It is also longer than it needs to be to make its point, and that is deliberate too. The
+/// `Dehyphenate` budget is a *fraction* of the document, so on a hundred-character fixture a
+/// single legitimate hyphen is nine parts in a thousand and breaches a five-in-a-thousand
+/// allowance. Two hundred characters is the least a document can be and still have a hyphen
+/// measured against a fraction at all.
+pub fn h23_paragraph_across_pages() -> Vec<u8> {
+    let first = Page::default()
+        .media_box(WIDE_PAGE)
+        .text((20.0, 260.0), "The pipeline runs north")
+        .text((20.0, 240.0), "through the valley and the")
+        .text((20.0, 220.0), "survey party followed it")
+        .text((20.0, 200.0), "summer.")
+        .text((20.0, 180.0), "A second paragraph now")
+        .text((20.0, 160.0), "runs on for several lines")
+        .text((20.0, 140.0), "and ends the page on a")
+        .text((20.0, 120.0), "word broken as pipe-");
+    let second = Page::default()
+        .media_box(WIDE_PAGE)
+        .text((20.0, 260.0), "line that the survey")
+        .text((20.0, 240.0), "party had recorded in")
+        .text((20.0, 220.0), "its notes that autumn")
+        .text((20.0, 200.0), "and again the winter")
+        .text((20.0, 180.0), "after.");
+    build_pages(vec![first, second])
 }
 
 /// The outline `h13` carries, as `(title, level)` in the order it must be read.

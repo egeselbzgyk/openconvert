@@ -1918,3 +1918,36 @@ paragraph, not two. That is the rule working. A paragraph's last line is short *
 above it*, and a block whose every line is short has no long line to be short against.
 
 Affects: `thresholds.toml`, `crates/oc-layout/src/paragraphs.rs`, test 3.6, PIPELINE §7 step 4.
+
+## 2026-09-13 · Dehyphenation: what the tiers decide, and what they deliberately do not · Phase 3
+Three things worth recording from implementing PIPELINE §7 step 6, all of them about the *shape* of the
+answer rather than the code.
+
+**1. `f01`'s `pipeline` is a classifier case, and the deterministic tiers keep the hyphen.**
+`f01_prose_single_column.assert.json` asserts that `pipe-` + `line` comes out as `pipeline`. It does not,
+yet, and that is the fail-closed rule working exactly as specified: the document never uses the word
+`pipeline` anywhere else, so the in-document tier abstains; the English list contains `pipe` and `line`
+as independent words, so tier T4's "both halves attested" rule says *keep*; and PIPELINE §7's fail-closed
+condition — joined form absent from the in-document dictionary, absent from the lexicon, halves both
+attested — is met exactly. This residual is precisely the population R2 §B.7 measures the classifier on,
+where a dictionary-only baseline scores 31.7 % keep-recall against the classifier's 85.8 %. The assertion
+is an acceptance artefact for Phase 5 and stays as it is; test 3.7 uses `h23`, whose join the *document's
+own vocabulary* settles, so that it tests the merge and the join rather than the tier that has not landed.
+
+**2. A fractional budget cannot be measured on a hundred-character document.** The first `h23` carried
+one legitimate hyphen in 110 non-whitespace characters — nine parts in a thousand against
+`conservation.budget.dehyphenate`'s five — and the stage refused the conversion. Nothing was wrong with
+either the removal or the budget: a fraction of a very small number is dominated by its numerator. The
+fixture was lengthened to a little over 200 characters, which is the least a document can be and still
+have a single hyphen measured against a five-in-a-thousand allowance. Recorded because the same
+arithmetic will come back on the first one-page real document, and the answer there is a *floor* on the
+budget denominator, which is Phase 6's to decide with the rest of the breach policy.
+
+**3. The in-document lexicon carries its own locale.** Folding is locale-sensitive in one of v1's three
+languages, and a lexicon built with Turkish folding and queried with invariant folding looks up keys
+nobody wrote. The tag is stored on `DocLexicon` at build time rather than passed at each lookup, so the
+two cannot disagree.
+
+Affects: `crates/oc-text/src/dehyphen/`, `crates/oc-layout/src/paragraphs.rs`,
+`crates/oc-core/src/stages/paragraphs.rs`, `crates/oc-core/src/ledger_check.rs` (I-5),
+`crates/oc-testkit/src/handmade.rs` (h23), tests 3.7, 3.8, 3.10, 3.11, 3.17.

@@ -17,7 +17,8 @@ use oc_model::ledger::{LedgerDelta, LedgerEntry, Reason, StageKind};
 use oc_pdf::inspect::PdfOpen;
 use oc_pdf::pdfium::PdfiumBackend;
 use openconvert::pipeline::{
-    block_text, furniture_stage, layout_stage, text_stage, LayoutStage, PageInput,
+    block_text, furniture_stage, layout_stage, paragraphs_stage, text_stage, LayoutStage,
+    PageInput, ParagraphStage,
 };
 
 /// Read a fixture and run `text`, `furniture` and `layout` over it, as a conversion would.
@@ -53,6 +54,38 @@ fn layout_of(relative: &str) -> LayoutStage {
     let furniture =
         furniture_stage(&text, LangTag::EN, &mut totals, &T).expect("furniture stays in budget");
     layout_stage(&text, &furniture, &mut totals, &T).expect("layout conserves")
+}
+
+/// The same, carried one stage further: paragraphs, dehyphenated, under I-5.
+fn paragraphs_of(relative: &str, lang: LangTag) -> ParagraphStage {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative);
+    let bytes = std::fs::read(&path)
+        .unwrap_or_else(|error| panic!("missing fixture {}: {error}", path.display()));
+    let backend = PdfiumBackend::bind().expect("PDFium is vendored");
+    let document = backend.open(&bytes, None).expect("the fixture opens");
+    let input: Vec<PageInput> = (0..document.page_count())
+        .map(|index| {
+            let geometry = document
+                .page_geometry(index)
+                .expect("the page has geometry");
+            PageInput {
+                page: PageRef::new(index),
+                width_pt: geometry.width_pt(),
+                height_pt: geometry.height_pt(),
+                glyphs: document
+                    .page_glyphs(index)
+                    .expect("the page extracts")
+                    .glyphs,
+            }
+        })
+        .collect();
+
+    let mut totals = ReasonTotals::default();
+    let text = text_stage(&input, &mut totals, &T).expect("text conserves");
+    let furniture =
+        furniture_stage(&text, lang.clone(), &mut totals, &T).expect("furniture stays in budget");
+    let layout = layout_stage(&text, &furniture, &mut totals, &T).expect("layout conserves");
+    paragraphs_stage(&layout, lang, &mut totals, &T).expect("paragraphs stays in budget")
 }
 
 /// Row 3.1. Every block Docstrum drew is a block the whitespace cover also drew, to within
@@ -253,11 +286,14 @@ fn the_false_gutter_is_found_before_continuity_rejects_it() {
 /// the book rather than from any one page.
 #[test]
 fn paragraph_convention_indent_detected() {
-    let layout = layout_of("../../target/fixtures/f01_prose_single_column.pdf");
+    let stage = paragraphs_of(
+        "../../target/fixtures/f01_prose_single_column.pdf",
+        LangTag::EN,
+    );
 
-    assert_eq!(layout.convention, ParagraphConvention::FirstLineIndent);
+    assert_eq!(stage.convention, ParagraphConvention::FirstLineIndent);
 
-    let page0: Vec<&oc_model::layout::Para> = layout
+    let page0: Vec<&oc_model::layout::Para> = stage
         .paragraphs
         .iter()
         .filter(|para| para.pages.0 == 0)
@@ -275,4 +311,77 @@ fn paragraph_convention_indent_detected() {
     assert!(texts[1].starts_with("It was a dark and stormy night"));
     assert!(texts[2].starts_with("The office was quiet"));
     assert!(texts[3].starts_with("Outside, the harbour lights"));
+}
+
+/// Row 3.7. A paragraph interrupted by a page break is one paragraph, and the word broken
+/// across the same break is one word.
+///
+/// Both halves matter and they fail together: a merge that leaves `pipe- line` in the text is
+/// as wrong as two paragraphs. The join is settled by the document's own vocabulary — the
+/// first sentence of the fixture uses `pipeline` — so this test is about the merge and the
+/// join, not about the tier that would otherwise have to guess.
+#[test]
+fn paragraph_merges_across_page_break() {
+    let stage = paragraphs_of(
+        "../../corpus/fixtures/handmade/h23_paragraph_across_pages.pdf",
+        LangTag::EN,
+    );
+
+    let merged: Vec<&oc_model::layout::Para> = stage
+        .paragraphs
+        .iter()
+        .filter(|para| para.is_merged())
+        .collect();
+    assert_eq!(
+        merged.len(),
+        1,
+        "exactly one paragraph spans the break: {:#?}",
+        stage
+            .paragraphs
+            .iter()
+            .map(|para| (para.pages, para.text.clone()))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(merged[0].pages, (0, 1));
+    assert!(
+        merged[0].text.contains("pipeline"),
+        "the broken word was not rejoined: {:?}",
+        merged[0].text
+    );
+    assert!(
+        !merged[0].text.contains("pipe-"),
+        "the hyphen survived the join: {:?}",
+        merged[0].text
+    );
+}
+
+/// And the ledger says so: exactly one character left, it was a hyphen, and it left under the
+/// one reason this stage is allowed to cite.
+#[test]
+fn dehyphenation_is_ledgered_one_hyphen_at_a_time() {
+    let stage = paragraphs_of(
+        "../../corpus/fixtures/handmade/h23_paragraph_across_pages.pdf",
+        LangTag::EN,
+    );
+
+    let entries = stage.delta.entries();
+    assert_eq!(entries.len(), 1, "{entries:#?}");
+    assert_eq!(entries[0].reason, Reason::Dehyphenate);
+    assert_eq!(entries[0].text, "-");
+    assert!(!entries[0].added);
+    assert_eq!(entries[0].stage, "paragraphs");
+    assert_eq!(stage.check.removed_chars, 1);
+    assert_eq!(stage.check.added_chars, 0);
+}
+
+/// The in-document lexicon is what decided it, and it is built from the book rather than
+/// from a dictionary: a document that never says `pipeline` keeps its hyphen.
+#[test]
+fn the_lexicon_is_built_from_the_document() {
+    let stage = paragraphs_of(
+        "../../corpus/fixtures/handmade/h23_paragraph_across_pages.pdf",
+        LangTag::EN,
+    );
+    assert!(!stage.lexicon.is_empty());
+    assert!(stage.lexicon.joined_count("pipe", "line") >= 1);
 }

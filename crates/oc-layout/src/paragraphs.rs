@@ -25,8 +25,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use oc_core::thresholds::Thresholds;
 use oc_model::geom::Rect;
 use oc_model::ids::BlockId;
+use oc_model::lang::LangTag;
 use oc_model::layout::{Block, BlockKindHint, Para, ParagraphConvention};
+use oc_model::ledger::{LedgerDelta, LedgerEntry, Reason};
 use oc_model::text::Line;
+
+use oc_text::dehyphen::{dehyphenate, Decision, DocLexicon, HyphenAction, LINE_BREAK_HYPHENS};
 
 use crate::blocks::LayoutPage;
 use crate::continuity::runs_on;
@@ -71,7 +75,7 @@ pub fn reconstruct_paragraphs(
     blocks: &[Vec<Block>],
     convention: ParagraphConvention,
     t: &Thresholds,
-) -> Vec<Para> {
+) -> Reconstruction {
     let mut paragraphs: Vec<Open> = Vec::new();
     let mut open: Option<Open> = None;
 
@@ -115,10 +119,116 @@ pub fn reconstruct_paragraphs(
     }
 
     let mut minted: BTreeSet<String> = BTreeSet::new();
-    paragraphs
-        .into_iter()
-        .map(|para| para.finish(&mut minted))
-        .collect()
+    let mut built = Reconstruction::default();
+    for open in paragraphs {
+        let (para, texts, pages) = open.finish(&mut minted);
+        built.paragraphs.push(para);
+        built.line_texts.push(texts);
+        built.line_pages.push(pages);
+    }
+    built
+}
+
+/// The paragraphs, with the lines they were built from kept alongside.
+///
+/// The line texts are carried rather than re-derived from `Para::text`, because dehyphenation
+/// has to know where the line boundaries *were*: a hyphen followed by a space in a joined
+/// paragraph is not necessarily a line break, and guessing at them after the fact would put
+/// the one decision the conservation law cannot check back on a guess.
+#[derive(Clone, Debug, Default)]
+pub struct Reconstruction {
+    pub paragraphs: Vec<Para>,
+    /// Per paragraph, the text of each line it was built from, in order.
+    pub line_texts: Vec<Vec<String>>,
+    /// Per paragraph, the page each of those lines came from.
+    pub line_pages: Vec<Vec<u32>>,
+}
+
+/// Resolve every hyphenated line break in the document's paragraphs (PIPELINE §7 step 6).
+///
+/// This is the only part of `paragraphs` that changes the text, and the only reason the stage
+/// is Budgeted rather than Conserving. Each decision is a `Dehyphenate` ledger entry holding
+/// exactly the one character that left, which is the ledger's half of invariant I-5; the other
+/// half — that the word left behind is the two pieces concatenated and nothing else — is a
+/// property of the join itself, and is where `oc_text::dehyphen`'s own property test lives.
+///
+/// A kept hyphen produces no entry at all, because nothing was removed. That asymmetry is the
+/// fail-closed rule showing through: the safe outcome is also the one with nothing to record.
+pub fn dehyphenate_paragraphs(
+    built: &mut Reconstruction,
+    lexicon: &DocLexicon,
+    lang: &LangTag,
+    stage: &'static str,
+) -> LedgerDelta {
+    let mut delta = LedgerDelta::default();
+
+    for (index, para) in built.paragraphs.iter_mut().enumerate() {
+        let Some(lines) = built.line_texts.get(index) else {
+            continue;
+        };
+        let pages = built.line_pages.get(index);
+        let mut text = String::new();
+        let mut offset: u32 = 0;
+
+        for (position, line) in lines.iter().enumerate() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            let next = lines
+                .get(position + 1)
+                .map(|next| next.trim())
+                .unwrap_or_default();
+
+            let decision = if next.is_empty() {
+                None
+            } else {
+                Some(dehyphenate(line, next, lexicon, lang))
+            };
+
+            match decision.as_ref().map(Decision::resolved) {
+                Some(HyphenAction::Join) => {
+                    // The hyphen goes, and so does the space that would have joined the two
+                    // lines: the word is one word.
+                    let kept = line
+                        .strip_suffix(LINE_BREAK_HYPHENS)
+                        .unwrap_or(line)
+                        .to_owned();
+                    let removed = line
+                        .chars()
+                        .next_back()
+                        .map(String::from)
+                        .unwrap_or_default();
+                    let width = u32::try_from(kept.chars().count()).unwrap_or(u32::MAX);
+                    delta.push(LedgerEntry::removed(
+                        stage,
+                        Reason::Dehyphenate,
+                        pages
+                            .and_then(|pages| pages.get(position).copied())
+                            .unwrap_or(para.pages.0),
+                        (
+                            offset.saturating_add(width),
+                            offset.saturating_add(width).saturating_add(1),
+                        ),
+                        removed,
+                    ));
+                    text.push_str(&kept);
+                    offset = offset.saturating_add(width);
+                }
+                _ => {
+                    text.push_str(line);
+                    offset = offset
+                        .saturating_add(u32::try_from(line.chars().count()).unwrap_or(u32::MAX));
+                    if !next.is_empty() {
+                        text.push(' ');
+                    }
+                }
+            }
+        }
+        para.text = text;
+    }
+
+    delta
 }
 
 /// One line's text, found on the page it came from.
@@ -142,6 +252,8 @@ struct Open {
     blocks: Vec<BlockId>,
     lines: Vec<Line>,
     texts: Vec<String>,
+    /// The page each line came from, so a ledger entry can say where a hyphen was.
+    line_pages: Vec<u32>,
     first_line_indent: bool,
     pages: (u32, u32),
     bbox: Rect,
@@ -160,6 +272,7 @@ impl Open {
             blocks: vec![block.id],
             lines: vec![line.clone()],
             texts: vec![text.to_owned()],
+            line_pages: vec![page],
             first_line_indent: line.indent_pt > 0.0,
             pages: (page, page),
             bbox: line.bbox,
@@ -175,6 +288,8 @@ impl Open {
         }
         self.lines.push(line.clone());
         self.texts.push(text.to_owned());
+        self.line_pages
+            .push(u32::try_from(page).unwrap_or(u32::MAX));
         self.pages.1 = u32::try_from(page).unwrap_or(u32::MAX);
         self.bbox = union(self.bbox, line.bbox);
         self.last_fill = fill_of(block, line);
@@ -199,7 +314,7 @@ impl Open {
             .is_some_and(|last| runs_on(last, next) || self.last_ends_with_hyphen)
     }
 
-    fn finish(self, minted: &mut BTreeSet<String>) -> Para {
+    fn finish(self, minted: &mut BTreeSet<String>) -> (Para, Vec<String>, Vec<u32>) {
         let text = join(&self.texts);
         let base = BlockId::derive(self.pages.0, self.bbox, &text);
         let mut id = base;
@@ -209,14 +324,18 @@ impl Open {
                 break;
             }
         }
-        Para {
-            id,
-            blocks: self.blocks,
-            lines: self.lines,
-            text,
-            first_line_indent: self.first_line_indent,
-            pages: self.pages,
-        }
+        (
+            Para {
+                id,
+                blocks: self.blocks,
+                lines: self.lines,
+                text,
+                first_line_indent: self.first_line_indent,
+                pages: self.pages,
+            },
+            self.texts,
+            self.line_pages,
+        )
     }
 }
 
@@ -390,7 +509,7 @@ mod tests {
         let convention = infer_convention(&pages, &blocks, &T);
         (
             convention,
-            reconstruct_paragraphs(&pages, &blocks, convention, &T),
+            reconstruct_paragraphs(&pages, &blocks, convention, &T).paragraphs,
         )
     }
 
