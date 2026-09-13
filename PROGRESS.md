@@ -49,7 +49,7 @@ LAST_UPDATED: 2026-09-13
 | 3.1 | VD-b closed: `hyphenation` is banned, not depended on | (gated by `cargo deny check bans`) |
 | 3.2 | `oc-layout::blocks` — Docstrum + Breuel's cover, cross-checked; `layout` wired as a Conserving stage | 3.1, 3.13 + 6 |
 | 3.3 | `oc-layout::columns` + `reading_order` — gutters, XY-cut with pre-masking | 3.2, 3.3, 3.4 + 7 |
-| 3.4 | `oc-layout::continuity` — the column hypothesis checked against the next page, and withdrawn if a narrower one reads better | 3.5 + 7 |
+| 3.4 | `oc-layout::continuity` — the column hypothesis checked against the next page, withdrawn if a narrower one reads better | 3.5 + 7 |
 
 **Next: paragraph reconstruction** (plan Phase 3 detail 4, PIPELINE §7, tests 3.6 and 3.7). The
 book-level convention by mode, line grouping by leading, paragraph start by indent, paragraph end by the
@@ -57,90 +57,20 @@ short last line (`paragraph.line_unwrap_factor`), and merging across column and 
 that `Line::indent_pt`/`right_gap_pt` are still measured against the whole page by `text`; PIPELINE §7
 wants them against **the block's dominant edges**, and `blocks` is where that should be recomputed.
 
-Then, in order: dehyphenation tiers (3.8, 3.10, 3.11, 3.17), the German compound acceptor + the `f06`
+Then, in order: dehyphenation tiers (3.8, 3.10, 3.11, 3.17), the German compound acceptor and the `f06`
 hyphenation fixture (3.9), the classifier and its holdout (3.12), image anchoring, the metamorphic page
 permutation test (3.14), and the dump/snapshot pair (3.15, 3.16).
 
 **Fixture numbers spent in this phase so far:** `h22_false_gutter` (the plan names `h13`, which Phase 1
 spent on the outline walk). `f02_two_column` was rewritten — it had never had two columns; see
-`docs/DECISIONS_LOG.md`. Taken today: **f01–f05**, **h01–h22**. Next free: **f06**, **h23**.
+`docs/DECISIONS_LOG.md`. Taken: **f01–f05**, **h01–h22**. Next free: **f06**, **h23**. The plan's other
+collisions are unchanged: `f06_hyphenation_de` for the plan's `f04`, `f07_verse_and_quote` for its `f05`,
+and Phase 4's `f06`–`f08` shifting to `f08`–`f10`. `h22` was also PROGRESS's suggested replacement for
+test 4.10's `h16`; that one now needs **h23**.
 
 Still open, and cheap: CI's `test` job runs `xtask fixtures` but never `handmade-fixtures` or
 `mutations`, so a builder change that no longer reproduces the committed fixtures is not caught. A
 `--check` mode on those two tasks would close it. This phase changed the builder again (h22's page box).
-
-## Notes` short: what a fresh session needs in order to resume, nothing else.
-
----
-
-## Phases
-
-- [x] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
-      *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
-      *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
-- [x] **Phase 1** — PDF inspection and ingestion  *(VD-d closed: PDFium composites masks, palettes and colour spaces correctly)*
-- [x] **Phase 2** — Text assembly and normalization  *(all 22 named tests green; EN frequency list ships, DE/TR blocked on a D15 licence decision)*
-- [ ] **Phase 3** — Layout  *(blocks, columns, reading order, paragraphs, dehyphenation; VD-b must close)*
-- [ ] **Phase 4** — Structure  *(headings, outline/TOC, book structure, lists, footnotes, captions, quotes/verse, tables, images, metadata)*
-- [ ] **Phase 5** — EPUB generation, Tier-1 validator, EPUBCheck CI gate
-- [ ] **Phase 6** — Structural validation, repair loop, report, CI DOM checks  *(VD-f if the validation pack ships)*
-- [ ] **Phase 7** — Corpus v1, eval harness, benchmarks, real-world holdout
-- [ ] **Phase 8** — AI abstraction (no real model yet)
-- [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
-- [ ] **Phase 10** — AI-assisted decisions (the four tasks)
-- [ ] **Phase 11** — BYO providers
-- [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
-- [ ] **Phase 13** — OCR  *(VD-g must close)*
-- [ ] **Phase 14** — Security hardening
-- [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
-
-## Current work item
-
-**Phase 3 has not been started.** Phase 2 is complete — its Definition of Done is checked below.
-
-First step: read `docs/IMPLEMENTATION_PLAN.md` PHASE 3 and `docs/PIPELINE.md`'s `layout` and
-`paragraphs` stages, then take the first work item with the TDD loop.
-
-Phase 3 is blocks, columns, reading order, paragraph reconstruction and dehyphenation, and
-**VD-b must close**. Three things land on it from earlier phases, in priority order:
-
-1. **The soft-vs-hard hyphen distinction, and `OverdrawDedup`'s unconsumable budget.** Both need
-   the same mechanism — `lopdf` access to the `Tj`/`TJ` operands, decoded against each font's
-   `/ToUnicode` — and both are dehyphenation inputs or conservation inputs rather than
-   extraction ones. Item 2.4 closed the half that mattered for `C_raw` (PDFium's U+0002 marker
-   now decodes to U+002D); what is left is knowing *which* hyphen it was, which PIPELINE §369's
-   compound-word rule needs so that `Nord-Süd-Achse` is not rejoined.
-2. **Columns.** `text` clusters a line by baseline alone, so two columns printed at the same
-   height are one line and `Line::indent_pt` / `right_gap_pt` are measured against the span of
-   both. That is the specified ordering (R2 §D.3, furniture before segmentation) and Phase 3 is
-   where it is repaired — the paragraph rules that read those fields are written against the
-   field, not against the stage that filled it in.
-3. **A budget breach is currently fatal, and ARCHITECTURE §5.5 says it should not be.** The
-   checker is right to refuse to call it fine; the *policy* — stop that stage's remaining
-   removals, warn, finish the book — belongs to the orchestrator, and the orchestrator arrives
-   in Phase 6. Until then a breach aborts the conversion. Recorded so it is a decision rather
-   than an oversight.
-
-**Before writing a fixture, check what the number is already taken by.** The plan's fixture
-numbers were assigned before any phase spent one, and two of them now collide:
-
-| The plan says | Already taken by | Use |
-|---|---|---|
-| `f04_hyphenation_de` (Phase 3) | `f04_german_prose` (item 2.10) | `f06_hyphenation_de` |
-| `f05_verse_and_quote` (Phase 3) | `f05_turkish_prose` (item 2.10) | `f07_verse_and_quote` |
-| `f06`–`f08` (Phase 4) | — | shift to `f08`–`f10` |
-| `h16` "two figures one caption" (test 4.10) | `h16_superscript_marker` (item 2.5) | `h22` |
-
-Taken today: **f01–f05** and **h01–h21**. Next free: **f06**, **h22**. The rule, which Phase 2
-already followed for h16–h21: *the test name is the contract and never moves; the fixture number
-is indicative, so take the next free one and record the mapping in `docs/TEST_MATRIX.md`.*
-
-Also open, and cheap, and more valuable now than it was: CI's `test` job runs `xtask fixtures`
-but never `handmade-fixtures` or `mutations`, so a builder change that no longer reproduces the
-committed fixtures is not caught. Phase 2 changed that builder three times — `text_at`,
-`char_spacing`, `build_pages`, and the `/ToUnicode` object that renumbered h13's refs — and each
-time the check was "run it and read the CHANGED lines by eye". A `--check` mode on those two
-tasks would close it.
 
 ## Notes
 
@@ -155,10 +85,10 @@ Carried forward, in the order a fresh session needs them:
   `target/fixtures/`), `-- handmade-fixtures` (h01–h15, committed), `-- mutations` (committed).
 - **Carry-forward 2 (columns) is closed.** `text` still clusters a line by baseline alone, and that is
   now deliberate: `layout` detects the columns from run coverage and splits the lines that span a gutter,
-  because the split is exactly as good as the column hypothesis and a withdrawn hypothesis has to be able
-  to withdraw the split with it. `words` breaks a *run* at `text.line_split_gap_em`, which is all the
-  projection needs. `Line::indent_pt`/`right_gap_pt` are still page-relative — the paragraphs item
-  recomputes them against the block.
+  because the split is exactly as good as the column hypothesis, and a hypothesis that can be withdrawn
+  has to be able to withdraw the split with it. `words` breaks a *run* at `text.line_split_gap_em`, which
+  is all the projection needs. `Line::indent_pt`/`right_gap_pt` are still page-relative — the paragraphs
+  item recomputes them against the block.
 - **Carry-forward 3 (a budget breach is fatal) is still open**, and still belongs to Phase 6.
 - **No stage may treat the backend's glyph order as reading order.** Measured in item 1.3: PDFium
   reorders the lines of a page under `/Rotate 90`. Reading order is Phase 3's, from geometry.
