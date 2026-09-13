@@ -1326,3 +1326,28 @@ what I-6's region scope exists to permit.
 Evidence: ARCHITECTURE §5.2–§5.5, PIPELINE §4, IR_SKETCH stage-kind list, D13.4.
 Affects: `crates/oc-core/src/{ledger_check.rs,stages/}`, `crates/oc-model/src/ledger.rs`,
 IMPLEMENTATION_PLAN Phase 2 Architecture block.
+
+## 2026-09-13 · `N` composes twice, and U+FB05 expands to `st` · Phase 2 item 2.2
+Two things about normalisation that the specification does not say and cannot be left implicit.
+
+**`N` needs a trailing NFC, so it is four steps, not three.** ARCHITECTURE §5.1 writes
+`N = strip(U+00AD) ∘ expand_ligatures ∘ NFC`. Stripping a soft hyphen can leave a base character
+adjacent to a combining mark it was not adjacent to before — `e U+00AD U+0301` becomes `e U+0301` —
+so with the composition step only at the front, the output of `N` is not NFC. Two stated requirements
+then fail at once: PIPELINE §4 requires every `Run.text` to be NFC, and test 2.3 requires `N` to be
+idempotent (a second application would compose what the first left decomposed). Implemented as
+`NFC ∘ strip ∘ expand ∘ NFC`, with the trailing pass skipped when nothing was stripped, since a
+ligature expansion is ASCII letters and composes with nothing. No behaviour the specification names
+changes; the two properties it asserts now hold.
+
+**U+FB05 expands to `st`, not to `ft`.** IMPLEMENTATION_PLAN Phase 2 detail 1 gives the table as
+`ﬀ ﬁ ﬂ ﬃ ﬄ ﬅ ﬆ → ff fi fl ffi ffl ft st`. U+FB05 is LATIN SMALL LIGATURE LONG S T; its Unicode
+compatibility decomposition is U+017F (long s) + U+0074, and the long s is an orthographic variant of
+`s`. Expanding it to `ft` is the classic long-s misreading and would silently turn `beſt` into `beft`
+in exactly the eighteenth-century texts where the ligature still appears — a corruption the
+conservation law cannot see, because the multiset balances either way. The plan is the lowest
+authority in the stack (CLAUDE.md §1) and ARCHITECTURE §5.1 only says "→ ASCII sequences", so `st` it
+is. U+FB06 (`st`) is unaffected and expands the same way.
+
+Evidence: Unicode 16 UnicodeData.txt decompositions for U+FB05/U+FB06; ARCHITECTURE §5.1; PIPELINE §4.
+Affects: `crates/oc-text/src/normalize.rs`, IMPLEMENTATION_PLAN Phase 2 detail 1.

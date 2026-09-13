@@ -116,3 +116,10 @@ replaced by the phase that owns it.
 | 2.16d | `ledger_check::c_of_counts_only_non_whitespace` | `oc-core` | unit | `test` | green |
 | 2.17a | `ledger_check::budgets_accumulate_across_stages` | `oc-core` | unit | `test` | green |
 | 2.17b | `ledger_check::budget_charges_net_loss_not_churn` | `oc-core` | unit | `test` | green |
+| 2.1 | `normalize::normalize_expands_ligatures_and_ledgers_both_sides` | `oc-text` | unit | `test` | green |
+| 2.2 | `normalize::normalize_strips_soft_hyphen_with_reason` | `oc-text` | unit | `test` | green |
+| 2.3 | `normalize::normalize_is_idempotent` | `oc-text` | property | `test`, `proptest-deep` | green |
+| 2.4 | `normalize::normalize_never_applies_nfkc` | `oc-text` | unit | `test` | green |
+| 2.4a | `normalize::normalize_composes_to_nfc` | `oc-text` | unit | `test` | green |
+| 2.4b | `normalize::normalize_expands_the_whole_ligature_block` | `oc-text` | unit | `test` | green |
+| 2.7a | `normalize::normalize_never_changes_case` | `oc-text` | property | `test`, `proptest-deep` | green |
