@@ -123,3 +123,9 @@ replaced by the phase that owns it.
 | 2.4a | `normalize::normalize_composes_to_nfc` | `oc-text` | unit | `test` | green |
 | 2.4b | `normalize::normalize_expands_the_whole_ligature_block` | `oc-text` | unit | `test` | green |
 | 2.7a | `normalize::normalize_never_changes_case` | `oc-text` | property | `test`, `proptest-deep` | green |
+| 2.6 | `fold::fold_key_is_turkish_aware` | `oc-text` | unit | `test` | green |
+| 2.6a | `fold::fold_key_lowercases_the_rest_of_the_world_normally` | `oc-text` | unit | `test` | green |
+| 2.6b | `fold::fold_key_is_nfc` | `oc-text` | unit | `test` | green |
+| 2.6c | `lang::a_tag_is_case_insensitive_and_keeps_its_region` | `oc-model` | unit | `test` | green |
+| 2.6d | `lang::only_turkish_and_azerbaijani_pair_the_dotless_i` | `oc-model` | unit | `test` | green |
+| 2.7 | `fold::text_is_never_case_folded_in_output` | `oc-text` | property | `test`, `proptest-deep` | green |
