@@ -276,3 +276,107 @@ proposed for VD-d could not have answered VD-d's question.
 - The plan's proposed `pypdfium2` reference was **not** used: it wraps the same PDFium, so the
   comparison could not have answered the question. Known-answer fixtures were used instead.
   See `docs/DECISIONS_LOG.md`.
+
+## Phase 2 — Text assembly and normalization
+
+Glyphs become runs and lines, normalisation `N` is applied exactly once, page furniture is
+removed before segmentation, and every stage runs under the conservation law. All twenty-two
+rows of the Phase 2 table are green, plus about forty additions.
+
+### The conservation law, first (`oc-core`, `oc-model`)
+
+- New: `oc_core::ledger_check::check_invariants` — I-1 (balance), I-2 (declared reasons),
+  I-3 (conserving stages), I-4 (cumulative budgets) — plus `oc_core::stages`, where each
+  stage's kind and closed reason set are declared next to the checker that enforces them.
+  Built before any transformation, so every transformation is born under it.
+- New in `oc-model`: `LedgerDelta`, `StageKind`, `StageCheck`, `c_of`.
+- **Corrected:** `Reason::adds()` was `matches!(self, Ocr)`. `LigatureExpand` is on both sides
+  of the ledger at once — the case I-1 exists for — so writing it tripped a debug assertion.
+  Replaced with `may_add` / `may_remove`.
+- **Decided:** I-4 is charged on *net* loss per reason. Read literally, a book that sets `ﬁ`
+  blows the 0.001 "other" budget while losing nothing. See `docs/DECISIONS_LOG.md`.
+
+### Normalisation `N` (`oc-text`)
+
+- New: `normalize`, `NFC ∘ strip(U+00AD) ∘ expand_ligatures ∘ NFC`, with a paired
+  Removed + Added entry per ligature and a `SoftHyphen` removal per soft hyphen.
+- **Two departures from the letter of the spec**, both recorded: `N` composes again after
+  stripping, without which its output is not NFC and it is not idempotent; and U+FB05 expands
+  to `st`, not the plan's `ft`, which is the long-s misreading and would turn `beſt` into
+  `beft`.
+- New: `fold_key`, the only place in the pipeline where case changes. Turkish and Azerbaijani
+  pair the dotted and dotless i their own way. A property test forbids case folding in
+  emitted text for any input.
+- New in `oc-model`: `LangTag`.
+
+### The hyphen marker (`oc-pdf`) — half of Phase 1's largest carried debt
+
+- **Fixed:** PDFium reports a hyphen drawn at a line break as U+0002. Extraction now decodes
+  it to U+002D before `C_raw` is counted, so no run text carries a control character. What it
+  cannot recover — whether the source wrote U+002D or U+00AD — needs the content stream and
+  moves to Phase 3 with the `OverdrawDedup` count that needs the same mechanism.
+
+### Word and line assembly (`oc-text`, `oc-model`)
+
+- New: `oc_model::text::{Run, Line, RunId, TextProvenance, FurnitureKind}`, and
+  `oc_text::{words, lines}`.
+- Spaces are inferred from the gap distribution: 2-means per (font, size), thresholded at the
+  midpoint of the centroids, only when the clusters separate. Letter-spaced display text has
+  no separation and falls back to a metric width.
+- Baseline clustering takes its tolerance from the *larger* of the two sizes, so a 7 pt marker
+  raised 3 pt joins its 12 pt line instead of becoming one.
+- **Found by test 2.10:** justified text stretches its spaces with `TJ` offsets, so assembly
+  was inventing a second space beside every real one. A space is now only inferred between two
+  non-space glyphs.
+- **Found by the test 2.21 snapshot, and worse:** with space-adjacent gaps excluded, 2-means
+  fits intra-word kerning alone and always returns two clusters — `except at o ccasional
+  inter vals`. Every other assertion in the phase stayed green, because a space is whitespace
+  and outside `C`. `words.min_space_ratio` (0.15 em) is now an absolute floor under any
+  inferred space.
+
+### Furniture (`oc-layout`)
+
+- New: `detect_furniture` / `apply_furniture`. Bands, digit-masked and locale-folded keys,
+  normalised edit distance, y-clustering, and repetition measured over four scopes — global,
+  each parity, and the best sliding window — with the ratio *and* the repeat requirement
+  computed inside the scope they apply to.
+- Five rules that refuse before anything is deleted: a page's only line stays; a body-typed
+  unpunctuated line followed by lower case stays; a ratio in the grey zone abstains and is
+  marked `uncertain`; an all-numeric line that forms no arithmetic progression is a chapter
+  number and stays; and no page is ever emptied.
+- Page numbers, arabic and roman, move to `PageRef.label` — outside `C`, which is what makes
+  removing them a clean `PageNumber` entry rather than a paradox.
+
+### Statistics, dictionaries and language (`oc-text`)
+
+- New: `quality_stats` — the nine Gopher/MassiveText numbers with datatrove's thresholds, and
+  the `ok`/`suspicious`/`broken` verdict. They route and never fix.
+- New: `oc_text::freq` — a sorted string table with a `u32` offset index, and `dict_hit_rate`,
+  the second `broken_text` signal. Tokens are classified before they are counted, because a
+  letters-only tokenizer finds nothing at all in a page of glyph indices.
+- New: `eval/src/oc_eval/generate/wordfreq.py`, which refuses any source outside CC0/PD and
+  writes a manifest naming every file it read.
+- **English ships, German and Turkish do not.** The plan calls DTA and Wikisource-TR
+  "CC0/PD"; their transcriptions are CC-BY-SA, which D15 does not allow in a shipped
+  artefact. `dict_hit_rate` returns `None` for both, and `None` is not zero.
+- New: `oc_text::lang` — `dc:language` over the body, `xml:lang` per block behind three
+  guards, and `W_LANG_UNSTABLE` when more than a fifth of the book disagrees.
+- **Found:** `whatlang` returns ISO 639-3 and `dc:language` is BCP-47, so `eng` would have
+  failed EPUBCheck at the end of a conversion. A 70-entry table maps them and a test over
+  `Lang::all()` keeps it complete.
+
+### Fixtures and wiring
+
+- New hand-made fixtures h16–h21: superscript marker, letter-spaced text, mixed sizes, a
+  constant band number, recto/verso heads, and a page whose only line is its running head.
+  The plan names h07–h12; Phase 1 had already spent those.
+- **Found:** `h04_ligature_fi` never contained a ligature. `to_winansi` mapped U+FB01 to `?`,
+  so the page drew `?n` and every test that carried it through unchanged passed on a question
+  mark. Fixed with a `/ToUnicode` CMap — whereupon PDFium expanded the ligature itself, which
+  is the opposite of what R2 §B.8 states.
+- New Typst fixtures f04 (German) and f05 (Turkish), written for the fixtures rather than
+  quoted.
+- New: `openconvert` grew a library target holding `pipeline` and `dump_text`. The
+  orchestrator cannot live in `oc-core`, which owns `thresholds` and is therefore a dependency
+  of every stage crate.
+- New: `dump-stage text`.
