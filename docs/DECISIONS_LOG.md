@@ -1574,3 +1574,42 @@ Hand-made fixtures could not carry them: `to_winansi` writes Latin-1 bytes and L
 Evidence: `whatlang` 0.18 `src/lang.rs`; measured on f01/f04/f05 through PDFium `chromium/7881`.
 Affects: `crates/oc-text/src/lang.rs`, `corpus/fixtures/typst/f0{4,5}_*.typ`, `thresholds.toml`,
 `xtask/src/fixtures.rs` (the fixture count assertion).
+
+## 2026-09-13 · The snapshot found a word-splitter, and `words.min_space_ratio` closed it · Phase 2 item 2.11
+Test 2.21's first run produced this, and it is why the row asks for a snapshot rather than a
+predicate:
+
+> `It was a dark and stormy night; the rain fell in torrents, except at o ccasional`
+> `inter vals, when it was che cke d by a violent gust of wind which swept up the`
+
+Every assertion in the phase still passed. The conservation law was green — a space is whitespace,
+outside `C`, so splitting every word on the page conserves the multiset exactly. The furniture tests
+passed, the language test passed, the dictionary hit rate merely dropped from 0.97 to 0.83 and stayed
+far above the `broken_text` floor. Nothing but a human reading the output could see it.
+
+**The cause.** `f01` is justified text whose real spaces are drawn as space glyphs, and item 2.6
+excluded gap pairs involving a space from the sample (they measure justification stretch, not word
+spacing). What is left to fit is *only intra-word kerning* — and 2-means always returns two clusters.
+It duly separated 0.0 pt from about 0.5 pt with a within-cluster spread of nearly nothing, which the
+separation ratio scored as perfect, and thresholded at a quarter of a point. Every kern pair in the
+book became a word boundary.
+
+**The fix, and why it is not a bigger separation ratio.** The separation test is scale-free by
+construction: 0.0 against 0.5 separates exactly as well as 0.0 against 5.0, so no value of
+`words.gap_separation_ratio_min` distinguishes them. What was missing is an absolute floor —
+`words.min_space_ratio` (0.15 em), applied as `max(fitted, floor × size)` by the caller. Nothing
+narrower than that is a word space, whatever the fit says. The narrowest base-14 space is Times'
+0.25 em and justification compresses it to perhaps 0.6 of that; f01's intra-word kerning runs at
+0.05 em. The floor sits between, with margin on both sides.
+
+Also settled here: `dump-stage text` cannot stream from page one the way `dump-stage ingest` does.
+`dc:language` is detected over the whole body and `C_0` is not final until every page has been
+through `N`, so the stage runs to completion and the pages are written from the result. The memory
+is bounded and far below the ingest dump's, since a book's runs are a fraction of its glyphs — one
+string and one box per run where there was one of each per character. Recorded rather than fixed:
+streaming would mean two passes, and the second one would read what the first wrote.
+
+Evidence: `crates/openconvert/tests/snapshots/dump_text__dump_stage_text_f01_page0.snap`, before and
+after; PIPELINE §4 step 3; R10 §6.2.
+Affects: `crates/oc-text/src/words.rs`, `thresholds.toml`, `crates/openconvert/src/dump_text.rs`,
+`crates/openconvert/src/cmd_dump_stage.rs`.

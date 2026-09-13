@@ -89,7 +89,7 @@ usage:
   --max-pages <N>      refuse a document with more pages than this
 
   dump-stage writes one canonical-JSON object per line: a header, then one per page.
-  <STAGE> is one of the twelve stage names; only `ingest` is implemented so far.
+  <STAGE> is one of the twelve stage names; `ingest` and `text` are implemented so far.
 ";
 
 /// Parse the arguments after the program name.

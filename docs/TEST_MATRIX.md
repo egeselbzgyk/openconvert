@@ -180,3 +180,4 @@ replaced by the phase that owns it.
 | 2.20a | `lang::a_single_foreign_block_is_tagged` | `oc-text` | unit | `test` | green |
 | 2.20b | `lang::a_short_block_is_never_tagged` | `oc-text` | unit | `test` | green |
 | 2.20c | `lang::a_block_in_the_documents_own_language_gets_no_attribute` | `oc-text` | unit | `test` | green |
+| 2.21 | `dump_text::dump_stage_text_snapshot_f01` | `openconvert` | snapshot | `test` | green |

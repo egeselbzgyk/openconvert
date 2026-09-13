@@ -39,13 +39,14 @@ pub fn run<W: Write>(
     let cancel = Cancel::new();
     crate::control::listen(cancel.clone());
 
-    if args.stage != oc_pdf::dump::STAGE {
+    if args.stage != oc_pdf::dump::STAGE && args.stage != openconvert::dump_text::STAGE {
         events.fatal(
             E_STAGE,
             &format!(
-                "`{}` cannot be dumped yet; only `{}` is implemented",
+                "`{}` cannot be dumped yet; `{}` and `{}` are implemented",
                 args.stage,
-                oc_pdf::dump::STAGE
+                oc_pdf::dump::STAGE,
+                openconvert::dump_text::STAGE
             ),
         );
         return ExitCode::Usage;
@@ -99,12 +100,17 @@ pub fn run<W: Write>(
         return ExitCode::Cancelled;
     }
 
-    match write_dump(
-        document.as_ref(),
-        stdout,
-        &cancel,
-        &oc_core::progress::Silent,
-    ) {
+    let written = if args.stage == openconvert::dump_text::STAGE {
+        write_text_dump(document.as_ref(), stdout, &cancel)
+    } else {
+        write_dump(
+            document.as_ref(),
+            stdout,
+            &cancel,
+            &oc_core::progress::Silent,
+        )
+    };
+    match written {
         Ok(Outcome::Completed) => {
             events.done(Outcome::Completed.status());
             ExitCode::Ok
@@ -146,6 +152,50 @@ fn write_dump(
         let page = oc_pdf::dump::page(document, index).map_err(|error| error.to_string())?;
         write_line(stdout, &page)?;
         progress.advance(oc_pdf::dump::STAGE, index, total);
+    }
+    Ok(Outcome::Completed)
+}
+
+/// Stream the `text` stage's dump.
+///
+/// Unlike `ingest` this cannot start writing at page one: `dc:language` is detected over the
+/// whole body and `C_0` is not final until every page has been through `N`, so the stage runs
+/// to completion and the pages are written from the result. The memory that costs is bounded
+/// and far below the ingest dump's — a book's runs are a fraction of its glyphs, one string
+/// and one box per run where there was one of each per character.
+fn write_text_dump(
+    document: &dyn oc_pdf::inspect::PdfDoc,
+    stdout: &mut dyn Write,
+    cancel: &Cancel,
+) -> Result<Outcome, String> {
+    let mut input = Vec::new();
+    for index in 0..document.page_count() {
+        if cancel.is_cancelled() {
+            return Ok(Outcome::Cancelled);
+        }
+        let glyphs = document
+            .page_glyphs(index)
+            .map_err(|error| error.to_string())?;
+        let geometry = document
+            .page_geometry(index)
+            .map_err(|error| error.to_string())?;
+        input.push(openconvert::pipeline::PageInput {
+            page: oc_model::extract::PageRef::new(index),
+            height_pt: geometry.height_pt(),
+            glyphs: glyphs.glyphs,
+        });
+    }
+    if cancel.is_cancelled() {
+        return Ok(Outcome::Cancelled);
+    }
+
+    let (header, pages) =
+        openconvert::dump_text::dump(&input, oc_model::lang::LangTag::EN, &oc_core::thresholds::T)
+            .map_err(|error| error.to_string())?;
+
+    write_line(stdout, &header)?;
+    for page in &pages {
+        write_line(stdout, page)?;
     }
     Ok(Outcome::Completed)
 }

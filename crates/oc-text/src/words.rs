@@ -363,7 +363,15 @@ fn space_thresholds(glyphs: &[Glyph], t: &Thresholds) -> SpaceThresholds {
         .into_iter()
         .map(|(font, size_bits, gaps)| {
             let size = f32::from_bits(size_bits);
-            let threshold = two_means_threshold(&gaps, t).unwrap_or(fallback_ratio * size);
+            // The floor is not a tie-breaker, it is the load-bearing half of the rule.
+            // 2-means always returns two clusters, and on a page whose real spaces are drawn
+            // as space glyphs the only gaps left to fit are intra-word kerning: the fit then
+            // "separates" 0.0 pt from 0.5 pt with total confidence and a threshold of a
+            // quarter of a point splits every word on the page. Measured on f01, which came
+            // out as `except at o ccasional inter vals`. Nothing narrower than
+            // `min_space_ratio` of the size is a word space, whatever the fit says.
+            let fitted = two_means_threshold(&gaps, t).unwrap_or(fallback_ratio * size);
+            let threshold = fitted.max(t.words.min_space_ratio as f32 * size);
             (font, size_bits, threshold)
         })
         .collect();
@@ -382,6 +390,11 @@ fn space_thresholds(glyphs: &[Glyph], t: &Thresholds) -> SpaceThresholds {
 /// spread". Uniform tracking gives a distance of zero and is rejected however tight the
 /// clusters are; clean prose gives a distance of a few points against a spread of a fraction
 /// of one and is accepted.
+///
+/// What this test cannot do is notice that *both* clusters are too narrow to be word gaps.
+/// The ratio is scale-free by construction, so 0.0 pt against 0.5 pt separates exactly as
+/// well as 0.0 pt against 5.0 pt. That is what `words.min_space_ratio` is for, and it is
+/// applied by the caller.
 fn two_means_threshold(gaps: &[f32], t: &Thresholds) -> Option<f32> {
     if gaps.len() < 2 {
         return None;

@@ -217,6 +217,13 @@ evidence = "The floor on the within-cluster spread in the 2-means separation tes
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[words.min_space_ratio]
+value = 0.15
+source = "provisional"
+evidence = "The floor under an inferred space, as a fraction of font size. 2-means always finds two clusters, so on a page whose real spaces are drawn as space glyphs the only gaps left to fit are intra-word kerning, and a fit over those produces a threshold of a fraction of a point that splits every word - measured on f01, which came out as 'except at o ccasional inter vals'. A word space is never narrower than this: the narrowest base-14 space is Times' 0.25 em and justification compresses it to perhaps 0.6 of that, while intra-word kerning on f01 runs at 0.05 em"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [words.fallback_space_ratio]
 value = 0.25
 source = "provisional"
