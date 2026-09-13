@@ -3,4 +3,6 @@
 //! statistics and language detection (D13.4).
 
 pub mod fold;
+pub mod lines;
 pub mod normalize;
+pub mod words;

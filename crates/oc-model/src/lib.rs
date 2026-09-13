@@ -18,3 +18,4 @@ pub mod geom;
 pub mod ids;
 pub mod lang;
 pub mod ledger;
+pub mod text;

@@ -1379,3 +1379,40 @@ Evidence: `f02` breaks `projec-tion` and `reading-order`; test 1.18's `pdftotext
 U+00AD for the first and U+002D for `f01`'s `pipe-`, PDFium U+0002 for all three.
 Affects: `crates/oc-pdf/src/pdfium/doc.rs`, `crates/oc-pdf/tests/{hyphen_marker.rs,oracle.rs}`,
 Phase 3 dehyphenation, PROGRESS.md carried debt.
+
+## 2026-09-13 · Word and line assembly: four choices the specification leaves open · Phase 2 item 2.5
+**Hand-made fixtures are h16–h18, not the plan's h07–h12.** The Phase 2 table names `h07` for the
+superscript marker, `h08` for letter-spaced text and `h09` for mixed sizes; Phase 1 had already spent
+h01–h15 on other things. The plan was written before that happened, so the six Phase 2 fixtures take
+the next free numbers. Test names are unchanged — those are the contract.
+
+**The baseline tolerance is a fraction of the *larger* of the two sizes.** PIPELINE §4 step 1 says
+"0.3 × font size" and explains that the fraction exists because superscripts pull the baseline; it
+does not say whose size. Taken of the smaller one it fails the case it was written for: h18's 7 pt
+marker sits 3 pt above its line, `0.3 × 7 = 2.1` rejects it and `0.3 × 12 = 3.6` keeps it. So a
+cluster carries the baseline of its largest member as the anchor and compares against
+`0.3 × max(cluster size, candidate size)`.
+
+**The 2-means separation test needs a floor, and the floor is a threshold.** The fit is rejected when
+the centroid distance over the within-cluster spread falls below `words.gap_separation_ratio_min`.
+With a spread of exactly zero — which happens whenever every gap in a cluster is identical, i.e. on
+most of the small fixtures — the ratio is infinite and everything separates, including two clusters a
+thousandth of a point apart. `words.gap_resolution_pt` (0.05) floors the spread and also gates the
+whole fit: PDFium reports geometry to about 0.01 pt and no typographic distinction is made at a
+twentieth of a point, so two gap clusters closer than that are one cluster.
+
+**`words.fallback_space_ratio` is 0.25 em, and it is a stand-in.** PIPELINE §4 step 3 says to fall
+back to "the font-metric default space width", but `FontInfo` carries no metrics — nothing in the IR
+knows how wide this font's space is. 0.25 em is the low end of the base-14 proportional faces (Times
+0.250, Helvetica 0.278), and low is the safe side: too small a threshold splits a word, too large a
+one merges two. Marked provisional with the real fix named in its evidence — the font's own `/Widths`
+entry for the space glyph, once `oc-pdf` exposes it.
+
+Also settled: an inserted space is written at the **end** of the run it follows, including across a
+style boundary, so concatenating a line's runs reproduces the line; and `Run::glyph_range` indexes the
+assembly order, which `assemble_runs` returns alongside the runs, because the backend's glyph order is
+not reading order (Phase 1 item 1.3) and a range into it would not be contiguous.
+
+Evidence: measured on h16/h17/h18 through PDFium `chromium/7881`; PIPELINE §4, R2 §B.3/§B.6, R10 §6.2.
+Affects: `crates/oc-text/src/{words.rs,lines.rs}`, `crates/oc-model/src/text.rs`,
+`crates/oc-testkit/src/handmade.rs`, `thresholds.toml`.

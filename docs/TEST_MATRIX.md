@@ -132,3 +132,15 @@ replaced by the phase that owns it.
 | 2.4c | `hyphen_marker::a_line_break_hyphen_is_a_hyphen_not_a_control_character` | `oc-pdf` | fixture | `test` | green |
 | 2.4d | `hyphen_marker::no_extracted_glyph_is_an_undecodable_control` | `oc-pdf` | fixture | `test` | green |
 | 2.4e | `hyphen_marker::c_raw_counts_the_hyphen_the_page_prints` | `oc-pdf` | fixture | `test` | green |
+| 2.5 | `text_assembly::superscript_flag_survives_normalization` | `openconvert` | fixture (h16) | `test` | green |
+| 2.8 | `text_assembly::words_split_on_bimodal_gap` | `openconvert` | fixture (h17) | `test` | green |
+| 2.9 | `text_assembly::lines_cluster_by_baseline_tolerance` | `openconvert` | fixture (h18) | `test` | green |
+| 2.8a | `text_assembly::a_space_is_inserted_where_the_document_only_left_a_gap` | `openconvert` | fixture (h16) | `test` | green |
+| 2.9a | `lines::a_superscript_joins_the_line_it_is_raised_from` | `oc-text` | unit | `test` | green |
+| 2.9b | `lines::a_heading_does_not_join_the_body_below_it` | `oc-text` | unit | `test` | green |
+| 2.9c | `lines::lines_come_back_top_to_bottom_whatever_order_they_arrived_in` | `oc-text` | unit | `test` | green |
+| 2.9d | `lines::nothing_in_nothing_out` | `oc-text` | unit | `test` | green |
+| 2.8b | `words::uniform_tracking_has_no_space_to_find` | `oc-text` | unit | `test` | green |
+| 2.8c | `words::prose_gaps_threshold_between_the_two_modes` | `oc-text` | unit | `test` | green |
+| 2.8d | `words::a_single_gap_cannot_be_clustered` | `oc-text` | unit | `test` | green |
+| 2.8e | `words::a_flat_distribution_is_rejected_even_when_tight` | `oc-text` | unit | `test` | green |

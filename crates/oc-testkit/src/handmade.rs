@@ -72,6 +72,9 @@ pub fn all() -> Vec<(&'static str, Vec<u8>)> {
         ("h13_outline", h13_outline()),
         ("h14_stencil_mask", h14_stencil_mask()),
         ("h15_indexed_colour", h15_indexed_colour()),
+        ("h16_superscript_marker", h16_superscript_marker()),
+        ("h17_letterspaced", h17_letterspaced()),
+        ("h18_mixed_sizes", h18_mixed_sizes()),
     ]
 }
 
@@ -144,6 +147,92 @@ pub fn h07_overdraw_duplicate() -> Vec<u8> {
 /// never distinct characters, and that is what makes its text page safe to build `C_raw` on.
 pub fn h08_overlap_distinct() -> Vec<u8> {
     overlap_pair_at(0.2, "A", "B")
+}
+
+/// The size a superscript is set at in h16 and h18, and how far its baseline is raised.
+///
+/// 7 pt over a 12 pt body and a 3 pt rise is what a layout engine actually produces — Typst's
+/// `super` shrinks to about 0.6 em and lifts by about 0.25 em. Both Phase 2 rules then fire on
+/// a real geometry rather than on one chosen to satisfy them: it is a superscript because
+/// 3.0 >= 0.30 x 7 and 7 < 0.80 x 12, and it stays on its parent line because
+/// 3.0 <= 0.30 x 12.
+pub const SUPERSCRIPT_SIZE_PT: f32 = 7.0;
+pub const SUPERSCRIPT_RISE_PT: f32 = 3.0;
+
+/// The typographic superscript h16 also carries: U+00B9, drawn at body size on the baseline.
+///
+/// It is the character NFKC would fold to `1`, taking the footnote marker with it, which is
+/// why NFKC is banned pipeline-wide (R2 §B.8).
+pub const SUPERSCRIPT_ONE: char = '\u{00B9}';
+
+/// h16 - a footnote marker in both of its spellings: raised small type, and U+00B9 on the
+/// baseline.
+///
+/// Test 2.5 asks that the geometric flag is captured before `N` and survives it, and the
+/// U+00B9 asks that `N` did not quietly become NFKC on the way.
+pub fn h16_superscript_marker() -> Vec<u8> {
+    build(
+        Page::default()
+            .text(FIXTURE_ORIGIN, "Text")
+            .text_at(
+                (
+                    FIXTURE_ORIGIN.0 + 30.0,
+                    FIXTURE_ORIGIN.1 + SUPERSCRIPT_RISE_PT,
+                ),
+                "1",
+                SUPERSCRIPT_SIZE_PT,
+            )
+            .text((FIXTURE_ORIGIN.0 + 40.0, FIXTURE_ORIGIN.1), "n\u{00B9}"),
+    )
+}
+
+/// The letter-spaced word h17 draws, and the extra advance it puts between the letters.
+///
+/// 1.2 pt is below Helvetica's 3.34 pt space at 12 pt and, crucially, *uniform*: the gap
+/// distribution is unimodal, the 2-means separation collapses, and the space threshold falls
+/// back to the font metric. A detector that thresholds on "a gap bigger than the smallest
+/// gap" reads this as `H a l l o`.
+pub const LETTERSPACED_WORD: &str = "Hallo";
+pub const LETTERSPACING_PT: f32 = 1.2;
+
+/// h17 - display text set with `Tc 1.2`, which is how a designer letter-spaces a word and
+/// how a naive word-splitter turns one word into five (test 2.8, R10 §6.2).
+pub fn h17_letterspaced() -> Vec<u8> {
+    build(
+        Page::default()
+            .text(FIXTURE_ORIGIN, LETTERSPACED_WORD)
+            .char_spacing(LETTERSPACING_PT),
+    )
+}
+
+/// The size h18's heading is set at, and how far above the body its baseline sits.
+pub const HEADING_SIZE_PT: f32 = 18.0;
+pub const HEADING_RISE_PT: f32 = 30.0;
+
+/// h18 - three sizes on two lines: an 18 pt heading, a 12 pt body line, and a 7 pt
+/// superscript raised 3 pt inside that body line.
+///
+/// The clustering has to put the superscript on the body line and the heading on its own,
+/// which a fixed baseline tolerance cannot do: 3 pt apart is one line and 30 pt apart is two,
+/// and both distances are read from the same page (test 2.9).
+pub fn h18_mixed_sizes() -> Vec<u8> {
+    build(
+        Page::default()
+            .text_at(
+                (FIXTURE_ORIGIN.0, FIXTURE_ORIGIN.1 + HEADING_RISE_PT),
+                "Chapter",
+                HEADING_SIZE_PT,
+            )
+            .text(FIXTURE_ORIGIN, "Body")
+            .text_at(
+                (
+                    FIXTURE_ORIGIN.0 + 30.0,
+                    FIXTURE_ORIGIN.1 + SUPERSCRIPT_RISE_PT,
+                ),
+                "2",
+                SUPERSCRIPT_SIZE_PT,
+            ),
+    )
 }
 
 /// The characters test 1.7 draws along one baseline, in the order they read.
@@ -340,7 +429,7 @@ pub fn overlap_pair_at(offset_pt: f32, first: &str, second: &str) -> Vec<u8> {
 /// A page under construction: text runs, plus the two boxes and the rotation.
 #[derive(Default)]
 struct Page {
-    runs: Vec<((f32, f32), String)>,
+    runs: Vec<TextRun>,
     render_mode: Option<i32>,
     crop: Option<[f32; 4]>,
     rotate: Option<i32>,
@@ -353,11 +442,40 @@ struct Page {
     outline: Vec<(&'static str, u16)>,
     stencil_mask: bool,
     indexed_palette: bool,
+    /// The `Tc` character-spacing operand, in points. `None` leaves it at the PDF default
+    /// of zero.
+    char_spacing: Option<f32>,
+}
+
+/// One `BT … ET` block: where it starts, what it says, and at what size.
+struct TextRun {
+    origin: (f32, f32),
+    text: String,
+    size_pt: f32,
 }
 
 impl Page {
-    fn text(mut self, origin: (f32, f32), text: &str) -> Self {
-        self.runs.push((origin, text.to_owned()));
+    fn text(self, origin: (f32, f32), text: &str) -> Self {
+        self.text_at(origin, text, FIXTURE_FONT_SIZE_PT)
+    }
+
+    /// Draw at a size of this run's own, for the fixtures that need a superscript or a
+    /// heading next to body text.
+    fn text_at(mut self, origin: (f32, f32), text: &str, size_pt: f32) -> Self {
+        self.runs.push(TextRun {
+            origin,
+            text: text.to_owned(),
+            size_pt,
+        });
+        self
+    }
+
+    /// Set `Tc`, the per-character extra advance. The honest way to build letter-spaced
+    /// display text: the producer writes one string and the spacing operator, exactly as a
+    /// layout engine does, rather than the fixture placing each glyph by hand at a position
+    /// it had to know the font metrics to compute.
+    fn char_spacing(mut self, points: f32) -> Self {
+        self.char_spacing = Some(points);
         self
     }
 
@@ -449,20 +567,23 @@ fn build(page: Page) -> Vec<u8> {
         content.x_object(Name(b"Im1"));
         content.restore_state();
     }
-    for (origin, text) in &page.runs {
+    for run in &page.runs {
         content.begin_text();
+        if let Some(spacing) = page.char_spacing {
+            content.set_char_spacing(spacing);
+        }
         if let Some(mode) = page.render_mode {
             content.set_text_rendering_mode(match mode {
                 RENDER_MODE_INVISIBLE => pdf_writer::types::TextRenderingMode::Invisible,
                 _ => pdf_writer::types::TextRenderingMode::Fill,
             });
         }
-        content.set_font(Name(b"F1"), FIXTURE_FONT_SIZE_PT);
-        content.next_line(origin.0, origin.1);
+        content.set_font(Name(b"F1"), run.size_pt);
+        content.next_line(run.origin.0, run.origin.1);
         // WinAnsi is a byte encoding, so a code point outside it cannot be written; the
         // ligature fixture relies on U+FB01 having a WinAnsi byte, which it does not, so it
         // is written through the font's own encoding below.
-        content.show(Str(&to_winansi(text)));
+        content.show(Str(&to_winansi(&run.text)));
         content.end_text();
     }
     // `Content::finish` yields a `Buf`; the inline image is appended to its bytes, because

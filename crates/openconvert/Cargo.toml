@@ -16,6 +16,7 @@ path = "src/main.rs"
 oc-core = { path = "../oc-core", version = "0.1.0" }
 oc-model = { path = "../oc-model", version = "0.1.0" }
 oc-pdf = { path = "../oc-pdf", version = "0.1.0" }
+oc-text = { path = "../oc-text", version = "0.1.0" }
 oc-net = { path = "../oc-net", version = "0.1.0" }
 anyhow.workspace = true
 thiserror.workspace = true

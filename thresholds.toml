@@ -203,6 +203,41 @@ evidence = "R2 §B.3 PdfPig, 40% Euclidean for unknown direction"
 owner = "maintainer"
 review_by = "2028-01-01"
 
+[words.gap_separation_ratio_min]
+value = 2.0
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 2 detail 2 / R10 §6.2: below this the gap distribution is not bimodal and the 2-means fit is rejected in favour of the metric space width"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[words.gap_resolution_pt]
+value = 0.05
+source = "provisional"
+evidence = "The floor on the within-cluster spread in the 2-means separation test, and the smallest centroid distance worth believing. PDFium reports glyph geometry to about 0.01 pt, and no typographic distinction is made at a twentieth of a point, so two gap clusters closer than this are one cluster and the fit must be rejected however tight they are"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[words.fallback_space_ratio]
+value = 0.25
+source = "provisional"
+evidence = "PIPELINE §4 step 3 says 'fall back to the font-metric default space width'; FontInfo carries no metrics, so this is the space width of the base-14 proportional faces (Times 0.250 em, Helvetica 0.278 em) at its low end - the conservative choice, since too small a threshold splits words and too large a one merges them. Replace with the font's own /Widths entry for the space glyph when oc-pdf exposes it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[text.line_baseline_tolerance_ratio]
+value = 0.30
+source = "published"
+evidence = "R2 §B.3 / R10 §6.2 / PIPELINE §4 step 1: cluster glyphs by baseline y with a tolerance of 0.3 x font size, a fraction rather than an absolute because superscripts pull the baseline"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[text.superscript_size_ratio_max]
+value = 0.80
+source = "published"
+evidence = "R2 §B.6 / PIPELINE §4 step 4: a superscript is set below 0.8 x body size, as well as raised"
+owner = "maintainer"
+review_by = "2028-01-01"
+
 [layout.furniture.band_ratio]
 value = 0.08
 source = "published"

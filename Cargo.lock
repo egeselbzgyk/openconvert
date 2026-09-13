@@ -3534,6 +3534,7 @@ version = "0.1.0"
 dependencies = [
  "compact_str",
  "insta",
+ "oc-core",
  "oc-model",
  "proptest",
  "thiserror 2.0.20",
@@ -3582,6 +3583,7 @@ dependencies = [
  "oc-net",
  "oc-pdf",
  "oc-testkit",
+ "oc-text",
  "serde",
  "serde_json",
  "sha2 0.10.9",
