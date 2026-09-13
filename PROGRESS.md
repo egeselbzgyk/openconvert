@@ -3,8 +3,8 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 2
-CURRENT_ITEM: 2.7 — the `text` and `furniture` stages under the conservation law (test 2.15)
+CURRENT_PHASE: 3
+CURRENT_ITEM: 3.1 — read PHASE 3 of the plan, then its first work item
 LAST_UPDATED: 2026-09-13
 
 ---
@@ -25,7 +25,7 @@ LAST_UPDATED: 2026-09-13
       *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
       *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
 - [x] **Phase 1** — PDF inspection and ingestion  *(VD-d closed: PDFium composites masks, palettes and colour spaces correctly)*
-- [ ] **Phase 2** — Text assembly and normalization  *(normalization `N`, ledger, furniture inputs, language)*
+- [x] **Phase 2** — Text assembly and normalization  *(all 22 named tests green; EN frequency list ships, DE/TR blocked on a D15 licence decision)*
 - [ ] **Phase 3** — Layout  *(blocks, columns, reading order, paragraphs, dehyphenation; VD-b must close)*
 - [ ] **Phase 4** — Structure  *(headings, outline/TOC, book structure, lists, footnotes, captions, quotes/verse, tables, images, metadata)*
 - [ ] **Phase 5** — EPUB generation, Tier-1 validator, EPUBCheck CI gate
@@ -42,28 +42,37 @@ LAST_UPDATED: 2026-09-13
 
 ## Current work item
 
-**Phase 2, item 2.7** — run `text` and `furniture` end to end under `check_invariants` on `f01`,
-`f02` and generated documents: test 2.15.
+**Phase 3 has not been started.** Phase 2 is complete — its Definition of Done is checked below.
 
-Phase 2 item order (one TDD loop each):
+First step: read `docs/IMPLEMENTATION_PLAN.md` PHASE 3 and `docs/PIPELINE.md`'s `layout` and
+`paragraphs` stages, then take the first work item with the TDD loop.
 
-1. ~~2.1 conservation checker (`oc-core::ledger_check` + stage declarations)~~ **done** `fad617e`
-2. ~~2.2 `oc-text::normalize` - tests 2.1-2.4~~ **done** `b7a822c`
-3. ~~2.3 `oc-text::fold` + `oc-model::lang` - tests 2.6, 2.7~~ **done** `b5e08ad`
-4. ~~2.4 decode PDFium's U+0002 hyphen marker (Phase 1 carried debt)~~ **done** `e5ada15`
-5. ~~2.5 `oc-text::{words,lines}` + `oc-model::text` - tests 2.5, 2.8, 2.9~~ **done** `c49ef42`
-6. ~~2.6 `oc-layout::furniture` - tests 2.10-2.14~~ **done** `787002f`
-7. 2.7 conservation across text + furniture - test 2.15
-8. 2.8 `oc-text::stats` - tests 2.18, 2.22
-9. 2.9 `oc-text::lang` + word-frequency lists - tests 2.19, 2.20
-10. 2.10 `dump-stage text` snapshot - test 2.21
+Phase 3 is blocks, columns, reading order, paragraph reconstruction and dehyphenation, and
+**VD-b must close**. Three things land on it from earlier phases, in priority order:
 
-Hand-made fixtures h16-h21 are new in this phase (the plan names h07-h12, which Phase 1 spent);
-`corpus/fixtures/handmade/` holds them and `xtask handmade-fixtures` rebuilds them.
+1. **The soft-vs-hard hyphen distinction, and `OverdrawDedup`'s unconsumable budget.** Both need
+   the same mechanism — `lopdf` access to the `Tj`/`TJ` operands, decoded against each font's
+   `/ToUnicode` — and both are dehyphenation inputs or conservation inputs rather than
+   extraction ones. Item 2.4 closed the half that mattered for `C_raw` (PDFium's U+0002 marker
+   now decodes to U+002D); what is left is knowing *which* hyphen it was, which PIPELINE §369's
+   compound-word rule needs so that `Nord-Süd-Achse` is not rejoined.
+2. **Columns.** `text` clusters a line by baseline alone, so two columns printed at the same
+   height are one line and `Line::indent_pt` / `right_gap_pt` are measured against the span of
+   both. That is the specified ordering (R2 §D.3, furniture before segmentation) and Phase 3 is
+   where it is repaired — the paragraph rules that read those fields are written against the
+   field, not against the stage that filled it in.
+3. **A budget breach is currently fatal, and ARCHITECTURE §5.5 says it should not be.** The
+   checker is right to refuse to call it fine; the *policy* — stop that stage's remaining
+   removals, warn, finish the book — belongs to the orchestrator, and the orchestrator arrives
+   in Phase 6. Until then a breach aborts the conversion. Recorded so it is a decision rather
+   than an oversight.
 
-Also open, and cheap: CI's `test` job runs `xtask fixtures` but never `handmade-fixtures` or
-`mutations`, so a builder change that no longer reproduces the committed fixtures would not be
-caught. A `--check` mode on those two tasks would close it.
+Also open, and cheap, and more valuable now than it was: CI's `test` job runs `xtask fixtures`
+but never `handmade-fixtures` or `mutations`, so a builder change that no longer reproduces the
+committed fixtures is not caught. Phase 2 changed that builder three times — `text_at`,
+`char_spacing`, `build_pages`, and the `/ToUnicode` object that renumbered h13's refs — and each
+time the check was "run it and read the CHANGED lines by eye". A `--check` mode on those two
+tasks would close it.
 
 ## Notes
 
@@ -103,7 +112,17 @@ Carried forward, in the order a fresh session needs them:
   assertion ever fails, the id derivation changed and `IR_VERSION` must change in the same commit
   (D13.3).
 - **VD-a and VD-d are closed.** VD-b, VD-c, VD-e, VD-f, VD-g still open, each with an owner
-  and a blocking phase.
+  and a blocking phase. VD-b blocks Phase 3.
+- **Open for `DECISIONS.md`, from item 2.9:** which sources build the German and Turkish
+  word-frequency lists. The plan names DTA plain text and Wikisource-TR as "CC0/PD"; their
+  transcriptions are CC-BY-SA, which D15 does not allow in a shipped artefact. English ships
+  from CC0 Standard Ebooks. Rebuild with
+  `cd eval && PYTHONPATH=src python -m oc_eval.generate.wordfreq en --out ../crates/oc-text/src/freq`.
+- **R2 §B.8 is not reproduced on PDFium `chromium/7881`:** it expands the U+FB00–FB06 ligatures
+  itself, even with a `/ToUnicode` CMap declaring U+FB01. `N` keeps its ligature table anyway —
+  the contract is about the text, not about which component expanded it — but `LigatureExpand`
+  will rarely fire on PDFium-sourced text, so its `Added` side is exercised by generated glyph
+  streams rather than by any PDF.
 - **`example_pdfs/` is the maintainer's local smoke set, added 2026-09-13.** Four real books —
   English, German, Portuguese and a Turkish scan — git-ignored and never redistributed; two of the
   four are in copyright. Not corpus, not holdout, no threshold fitted on it. It is what to point
@@ -115,6 +134,44 @@ Carried forward, in the order a fresh session needs them:
 ## Blocked
 
 _(empty — Q1 resolved 2026-09-09; see `docs/DECISIONS_LOG.md`)_
+
+## Phase 2 — Definition of Done
+
+Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-13:
+
+1. **Every named test exists and passes** — all twenty-two rows of the Phase 2 table (2.1–2.22),
+   plus about forty additions, each of which exists because something was measured and was not
+   what the plan assumed. `docs/TEST_MATRIX.md` lists every one and the CI job that runs it.
+2. **`cargo nextest run --workspace`** — 156 passed, 0 skipped, 0 ignored. **Verified on Windows
+   only**, as in Phases 0 and 1: Linux and macOS are CI's job.
+3. **clippy** `--workspace --all-targets --all-features --locked -- -D warnings` — clean.
+4. **`cargo fmt --all --check`** — clean.
+5. **`cargo deny check`** — advisories, bans, licenses, sources ok; `deny.tools.toml` ok.
+6. **`cargo run -p xtask -- thresholds-lint`** — clean.
+7. **Acceptance criteria A2.1–A2.6.**
+   - A2.1 (I-1…I-4 hold, a violation is fatal) by `conservation_i1_holds_across_text_and_furniture`
+     over `f01`/`f02` through the real checker, `conservation_i1_holds_over_generated_documents`
+     over 200 generated documents, and `a_budget_breach_stops_the_stage`.
+   - A2.2 (`"The Test Book"` and the page numbers absent from flow, present in the ledger) by
+     tests 2.10 and 2.11.
+   - A2.3 (furniture ≤ 4 % of `|C_0|`) enforced by `check_invariants` on every stage run and
+     demonstrated on `f01` and `f02`; **"any corpus file" is Phase 7's corpus**, which does not
+     exist yet, so this is demonstrated on the fixtures rather than at the stated scope.
+   - A2.4 (10 000 random strings: idempotent, NFC, no NFKC, no case folding) by
+     `normalize_is_idempotent` (10 000 cases), `normalize_never_applies_nfkc`,
+     `normalize_composes_to_nfc` and `text_is_never_case_folded_in_output`.
+   - A2.5 (EN/DE/TR `dc:language`) by test 2.19 over `f01`, `f04` and `f05`.
+   - A2.6 (Turkish folding, emitted text unchanged) by tests 2.6 and 2.7.
+8. **`docs/CHANGELOG.md`** — Phase 2 entry written.
+9. **No unnumbered TODO/FIXME** — `xtask ci-lint` clean.
+
+**One deliverable is deliberately partial, with the maintainer's agreement.** PLAN Phase 2
+detail 5 asks for EN/DE/TR word-frequency lists. English ships (20 000 words from twelve CC0
+Standard Ebooks, with a source manifest). German and Turkish do not: the plan names DTA plain
+text and Wikisource-TR as "CC0/PD" and their transcriptions are CC-BY-SA, which is not on D15's
+allow-list for a shipped artefact. The generator refuses them mechanically. `dict_hit_rate`
+returns `None` for both — not zero — so nothing downstream misreads the absence as evidence.
+**Open for `DECISIONS.md`: which sources build the DE and TR lists.**
 
 ## Phase 1 — Definition of Done
 
@@ -203,3 +260,10 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-13  P2.4      oc-pdf: decode the U+0002 hyphen marker at extraction (3 tests)        e5ada15
 2026-09-13  P2.5      oc-text words/lines + oc-model text layer, h16-h18 (2.5, 2.8, 2.9 + 9) c49ef42
 2026-09-13  P2.6      oc-layout furniture + h19-h21 (2.10-2.14 + 3)                          787002f
+2026-09-13  P2.7      openconvert lib: text+furniture under check_invariants (2.15 + 4)      9ce1585
+2026-09-13  P2.8      oc-text stats: the nine Gopher numbers + verdict (2.18 + 5)            b20c293
+2026-09-13  P2.doc    example_pdfs recorded in TEST_CORPUS 7.5a as the local smoke set       b7f2037
+2026-09-13  P2.9      oc-text freq + wordfreq.py; EN ships, DE/TR blocked on D15 (2.22 + 7)  bb11165
+2026-09-13  P2.10     oc-text lang + f04/f05 fixtures (2.19, 2.20 + 7)                       a184c12
+2026-09-13  P2.11     openconvert dump-stage text + snapshot; min_space_ratio (2.21)         b3949e9
+2026-09-13  PHASE 2   COMPLETE - Definition of Done checked; DE/TR frequency lists open (D15)

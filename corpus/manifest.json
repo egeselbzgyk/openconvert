@@ -184,6 +184,32 @@
       "source_path": "corpus/fixtures/typst/f04_german_prose.typ"
     },
     {
+      "id": "f04_german_prose__tagged",
+      "title": "f04_german_prose__tagged",
+      "source": {
+        "name": "synthetic-generator",
+        "url": "https://github.com/openconvert/openconvert",
+        "retrieved_date": "2026-09-09"
+      },
+      "license": {
+        "name": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "verified_by": "maintainer",
+        "verified_date": "2026-09-09"
+      },
+      "sha256": "bf2120319ce5a654451ef601e9ed31cdb2244b5a15a7c33ccc817b1d0c8b243a",
+      "file_size_bytes": 15255,
+      "category": "simple",
+      "producer_stratum": "ours(Typst)",
+      "producer_raw": "Typst 0.15.1",
+      "tagged": true,
+      "holdout": false,
+      "ground_truth_type": "none",
+      "generator": "typst-0.15.1",
+      "defect_injection": [],
+      "source_path": "corpus/fixtures/typst/f04_german_prose.typ"
+    },
+    {
       "id": "f05_turkish_prose",
       "title": "f05_turkish_prose",
       "source": {
@@ -203,6 +229,32 @@
       "producer_stratum": "ours(Typst)",
       "producer_raw": "Typst 0.15.1",
       "tagged": false,
+      "holdout": false,
+      "ground_truth_type": "none",
+      "generator": "typst-0.15.1",
+      "defect_injection": [],
+      "source_path": "corpus/fixtures/typst/f05_turkish_prose.typ"
+    },
+    {
+      "id": "f05_turkish_prose__tagged",
+      "title": "f05_turkish_prose__tagged",
+      "source": {
+        "name": "synthetic-generator",
+        "url": "https://github.com/openconvert/openconvert",
+        "retrieved_date": "2026-09-09"
+      },
+      "license": {
+        "name": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "verified_by": "maintainer",
+        "verified_date": "2026-09-09"
+      },
+      "sha256": "b0dc74c5d3b9f288f3a0383034b75701d12e731a4f38e8f97c8831768abef98c",
+      "file_size_bytes": 14527,
+      "category": "simple",
+      "producer_stratum": "ours(Typst)",
+      "producer_raw": "Typst 0.15.1",
+      "tagged": true,
       "holdout": false,
       "ground_truth_type": "none",
       "generator": "typst-0.15.1",
