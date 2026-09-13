@@ -12,6 +12,7 @@ use oc_core::stages;
 use oc_core::thresholds::T;
 use oc_model::extract::{CharHistogram, PageRef};
 use oc_model::lang::LangTag;
+use oc_model::layout::BlockKindHint;
 use oc_model::ledger::{LedgerDelta, LedgerEntry, Reason, StageKind};
 use oc_pdf::inspect::PdfOpen;
 use oc_pdf::pdfium::PdfiumBackend;
@@ -126,5 +127,81 @@ fn layout_stage_conservation_violation_errors() {
             }
         ),
         "unexpected error: {error}"
+    );
+}
+
+/// The reading-order text of a page: every block's lines, in order, one string per block.
+fn blocks_text(layout: &LayoutStage, page: usize) -> Vec<String> {
+    layout.blocks[page]
+        .iter()
+        .map(|block| {
+            block
+                .lines
+                .iter()
+                .map(|line| {
+                    layout.pages[page]
+                        .lines
+                        .iter()
+                        .find(|candidate| candidate.line == *line)
+                        .map(|candidate| candidate.text.clone())
+                        .unwrap_or_default()
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .collect()
+}
+
+/// Where a phrase first appears in a page's reading order, by block index.
+fn position_of(blocks: &[String], needle: &str) -> usize {
+    blocks
+        .iter()
+        .position(|text| text.contains(needle))
+        .unwrap_or_else(|| panic!("{needle:?} is not on the page: {blocks:#?}"))
+}
+
+/// Row 3.2, and acceptance A3.1. The whole left column precedes the right one — the failure
+/// this test exists for is the classic interleave, where a naive top-to-bottom sort reads one
+/// line of each column in turn and produces two unrelated sentences spliced together.
+#[test]
+fn two_column_reading_order_is_left_then_right() {
+    let layout = layout_of("../../target/fixtures/f02_two_column.pdf");
+    let page = blocks_text(&layout, 0);
+
+    assert!(
+        position_of(&page, "The left column continues")
+            < position_of(&page, "The right column begins"),
+        "reading order interleaves the columns: {page:#?}"
+    );
+    assert_eq!(
+        layout.columns[0].count(),
+        2,
+        "the fixture is two columns: {:?}",
+        layout.columns[0].gutters
+    );
+}
+
+/// Row 3.3. The floating title spans both columns, so it cannot be cut with them: it is
+/// pre-masked, kept whole, and put back at the top of the page.
+#[test]
+fn floating_title_is_premasked_not_split() {
+    let layout = layout_of("../../target/fixtures/f02_two_column.pdf");
+    let page = blocks_text(&layout, 0);
+
+    let title = "On the Measurement of Columns";
+    assert_eq!(
+        page.iter().filter(|text| text.contains(title)).count(),
+        1,
+        "the title is one block: {page:#?}"
+    );
+    assert_eq!(
+        position_of(&page, title),
+        0,
+        "the title is first in reading order: {page:#?}"
+    );
+    assert_eq!(
+        layout.blocks[0][0].kind_hint,
+        BlockKindHint::FloatingTitle,
+        "the title is pre-masked, not sorted with the columns"
     );
 }

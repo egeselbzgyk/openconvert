@@ -210,5 +210,15 @@ replaced by the phase that owns it.
 | 3.1c | `blocks::a_single_line_page_is_one_block` | `oc-layout` | unit | `test` | green |
 | 3.1d | `blocks::disagreement_flags_the_block_low_confidence` | `oc-layout` | unit | `test` | green |
 | 3.1e | `blocks::every_block_gets_its_own_id` | `oc-layout` | unit | `test` | green |
+| 3.2 | `layout::two_column_reading_order_is_left_then_right` | `openconvert` | fixture (f02) | `test` | green |
+| 3.3 | `layout::floating_title_is_premasked_not_split` | `openconvert` | fixture (f02) | `test` | green |
+| 3.4 | `reading_order::prop_single_column_order_is_monotone_in_y` | `oc-layout` | property | `test` | green |
+| 3.4a | `reading_order::a_two_column_page_is_read_down_then_across` | `oc-layout` | unit | `test` | green |
+| 3.4b | `reading_order::a_masked_block_with_nothing_below_it_goes_last` | `oc-layout` | unit | `test` | green |
+| 3.2a | `columns::a_wide_valley_between_two_bodies_of_text_is_a_gutter` | `oc-layout` | unit | `test` | green |
+| 3.2b | `columns::the_blank_half_of_a_short_column_is_not_a_gutter` | `oc-layout` | unit | `test` | green |
+| 3.2c | `columns::a_single_column_page_has_no_gutter` | `oc-layout` | unit | `test` | green |
+| 3.3a | `columns::a_crossing_title_does_not_destroy_the_gutter` | `oc-layout` | unit | `test` | green |
+| 3.3b | `columns::a_block_that_crosses_the_gutter_is_marked_a_floating_title` | `oc-layout` | unit | `test` | green |
 | 3.13 | `layout::layout_stage_is_conserving` | `openconvert` | fixture (f01) | `test` | green |
 | 3.13a | `layout::layout_stage_conservation_violation_errors` | `openconvert` | unit | `test` | green |

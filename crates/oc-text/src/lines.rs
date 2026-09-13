@@ -9,8 +9,13 @@
 //! superscript raised 3 pt above a 12 pt body is 3 pt from its own line's baseline: against
 //! `0.3 × 7 = 2.1` it does not belong, against `0.3 × 12 = 3.6` it does, and it does.
 //!
-//! Columns are not this stage's business. Two columns printed at the same height cluster into
-//! one line here, and `layout` splits them in Phase 3 — the order is deliberate (R2 §D.3).
+//! Columns are not this stage's business — *where* they are is `layout`'s, in Phase 3. But a
+//! baseline cluster that spans a gutter is not a line in any sense a later stage can repair:
+//! it has one bounding box across both columns, one indent and one right gap, and every
+//! paragraph rule that reads those reads a number about two columns at once. So a cluster is
+//! split wherever a gap exceeds `text.line_split_gap_em`, which no word space reaches and
+//! every gutter does. That is not column detection; it is refusing to assert that two things
+//! a page kept apart are one thing.
 
 use oc_core::thresholds::Thresholds;
 use oc_model::geom::Rect;
@@ -78,6 +83,43 @@ pub fn cluster_baselines(items: &[(f32, f32)], t: &Thresholds) -> Vec<Vec<u32>> 
         .collect()
 }
 
+/// Split a baseline cluster wherever the horizontal gap between two runs is too wide to be a
+/// space (`text.line_split_gap_em`).
+///
+/// The runs of a cluster arrive in document order, which for a two-column page is not left to
+/// right, so they are sorted first. The gap is measured in ems of the larger of the two runs,
+/// because a gutter is a fraction of the measure and the measure is set in ems.
+fn split_at_chasms<'a>(mut members: Vec<&'a Run>, t: &Thresholds) -> Vec<Vec<&'a Run>> {
+    if members.len() < 2 {
+        return vec![members];
+    }
+    members.sort_by(|a, b| {
+        a.bbox
+            .x0
+            .partial_cmp(&b.bbox.x0)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(a.id.0.cmp(&b.id.0))
+    });
+
+    let limit = t.text.line_split_gap_em as f32;
+    let mut parts: Vec<Vec<&Run>> = Vec::new();
+    let mut current: Vec<&Run> = Vec::new();
+    for run in members {
+        let chasm = current.last().is_some_and(|previous: &&Run| {
+            let gap = run.bbox.x0 - previous.bbox.x1;
+            gap > limit * previous.size_pt.max(run.size_pt)
+        });
+        if chasm && !current.is_empty() {
+            parts.push(std::mem::take(&mut current));
+        }
+        current.push(run);
+    }
+    if !current.is_empty() {
+        parts.push(current);
+    }
+    parts
+}
+
 struct Cluster {
     /// The baseline of the largest item in the cluster: what everything else is measured
     /// against.
@@ -108,11 +150,14 @@ pub fn assemble_lines(runs: &[Run], t: &Thresholds) -> Vec<Line> {
 
     cluster_baselines(&items, t)
         .into_iter()
-        .map(|members| {
+        .flat_map(|members| {
             let members: Vec<&Run> = members
                 .iter()
                 .filter_map(|index| runs.get(*index as usize))
                 .collect();
+            split_at_chasms(members, t)
+        })
+        .map(|members| {
             let bbox = members
                 .iter()
                 .map(|run| run.bbox)

@@ -238,6 +238,13 @@ evidence = "R2 §B.3 / R10 §6.2 / PIPELINE §4 step 1: cluster glyphs by baseli
 owner = "maintainer"
 review_by = "2028-01-01"
 
+[text.line_split_gap_em]
+value = 1.2
+source = "provisional"
+evidence = "A horizontal gap this wide, in ems of the glyph before it, is not a word space: the baseline cluster is two columns, or two table cells, and is split there. A word space is 0.25-0.33 em by design and justification stretches it to at most about 1 em before a typesetter rebreaks the line; a column gutter is 2 em or more (Typst's default is 4 % of the measure, which is 2.0 em on f02; book practice is a pica or wider, 1.2 em at 10 pt). The floor is set at the narrow end of gutter practice rather than the wide end of word spacing, because merging two columns interleaves two arguments while splitting a wide space costs a line boundary that `paragraphs` puts back."
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [text.superscript_size_ratio_max]
 value = 0.80
 source = "published"
@@ -349,6 +356,27 @@ source = "published"
 evidence = "R2 §B.3"
 owner = "maintainer"
 review_by = "2028-01-01"
+
+[layout.columns.gutter_min_width_em]
+value = 0.5
+source = "provisional"
+evidence = "PIPELINE §6 step 2 asks for a gutter at least 1.5 x the modal word space. The modal word space is a `text`-stage quantity measured over glyph advances and is not carried on a `Line`, so the bar is expressed in ems, estimated as the page's median line-box height: a word space is 0.25-0.33 em in most book faces, so 1.5 of them is 0.4-0.5 em, and the higher end is taken because a false gutter interleaves two columns while a missed one only costs the column split. Revisit when the word-space statistic is carried forward."
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.columns.gutter_emptiness_min]
+value = 0.98
+source = "provisional"
+evidence = "PIPELINE §6 step 2, marked provisional there. The fraction of a candidate gutter that must be free of ink within the vertical span that qualifies it. Not 1.0, so that a descender or a single crossing rule does not destroy a gutter that is otherwise clean for the height of the page."
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.columns.gutter_height_share_min]
+value = 0.6
+source = "provisional"
+evidence = "PIPELINE §6 step 2, marked provisional there. How much of the text height the qualifying span must cover. Below the whole height on purpose: a full-width floating title crosses the gutter near the top of the page, and a criterion measured over the whole height would lose the gutter to it - which is the very configuration pre-masking exists for."
+owner = "maintainer"
+review_by = "2027-06-30"
 
 [layout.block.agreement_iou_min]
 value = 0.8

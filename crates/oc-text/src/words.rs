@@ -93,9 +93,20 @@ pub fn assemble_runs(glyphs: &[Glyph], page: PageRef, t: &Thresholds) -> RunAsse
                 !previous.ch.is_whitespace() && gap > thresholds.for_glyph(previous)
             };
 
+            // A gap of more than `text.line_split_gap_em` is not a word space at all: it is
+            // the gutter between two columns, or the space between two table cells. A run
+            // may not span one, because a line is assembled from runs and a line that spans
+            // a gutter is two columns read as one — the failure that interleaves two
+            // arguments sentence by sentence (PIPELINE §6, PROGRESS.md carry-forward 2).
+            let chasm = position > 0 && {
+                let previous = &glyphs[line[position - 1] as usize];
+                let gap = glyph.loose_bbox.x0 - previous.loose_bbox.x1;
+                gap > t.text.line_split_gap_em as f32 * previous.size_pt.max(glyph.size_pt)
+            };
+
             let style = Style::of(glyph, vertical);
             match open.as_mut() {
-                Some(current) if current.style == style && !current.text.is_empty() => {
+                Some(current) if !chasm && current.style == style && !current.text.is_empty() => {
                     if spaced {
                         current.text.push(' ');
                     }
@@ -105,7 +116,9 @@ pub fn assemble_runs(glyphs: &[Glyph], page: PageRef, t: &Thresholds) -> RunAsse
                     if let Some(mut finished) = open.take() {
                         // The space belongs between the two runs; it is written at the end of
                         // the first so that concatenating a line's runs reproduces the line.
-                        if spaced {
+                        // Not across a chasm: what separates two columns is not a space, and
+                        // writing one there is how the two of them become one line again.
+                        if spaced && !chasm {
                             finished.text.push(' ');
                         }
                         runs.push(finished.finish(RunId(runs.len() as u32), page.clone()));

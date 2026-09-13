@@ -10,7 +10,9 @@ use oc_core::ledger_check::{c_of, check_invariants, ConservationError, ReasonTot
 use oc_core::stages;
 use oc_core::thresholds::Thresholds;
 use oc_layout::blocks::{segment_blocks, LayoutLine, LayoutPage, SegmentationAgreement};
+use oc_layout::columns::{assign_columns, detect_columns, ColumnLayout};
 use oc_layout::furniture::{apply_furniture, detect_furniture, PageLines};
+use oc_layout::reading_order::reading_order;
 use oc_model::extract::{CharHistogram, Glyph, PageRef};
 use oc_model::lang::LangTag;
 use oc_model::layout::Block;
@@ -70,6 +72,7 @@ pub struct FurnitureStage {
 pub struct LayoutStage {
     pub pages: Vec<LayoutPage>,
     pub blocks: Vec<Vec<Block>>,
+    pub columns: Vec<ColumnLayout>,
     pub agreement: Vec<SegmentationAgreement>,
     pub delta: LedgerDelta,
     pub check: StageCheck,
@@ -212,10 +215,18 @@ pub fn layout_stage(
         .collect();
 
     let mut blocks = Vec::with_capacity(pages.len());
+    let mut columns = Vec::with_capacity(pages.len());
     let mut agreement = Vec::with_capacity(pages.len());
     for page in &pages {
-        let (page_blocks, page_agreement) = segment_blocks(page, t);
+        let (mut page_blocks, page_agreement) = segment_blocks(page, t);
+        let layout = detect_columns(&page_blocks, t);
+        assign_columns(&mut page_blocks, &layout);
+        // No masks yet: `ingest` carries images and rules, and anchoring them is this
+        // phase's last item. Blocks that span columns are pre-masked either way.
+        reading_order(&mut page_blocks, &layout, &[], t);
+        let (page_blocks, page_agreement) = into_reading_order(page_blocks, page_agreement);
         blocks.push(page_blocks);
+        columns.push(layout);
         agreement.push(page_agreement);
     }
 
@@ -226,10 +237,50 @@ pub fn layout_stage(
     Ok(LayoutStage {
         pages,
         blocks,
+        columns,
         agreement,
         delta,
         check,
     })
+}
+
+/// Put a page's blocks into reading order, carrying the agreement vectors with them.
+///
+/// The two are index-aligned by construction — `segment_blocks` returns them that way — and
+/// a permutation applied to one and not the other would report the wrong block as the
+/// low-confidence one, which is worse than not reporting it at all.
+fn into_reading_order(
+    blocks: Vec<Block>,
+    agreement: SegmentationAgreement,
+) -> (Vec<Block>, SegmentationAgreement) {
+    let mut permutation: Vec<usize> = (0..blocks.len()).collect();
+    permutation.sort_by_key(|index| {
+        blocks
+            .get(*index)
+            .map(|block| block.reading_index)
+            .unwrap_or(u32::MAX)
+    });
+    let iou = permutation
+        .iter()
+        .filter_map(|index| agreement.iou.get(*index).copied())
+        .collect();
+    let low_confidence = permutation
+        .iter()
+        .filter_map(|index| agreement.low_confidence.get(*index).copied())
+        .collect();
+    let mut ordered: Vec<Option<Block>> = blocks.into_iter().map(Some).collect();
+    let blocks = permutation
+        .iter()
+        .filter_map(|index| ordered.get_mut(*index).and_then(Option::take))
+        .collect();
+    (
+        blocks,
+        SegmentationAgreement {
+            iou,
+            low_confidence,
+            whitespace: agreement.whitespace,
+        },
+    )
 }
 
 /// One line's text, assembled from the page's runs.

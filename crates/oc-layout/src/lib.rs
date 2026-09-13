@@ -3,4 +3,6 @@
 //! paragraph reconstruction and image anchoring.
 
 pub mod blocks;
+pub mod columns;
 pub mod furniture;
+pub mod reading_order;

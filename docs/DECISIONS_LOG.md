@@ -1785,3 +1785,67 @@ margin and they separate nothing.
 
 Affects: IMPLEMENTATION_PLAN Phase 3 Architecture, `crates/oc-layout/src/blocks.rs`,
 `crates/openconvert/src/pipeline.rs` (`PageInput`/`TextPage` gain `width_pt`).
+
+## 2026-09-13 · f02 had never had two columns, and a line had never been split at a gutter · Phase 3
+Context: Phase 3 tests 3.2 and 3.3 are the two-column reading-order assertions, over
+`f02_two_column.pdf`. Measuring the fixture before asserting on it turned up two separate faults, one in
+the fixture and one carried forward from Phase 2.
+
+**The fixture.** `f02` sets `columns: 2` on a 297 mm page with 20 mm margins — 51 lines to a column — and
+carries 17 lines of body text. Typst fills the first column before the second, so every line of it was in
+the *left* column and the right column was empty. Every "two column" assertion over it passed vacuously,
+including the reading-order one: `The left column continues` did precede `The right column begins`,
+because both were in the same column, one above the other.
+
+Decision: give the fixture enough text to fill a column, and put an explicit `#colbreak()` before the
+section that begins the right column. The page size, margins, gutter, header, footer and floating title
+are unchanged, so the furniture evidence and the hyphenated line breaks the Phase 1 and 2 tests read are
+all still there. The column break is explicit rather than by overflow so that a line-breaking difference
+between Typst versions cannot silently move the boundary back to where it was. Page 0's `visible_chars`
+goes 786 → 3038 in the inspect snapshot; page 1 is untouched.
+
+Shrinking the page instead was tried first and rejected: at 110 mm the 20 mm margin is 18 % of the page
+height, the running header falls outside `layout.furniture.band_ratio`'s 8 % band, and the fixture stops
+being a document furniture detection can see at all.
+
+**The line split.** With a real right column, `text` assembled the two columns' lines into single lines
+spanning the page — the carry-forward recorded in PROGRESS.md as item 2, "`text` clusters a line by
+baseline alone". A line that spans a gutter is not repairable downstream: it has one bounding box across
+both columns, one indent and one right gap, and Docstrum then links it to both columns at once. On `f02`
+this produced blocks 486 pt wide containing lines from both columns.
+
+Decision: split a baseline cluster at any gap wider than `text.line_split_gap_em` (1.2 em), and break a
+*run* at the same gap so that a run never spans one either. This is not column detection — it makes no
+claim about where the columns are — it is a refusal to assert that two things the page kept 16 pt apart
+are one line. The inserted space is whitespace and outside `C`, so nothing is ledgered and the
+conservation law is untouched.
+
+Evidence: `f02` page 0, gutter measured at 290.7–306.7 pt (16.0 pt, 1.7 em at 9.5 pt) against a widest
+justified word space well under 1 em. After the split, column detection finds exactly one gutter,
+`ColumnLayout` is `[(56.7, 290.7), (306.7, 542.6)]`, and the twelve blocks of page 0 each sit in one
+column.
+
+Affects: `corpus/fixtures/typst/f02_two_column.typ`, its inspect snapshot, `crates/oc-text/src/lines.rs`,
+`crates/oc-text/src/words.rs`, `thresholds.toml` (`text.line_split_gap_em`), PROGRESS.md carry-forward 2
+(**closed**), tests 3.2 and 3.3.
+
+## 2026-09-13 · A gutter is a valley with text on both sides of it · Phase 3
+Context: PIPELINE §6 step 2 defines a gutter as a valley in the x-projection that is wide enough, empty
+enough, and empty over enough of the text height. Implemented literally, that admits two things that are
+not gutters: the blank lower half of a short column, and the page's own outer margin. On `f02` the first
+one fired — the right column ends at 42 % of the page height, so every strip below it is tall and empty,
+and the detector reported a 252 pt "gutter" running to the right edge of the text.
+
+Decision: add the condition that makes a gutter a gutter — **text on both sides of it, within the same
+vertical window that qualified it**. The blank half of a short column has text to its left and nothing to
+its right; the outer margin has text on one side only. Both are rejected by the same clause, and no new
+threshold is needed.
+
+The test is applied per one-point strip rather than per merged run, deliberately: the strips of the real
+gutter and the strips of the blank half of the column are adjacent, so a run-level test would ask for
+text to the right of the *page* and throw away the real gutter with the false one.
+
+Evidence: `columns::the_blank_half_of_a_short_column_is_not_a_gutter`, and `f02` page 0, where the
+reported gutter goes from (290.7, 542.7) to (290.7, 306.7).
+
+Affects: `crates/oc-layout/src/columns.rs`, PIPELINE §6 step 2, tests 3.2 and 3.3.
