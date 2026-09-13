@@ -1658,3 +1658,43 @@ Phase 3 onward runs on branches that open a pull request, so `ci` fires on every
 
 Evidence: run 34755670348 on `main`, 2026-09-13.
 Affects: `.github/workflows/ci.yml`, `docs/TEST_MATRIX.md` (the CI-jobs table), PROGRESS.md.
+
+## 2026-09-13 · A non-embedded base-14 font makes glyph boxes host-dependent · CI
+Found by the third CI run: `dump_stage_ingest_snapshot_h01` passed on Windows and macOS and failed
+on Ubuntu. The same fixture, the same PDFium build, different numbers:
+
+| field | Windows / macOS | Ubuntu |
+|---|---|---|
+| `bbox.x1` (`A`) | 80.02 | 79.85 |
+| `bbox.y0` | 91.41 | 91.38 |
+| `loose_bbox.y0` / `.y1` | 89.14 / 102.53 | 88.66 / 102.69 |
+| `origin` | 72.00, 100.00 | 72.00, 100.00 |
+
+h01 draws base-14 **Helvetica and does not embed it**, which is what a great many real producers
+do. The PDF specification says a viewer substitutes in that case, so the *outline* of every glyph —
+and therefore its inked box and its ascent and descent — is whatever font the host offered. The
+**advance is identical on both**, because the widths come from the PDF's own metrics rather than
+from the substitute. That is why `origin` matches to the hundredth of a point across three
+operating systems while `bbox` does not.
+
+**Three consequences, and only the first is a fixture problem.**
+
+1. *This snapshot* now masks `bbox` and `loose_bbox` and nothing else, and asserts in the same test
+   that each glyph still sits on the document's baseline and that its inked box is inside its
+   advance box — so the mask hides a host difference rather than a fault. Box correctness has never
+   been this test's job anyway: tests 0.8, 0.8a, 1.5 and 1.6 each compare a document against
+   *itself* on one host and are immune to substitution by construction.
+2. *The fixture stays as it is.* Embedding a font would make the numbers stable and would also make
+   h01 stop representing the case it exists to represent. A fixture for "the producer relied on
+   base-14 substitution" is worth having precisely because the real world is full of them.
+3. **D13.8's determinism contract does not hold for such documents, and cannot.** Any decision keyed
+   on an inked box — block segmentation, drop-cap detection, heading geometry — may differ between
+   hosts on a base-14 document, and no amount of code fixes that; the substitution happens below us.
+   The mitigation is to prefer the advance box and the origin, which *are* stable, wherever a rule
+   has the choice. Phase 2's word assembly already reads `loose_bbox.x`, whose difference here is
+   0.02 pt against a `words.min_space_ratio` floor of 1.5 pt at 10 pt — three orders of magnitude of
+   margin. **Phase 3 has the choice far more often and should make it deliberately**; carried into
+   PROGRESS.md.
+
+Evidence: run 34757445462 on `main`, job `test (ubuntu-latest)`.
+Affects: `crates/oc-pdf/src/dump.rs` and its snapshot, D13.8, Phase 3 layout rules.

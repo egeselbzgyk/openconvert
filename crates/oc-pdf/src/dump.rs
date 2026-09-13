@@ -121,8 +121,47 @@ fn dump_stage_ingest_snapshot_h01() {
         oc_model::canonical::to_canonical_json(&header).expect("the header is canonical"),
         oc_model::canonical::to_canonical_json(&page).expect("the page is canonical")
     );
-    insta::assert_snapshot!(rendered);
+
+    // The glyph boxes are masked, and **only** the glyph boxes. h01 draws base-14 Helvetica
+    // without embedding it, which is what a great many real producers do and therefore worth
+    // having a fixture for — and it means the *outline* of each glyph is whatever font the
+    // host substituted. CI's first green-on-Windows, red-on-Linux run measured the gap:
+    // `bbox.x1` 80.02 against 79.85, `loose_bbox.y0` 89.14 against 88.66. The advance is
+    // identical on both, because the widths come from the PDF's own metrics rather than from
+    // the substitute, which is why `origin` is asserted exactly below.
+    //
+    // Nothing is lost by masking them here. Box correctness is the subject of test 0.8
+    // (`prop_normalised_rects_are_inside_page`), 0.8a (rotation corners), and the metamorphic
+    // pair 1.5 and 1.6 — every one of which compares a document against *itself* on one host
+    // and is therefore immune to substitution. What this snapshot is for is the canonical
+    // form and the field set, and both survive intact.
+    insta::with_settings!({filters => vec![
+        (r#""bbox":\{[^}]*\}"#, r#""bbox":"<host font>""#),
+        (r#""loose_bbox":\{[^}]*\}"#, r#""loose_bbox":"<host font>""#),
+    ]}, {
+        insta::assert_snapshot!(rendered);
+    });
+
+    // The masked fields still have to be sane, or the mask would be hiding a real fault
+    // rather than a host difference: every glyph sits on the baseline the document placed it
+    // on, and its inked box is inside the box it advances through.
+    for glyph in &page.glyphs {
+        assert_eq!(glyph.origin.1, FIXTURE_BASELINE_Y, "{glyph:?}");
+        assert!(
+            glyph.loose_bbox.x0 <= glyph.bbox.x0 && glyph.bbox.x1 <= glyph.loose_bbox.x1,
+            "inked box escapes the advance box: {glyph:?}"
+        );
+        assert!(
+            glyph.loose_bbox.y0 <= glyph.bbox.y0 && glyph.bbox.y1 <= glyph.loose_bbox.y1,
+            "inked box escapes the advance box: {glyph:?}"
+        );
+    }
 }
+
+/// Where h01 puts its baseline, in normalised page space. Stable across hosts: it is the text
+/// matrix the document wrote, not anything the font decides.
+#[cfg(test)]
+const FIXTURE_BASELINE_Y: f32 = 100.0;
 
 /// The histogram serialises as the multiset it is, not as the array it is stored in.
 ///
