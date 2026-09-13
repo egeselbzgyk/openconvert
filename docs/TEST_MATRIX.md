@@ -103,3 +103,16 @@ replaced by the phase that owns it.
 | 1.19f | `cancel::cancel_is_shared_by_clones` | `oc-core` | unit | `test` | green |
 | 1.19g | `cancel::cancel_crosses_threads` | `oc-core` | unit | `test` | green |
 | 1.20 | `limits::max_pages_refuses_at_the_door` | `oc-pdf` | integration | `test` | green |
+
+## Phase 2
+
+| # | Test | Crate | Kind | CI job | Status |
+|---|---|---|---|---|---|
+| 2.16 | `ledger_check::conservation_i3_conserving_stage_has_empty_ledger` | `oc-core` | unit | `test` | green |
+| 2.17 | `ledger_check::conservation_i4_budget_exceeded_is_fatal` | `oc-core` | unit | `test` | green |
+| 2.16a | `ledger_check::conservation_i1_unexplained_removal_is_fatal` | `oc-core` | unit | `test` | green |
+| 2.16b | `ledger_check::conservation_i1_balances_a_ligature_expansion` | `oc-core` | unit | `test` | green |
+| 2.16c | `ledger_check::conservation_i2_undeclared_reason_is_fatal` | `oc-core` | unit | `test` | green |
+| 2.16d | `ledger_check::c_of_counts_only_non_whitespace` | `oc-core` | unit | `test` | green |
+| 2.17a | `ledger_check::budgets_accumulate_across_stages` | `oc-core` | unit | `test` | green |
+| 2.17b | `ledger_check::budget_charges_net_loss_not_churn` | `oc-core` | unit | `test` | green |

@@ -1281,3 +1281,48 @@ against the regression that actually threatens this budget - per-page cost growi
 size - is that file's ratio test.
 Evidence: measured 2026-09-10 on the development machine, release profile, PDFium `chromium/7881`.
 Affects: A1.6, D9 reference machine L, Phase 7 benchmarks.
+
+## 2026-09-13 · The conservation checker: three deviations from the sketch · Phase 2 item 2.1
+Context: `oc-core::ledger_check` is the first thing Phase 2 builds, because the plan's own failure-mode
+note says to build the checker before the transformations so every transformation is born under it.
+Three things in the plan's sketch could not be implemented literally.
+
+**1. `check_invariants` takes histograms and a running account, not two `Doc`s.**
+The sketch is `check_invariants(before: &Doc, after: &Doc, ledger: &LedgerDelta, kind, reasons, c0)`.
+`Doc` does not exist yet and will not until Phase 4, and the quantity the law is stated over is
+`C(D)` — a histogram — not the document. So the signature is
+`check_invariants(before: &CharHistogram, after: &CharHistogram, delta: &LedgerDelta,
+decl: StageDecl, totals: &mut ReasonTotals)`. `kind` and `reasons` collapse into `StageDecl`, which is
+the same pair the `Stage` trait declares (ARCHITECTURE §3.3) and cannot be widened by the stage that
+is being checked. `c0` becomes `ReasonTotals`, because **I-4 is cumulative** — "three stages each
+taking 3 % under one reason have taken 9 %" — and a function handed only `|C_0|` cannot see that.
+The caller computing `C(D)` is not an accident either: only the caller knows which strings are content
+text and which are attribute values outside `C` (ARCHITECTURE §5.2).
+
+**2. `Reason::adds()` was wrong, and `LigatureExpand` proved it.**
+Phase 1 wrote `adds()` as `matches!(self, Reason::Ocr)` with the comment "the only reason that adds
+rather than removes". PIPELINE §4 says each ligature expansion is a **paired Removed + Added entry
+under `LigatureExpand`** — it is the case that makes plain multiset equality fail, which is the whole
+reason I-1 is stated with both sides. Under the old predicate `LedgerEntry::added(…, LigatureExpand, …)`
+tripped a debug assertion, so the one case the invariant exists for could not be written down. Replaced
+with `may_add()` (`Ocr | LigatureExpand`) and `may_remove()` (everything but `Ocr`).
+
+**3. I-4 is charged on net loss per reason, not on gross removals.**
+Taken literally — "per reason, cumulative chars ≤ budget(s)(r) · |C_0|" with `LigatureExpand` falling
+under the 0.001 "other" bound — the deterministic path fails on any Latin book that sets `ﬁ`. The `fi`
+bigram alone runs at roughly 0.3 % of characters in English prose, three times the allowance, and the
+stage would abort having lost nothing at all: it removed one scalar and put two back. So the charge is
+`removed(r) − added(r)`, saturating at zero. This changes nothing for the thirteen reasons that only
+remove, and it makes the budget mean what §5.5 says it is for — bounding how much text a stage may
+*lose*, not how much churn it may cause. Recorded here rather than as a threshold change because no
+number moved: `conservation.budget.other` is still 0.001.
+
+Also settled while writing it: failures are reported I-3 → I-2 → I-1 → I-4. I-3 goes first because a
+`Conserving` stage declares no reasons, so "undeclared reason `RunningHeader`" would be true and
+useless — the fault is that it wrote to the ledger at all. And `budget_group` returns `None` for `Ocr`:
+a bound stated as a fraction of the source text would forbid transcribing a scanned book, which is
+what I-6's region scope exists to permit.
+
+Evidence: ARCHITECTURE §5.2–§5.5, PIPELINE §4, IR_SKETCH stage-kind list, D13.4.
+Affects: `crates/oc-core/src/{ledger_check.rs,stages/}`, `crates/oc-model/src/ledger.rs`,
+IMPLEMENTATION_PLAN Phase 2 Architecture block.
