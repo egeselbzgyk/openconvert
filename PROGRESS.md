@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 2
-CURRENT_ITEM: 2.2 — oc-text `normalize.rs`: normalisation `N` (tests 2.1-2.4)
+CURRENT_ITEM: 2.7 — the `text` and `furniture` stages under the conservation law (test 2.15)
 LAST_UPDATED: 2026-09-13
 
 ---
@@ -42,24 +42,24 @@ LAST_UPDATED: 2026-09-13
 
 ## Current work item
 
-**Phase 2, item 2.2** — `oc-text::normalize`: `N = strip(U+00AD) o expand_ligatures o NFC`,
-tests 2.1-2.4 from the Phase 2 table.
+**Phase 2, item 2.7** — run `text` and `furniture` end to end under `check_invariants` on `f01`,
+`f02` and generated documents: test 2.15.
 
-Planned item order for Phase 2 (one TDD loop each):
+Phase 2 item order (one TDD loop each):
 
-1. ~~2.1 conservation checker (`oc-core::ledger_check` + stage declarations)~~ **done**
-2. 2.2 `oc-text::normalize` - tests 2.1, 2.2, 2.3, 2.4
-3. 2.3 `oc-text::fold` - tests 2.6, 2.7
-4. 2.4 `oc-text::{words,lines}` + superscript flags - tests 2.5, 2.8, 2.9 (new fixtures)
-5. 2.5 `oc-layout::furniture` - tests 2.10-2.14 (new fixtures)
-6. 2.6 conservation across text+furniture end to end - test 2.15
-7. 2.7 `oc-text::stats` - tests 2.18, 2.22
-8. 2.8 `oc-text::lang` + frequency lists - tests 2.19, 2.20
-9. 2.9 `dump-stage text` snapshot - test 2.21
+1. ~~2.1 conservation checker (`oc-core::ledger_check` + stage declarations)~~ **done** `fad617e`
+2. ~~2.2 `oc-text::normalize` - tests 2.1-2.4~~ **done** `b7a822c`
+3. ~~2.3 `oc-text::fold` + `oc-model::lang` - tests 2.6, 2.7~~ **done** `b5e08ad`
+4. ~~2.4 decode PDFium's U+0002 hyphen marker (Phase 1 carried debt)~~ **done** `e5ada15`
+5. ~~2.5 `oc-text::{words,lines}` + `oc-model::text` - tests 2.5, 2.8, 2.9~~ **done** `c49ef42`
+6. ~~2.6 `oc-layout::furniture` - tests 2.10-2.14~~ **done** `787002f`
+7. 2.7 conservation across text + furniture - test 2.15
+8. 2.8 `oc-text::stats` - tests 2.18, 2.22
+9. 2.9 `oc-text::lang` + word-frequency lists - tests 2.19, 2.20
+10. 2.10 `dump-stage text` snapshot - test 2.21
 
-Still open from Phase 1, to be folded into the Phase 2 work where it lands:
-the U+0002 hyphen problem and `OverdrawDedup`'s unconsumable budget (both described under
-Notes), which need the same `lopdf` content-stream access to the `Tj`/`TJ` operands.
+Hand-made fixtures h16-h21 are new in this phase (the plan names h07-h12, which Phase 1 spent);
+`corpus/fixtures/handmade/` holds them and `xtask handmade-fixtures` rebuilds them.
 
 Also open, and cheap: CI's `test` job runs `xtask fixtures` but never `handmade-fixtures` or
 `mutations`, so a builder change that no longer reproduces the committed fixtures would not be
@@ -78,14 +78,14 @@ Carried forward, in the order a fresh session needs them:
   `target/fixtures/`), `-- handmade-fixtures` (h01–h15, committed), `-- mutations` (committed).
 - **No stage may treat the backend's glyph order as reading order.** Measured in item 1.3: PDFium
   reorders the lines of a page under `/Rotate 90`. Reading order is Phase 3's, from geometry.
-- **Open from items 1.4 and 1.11, for Phase 2/3 — the biggest open item in Phase 1.** PDFium
-  reports a line-break hyphen as **U+0002**, and reports a *hard* hyphen (U+002D) and a *soft*
-  one (U+00AD) as the same U+0002; `is_hyphen()` says only that it is a hyphen, never which.
-  Measured against `pdftotext`, which keeps them apart. Consequences: D13.4's `SoftHyphen`
-  reason can never fire, PIPELINE §369's compound-word rule (`Nord-Süd-Achse` must not be
-  rejoined) loses its cheapest signal, and `C_raw` differs from the document at every
-  hyphenated line break. Recovering it needs `lopdf` content-stream access — **the same
-  mechanism the `OverdrawDedup` gap below needs**, so do both at once in Phase 2.
+- **The hyphen marker is half closed (item 2.4).** Extraction now decodes PDFium's U+0002 to
+  U+002D, so `C_raw` and every run text are clean. What is *not* recovered is whether the
+  source wrote U+002D or U+00AD — PDFium collapses both — so D13.4's `SoftHyphen` reason fires
+  only for a U+00AD that arrives un-printed, and PIPELINE §369's compound-word rule
+  (`Nord-Süd-Achse` must not be rejoined) still needs its evidence from somewhere else.
+  Recovering the distinction needs `lopdf` content-stream access to the `Tj`/`TJ` operands —
+  **the same mechanism the `OverdrawDedup` gap below needs** — and is a dehyphenation input,
+  so both belong to **Phase 3**.
 - **Open from item 1.2, for the conservation-law work in Phase 2/6:** `OverdrawDedup` has a budget
   and no way to consume it. PDFium collapses overdrawn duplicates before we see them and its
   object-level text API returns the same deduplicated string, so the collapsed count needs `lopdf`
@@ -193,3 +193,8 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-10  P1.13     oc-pdf image_bytes + VD-d known-answer spike (VD-d closed)             c73476e
 2026-09-10  PHASE 1   COMPLETE - Definition of Done checked; A1.6 measured off reference machine L
 2026-09-13  P2.1      oc-core ledger_check: I-1..I-4 + stage declarations (2.16, 2.17 + 6)  fad617e
+2026-09-13  P2.2      oc-text normalize: N, ledgered on both sides (2.1-2.4 + 3)             b7a822c
+2026-09-13  P2.3      oc-text fold_key + oc-model LangTag (2.6, 2.7 + 4)                     b5e08ad
+2026-09-13  P2.4      oc-pdf: decode the U+0002 hyphen marker at extraction (3 tests)        e5ada15
+2026-09-13  P2.5      oc-text words/lines + oc-model text layer, h16-h18 (2.5, 2.8, 2.9 + 9) c49ef42
+2026-09-13  P2.6      oc-layout furniture + h19-h21 (2.10-2.14 + 3)                          787002f
