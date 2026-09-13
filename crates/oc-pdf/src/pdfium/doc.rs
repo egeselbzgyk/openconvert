@@ -389,9 +389,13 @@ impl PdfiumDoc {
         for (position, character) in text.chars().iter().enumerate() {
             let position = u32::try_from(position).unwrap_or(u32::MAX);
             let span = (position, position.saturating_add(1));
-            let ch = character
-                .unicode_char()
-                .unwrap_or(char::REPLACEMENT_CHARACTER);
+            let hyphen_flag = character.is_hyphen().unwrap_or(false);
+            let ch = decode_hyphen_marker(
+                character
+                    .unicode_char()
+                    .unwrap_or(char::REPLACEMENT_CHARACTER),
+                hyphen_flag,
+            );
 
             // A synthesised space is the backend's reconstruction, not the document's
             // content, so it never enters `C_raw` (D3, Phase 1 detail 2).
@@ -462,7 +466,7 @@ impl PdfiumDoc {
                 render_mode,
                 fill,
                 generated: false,
-                hyphen_flag: character.is_hyphen().unwrap_or(false),
+                hyphen_flag,
                 angle_deg: character.angle_degrees().unwrap_or_default(),
             });
         }
@@ -625,6 +629,33 @@ fn colorspace_name(image: &pdfium_render::prelude::PdfPageImageObject<'_>) -> St
         Ok(PdfColorSpace::Unknown) | Err(_) => "Unknown",
     };
     name.to_owned()
+}
+
+/// HYPHEN-MINUS: what a page prints where PDFium reports its line-break marker.
+const HYPHEN_MINUS: char = '\u{002D}';
+
+/// Resolve PDFium's line-break hyphen marker to the character the page actually prints.
+///
+/// PDFium reports a hyphen drawn at a line break as **U+0002** with `is_hyphen()` set, not as
+/// a hyphen. That is a backend marker, not document content: no reader sees a U+0002, and
+/// `C_raw` is defined as the scalars the *document* contains (D13.4), so decoding it belongs
+/// to extraction and never reaches the ledger. Measured on `f02`, which breaks `projec-tion`
+/// and `reading-order` across lines.
+///
+/// What the decode cannot recover is which hyphen it was: PDFium collapses U+002D and U+00AD
+/// to the same marker, so a soft hyphen the producer chose to print arrives indistinguishable
+/// from a hard one. U+002D is what the page prints in both cases and is therefore the honest
+/// answer for `C_raw`; telling the two apart needs the content stream, is a dehyphenation
+/// input rather than an extraction one, and stays open (PROGRESS.md).
+///
+/// Guarded on `is_control()` so a flag on a genuine `-` — which PDFium also sets — leaves the
+/// character alone.
+fn decode_hyphen_marker(ch: char, hyphen_flag: bool) -> char {
+    if hyphen_flag && ch.is_control() {
+        HYPHEN_MINUS
+    } else {
+        ch
+    }
 }
 
 /// The three control characters a correctly-extracted text page legitimately carries.

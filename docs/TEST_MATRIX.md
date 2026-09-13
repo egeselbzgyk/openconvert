@@ -129,3 +129,6 @@ replaced by the phase that owns it.
 | 2.6c | `lang::a_tag_is_case_insensitive_and_keeps_its_region` | `oc-model` | unit | `test` | green |
 | 2.6d | `lang::only_turkish_and_azerbaijani_pair_the_dotless_i` | `oc-model` | unit | `test` | green |
 | 2.7 | `fold::text_is_never_case_folded_in_output` | `oc-text` | property | `test`, `proptest-deep` | green |
+| 2.4c | `hyphen_marker::a_line_break_hyphen_is_a_hyphen_not_a_control_character` | `oc-pdf` | fixture | `test` | green |
+| 2.4d | `hyphen_marker::no_extracted_glyph_is_an_undecodable_control` | `oc-pdf` | fixture | `test` | green |
+| 2.4e | `hyphen_marker::c_raw_counts_the_hyphen_the_page_prints` | `oc-pdf` | fixture | `test` | green |

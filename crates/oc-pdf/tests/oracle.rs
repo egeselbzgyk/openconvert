@@ -36,6 +36,10 @@ use unicode_normalization::UnicodeNormalization;
 /// recorded in `docs/DECISIONS_LOG.md`; it is not this test's business. Test 1.18 asks whether
 /// any text went missing, and folding the three forms is what keeps it asking that rather than
 /// re-reporting an encoding difference as a lost word.
+///
+/// U+0002 stays in the list although extraction now decodes it to U+002D (Phase 2 item 2.4):
+/// what the marker resolves to is the backend's business, and a test that folds one form too
+/// many keeps working when the backend changes its mind.
 const HYPHEN_FORMS: [char; 3] = ['\u{2}', '\u{ad}', '-'];
 
 /// What they fold to.

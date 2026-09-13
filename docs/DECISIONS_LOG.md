@@ -1351,3 +1351,31 @@ is. U+FB06 (`st`) is unaffected and expands the same way.
 
 Evidence: Unicode 16 UnicodeData.txt decompositions for U+FB05/U+FB06; ARCHITECTURE §5.1; PIPELINE §4.
 Affects: `crates/oc-text/src/normalize.rs`, IMPLEMENTATION_PLAN Phase 2 detail 1.
+
+## 2026-09-13 · PDFium's U+0002 hyphen marker is decoded at extraction · Phase 2 item 2.4
+Context: Phase 1 measured that PDFium reports a hyphen drawn at a line break as **U+0002** with
+`is_hyphen()` set, and PROGRESS.md carried it into Phase 2 as the biggest open item. Two halves,
+and they have different answers.
+
+**The half that had to be fixed now.** `C_raw` is defined as the multiset of scalars *the document
+contains* (D13.4). A document contains no U+0002; no reader sees one; and every `Run.text` built
+from those glyphs would carry a control character into the EPUB. So extraction resolves the marker
+to U+002D — `decode_hyphen_marker` in `pdfium/doc.rs`, guarded on `is_control()` so a flag on a
+genuine `-` leaves it alone. This is a backend marker being decoded, not a transformation of the
+text, so it happens before `C_raw` is counted and never reaches the ledger. Three tests in
+`tests/hyphen_marker.rs` hold the line, including one that asserts *no* extracted glyph is a
+control character on `f01` and `f02`.
+
+**The half that stays open.** PDFium collapses U+002D and U+00AD into the same marker, so a soft
+hyphen the producer chose to print is indistinguishable from a hard one. U+002D is what the page
+prints either way and is the honest answer for `C_raw`, but it means D13.4's `SoftHyphen` reason
+fires only for a U+00AD that arrives in the char stream un-printed, and PIPELINE §369's compound-word
+rule (`Nord-Süd-Achse` must not be rejoined) still has to find its evidence elsewhere. Recovering
+the distinction needs the content stream's `Tj`/`TJ` operands, is a *dehyphenation* input rather than
+an extraction one, and therefore belongs to Phase 3 alongside the `OverdrawDedup` count that needs
+the same mechanism. PROGRESS.md carries it forward.
+
+Evidence: `f02` breaks `projec-tion` and `reading-order`; test 1.18's `pdftotext` oracle reports
+U+00AD for the first and U+002D for `f01`'s `pipe-`, PDFium U+0002 for all three.
+Affects: `crates/oc-pdf/src/pdfium/doc.rs`, `crates/oc-pdf/tests/{hyphen_marker.rs,oracle.rs}`,
+Phase 3 dehyphenation, PROGRESS.md carried debt.
