@@ -3448,6 +3448,7 @@ name = "oc-layout"
 version = "0.1.0"
 dependencies = [
  "insta",
+ "oc-core",
  "oc-model",
  "oc-text",
  "proptest",
@@ -3579,6 +3580,7 @@ dependencies = [
  "anyhow",
  "insta",
  "oc-core",
+ "oc-layout",
  "oc-model",
  "oc-net",
  "oc-pdf",

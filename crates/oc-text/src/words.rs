@@ -82,10 +82,15 @@ pub fn assemble_runs(glyphs: &[Glyph], page: PageRef, t: &Thresholds) -> RunAsse
             // A gap wider than this (font, size)'s space threshold is a space the document
             // did not write. It is whitespace, so it is outside `C` and never ledgered
             // (ARCHITECTURE §5.2).
-            let spaced = position > 0 && {
+            //
+            // Unless the document did write one. Justified text stretches its spaces with
+            // `TJ` offsets, so the gap *after* a real space glyph is as wide as any inferred
+            // space — and inferring one there gives `It  was  a  dark`. A space is only
+            // invented between two glyphs that are both non-space.
+            let spaced = position > 0 && !glyph.ch.is_whitespace() && {
                 let previous = &glyphs[line[position - 1] as usize];
                 let gap = glyph.loose_bbox.x0 - previous.loose_bbox.x1;
-                gap > thresholds.for_glyph(previous)
+                !previous.ch.is_whitespace() && gap > thresholds.for_glyph(previous)
             };
 
             let style = Style::of(glyph, vertical);
@@ -333,6 +338,12 @@ fn space_thresholds(glyphs: &[Glyph], t: &Thresholds) -> SpaceThresholds {
         for pair in line.windows(2) {
             let left = &glyphs[pair[0] as usize];
             let right = &glyphs[pair[1] as usize];
+            // A pair with a space in it measures justification stretch, not word spacing, and
+            // it is exactly the pair no space will ever be inserted into. Sampling it would
+            // put the stretch into the distribution the threshold is fitted to.
+            if left.ch.is_whitespace() || right.ch.is_whitespace() {
+                continue;
+            }
             let gap = right.loose_bbox.x0 - left.loose_bbox.x1;
             if gap < 0.0 {
                 continue;

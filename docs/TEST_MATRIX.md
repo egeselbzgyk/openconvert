@@ -144,3 +144,11 @@ replaced by the phase that owns it.
 | 2.8c | `words::prose_gaps_threshold_between_the_two_modes` | `oc-text` | unit | `test` | green |
 | 2.8d | `words::a_single_gap_cannot_be_clustered` | `oc-text` | unit | `test` | green |
 | 2.8e | `words::a_flat_distribution_is_rejected_even_when_tight` | `oc-text` | unit | `test` | green |
+| 2.10 | `furniture::furniture_removes_repeating_header_f01` | `openconvert` | fixture (f01) | `test` | green |
+| 2.11 | `furniture::furniture_detects_page_numbers_by_progression` | `openconvert` | fixture (f01) | `test` | green |
+| 2.12 | `furniture::furniture_keeps_chapter_number_that_is_not_a_progression` | `openconvert` | fixture (h19) | `test` | green |
+| 2.13 | `furniture::furniture_respects_parity` | `openconvert` | fixture (h20) | `test` | green |
+| 2.14 | `furniture::furniture_never_removes_sole_page_content` | `openconvert` | fixture (h21) | `test` | green |
+| 2.10a | `furniture::digits_mask_so_page_twelve_and_page_one_hundred_match` | `oc-layout` | unit | `test` | green |
+| 2.11a | `furniture::roman_numerals_are_page_numbers_too` | `oc-layout` | unit | `test` | green |
+| 2.10b | `furniture::edit_distance_is_normalised_by_length` | `oc-layout` | unit | `test` | green |

@@ -67,3 +67,16 @@ pub struct Line {
     /// How far the line stops short of the text block's right edge.
     pub right_gap_pt: f32,
 }
+
+/// What a piece of page furniture is.
+///
+/// Three kinds, and no more, because these are the three a cross-page repetition signal can
+/// tell apart with the confidence that licenses deletion (PIPELINE §5). Watermarks and
+/// decorative glyphs are removed under their own reasons without being labelled here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FurnitureKind {
+    RunningHeader,
+    RunningFooter,
+    PageNumber,
+}

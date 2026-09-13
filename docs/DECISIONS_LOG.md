@@ -1416,3 +1416,45 @@ not reading order (Phase 1 item 1.3) and a range into it would not be contiguous
 Evidence: measured on h16/h17/h18 through PDFium `chromium/7881`; PIPELINE §4, R2 §B.3/§B.6, R10 §6.2.
 Affects: `crates/oc-text/src/{words.rs,lines.rs}`, `crates/oc-model/src/text.rs`,
 `crates/oc-testkit/src/handmade.rs`, `thresholds.toml`.
+
+## 2026-09-13 · Furniture: the "≥ 3 pages" rule, scoped requirements, and a space PDFs already wrote · Phase 2 item 2.6
+**The repeat requirement is computed inside the scope it is applied to, and capped at it.**
+PIPELINE §5 step 4 says "repetition on ≥ 3 pages or ≥ 20 % of pages, whichever is larger". Read
+globally that rule cannot fire on `f01`, which has two pages and whose running header test 2.10 and
+acceptance A2.2 both require to be removed; and it defeats the sliding window it sits next to, since a
+chapter head on 20 pages of a 300-page book fails a global 20 % bar (60 pages) however perfectly it
+repeats inside its chapter. So the ratio *and* the requirement are both computed per scope — global,
+odd, even, or the best window of `layout.furniture.window_pages` — as
+`max(3, ceil(0.20 × scope)) capped at the scope, floored at 2`. On `f01` the scope is two pages and the
+bar is two; on a 20-page window the bar is four; on a 300-page global scope it is still sixty. The
+floor of two is the real safety rule and is stated separately as `MIN_PAGES_FOR_EVIDENCE`: a one-page
+document gets no furniture detection at all, because "this line appears on every page" is a true
+statement about one page and it means nothing.
+
+**An all-numeric band line that fails the progression test is kept, and not reconsidered.**
+A constant `3` in the footer band of four pages repeats perfectly and would satisfy every running-foot
+rule there is. The arithmetic-progression test is the whole of what separates a page number from a
+chapter number (PIPELINE §5 step 6), so failing it ends the matter rather than falling through to
+`RunningFooter`. Test 2.12 is exactly this case.
+
+**Justified text already has its spaces, and inventing more gives `It  was  a  dark`.**
+Found by test 2.10 on `f01`, not reasoned about in advance. Typst justifies by stretching the space
+with `TJ` offsets, so the advance gap *after* a real space glyph is as wide as any inferred space. Two
+changes in `oc-text::words`: a space is only invented between two glyphs that are both non-space, and
+gap pairs involving a space are excluded from the distribution the 2-means is fitted to — that gap
+measures justification stretch, not word spacing, and it is the one gap no space will ever be
+inserted into.
+
+**`detect_furniture` takes the document language.** The plan's signature does not. Folding the band
+key is the one place casing happens and Turkish pairs its dotted and dotless i its own way (R10 §6.3);
+a Turkish running head folded under invariant rules stops matching itself on the next page.
+
+Fixtures h19 (a constant band number), h20 (recto/verso heads plus a one-off) and h21 (a page whose
+only line is its running head) are new, and `oc-testkit` grew a `build_pages` helper — cross-page
+detection needs several pages and `build` writes one, with six optional features in a fixed object
+layout that threading a page count through would complicate for the fourteen fixtures that want one.
+
+Evidence: measured on f01, h19, h20 and h21 through PDFium `chromium/7881`; PIPELINE §5, R2 §B.4,
+R10 §6.6, R1 §C.2 #7.
+Affects: `crates/oc-layout/src/furniture.rs`, `crates/oc-text/src/words.rs`,
+`crates/oc-testkit/src/handmade.rs`, `crates/oc-model/src/text.rs`, `thresholds.toml`.

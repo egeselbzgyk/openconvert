@@ -75,6 +75,9 @@ pub fn all() -> Vec<(&'static str, Vec<u8>)> {
         ("h16_superscript_marker", h16_superscript_marker()),
         ("h17_letterspaced", h17_letterspaced()),
         ("h18_mixed_sizes", h18_mixed_sizes()),
+        ("h19_constant_band_number", h19_constant_band_number()),
+        ("h20_recto_verso", h20_recto_verso()),
+        ("h21_band_is_sole_content", h21_band_is_sole_content()),
     ]
 }
 
@@ -233,6 +236,96 @@ pub fn h18_mixed_sizes() -> Vec<u8> {
                 SUPERSCRIPT_SIZE_PT,
             ),
     )
+}
+
+/// Where a running head sits on the 200 x 800 pt fixture page, in PDF user space.
+///
+/// `layout.furniture.band_ratio` is 0.08, so the bands are the outer 64 pt. A head at PDF
+/// y = 760 lands 40 pt from the top and a foot at y = 30 lands 770 pt down, both comfortably
+/// inside — comfortably, and not on the boundary, because a fixture that only passes at the
+/// exact threshold tests the threshold rather than the rule.
+pub const BAND_HEADER_Y: f32 = 760.0;
+pub const BAND_FOOTER_Y: f32 = 30.0;
+/// Where the fixtures put body text: the middle of the page, far from either band.
+pub const BAND_BODY_Y: f32 = 400.0;
+/// Running heads and page numbers are set smaller than body text, as they are in books.
+pub const FURNITURE_SIZE_PT: f32 = 8.0;
+
+/// The constant number h19 prints in the footer band of every page.
+pub const CONSTANT_BAND_NUMBER: &str = "3";
+
+/// h19 - four pages whose footer band carries the same number, `3`, on every one.
+///
+/// It repeats perfectly, it is entirely numeric, and it is **not** a page number: the values
+/// form no arithmetic progression. That test is the cheap, reliable thing that separates a
+/// page number from a chapter number (PIPELINE §5 step 6), and without it a chapter number is
+/// deleted from every page of the chapter (test 2.12).
+pub fn h19_constant_band_number() -> Vec<u8> {
+    let pages: Vec<Page> = (0..4)
+        .map(|index| {
+            Page::default()
+                .text_at(
+                    (20.0, BAND_FOOTER_Y),
+                    CONSTANT_BAND_NUMBER,
+                    FURNITURE_SIZE_PT,
+                )
+                .text((20.0, BAND_BODY_Y), &format!("Body text page {index}"))
+        })
+        .collect();
+    build_pages(pages)
+}
+
+/// The two running heads h20 alternates between, verso and recto, plus the one-off.
+pub const VERSO_HEAD: &str = "The Book";
+pub const RECTO_HEAD: &str = "Chapter One";
+pub const ONE_OFF_HEAD: &str = "Errata";
+
+/// h20 - six pages that alternate their running head by parity, plus one band line that
+/// appears once.
+///
+/// Books put the book's title on one side and the chapter's on the other. A parity-blind
+/// detector sees two patterns at half strength - 3 pages out of 6, a ratio of 0.5, which is
+/// inside the grey zone where the rule abstains - and keeps both. Split by parity each is
+/// 3 out of 3 and fires. The one-off has to survive either way (test 2.13).
+pub fn h20_recto_verso() -> Vec<u8> {
+    let pages: Vec<Page> = (0..6)
+        .map(|index| {
+            let head = if index % 2 == 0 {
+                VERSO_HEAD
+            } else {
+                RECTO_HEAD
+            };
+            let page = Page::default()
+                .text_at((20.0, BAND_HEADER_Y), head, FURNITURE_SIZE_PT)
+                .text((20.0, BAND_BODY_Y), &format!("Body text page {index}"));
+            if index == 3 {
+                page.text_at((20.0, BAND_FOOTER_Y), ONE_OFF_HEAD, FURNITURE_SIZE_PT)
+            } else {
+                page
+            }
+        })
+        .collect();
+    build_pages(pages)
+}
+
+/// h21 - four pages sharing a running head, the last of which has nothing else on it.
+///
+/// Calibre's blunt rule deletes by position and eats the only line on an atypical page; Marker
+/// deletes body text outright in the same class of bug (R1 §C.2 #7, §C.3). The head goes from
+/// the three pages that have a body and stays on the page that does not (test 2.14).
+pub fn h21_band_is_sole_content() -> Vec<u8> {
+    let pages: Vec<Page> = (0..4)
+        .map(|index| {
+            let page =
+                Page::default().text_at((20.0, BAND_HEADER_Y), VERSO_HEAD, FURNITURE_SIZE_PT);
+            if index < 3 {
+                page.text((20.0, BAND_BODY_Y), &format!("Body text page {index}"))
+            } else {
+                page
+            }
+        })
+        .collect();
+    build_pages(pages)
 }
 
 /// The characters test 1.7 draws along one baseline, in the order they read.
@@ -545,6 +638,67 @@ impl Page {
         self.image_smask = true;
         self
     }
+}
+
+/// A text-only document of several pages: one shared font, no images, no outline.
+///
+/// Separate from [`build`] rather than a generalisation of it because `build` writes one page
+/// and six optional features into a fixed object layout, and threading a page count through it
+/// would complicate the fourteen fixtures that need exactly one page in order to serve the
+/// three that need several. Cross-page furniture detection needs nothing but text on pages.
+fn build_pages(pages: Vec<Page>) -> Vec<u8> {
+    let catalog = Ref::new(1);
+    let tree = Ref::new(2);
+    let font_id = Ref::new(3);
+    // Then a page object and a content object for each page, interleaved.
+    let first_page = 4;
+
+    let ids: Vec<(Ref, Ref)> = (0..pages.len())
+        .map(|index| {
+            let base = first_page + 2 * i32::try_from(index).unwrap_or(i32::MAX);
+            (Ref::new(base), Ref::new(base + 1))
+        })
+        .collect();
+
+    let mut pdf = Pdf::new();
+    pdf.set_file_id((
+        b"openconvert-fixture".to_vec(),
+        b"openconvert-fixture".to_vec(),
+    ));
+    pdf.catalog(catalog).pages(tree);
+    pdf.pages(tree)
+        .kids(ids.iter().map(|(page, _)| *page))
+        .count(i32::try_from(pages.len()).unwrap_or(i32::MAX));
+
+    for (page, (page_id, content_id)) in pages.iter().zip(&ids) {
+        let mut content = Content::new();
+        for run in &page.runs {
+            content.begin_text();
+            if let Some(spacing) = page.char_spacing {
+                content.set_char_spacing(spacing);
+            }
+            content.set_font(Name(b"F1"), run.size_pt);
+            content.next_line(run.origin.0, run.origin.1);
+            content.show(Str(&to_winansi(&run.text)));
+            content.end_text();
+        }
+        {
+            let mut written = pdf.page(*page_id);
+            written
+                .parent(tree)
+                .media_box(Rect::new(PAGE[0], PAGE[1], PAGE[2], PAGE[3]))
+                .contents(*content_id);
+            written.resources().fonts().pair(Name(b"F1"), font_id);
+            written.finish();
+        }
+        pdf.stream(*content_id, &content.finish());
+    }
+
+    pdf.type1_font(font_id)
+        .base_font(Name(BASE_FONT.as_bytes()))
+        .encoding_predefined(Name(b"WinAnsiEncoding"));
+
+    pdf.finish()
 }
 
 fn build(page: Page) -> Vec<u8> {

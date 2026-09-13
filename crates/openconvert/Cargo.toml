@@ -15,6 +15,7 @@ path = "src/main.rs"
 [dependencies]
 oc-core = { path = "../oc-core", version = "0.1.0" }
 oc-model = { path = "../oc-model", version = "0.1.0" }
+oc-layout = { path = "../oc-layout", version = "0.1.0" }
 oc-pdf = { path = "../oc-pdf", version = "0.1.0" }
 oc-text = { path = "../oc-text", version = "0.1.0" }
 oc-net = { path = "../oc-net", version = "0.1.0" }

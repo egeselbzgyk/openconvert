@@ -259,6 +259,41 @@ evidence = "R10 §4.4 row 6: grey zone 0.3-0.7; fire above the grey zone"
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[layout.furniture.repetition_ratio_grey_min]
+value = 0.30
+source = "provisional"
+evidence = "R10 §4.4 row 6: the grey zone is [0.30, 0.70). Below this a band line is not repeating; inside it the detector abstains, marks the verdict uncertain and keeps the line"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.furniture.min_repeat_page_share]
+value = 0.20
+source = "published"
+evidence = "R2 §B.4 step 4 / PIPELINE §5 step 4: repetition on >= 3 pages or >= 20% of the pages in scope, whichever is larger"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[layout.furniture.ned_max]
+value = 0.15
+source = "provisional"
+evidence = "R2 §B.4 step 3 / PIPELINE §5 step 3: two band lines match at a normalised edit distance of 0.15 or less, after digit masking and folding"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.furniture.body_size_tolerance_ratio]
+value = 0.05
+source = "provisional"
+evidence = "PIPELINE §5 step 9 safety rule 2 needs to know whether a band line is set in body type. Within 5% of the document's modal size is the same type; a running head is set at 0.65-0.85x body, well outside it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.furniture.y_cluster_ratio]
+value = 0.50
+source = "published"
+evidence = "R2 §B.4 step 2 / PIPELINE §5 step 2: cluster candidate band lines by y within 0.5 x body line height, so the same string printed at two different heights is two candidates"
+owner = "maintainer"
+review_by = "2028-01-01"
+
 [layout.furniture.window_pages]
 value = 20
 source = "provisional"

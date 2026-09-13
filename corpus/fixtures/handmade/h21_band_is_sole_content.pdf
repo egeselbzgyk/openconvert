@@ -1,0 +1,173 @@
+%PDF-1.7
+%€€€€
+
+1 0 obj
+<<
+  /Type /Catalog
+  /Pages 2 0 R
+>>
+endobj
+
+2 0 obj
+<<
+  /Type /Pages
+  /Kids [4 0 R 6 0 R 8 0 R 10 0 R]
+  /Count 4
+>>
+endobj
+
+4 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 200 800]
+  /Contents 5 0 R
+  /Resources <<
+    /Font <<
+      /F1 3 0 R
+    >>
+  >>
+>>
+endobj
+
+5 0 obj
+<<
+  /Length 86
+>>
+stream
+BT
+/F1 8 Tf
+20 760 Td
+(The Book) Tj
+ET
+BT
+/F1 12 Tf
+20 400 Td
+(Body text page 0) Tj
+ET
+endstream
+endobj
+
+6 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 200 800]
+  /Contents 7 0 R
+  /Resources <<
+    /Font <<
+      /F1 3 0 R
+    >>
+  >>
+>>
+endobj
+
+7 0 obj
+<<
+  /Length 86
+>>
+stream
+BT
+/F1 8 Tf
+20 760 Td
+(The Book) Tj
+ET
+BT
+/F1 12 Tf
+20 400 Td
+(Body text page 1) Tj
+ET
+endstream
+endobj
+
+8 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 200 800]
+  /Contents 9 0 R
+  /Resources <<
+    /Font <<
+      /F1 3 0 R
+    >>
+  >>
+>>
+endobj
+
+9 0 obj
+<<
+  /Length 86
+>>
+stream
+BT
+/F1 8 Tf
+20 760 Td
+(The Book) Tj
+ET
+BT
+/F1 12 Tf
+20 400 Td
+(Body text page 2) Tj
+ET
+endstream
+endobj
+
+10 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 200 800]
+  /Contents 11 0 R
+  /Resources <<
+    /Font <<
+      /F1 3 0 R
+    >>
+  >>
+>>
+endobj
+
+11 0 obj
+<<
+  /Length 38
+>>
+stream
+BT
+/F1 8 Tf
+20 760 Td
+(The Book) Tj
+ET
+endstream
+endobj
+
+3 0 obj
+<<
+  /Type /Font
+  /Subtype /Type1
+  /BaseFont /Helvetica
+  /Encoding /WinAnsiEncoding
+>>
+endobj
+
+xref
+0 12
+0000000000 65535 f
+0000000016 00000 n
+0000000070 00000 n
+0000001276 00000 n
+0000000153 00000 n
+0000000306 00000 n
+0000000445 00000 n
+0000000598 00000 n
+0000000737 00000 n
+0000000890 00000 n
+0000001029 00000 n
+0000001184 00000 n
+trailer
+<<
+  /Size 12
+  /Root 1 0 R
+  /ID [(openconvert-fixture) (openconvert-fixture)]
+>>
+startxref
+1382
+%%EOF
