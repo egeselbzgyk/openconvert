@@ -4,6 +4,8 @@ Every test added by the project, the crate it lives in, and the CI job that runs
 Required by the Phase 0 First Milestone (item 6) and by the Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3 item 7).
 
 A row numbered `N.Na` is an addition to the plan's table, with its reason in `docs/DECISIONS_LOG.md`.
+Rows 3.18 and 3.19 are whole steps of PIPELINE §6 (image anchoring, drop caps) that the plan's Phase 3
+table does not name a test for; they are numbered past the table rather than squeezed into it.
 
 `Status`: `written` = the test exists and is RED · `green` = it exists and passes · `—` = not yet written.
 A test is never `#[ignore]`d; a test that cannot run everywhere is gated behind a cargo feature and the
@@ -279,5 +281,18 @@ indicative (PROGRESS.md).
 | 3.12d | `classifier::the_feature_set_matches_the_trainer` | `oc-text` | unit | `test` | green |
 | 3.12e | `classifier::a_low_margin_is_undecided_and_therefore_keeps` | `oc-text` | unit | `test` | green |
 | 3.10g | `dehyphen::an_unattested_pair_the_model_is_sure_about_is_decided` | `oc-text` | unit | `test` | green |
+| 3.14 | `layout_metamorphic::prop_page_permutation_metamorphic` | `openconvert` | metamorphic | `test` | green |
+| 3.15 | `dump_layout::dump_stage_layout_snapshot_f02` | `openconvert` | snapshot | `test` | green |
+| 3.15a | `dump_layout::dump_stage_layout_header_f02` | `openconvert` | snapshot | `test` | green |
+| 3.16 | `dump_layout::digest_f01_layout` | `openconvert` | digest snapshot | `test` | green |
+| 3.16a | `dump_layout::digest_h22_layout` | `openconvert` | digest snapshot | `test` | green |
+| 3.18 | `layout::an_image_only_page_keeps_its_image_in_the_flow` | `openconvert` | fixture (f03) | `test` | green |
+| 3.18a | `anchor::an_image_is_anchored_before_the_block_below_it` | `oc-layout` | unit | `test` | green |
+| 3.18b | `anchor::an_image_below_everything_goes_last` | `oc-layout` | unit | `test` | green |
+| 3.18c | `anchor::an_image_on_a_page_with_no_text_is_still_anchored` | `oc-layout` | unit | `test` | green |
+| 3.18d | `anchor::two_images_at_one_anchor_keep_their_order` | `oc-layout` | unit | `test` | green |
+| 3.19 | `anchor::a_large_single_glyph_beside_text_is_a_drop_cap` | `oc-layout` | unit | `test` | green |
+| 3.19a | `anchor::a_lone_large_glyph_is_not_a_drop_cap` | `oc-layout` | unit | `test` | green |
+| 3.19b | `anchor::a_body_sized_single_glyph_is_not_a_drop_cap` | `oc-layout` | unit | `test` | green |
 | 3.13 | `layout::layout_stage_is_conserving` | `openconvert` | fixture (f01) | `test` | green |
 | 3.13a | `layout::layout_stage_conservation_violation_errors` | `openconvert` | unit | `test` | green |

@@ -262,11 +262,14 @@ fn dump_stage_ingest_streams_one_object_per_line() {
 }
 
 /// A stage that cannot be dumped yet says so, and says it as a usage error.
+///
+/// `structure` is the next stage to arrive (Phase 4); `ingest`, `text` and `layout` are
+/// implemented, and this test moves to whichever stage is next each time one lands.
 #[test]
 fn dump_stage_rejects_an_unimplemented_stage() {
     let output = Command::new(binary())
         .arg("dump-stage")
-        .arg("layout")
+        .arg("structure")
         .arg(
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("../../corpus/fixtures/handmade/h01_two_glyphs.pdf"),

@@ -21,7 +21,18 @@
 //! boxes and no noise, so the absolute numbers should be far better while the ordering holds.
 //!
 //! The cross-check is free and it localises: it says *which* blocks to distrust, which is
-//! what a report can act on, rather than scoring the page as a whole.
+//! what a report can act on, rather than scoring the page as a whole. It is also, by design,
+//! a flag and not a decision: Docstrum's answer stands either way.
+//!
+//! **Where the cover over-separates, and why that is the safe direction.** A line box is an
+//! *inked* box, so a line with no ascenders — `pages.` — is shorter than its neighbours and
+//! the white band above it is correspondingly taller. On `f02` that band comes to 5.2 pt
+//! against a 4.5 pt separator floor, and the cover cuts a paragraph's last line off from the
+//! three above it where Docstrum, which measures baseline to baseline, does not. The block is
+//! flagged and stays whole. Fixing it properly means giving every line the slug it was set in
+//! rather than the ink it happens to carry, which needs an ascent and a descent this stage
+//! does not have; over-flagging a confidence signal costs a line in a report, and
+//! under-flagging costs a reader a scrambled page.
 //!
 //! Geometry note (`docs/DECISIONS_LOG.md`, 2026-09-13): a non-embedded base-14 font makes
 //! inked glyph boxes host-dependent. Everything here reads line boxes, whose horizontal
@@ -38,6 +49,8 @@ use oc_model::ids::BlockId;
 use oc_model::layout::{Block, BlockKindHint};
 use oc_model::text::{Line, RunId};
 
+use crate::columns::ColumnLayout;
+
 /// The stage the blocks this module mints belong to.
 pub const STAGE: &str = "layout";
 
@@ -48,7 +61,7 @@ pub const STAGE: &str = "layout";
 /// before emitting anything. This is the belt to that braces: a hard step budget, so one
 /// page cannot spend the whole conversion. It is not a tuning parameter, and hitting it
 /// costs cross-check coverage only, never the primary segmenter's correctness.
-const MAX_COVER_STEPS: usize = 20_000;
+const MAX_COVER_STEPS: usize = 400_000;
 
 /// The smallest rectangle worth emitting, in square points.
 ///
@@ -174,7 +187,11 @@ impl SegmentationAgreement {
 ///
 /// `column` and `reading_index` are filled in provisionally — one column, top to bottom —
 /// because `columns` and `reading_order` own them and run next (PIPELINE §6 steps 2 and 3).
-pub fn segment_blocks(page: &LayoutPage, t: &Thresholds) -> (Vec<Block>, SegmentationAgreement) {
+pub fn segment_blocks(
+    page: &LayoutPage,
+    columns: &ColumnLayout,
+    t: &Thresholds,
+) -> (Vec<Block>, SegmentationAgreement) {
     if page.lines.is_empty() {
         return (
             Vec::new(),
@@ -188,11 +205,11 @@ pub fn segment_blocks(page: &LayoutPage, t: &Thresholds) -> (Vec<Block>, Segment
 
     let boxes: Vec<Rect> = page.lines.iter().map(LayoutLine::bbox).collect();
     let primary = order_groups(&boxes, docstrum_groups(&boxes, t));
-    let whitespace = white_rectangles(page, &boxes, t);
+    let whitespace = white_rectangles(page, &boxes, columns, t);
     let min_separator = median_line_height(&boxes) * t.layout.block.separator_height_ratio as f32;
     let secondary = order_groups(
         &boxes,
-        whitespace_groups(&boxes, &whitespace, min_separator),
+        whitespace_groups(&boxes, &whitespace, min_separator, columns),
     );
 
     let secondary_boxes: Vec<Rect> = secondary.iter().map(|g| union_of(&boxes, g)).collect();
@@ -458,13 +475,48 @@ impl PartialOrd for Candidate {
 /// that pokes into a candidate by less than that fraction of its own size does not block it.
 /// Without the tolerance a descender that overshoots its line box by a hair splits every
 /// white band on the page in two.
-fn white_rectangles(page: &LayoutPage, boxes: &[Rect], t: &Thresholds) -> Vec<Rect> {
+///
+/// **One search per column**, not one per page, and the difference is not an optimisation. The
+/// budget is `layout.whitespace.max_rectangles` — forty, PdfPig's number — and on a
+/// two-column page the biggest forty rectangles of the *page* are the gutter, the ragged
+/// right edges and the empty foot of the shorter column. The bands between paragraphs, which
+/// are the only rectangles that separate anything, never get emitted, and the cover then
+/// disagrees with Docstrum about every block on the page. Measured on `f02`: ten of fifteen
+/// blocks flagged, best IoU 0.01. Searching each column with its own budget finds the bands,
+/// and the flags go to zero.
+fn white_rectangles(
+    page: &LayoutPage,
+    boxes: &[Rect],
+    columns: &ColumnLayout,
+    t: &Thresholds,
+) -> Vec<Rect> {
     let max_rectangles = usize::try_from(t.layout.whitespace.max_rectangles.max(0)).unwrap_or(0);
     let fuzziness = t.layout.whitespace.fuzziness as f32;
     if max_rectangles == 0 || boxes.is_empty() {
         return Vec::new();
     }
+    if columns.count() > 1 {
+        return columns
+            .columns
+            .iter()
+            .flat_map(|(x0, x1)| {
+                let inside: Vec<Rect> = boxes
+                    .iter()
+                    .copied()
+                    .filter(|b| (b.x1.min(*x1) - b.x0.max(*x0)).max(0.0) > 0.0)
+                    .collect();
+                cover(page, &inside, max_rectangles, fuzziness)
+            })
+            .collect();
+    }
+    cover(page, boxes, max_rectangles, fuzziness)
+}
 
+/// The branch and bound itself, over one region's obstacles.
+fn cover(page: &LayoutPage, boxes: &[Rect], max_rectangles: usize, fuzziness: f32) -> Vec<Rect> {
+    if boxes.is_empty() {
+        return Vec::new();
+    }
     let area = text_area(page, boxes);
     let mut queue: BinaryHeap<Candidate> = BinaryHeap::new();
     queue.push(Candidate {
@@ -488,7 +540,21 @@ fn white_rectangles(page: &LayoutPage, boxes: &[Rect], t: &Thresholds) -> Vec<Re
             break;
         }
         let Some(pivot) = pivot_of(&candidate) else {
-            found.push(candidate.bound);
+            // Maximal, but only a *separator* if it reaches both sides of the region: a band
+            // across the column, or a gutter down it. The white wedge left by a paragraph's
+            // short last line is maximal too, and much larger than any band; without this
+            // test it and its cousins spend the whole forty-rectangle budget and the bands
+            // that actually separate paragraphs are never emitted. Measured on `f02`: ten of
+            // fifteen blocks flagged before, three after, zero once both fixes are in.
+            // Grown to maximality first. The branch and bound narrows a candidate at every
+            // pivot, so an empty rectangle it pops is empty within its branch and not
+            // necessarily maximal in the region — and a band that was narrowed to one
+            // column's width would fail the span test that follows for a reason that has
+            // nothing to do with what it separates.
+            let grown = expand(candidate.bound, boxes, area);
+            if spans_region(grown, area) && !found.contains(&grown) {
+                found.push(grown);
+            }
             continue;
         };
         for bound in split_around(candidate.bound, pivot) {
@@ -502,6 +568,46 @@ fn white_rectangles(page: &LayoutPage, boxes: &[Rect], t: &Thresholds) -> Vec<Re
         }
     }
     found
+}
+
+/// Grow an empty rectangle until it touches an obstacle or the edge of the region on every
+/// side — the maximal white rectangle containing it.
+fn expand(rect: Rect, obstacles: &[Rect], area: Rect) -> Rect {
+    let mut grown = rect;
+    // Horizontally first, against everything that shares its rows; then vertically, against
+    // everything that shares the columns it has just claimed. The order matters only in that
+    // it is fixed: two orders give two different maximal rectangles, and a cover that
+    // depended on which was chosen would not be reproducible.
+    grown.x0 = obstacles
+        .iter()
+        .filter(|b| b.x1 <= rect.x0 && b.y1 > rect.y0 && b.y0 < rect.y1)
+        .map(|b| b.x1)
+        .fold(area.x0, f32::max);
+    grown.x1 = obstacles
+        .iter()
+        .filter(|b| b.x0 >= rect.x1 && b.y1 > rect.y0 && b.y0 < rect.y1)
+        .map(|b| b.x0)
+        .fold(area.x1, f32::min);
+    grown.y0 = obstacles
+        .iter()
+        .filter(|b| b.y1 <= rect.y0 && b.x1 > grown.x0 && b.x0 < grown.x1)
+        .map(|b| b.y1)
+        .fold(area.y0, f32::max);
+    grown.y1 = obstacles
+        .iter()
+        .filter(|b| b.y0 >= rect.y1 && b.x1 > grown.x0 && b.x0 < grown.x1)
+        .map(|b| b.y0)
+        .fold(area.y1, f32::min);
+    grown
+}
+
+/// Whether a rectangle reaches both edges of the region on one axis — the difference between
+/// a separator and a gap.
+fn spans_region(rect: Rect, area: Rect) -> bool {
+    const EPSILON_PT: f32 = 0.01;
+    let horizontal = rect.x0 <= area.x0 + EPSILON_PT && rect.x1 >= area.x1 - EPSILON_PT;
+    let vertical = rect.y0 <= area.y0 + EPSILON_PT && rect.y1 >= area.y1 - EPSILON_PT;
+    horizontal || vertical
 }
 
 /// The area the cover searches: the page's text, not the page. A page's margins are by far
@@ -602,10 +708,23 @@ fn split_around(bound: Rect, pivot: Rect) -> Vec<Rect> {
 
 /// Group line indices by the whitespace cover: two lines are together unless a white
 /// rectangle of separating thickness lies between them and spans the extent they share.
-fn whitespace_groups(boxes: &[Rect], white: &[Rect], min_separator: f32) -> Vec<Vec<usize>> {
+fn whitespace_groups(
+    boxes: &[Rect],
+    white: &[Rect],
+    min_separator: f32,
+    columns: &ColumnLayout,
+) -> Vec<Vec<usize>> {
     let mut union = UnionFind::new(boxes.len());
     for a in 0..boxes.len() {
         for b in (a + 1)..boxes.len() {
+            // Two lines in different columns are separated by the gutter, which is a
+            // separator the *page* found rather than one this region's cover has to rediscover
+            // — and it could not rediscover it anyway, because each column is searched on its
+            // own. Without this the cover joins the two columns of `f02` into one group and
+            // disagrees with Docstrum about every block they share a height with.
+            if columns.column_of(boxes[a]) != columns.column_of(boxes[b]) {
+                continue;
+            }
             if horizontal_overlap(boxes[a], boxes[b]) <= 0.0
                 && vertical_overlap(boxes[a], boxes[b]) <= 0.0
             {
@@ -810,7 +929,8 @@ mod tests {
             line_at(50.0, 60.0, 300.0, "the second paragraph opens"),
             line_at(50.0, 72.0, 300.0, "and ends here too."),
         ];
-        let (blocks, agreement) = segment_blocks(&page(lines), &T);
+        let (blocks, agreement) =
+            segment_blocks(&page(lines), &ColumnLayout::single(0.0, 600.0), &T);
 
         assert_eq!(blocks.len(), 2, "one block per paragraph");
         assert_eq!(blocks[0].lines.len(), 3);
@@ -833,7 +953,7 @@ mod tests {
             lines.push(line_at(50.0, y, 250.0, "left column line"));
             lines.push(line_at(320.0, y, 520.0, "right column line"));
         }
-        let (blocks, _) = segment_blocks(&page(lines), &T);
+        let (blocks, _) = segment_blocks(&page(lines), &ColumnLayout::single(0.0, 600.0), &T);
 
         assert_eq!(blocks.len(), 2, "one block per column");
         for block in &blocks {
@@ -848,8 +968,11 @@ mod tests {
     /// The degenerate page: one line, no spacing statistics to be had, one block.
     #[test]
     fn a_single_line_page_is_one_block() {
-        let (blocks, agreement) =
-            segment_blocks(&page(vec![line_at(50.0, 0.0, 300.0, "alone")]), &T);
+        let (blocks, agreement) = segment_blocks(
+            &page(vec![line_at(50.0, 0.0, 300.0, "alone")]),
+            &ColumnLayout::single(0.0, 600.0),
+            &T,
+        );
         assert_eq!(blocks.len(), 1);
         assert_eq!(agreement.low_confidence_count(), 0);
     }
@@ -870,7 +993,8 @@ mod tests {
             line_at(50.0, 27.4, 300.0, "third"),
             line_at(50.0, 39.4, 300.0, "fourth"),
         ];
-        let (blocks, agreement) = segment_blocks(&page(lines), &T);
+        let (blocks, agreement) =
+            segment_blocks(&page(lines), &ColumnLayout::single(0.0, 600.0), &T);
 
         assert_eq!(blocks.len(), 1, "Docstrum merges across the 15.4 pt gap");
         assert!(
@@ -889,7 +1013,7 @@ mod tests {
             line_at(50.0, 60.0, 300.0, "same text"),
             line_at(50.0, 72.0, 300.0, "same text"),
         ];
-        let (blocks, _) = segment_blocks(&page(lines), &T);
+        let (blocks, _) = segment_blocks(&page(lines), &ColumnLayout::single(0.0, 600.0), &T);
         assert_eq!(blocks.len(), 2);
         assert_ne!(
             blocks[0].id, blocks[1].id,

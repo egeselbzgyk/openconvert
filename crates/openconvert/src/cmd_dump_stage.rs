@@ -39,14 +39,18 @@ pub fn run<W: Write>(
     let cancel = Cancel::new();
     crate::control::listen(cancel.clone());
 
-    if args.stage != oc_pdf::dump::STAGE && args.stage != openconvert::dump_text::STAGE {
+    let known = [
+        oc_pdf::dump::STAGE,
+        openconvert::dump_text::STAGE,
+        openconvert::dump_layout::STAGE,
+    ];
+    if !known.contains(&args.stage.as_str()) {
         events.fatal(
             E_STAGE,
             &format!(
-                "`{}` cannot be dumped yet; `{}` and `{}` are implemented",
+                "`{}` cannot be dumped yet; {} are implemented",
                 args.stage,
-                oc_pdf::dump::STAGE,
-                openconvert::dump_text::STAGE
+                known.join(", ")
             ),
         );
         return ExitCode::Usage;
@@ -102,6 +106,8 @@ pub fn run<W: Write>(
 
     let written = if args.stage == openconvert::dump_text::STAGE {
         write_text_dump(document.as_ref(), stdout, &cancel)
+    } else if args.stage == openconvert::dump_layout::STAGE {
+        write_layout_dump(document.as_ref(), stdout, &cancel)
     } else {
         write_dump(
             document.as_ref(),
@@ -184,6 +190,7 @@ fn write_text_dump(
             width_pt: geometry.width_pt(),
             height_pt: geometry.height_pt(),
             glyphs: glyphs.glyphs,
+            images: document.page_images(index).unwrap_or_default(),
         });
     }
     if cancel.is_cancelled() {
@@ -199,6 +206,63 @@ fn write_text_dump(
         write_line(stdout, page)?;
     }
     Ok(Outcome::Completed)
+}
+
+/// Stream the `layout` stage's dump.
+///
+/// Like `text` it runs to completion first, and for a stronger reason: the column hypothesis
+/// is checked *across* pages and may be withdrawn document-wide, so page one's answer is not
+/// final until page five has been read (PIPELINE §6 step 4).
+fn write_layout_dump(
+    document: &dyn oc_pdf::inspect::PdfDoc,
+    stdout: &mut dyn Write,
+    cancel: &Cancel,
+) -> Result<Outcome, String> {
+    let Some(input) = read_pages(document, cancel)? else {
+        return Ok(Outcome::Cancelled);
+    };
+    let (header, pages) = openconvert::dump_layout::dump(
+        &input,
+        oc_model::lang::LangTag::EN,
+        &oc_core::thresholds::T,
+    )
+    .map_err(|error| error.to_string())?;
+
+    write_line(stdout, &header)?;
+    for page in &pages {
+        write_line(stdout, page)?;
+    }
+    Ok(Outcome::Completed)
+}
+
+/// Read every page into the shape the post-`ingest` stages take, or `None` if cancelled.
+fn read_pages(
+    document: &dyn oc_pdf::inspect::PdfDoc,
+    cancel: &Cancel,
+) -> Result<Option<Vec<openconvert::pipeline::PageInput>>, String> {
+    let mut input = Vec::new();
+    for index in 0..document.page_count() {
+        if cancel.is_cancelled() {
+            return Ok(None);
+        }
+        let glyphs = document
+            .page_glyphs(index)
+            .map_err(|error| error.to_string())?;
+        let geometry = document
+            .page_geometry(index)
+            .map_err(|error| error.to_string())?;
+        input.push(openconvert::pipeline::PageInput {
+            page: oc_model::extract::PageRef::new(index),
+            width_pt: geometry.width_pt(),
+            height_pt: geometry.height_pt(),
+            glyphs: glyphs.glyphs,
+            images: document.page_images(index).unwrap_or_default(),
+        });
+    }
+    if cancel.is_cancelled() {
+        return Ok(None);
+    }
+    Ok(Some(input))
 }
 
 fn write_line<T: serde::Serialize>(stdout: &mut dyn Write, value: &T) -> Result<(), String> {

@@ -2,6 +2,7 @@
 //! Furniture detection, block segmentation, column detection, reading order,
 //! paragraph reconstruction and image anchoring.
 
+pub mod anchor;
 pub mod blocks;
 pub mod columns;
 pub mod continuity;

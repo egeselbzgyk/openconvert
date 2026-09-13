@@ -2021,3 +2021,37 @@ record of the gap.
 Affects: `eval/src/oc_eval/train/hyphen_clf.py`, `crates/oc-text/src/dehyphen/classifier.rs`,
 `crates/oc-text/src/dehyphen/model.bin` + `model.sources.json`, `eval/data/hyphen_holdout.jsonl`,
 `thresholds.toml` (`dehyphen.classifier_margin_min`), tests 3.10 and 3.12, Phase 7 corpus.
+
+## 2026-09-13 · The whitespace cover searches one column at a time · Phase 3
+Context: the layout dump made the cross-check visible for the first time, and on `f02` it flagged ten of
+fifteen blocks — on a fixture whose segmentation is plainly right. A cross-check that fires on a clean
+page teaches everyone to ignore it, so it was worth finding out why before blessing a snapshot of it.
+
+Three faults, each found by the one before it:
+
+1. **The rectangle budget was being spent on the wrong page.** `layout.whitespace.max_rectangles` is 40,
+   PdfPig's number — measured for finding *column separators* over a whole page. Used for block
+   segmentation, the biggest forty rectangles of a two-column page are the gutter, the ragged right
+   edges and the empty foot of the shorter column; the bands between paragraphs, the only rectangles
+   that separate anything, were never emitted. **The cover now runs once per column**, with its own
+   budget and only that column's obstacles. Ten flags fell to three.
+2. **A rectangle that separates nothing was still being emitted.** The white wedge left by a paragraph's
+   short last line is maximal and large, and it reaches neither pair of the region's opposite edges. A
+   separator does: a band crosses the column, a gutter runs down it. Emission is now filtered on that,
+   and because the branch and bound narrows a candidate at every pivot, each result is **grown to
+   maximality** before the test — a band found inside one branch had been narrowed to that branch's
+   width and would have failed a test it deserved to pass.
+3. **The two columns were being joined by the grouping, not by the cover.** Two lines at the same height
+   in different columns overlap vertically, and neither column's cover contains a rectangle spanning the
+   gutter — it cannot, since each searches its own column. They are now separated by the *page's* column
+   hypothesis, which is where that fact lives.
+
+**What is left, and why it stays.** One block of `f02` is still flagged: the cover cuts `pages.` off from
+the three lines above it. A line box is an *inked* box, so a line with no ascenders is shorter than its
+neighbours and the band above it is 5.2 pt against a 4.5 pt floor, where Docstrum — measuring baseline to
+baseline — sees nothing unusual. Fixing it properly means giving each line the slug it was set in rather
+than the ink it carries, which needs an ascent and a descent this stage does not have. It is left as it
+is because the direction is right: over-flagging a confidence signal costs a line in a report, and the
+flag changes no segmentation — Docstrum's answer stands either way.
+
+Affects: `crates/oc-layout/src/blocks.rs`, tests 3.1 and 3.15, `layout.whitespace.max_rectangles`.

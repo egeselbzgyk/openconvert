@@ -45,6 +45,7 @@ fn read(path: &str) -> Vec<PageInput> {
                 .page_glyphs(index)
                 .expect("the page extracts")
                 .glyphs,
+            images: document.page_images(index).unwrap_or_default(),
         })
         .collect()
 }
@@ -188,6 +189,7 @@ fn page_of(page: u32, lines: usize, per_line: usize, alphabet: &[char]) -> PageI
         width_pt: 600.0,
         height_pt: 800.0,
         glyphs,
+        images: Vec::new(),
     }
 }
 

@@ -505,7 +505,14 @@ mod tests {
     fn paragraphs_of(pages: Vec<LayoutPage>) -> (ParagraphConvention, Vec<Para>) {
         let blocks: Vec<Vec<Block>> = pages
             .iter()
-            .map(|page| crate::blocks::segment_blocks(page, &T).0)
+            .map(|page| {
+                crate::blocks::segment_blocks(
+                    page,
+                    &crate::columns::ColumnLayout::single(0.0, 400.0),
+                    &T,
+                )
+                .0
+            })
             .collect();
         let convention = infer_convention(&pages, &blocks, &T);
         (

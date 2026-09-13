@@ -45,6 +45,7 @@ fn layout_of(relative: &str) -> LayoutStage {
                     .page_glyphs(index)
                     .expect("the page extracts")
                     .glyphs,
+                images: document.page_images(index).unwrap_or_default(),
             }
         })
         .collect();
@@ -76,6 +77,7 @@ fn paragraphs_of(relative: &str, lang: LangTag) -> ParagraphStage {
                     .page_glyphs(index)
                     .expect("the page extracts")
                     .glyphs,
+                images: document.page_images(index).unwrap_or_default(),
             }
         })
         .collect();
@@ -432,4 +434,19 @@ fn the_german_fixture_removes_exactly_one_hyphen() {
     );
     assert_eq!(entries[0].reason, Reason::Dehyphenate);
     assert_eq!(entries[0].text, "-");
+}
+
+/// PIPELINE §6 step 5. An image-only page still has its image in the flow: "drop nothing yet"
+/// is the rule for the whole stage, and a figure that never reaches the flow is a figure that
+/// never reaches the book.
+#[test]
+fn an_image_only_page_keeps_its_image_in_the_flow() {
+    let layout = layout_of("../../target/fixtures/f03_image_only.pdf");
+
+    let anchored: usize = layout.anchors.iter().map(Vec::len).sum();
+    assert!(
+        anchored >= 1,
+        "the fixture's image was not anchored: {:?}",
+        layout.anchors
+    );
 }

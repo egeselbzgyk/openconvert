@@ -43,6 +43,7 @@ fn read(relative: &str) -> Vec<PageInput> {
                 .page_glyphs(index)
                 .expect("the page extracts")
                 .glyphs,
+            images: document.page_images(index).unwrap_or_default(),
         })
         .collect()
 }

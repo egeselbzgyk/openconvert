@@ -31,7 +31,7 @@ use crate::blocks::{LayoutLine, Segment};
 const BIN_PT: f32 = 1.0;
 
 /// One valley between two columns.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize)]
 pub struct Gutter {
     pub x0: f32,
     pub x1: f32,

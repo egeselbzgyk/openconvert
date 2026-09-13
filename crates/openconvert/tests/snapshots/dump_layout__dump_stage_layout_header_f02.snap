@@ -1,0 +1,5 @@
+---
+source: crates/openconvert/tests/dump_layout.rs
+expression: "format!(\"pages={} blocks={} continuity={}/{} retries={} low_confidence={} removed={} added={}\",\nhead.pages, head.blocks, head.continuity_held, head.continuity_boundaries,\nhead.column_retries, head.low_confidence_blocks, head.check.removed_chars,\nhead.check.added_chars,)"
+---
+pages=2 blocks=15 continuity=0/1 retries=0 low_confidence=2 removed=0 added=0

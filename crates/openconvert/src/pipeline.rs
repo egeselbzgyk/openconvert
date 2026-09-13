@@ -9,6 +9,7 @@
 use oc_core::ledger_check::{c_of, check_invariants, ConservationError, ReasonTotals};
 use oc_core::stages;
 use oc_core::thresholds::Thresholds;
+use oc_layout::anchor::{anchor_images, drop_caps, Anchor, DropCap};
 use oc_layout::blocks::{segment_blocks, LayoutLine, LayoutPage, Segment, SegmentationAgreement};
 use oc_layout::columns::{
     assign_columns, detect_columns, median_height, split_lines_at_gutters, ColumnLayout,
@@ -17,7 +18,7 @@ use oc_layout::continuity::{continuity, Continuity};
 use oc_layout::furniture::{apply_furniture, detect_furniture, PageLines};
 use oc_layout::paragraphs::{dehyphenate_paragraphs, infer_convention, reconstruct_paragraphs};
 use oc_layout::reading_order::reading_order;
-use oc_model::extract::{CharHistogram, Glyph, PageRef};
+use oc_model::extract::{CharHistogram, Glyph, ImageRef, PageRef};
 use oc_model::geom::Rect;
 use oc_model::lang::LangTag;
 use oc_model::layout::{Block, Para, ParagraphConvention};
@@ -35,6 +36,9 @@ pub struct PageInput {
     pub width_pt: f32,
     pub height_pt: f32,
     pub glyphs: Vec<Glyph>,
+    /// The images `ingest` found on the page. `layout` anchors them into the flow and drops
+    /// none of them (PIPELINE §6 step 5).
+    pub images: Vec<ImageRef>,
 }
 
 /// One page as `text` leaves it.
@@ -43,6 +47,7 @@ pub struct TextPage {
     pub page: PageRef,
     pub width_pt: f32,
     pub height_pt: f32,
+    pub images: Vec<ImageRef>,
     pub runs: Vec<Run>,
     pub lines: Vec<Line>,
 }
@@ -85,6 +90,10 @@ pub struct LayoutStage {
     pub continuity: Continuity,
     /// How many times the column count had to be narrowed before it read that way.
     pub column_retries: u32,
+    /// Per page, where each image sits in the flow.
+    pub anchors: Vec<Vec<Anchor>>,
+    /// Per page, the drop caps found on it.
+    pub drop_caps: Vec<Vec<DropCap>>,
     pub delta: LedgerDelta,
     pub check: StageCheck,
 }
@@ -122,6 +131,7 @@ pub fn text_stage(
             page: page.page.clone(),
             width_pt: page.width_pt,
             height_pt: page.height_pt,
+            images: page.images.clone(),
             runs: assembly.runs,
             lines,
         });
@@ -270,6 +280,19 @@ pub fn layout_stage(
     let delta = LedgerDelta::default();
     let check = check_invariants(&before, &after, &delta, stages::LAYOUT, totals)?;
 
+    let anchors: Vec<Vec<Anchor>> = text
+        .pages
+        .iter()
+        .zip(&best.blocks)
+        .map(|(page, blocks)| anchor_images(&page.images, blocks))
+        .collect();
+    let drop_caps: Vec<Vec<DropCap>> = best
+        .pages
+        .iter()
+        .zip(&best.blocks)
+        .map(|(page, blocks)| drop_caps(page, blocks, t))
+        .collect();
+
     Ok(LayoutStage {
         pages: best.pages,
         blocks: best.blocks,
@@ -277,6 +300,8 @@ pub fn layout_stage(
         agreement: best.agreement,
         continuity: best.continuity,
         column_retries: retries,
+        anchors,
+        drop_caps,
         delta,
         check,
     })
@@ -303,7 +328,7 @@ fn lay_out(source: &[LayoutPage], limit: usize, t: &Thresholds) -> LayoutPass {
             lines: split_lines_at_gutters(&page.lines, &layout),
             ..page.clone()
         };
-        let (mut page_blocks, page_agreement) = segment_blocks(&page, t);
+        let (mut page_blocks, page_agreement) = segment_blocks(&page, &layout, t);
         assign_columns(&mut page_blocks, &layout);
         // No masks yet: `ingest` carries images and rules, and anchoring them is this phase's
         // last item. Blocks that span columns are pre-masked either way.
