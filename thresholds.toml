@@ -529,6 +529,20 @@ evidence = "R10 §6.18"
 owner = "maintainer"
 review_by = "2028-01-01"
 
+[quality.mean_word_len_min]
+value = 3.0
+source = "published"
+evidence = "R10 §6.18 datatrove gopher_quality_filter: mean word length between 3 and 10"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[quality.mean_word_len_max]
+value = 10.0
+source = "published"
+evidence = "R10 §6.18 datatrove gopher_quality_filter"
+owner = "maintainer"
+review_by = "2028-01-01"
+
 [quality.max_non_alpha_words_ratio]
 value = 0.8
 source = "published"

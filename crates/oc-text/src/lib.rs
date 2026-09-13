@@ -5,4 +5,5 @@
 pub mod fold;
 pub mod lines;
 pub mod normalize;
+pub mod stats;
 pub mod words;

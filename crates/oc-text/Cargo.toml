@@ -11,6 +11,7 @@ publish      = false
 [dependencies]
 oc-core = { path = "../oc-core", version = "0.1.0" }
 oc-model = { path = "../oc-model", version = "0.1.0" }
+serde.workspace = true
 compact_str.workspace = true
 unicode-normalization.workspace = true
 unicode-properties.workspace = true

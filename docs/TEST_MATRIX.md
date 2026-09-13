@@ -157,3 +157,9 @@ replaced by the phase that owns it.
 | 2.15b | `conservation::an_inferred_space_is_never_ledgered` | `openconvert` | property | `test`, `proptest-deep` | green |
 | 2.15c | `conservation::a_ligature_reaches_the_flow_expanded_and_balanced` | `openconvert` | fixture (h04) | `test` | green |
 | 2.15d | `conservation::a_budget_breach_stops_the_stage` | `openconvert` | fixture (h20) | `test` | green |
+| 2.18 | `stats::quality_stats_match_datatrove_thresholds` | `oc-text` | unit | `test` | green |
+| 2.18a | `stats::clean_prose_is_ok` | `oc-text` | unit | `test` | green |
+| 2.18b | `stats::a_repeated_phrase_shows_up_in_the_top_ngram` | `oc-text` | unit | `test` | green |
+| 2.18c | `stats::replacement_characters_are_counted_as_a_share_of_the_text` | `oc-text` | unit | `test` | green |
+| 2.18d | `stats::a_page_of_glyph_indices_is_broken_by_both_signals` | `oc-text` | unit | `test` | green |
+| 2.18e | `stats::empty_text_is_not_broken_it_is_empty` | `oc-text` | unit | `test` | green |
