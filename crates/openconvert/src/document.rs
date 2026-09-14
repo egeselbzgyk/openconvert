@@ -21,10 +21,11 @@ use std::collections::BTreeMap;
 
 use oc_core::stages;
 use oc_core::thresholds::Thresholds;
+use oc_model::confidence::Confidence;
 use oc_model::decision::Decision;
-use oc_model::doc::{Content, PageBreak, Section, Warning};
+use oc_model::doc::{Content, Figure, PageBreak, Section, SectionRole, Severity, Warning};
 use oc_model::document::{first_block, DocClass, Document, PresetName};
-use oc_model::extract::PageRef;
+use oc_model::extract::{ImageRef, PageRef};
 use oc_model::ids::{BlockId, PageBreakId};
 use oc_model::lang::LangTag;
 use oc_model::ledger::Ledger;
@@ -42,6 +43,14 @@ pub const DECISION_PRESET: &str = "preset";
 /// page of nothing but an image — is worth naming in the report.
 pub const W_PAGE_BREAK_UNPLACED: &str = "W_PAGE_BREAK_UNPLACED";
 
+/// The document yielded no text at all, and its pages are carried as images.
+///
+/// A scan with no OCR available is the case: PIPELINE §10 says such a page "becomes an image
+/// inside a `<figure>` … rather than being dropped silently", and this is the warning that says
+/// so in the report. A book with no sections would otherwise reach `epub` as an empty spine,
+/// which is not a valid publication and is not a book either.
+pub const W_NO_TEXT_EXTRACTED: &str = "W_NO_TEXT_EXTRACTED";
+
 /// Everything the stage reads beyond what `structure` produced.
 pub struct DocumentInput<'a> {
     pub source_sha256: &'a str,
@@ -56,6 +65,9 @@ pub struct DocumentInput<'a> {
     pub column_counts: &'a [usize],
     /// Which page each block was printed on.
     pub block_pages: &'a BTreeMap<BlockId, u32>,
+    /// Every image in the document, in page order. Read only when the book yielded no text,
+    /// and then to carry the pages as figures rather than as nothing.
+    pub images: &'a [ImageRef],
     pub language: LangTag,
     /// The preset as configuration asked for it, before [`PresetName::resolve`].
     pub preset: PresetName,
@@ -66,6 +78,20 @@ pub struct DocumentInput<'a> {
 pub fn assemble(input: DocumentInput<'_>, t: &Thresholds) -> Document {
     let mut sections = input.structure.sections.clone();
     let mut warnings = input.structure.warnings.clone();
+    let mut figures = input.structure.figures.clone();
+
+    // A document that yielded no text is not an empty book: its pages are pictures, and a
+    // picture of a page is what a reader has (PIPELINE §10). Emitted here rather than in
+    // `epub`, because it is a statement about the *document* — a section that exists, holding
+    // figures that exist — and `epub` serialises documents rather than inventing them.
+    if sections.is_empty() {
+        let (fallback, fallback_figures) = pages_as_figures(input.images, &figures);
+        if !fallback.content.is_empty() {
+            figures.extend(fallback_figures);
+            sections.push(fallback);
+        }
+        warnings.push(Warning::new(W_NO_TEXT_EXTRACTED, Severity::Warn));
+    }
 
     let page_breaks = insert_page_breaks(&mut sections, input.block_pages, input.labels);
     let placed: std::collections::BTreeSet<u32> =
@@ -110,7 +136,7 @@ pub fn assemble(input: DocumentInput<'_>, t: &Thresholds) -> Document {
         language: input.language,
         sections,
         notes: input.structure.notes.clone(),
-        figures: input.structure.figures.clone(),
+        figures,
         tables: input.structure.tables.clone(),
         page_breaks,
         ledger: input.ledger,
@@ -119,6 +145,62 @@ pub fn assemble(input: DocumentInput<'_>, t: &Thresholds) -> Document {
         classification,
         presets,
     }
+}
+
+/// One section holding every image the book draws, as figures.
+///
+/// The alt text is left empty on purpose: `epub` supplies a positional name — `Figure 3` — and
+/// inventing a description here would be a claim about a picture nobody has looked at
+/// (R1 §A.10). Alt text is an attribute and therefore outside `C`, so saying it there costs the
+/// conservation law nothing and saying it here would gain nothing.
+fn pages_as_figures(images: &[ImageRef], existing: &[Figure]) -> (Section, Vec<Figure>) {
+    let anchor = BlockId::derive(
+        0,
+        oc_model::geom::Rect {
+            x0: 0.0,
+            y0: 0.0,
+            x1: 0.0,
+            y1: 0.0,
+        },
+        "page images",
+    );
+    let mut figures = Vec::new();
+    let mut content = Vec::new();
+    let next = existing
+        .iter()
+        .map(|figure| figure.id.0.saturating_add(1))
+        .max()
+        .unwrap_or(0);
+
+    for (offset, image) in images.iter().enumerate() {
+        let id = oc_model::ids::FigureId(next.saturating_add(u32::try_from(offset).unwrap_or(0)));
+        figures.push(Figure {
+            id,
+            image: image.id,
+            caption: None,
+            alt: String::new(),
+            anchor,
+            confidence: Confidence::deterministic(Vec::new()),
+        });
+        content.push(Content::Figure(id));
+    }
+
+    (
+        Section {
+            id: anchor,
+            role: SectionRole::Chapter,
+            level: 1,
+            heading: None,
+            content,
+            children: Vec::new(),
+            source_pages: (
+                0,
+                u32::try_from(images.len().saturating_sub(1)).unwrap_or(0),
+            ),
+            confidence: Confidence::deterministic(Vec::new()),
+        },
+        figures,
+    )
 }
 
 /// What kind of book this is (D13.10).

@@ -35,6 +35,9 @@ pub fn check(
     report.ran("book.fragments");
     fragments(&documents, report);
 
+    report.ran("book.resources");
+    resources(entries, &documents, report);
+
     report.ran("book.alt_text");
     alt_text(&documents, report);
 
@@ -150,6 +153,67 @@ fn fragments(documents: &[(String, String)], report: &mut Tier1Report) {
             }
         }
     }
+}
+
+/// RSC-007: every resource a document names is in the container, at the path the document
+/// spells it — resolved *relative to the document*, which is where this goes wrong.
+///
+/// `images/i0001.jpg` written from `text/c0001.xhtml` means `text/images/i0001.jpg`, and a
+/// reader looking for that finds nothing and shows a broken figure. The fragment check above
+/// would not notice: the href has no fragment at all.
+fn resources(
+    entries: &BTreeMap<String, Vec<u8>>,
+    documents: &[(String, String)],
+    report: &mut Tier1Report,
+) {
+    for (path, text) in documents {
+        for attribute in ["src=\"", "href=\""] {
+            for reference in super::xhtml::attributes(text, attribute) {
+                let Some(target) = resolve(path, &reference) else {
+                    continue;
+                };
+                if !entries.contains_key(&target) {
+                    report.push(Finding::new(
+                        "RSC-007",
+                        Severity::Error,
+                        format!("{path} → {reference}"),
+                        format!("resolves to {target}, which is not in the container"),
+                    ));
+                }
+            }
+        }
+    }
+}
+
+/// A reference resolved against the document that made it, or `None` when it is not a path
+/// into this container — remote, a bare fragment, or a scheme of its own.
+fn resolve(from: &str, reference: &str) -> Option<String> {
+    if reference.starts_with('#')
+        || reference.starts_with("http://")
+        || reference.starts_with("https://")
+        || reference.starts_with("//")
+        || reference.starts_with("data:")
+        || reference.starts_with("mailto:")
+    {
+        return None;
+    }
+    let path = reference.split('#').next().unwrap_or(reference);
+    if path.is_empty() {
+        return None;
+    }
+
+    let mut segments: Vec<&str> = from.split('/').collect();
+    segments.pop();
+    for segment in path.split('/') {
+        match segment {
+            "." | "" => {}
+            ".." => {
+                segments.pop()?;
+            }
+            other => segments.push(other),
+        }
+    }
+    Some(segments.join("/"))
 }
 
 /// The file and the fragment of an href, when it has a fragment and is not remote.

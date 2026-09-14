@@ -8,6 +8,13 @@ repository.workspace   = true
 description  = "OpenConvert CLI: the engine's face (D13.1)"
 publish      = false
 
+[features]
+default = []
+# Row 5.17: EPUBCheck needs a JVM and a jar, so the gate is behind a feature rather than
+# an ignore attribute — CI turns a feature on and a developer can too, while an ignored test
+# is one nobody ever runs again.
+epubcheck = []
+
 [lib]
 name = "openconvert"
 path = "src/lib.rs"

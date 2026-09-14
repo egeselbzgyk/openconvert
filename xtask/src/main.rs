@@ -3,7 +3,8 @@
 //! Everything here is build- and test-time tooling. Nothing in `xtask` ships.
 
 use xtask::{
-    ci_lint, fixtures, handmade_fixtures, mutations, stage_sidecars, thresholds_lint, vendor_pdfium,
+    ci_lint, epubcheck_parity, fetch_epubcheck, fetch_epubcheck_corpus, fixtures,
+    handmade_fixtures, mutations, stage_sidecars, thresholds_lint, vendor_pdfium,
 };
 
 use std::path::{Path, PathBuf};
@@ -17,6 +18,12 @@ tasks:
   vendor-pdfium     fetch the pinned PDFium binary for this host and unpack it to vendor/
   fixtures          compile the Typst fixture sources to target/fixtures/
                       --keep-structtree   emit the tagged variants instead (D18)
+  fetch-epubcheck   fetch the pinned EPUBCheck release and unpack it to vendor/epubcheck/
+  fetch-epubcheck-corpus
+                    fetch EPUBCheck's own public test corpus to vendor/epubcheck-corpus/
+  epubcheck-parity  run Tier 1 over that corpus and write docs/TIER1_PARITY.md
+                      --check             compare against the committed number instead of
+                                          rewriting it; fails when parity has fallen
   handmade-fixtures write the hand-made PDFs to corpus/fixtures/handmade/
   mutations         apply the mutation recipes to the fixtures they belong to and
                     write the results to corpus/fixtures/mutations/
@@ -38,6 +45,12 @@ fn main() -> Result<()> {
         Some("fixtures") => {
             let keep_structtree = std::env::args().any(|a| a == "--keep-structtree");
             fixtures::run(&root, keep_structtree)
+        }
+        Some("fetch-epubcheck") => fetch_epubcheck::run(&root),
+        Some("fetch-epubcheck-corpus") => fetch_epubcheck_corpus::run(&root),
+        Some("epubcheck-parity") => {
+            let check = std::env::args().any(|a| a == "--check");
+            epubcheck_parity::run(&root, check)
         }
         Some("handmade-fixtures") => handmade_fixtures::run(&root),
         Some("mutations") => mutations::run(&root),

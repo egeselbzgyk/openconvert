@@ -240,3 +240,57 @@ fn replace_alt(text: &str) -> String {
     };
     format!("{}alt=\"\"{}", &text[..start], &rest[end + 1..])
 }
+
+/// A resource reference that resolves to nothing — the RSC-007 class, and the bug EPUBCheck
+/// found in this emitter that Tier 1 did not: `images/i0001.jpg` written from
+/// `text/c0001.xhtml` means `text/images/i0001.jpg`, which is not there. The fragment check
+/// cannot see it, because the href has no fragment at all.
+#[test]
+fn tier1_catches_a_resource_reference_that_resolves_to_nothing() {
+    let built = common::build("f10_lists_and_table");
+    assert!(validate_tier1(&built.built.bytes, &Expectations::default()).is_valid());
+
+    let broken = rewrite(&built, |path, text| {
+        if path.starts_with("text/") {
+            text.replace("src=\"../images/", "src=\"images/")
+        } else {
+            text
+        }
+    });
+
+    let report = validate_tier1(&broken, &Expectations::default());
+    assert!(report.has("RSC-007"), "{:#?}", report.findings);
+    assert!(!report.is_valid());
+}
+
+/// A book that yielded no text is not an empty book. `f03` is one image-only page: the spine
+/// must still carry a document, the nav must still have an entry, and the page must be in it as
+/// a picture (PIPELINE §10). An empty spine is not a valid publication and is not a book.
+#[test]
+fn a_document_with_no_text_still_carries_its_pages() {
+    let built = common::build("f03_image_only");
+
+    assert!(
+        !built.built.emitted.files.is_empty(),
+        "the spine carries a document"
+    );
+    assert!(
+        !built.built.emitted.toc.is_empty(),
+        "the nav carries an entry"
+    );
+    assert!(
+        !built.built.emitted.used_images.is_empty(),
+        "the page is in the book as a picture"
+    );
+    assert!(validate_tier1(&built.built.bytes, &Expectations::default()).is_valid());
+
+    assert!(
+        built
+            .conversion
+            .document
+            .warnings
+            .iter()
+            .any(|warning| warning.code == openconvert::document::W_NO_TEXT_EXTRACTED),
+        "and the report says so"
+    );
+}

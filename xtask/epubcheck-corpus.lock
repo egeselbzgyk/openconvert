@@ -1,0 +1,13 @@
+# EPUBCheck's own public test corpus (BSD-3-Clause), used to measure Tier-1 parity (D6,
+# RT A6.2). Never committed: several thousand files of other people's fixtures do not belong
+# in this repository's licence surface or its size.
+#
+# GitHub generates source archives rather than storing them, and has regenerated them before,
+# so a digest mismatch here most likely means the archive was rebuilt rather than tampered
+# with. The task says so, and moving the pin is still a reviewed commit.
+
+schema_version = 1
+repo = "w3c/epubcheck"
+tag = "v5.3.0"
+sha256 = "f49fa8ac0403a6dd7c0d26ac506c6e0e83b342ef37d2c16430389481ddb92341"
+resources = "epubcheck-5.3.0/src/test/resources"

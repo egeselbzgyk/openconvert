@@ -3,8 +3,8 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 5
-CURRENT_ITEM: 5.1 — read PHASE 5 of the plan, then its first work item
+CURRENT_PHASE: 6
+CURRENT_ITEM: 6.1 — read PHASE 6 of the plan, then its first work item
 LAST_UPDATED: 2026-09-14
 
 ---
@@ -22,13 +22,15 @@ LAST_UPDATED: 2026-09-14
 ## Phases
 
 - [x] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
-      *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
-      *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
-- [x] **Phase 1** — PDF inspection and ingestion  *(VD-d closed: PDFium composites masks, palettes and colour spaces correctly)*
+      *(First Milestone met; opened the Verification-debt table VD-a…VD-g)*
+- [x] **Phase 1** — PDF inspection and ingestion  *(VD-d closed)*
 - [x] **Phase 2** — Text assembly and normalization  *(all 22 named tests green; EN frequency list ships, DE/TR blocked on a D15 licence decision)*
-- [x] **Phase 3** — Layout  *(all 17 named tests green; VD-b closed. A3.2 partial — no corpus to reproduce a gold order from, Phase 7; A3.3 partial — the holdout is English, because D15 has no German source)*
+- [x] **Phase 3** — Layout  *(all 17 named tests green; VD-b closed. A3.2 and A3.3 partial — both want the Phase 7 corpus)*
 - [x] **Phase 4** — Structure  *(all 21 named tests green, plus about fifty additions; A4.3 partial — heading F1 needs the Phase 7 corpus)*
-- [ ] **Phase 5** — EPUB generation, Tier-1 validator, EPUBCheck CI gate
+- [x] **Phase 5** — EPUB generation, Tier-1 validator, EPUBCheck CI gate
+      *(all 20 named tests green, plus about sixty additions. **EPUBCheck 5.3.0 reports 0 errors
+      and 0 warnings on all ten fixtures.** A5.3 is a CI job that cannot run on one machine and is
+      unverified until the first CI run.)*
 - [ ] **Phase 6** — Structural validation, repair loop, report, CI DOM checks  *(VD-f if the validation pack ships)*
 - [ ] **Phase 7** — Corpus v1, eval harness, benchmarks, real-world holdout
 - [ ] **Phase 8** — AI abstraction (no real model yet)
@@ -42,216 +44,143 @@ LAST_UPDATED: 2026-09-14
 
 ## Current work item
 
-**Phase 4 is complete.** Its Definition of Done is checked below, with the one partial row named
-as partial.
+**Phase 5 is complete.** Its Definition of Done is checked below, with the one row that cannot be
+verified on a single machine named as such.
 
-First step for Phase 5: read `docs/IMPLEMENTATION_PLAN.md` PHASE 5 and `docs/PIPELINE.md` §9–§10,
+First step for Phase 6: read `docs/IMPLEMENTATION_PLAN.md` PHASE 6 and `docs/PIPELINE.md` §11–§13,
 then take the first work item with the TDD loop.
 
-Phase 5 is EPUB generation, the Tier-1 validator and the EPUBCheck CI gate. It is the first phase
-whose output a person can open.
+Phase 6 is the structural validator (invariant I-7 end to end), the validate→repair loop, the
+conversion report, and the CI DOM checks. It is the first phase whose subject is *what to do when
+the output is wrong*.
 
-**What Phase 4 hands it**, in the order it will be wanted:
+**What Phase 5 hands it**, in the order it will be wanted:
 
-1. **`oc_structure::stage::structure` produces everything but the `Document`.** `Section` trees,
-   `Note`s with their bodies, `Figure`s, `Table`s, `List`s, `Metadata`, the escalation candidates
-   and the warnings. `Document` itself is the `document` stage's (PIPELINE §9) and is deliberately
-   not built yet: it needs `page_breaks`, `DocClass` and `PresetName`, none of which exists.
-2. **The list marker is still in the item's text**, with `ListItem.marker` beside it. `structure`
-   may not remove it — `Reason` has no variant for a list marker and the stage is Conserving — so
-   `epub` is the stage that elides the prefix when it emits `<ol>`, and how it *declares* that is
-   Phase 5's question. `docs/DECISIONS_LOG.md` (2026-09-14) has the reasoning.
-3. **A fallback table carries its data.** `Table.fallback_image` is `Some` and `rows` holds one
-   cell per printed line, because an image of a table takes the content away from anyone who
-   cannot see it (DAISY, R10 §6.12). `epub` emits the image *and* the `<details>`; the
-   rasterising itself is Phase 5's, from `TableRegion.bbox` at `images.vector_raster_scale`.
-4. **`ImageId` means two things and the boundary is `document_images`.** The backend numbers
-   images per *page*, because `image_bytes(page, id)` indexes that page's draw order;
-   `openconvert::structure_input::document_images` renumbers them across the book for `Figure`.
-   The page-local index is recoverable as the image's position among those sharing its page.
-5. **A fallback table's `ImageId`s continue past the document's**, so they name images the file
-   did not contain. `extract_tables` takes the first free id as an argument.
+1. **`openconvert::convert::convert` is the one pipeline.** It runs every stage, checks each under
+   the conservation law, and returns `Conversion { document, built, extracted_images }`. The CLI,
+   the tests and (from Phase 12) the desktop app all take that path. `document.ledger` carries
+   every stage's `StageCheck`, including `epub`'s.
+2. **`oc_validate::validate_tier1` is the issue source the repair loop consumes.** Its `Finding`
+   carries an EPUBCheck message id where one exists (`RSC-005`, `RSC-007`, `RSC-012`, `OPF-014`,
+   `OPF-003`, `OPF-012`, `OPF-030`, `OPF-060`, `PKG-007`, `PKG-008`, `RSC-002`, `ACC-001`) and an
+   `OC-…` id where it does not (`OC-SCRIPT`, `OC-REMOTE`, `OC-ENTITY`, `OC-NOTE-BIJECTION`,
+   `OC-IMAGE-PARITY`). `Severity` is already the `(fatal, error, warning)` the repair loop's
+   lexicographic measure needs (D13.7).
+3. **I-7 is one function call away.** `document.ledger.removed_all()` / `added_all()` are the two
+   halves, `ledger.c_0` is the baseline, and `oc_epub::textcontent::body_text` is how `C(EPUB)` is
+   measured — by parsing the emitted documents, not by asking the emitter.
+4. **The repair-fire rate is a release metric with target zero.** Every repair that fires is an
+   emitter bug, so Phase 6 starts from an emitter that EPUBCheck already passes clean; a repair
+   that fires on a fixture means something regressed.
+5. **`Document.warnings` is where the report's issue list comes from.** Phase 5 added
+   `W_EPUB_LARGE`, `W_XHTML_OVERSIZE`, `W_PAGE_BREAK_UNPLACED`, `W_NO_TEXT_EXTRACTED`.
+   `BuiltEpub.warnings` carries codes rather than `Warning`s — `oc-epub` does not depend on the
+   pipeline — and nothing yet attaches them to the document; that is Phase 6's report to do.
 6. **Fixture numbers.** Taken: **f01–f10**, **h01–h29**. Next free: **f11**, **h30**.
-
-Still open, and cheap: CI's `test` job runs `xtask fixtures` but never `handmade-fixtures` or
-`mutations`, so a builder change that no longer reproduces the committed fixtures is not caught.
-A `--check` mode on those two tasks would close it. Phase 4 changed the builder again (rules,
-placed images, the Info dictionary and the XMP packet).
-
-## Notes` short: what a fresh session needs in order to resume, nothing else.
-
----
-
-## Phases
-
-- [x] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
-      *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
-      *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
-- [x] **Phase 1** — PDF inspection and ingestion  *(VD-d closed: PDFium composites masks, palettes and colour spaces correctly)*
-- [x] **Phase 2** — Text assembly and normalization  *(all 22 named tests green; EN frequency list ships, DE/TR blocked on a D15 licence decision)*
-- [x] **Phase 3** — Layout  *(all 17 named tests green; VD-b closed. A3.2 partial — no corpus to reproduce a gold order from, Phase 7; A3.3 partial — the holdout is English, because D15 has no German source)*
-- [x] **Phase 4** — Structure  *(all 21 named tests green, plus about fifty additions; A4.3 partial — heading F1 needs the Phase 7 corpus)*
-- [ ] **Phase 5** — EPUB generation, Tier-1 validator, EPUBCheck CI gate
-- [ ] **Phase 6** — Structural validation, repair loop, report, CI DOM checks  *(VD-f if the validation pack ships)*
-- [ ] **Phase 7** — Corpus v1, eval harness, benchmarks, real-world holdout
-- [ ] **Phase 8** — AI abstraction (no real model yet)
-- [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
-- [ ] **Phase 10** — AI-assisted decisions (the four tasks)
-- [ ] **Phase 11** — BYO providers
-- [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
-- [ ] **Phase 13** — OCR  *(VD-g must close)*
-- [ ] **Phase 14** — Security hardening
-- [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
-
-## Current work item
-
-**Phase 3 is complete.** Its Definition of Done is checked below, with two partial rows named as partial.
-
-First step for Phase 4: read `docs/IMPLEMENTATION_PLAN.md` PHASE 4 and the sections of
-`docs/PIPELINE.md` §8 that cover the part being built, then take the first work item with the TDD loop.
-
-Phase 4 is headings, outline/TOC matching, book structure, lists, footnotes, captions, quotes and verse,
-tables, images and metadata — everything that turns ordered paragraphs into a document tree. It is
-**Conserving throughout**: this stage assigns meaning and never deletes text.
-
-**What Phase 3 hands it**, in the order it will be wanted:
-
-1. **`Para` is deliberately half a type.** `oc_model::layout::Para` carries id, blocks, lines, text,
-   `first_line_indent` and pages. IR_SKETCH also gives it `spans`, `align`, `lang`, `drop_cap` and
-   `confidence`; those are `structure`'s to fill and were left out rather than shipped always-empty.
-   `oc_model::confidence::{Confidence, Method, Signal}` already exists — dehyphenation uses it — so the
-   pattern for recording *how* a decision was reached is set.
-2. **Drop caps are detected but not attached.** `oc_layout::anchor::drop_caps` returns them per page;
-   `Para::drop_cap` is where they belong once `Para` grows the field, and the `dropcap` CSS class is
-   Phase 5's.
-3. **Image anchors exist and are unpaired.** `oc_layout::anchor::Anchor` says which block an image comes
-   before. Figure-and-caption pairing is Phase 4's (PIPELINE §8.4), and the adjacency it needs is
-   already preserved.
-4. **`f07_verse_and_quote` has not been written.** The plan lists it under Phase 3's Files, but no Phase 3
-   test names it and verse is PIPELINE §8.6. Write it with the test that needs it.
-5. **Fixture numbers.** Taken: **f01–f06**, **h01–h23**. Next free: **f07**, **h24**. The plan's Phase 4
-   numbers `f06`–`f08` therefore shift to **`f08`–`f10`**, and test 4.10's `h16` — already spent twice
-   over — is **`h24`**.
-
-Still open, and cheap: CI's `test` job runs `xtask fixtures` but never `handmade-fixtures` or
-`mutations`, so a builder change that no longer reproduces the committed fixtures is not caught. A
-`--check` mode on those two tasks would close it. Phase 3 changed the builder again (h22's page box,
-h22 and h23 themselves).
+   No new fixtures in Phase 5: the emitter's subject is the ten documents that already exist.
+7. **Still open, and cheap:** CI's `test` job runs `xtask fixtures` but never `handmade-fixtures`
+   or `mutations`, so a builder change that no longer reproduces the committed fixtures is not
+   caught. A `--check` mode on those two tasks would close it.
 
 ## Notes
 
 Carried forward, in the order a fresh session needs them:
 
-- **Phase 4's own carry-forwards are in the "Current work item" section above.** Three more that
-  belong with the standing notes:
-  - **A tightly set ruled table falls back to an image.** When a cell gutter is narrower than
-    `text.line_split_gap_em`, `words` keeps two cells in one run and a `Run` carries a box and its
-    text but not its glyphs' positions, so nothing in `structure` can split it. The table takes
-    the image-plus-text fallback with `reason = "a run crosses a column rule"`. The long-term fix
-    is to split runs at vertical rules in `layout`, the way `split_lines_at_gutters` splits them
-    at page gutters, which needs the rules to reach `layout` — they do not today.
-  - **A contents page with no drawn leader is not parsed.** `"Preface    i"` reaches the parser as
-    `"Preface i"` — the gap is geometry and a line's text is not — so it is indistinguishable from
-    a two-word title. Recovering it means measuring the gap between a line's last two runs, which
-    is a second detector and belongs with the corpus that would say how often it is needed.
-  - **`Note.body` is one paragraph.** A note that runs to several paragraphs is one paragraph
-    here. Nothing is lost — the text is all there — but the structure inside a long endnote is
-    not recovered.
-
-- **`docs/DECISIONS_LOG.md` is the record of every decision made while implementing.** Read it before
-  changing anything that looks arbitrary; most of it is measured rather than chosen.
-- **PDFium must be vendored before the test suite passes**: `cargo run -p xtask -- vendor-pdfium`.
-  Pinned to `chromium/7881` (151.0.7881.0) in `xtask/pdfium.lock`, lands in the git-ignored
-  `vendor/pdfium/<triple>/`, needs `curl` and `tar` on PATH. CI runs it before `nextest`.
-- **Fixtures**: `cargo run -p xtask -- fixtures` (Typst f01–f03 into the git-ignored
-  `target/fixtures/`), `-- handmade-fixtures` (h01–h15, committed), `-- mutations` (committed).
-- **Phase 3's own carry-forwards are in the "Current work item" section above.** The notes below are
-  the standing ones: how to build, what is vendored, and what earlier phases left open.
-- **Carry-forward 2 (columns) is closed.** `text` still clusters a line by baseline alone, and that is
-  now deliberate: `layout` detects the columns from run coverage and splits the lines that span a gutter,
-  because the split is exactly as good as the column hypothesis, and a hypothesis that can be withdrawn
-  has to be able to withdraw the split with it. `words` breaks a *run* at `text.line_split_gap_em`, which
-  is all the projection needs. `Line::indent_pt`/`right_gap_pt` are still page-relative — the paragraphs
-  item recomputes them against the block.
-- **Carry-forward 3 (a budget breach is fatal) is still open**, and still belongs to Phase 6.
-- **No stage may treat the backend's glyph order as reading order.** Measured in item 1.3: PDFium
-  reorders the lines of a page under `/Rotate 90`. Reading order is Phase 3's, from geometry.
-- **Carry-forward 1 (soft vs hard hyphen) is still open, and is now less urgent.** Dehyphenation ships
-  without it: the in-document lexicon, the German capital rule and the classifier decide on evidence the
-  document carries in its text rather than on which hyphen scalar the producer wrote. Recovering the
-  distinction would still help, and still needs `lopdf` content-stream access — the same mechanism
-  `OverdrawDedup` needs.
-- **The hyphen marker is half closed (item 2.4).** Extraction now decodes PDFium's U+0002 to
-  U+002D, so `C_raw` and every run text are clean. What is *not* recovered is whether the
-  source wrote U+002D or U+00AD — PDFium collapses both — so D13.4's `SoftHyphen` reason fires
-  only for a U+00AD that arrives un-printed, and PIPELINE §369's compound-word rule
-  (`Nord-Süd-Achse` must not be rejoined) still needs its evidence from somewhere else.
-  Recovering the distinction needs `lopdf` content-stream access to the `Tj`/`TJ` operands —
-  **the same mechanism the `OverdrawDedup` gap below needs** — and is a dehyphenation input,
-  so both belong to **Phase 3**.
-- **Open from item 1.2, for the conservation-law work in Phase 2/6:** `OverdrawDedup` has a budget
-  and no way to consume it. PDFium collapses overdrawn duplicates before we see them and its
-  object-level text API returns the same deduplicated string, so the collapsed count needs `lopdf`
-  content-stream access (counting bytes shown by `Tj`/`TJ`). Safe in the meantime — PDFium never
-  merges distinct characters — but not the guarantee D13.4 describes.
-- **Two cargo-deny configs.** `deny.toml` audits what ships and admits no exceptions;
-  `deny.tools.toml` audits `xtask` with the same licence/ban/source policy and reports its
-  advisories without blocking. Run both: `cargo deny check` and
-  `cargo deny --config deny.tools.toml check licenses bans sources`.
-- **Toolchain pinned 1.98.1**; the plan's §1.3 pin of 1.85.0 cannot build the plan's own §1.2
-  dependency set. `pdfium-render` features are `["pdfium_7881", "image_025", "thread_safe"]`.
-- **`ureq` is not yet a dependency of `oc-net`** — it pulls `webpki-roots` (CDLA-Permissive-2.0),
-  which is not on D15's allow-list. The choice belongs to Phase 9.
-- `GOLDEN_BLOCK_ID_CHAPTER_3 = "SDMLH752SA"` in `ids.rs` is a committed golden value. If that
-  assertion ever fails, the id derivation changed and `IR_VERSION` must change in the same commit
-  (D13.3).
-- **CI works now, and 2026-09-13 was the first time it ever ran.** `ci` triggers on pushes to
-  `main` and on pull requests; Phases 0-2 all happened on `phase/00-bootstrap`, which is neither.
-  Five of eight jobs failed on the first run. Four fixes, all in `docs/DECISIONS_LOG.md`: the
-  Tauri crate is `--exclude`d from the engine jobs and gets its own `desktop` job (it has no Rust
-  tests, and buying "it compiles" inside `--workspace` costs every job a GUI toolchain); `deny`
-  needed its global flags before `check`; the tagged fixtures were never built; and `no-network`
-  reached the registry from inside the namespace.
-- **`ci` now watches `phase/**` as well as `main`**, so a phase branch cannot go dark again the
-  way `phase/00-bootstrap` did. Opening a pull request is still worth doing when a phase is ready
-  to review; what it buys is the review, not the CI, which fires either way now — and it does
-  cost a second run, because the concurrency group is namespaced by event. That namespacing is
-  not incidental: `head_ref` is the pull request author's branch name, this repository is public,
-  and a group keyed on the bare name would let a stranger who names a fork branch `main` cancel
-  the run that gates a release. `cancel-in-progress` is off for `main` for the same reason.
-- **Three CI jobs are `if: false` until their phase arrives**, because the commands they call do
-  not exist: `epubcheck` (Phase 5), `dom-checks` (Phase 6) and `no-network`'s
-  `assert-no-net-deps` step (Phase 14). Each carries a comment naming the phase. Until Phase 14
-  the socket ban is enforced by `deny.toml`'s `wrappers` rule in the `deny` job.
-- **A non-embedded base-14 font makes glyph bounding boxes host-dependent**, measured on h01:
-  `bbox.x1` is 80.02 on Windows and macOS, 79.85 on Ubuntu. The *advance* is identical, because
-  the widths come from the PDF's own metrics. D13.8's determinism contract therefore cannot hold
-  for such documents — the substitution happens below us — so **Phase 3's layout rules should
-  prefer the advance box and the origin, which are stable, wherever they have the choice.**
-- **VD-a, VD-b and VD-d are closed.** VD-c, VD-e, VD-f and VD-g are still open, each with an owner and a
-  blocking phase; none of them blocks Phase 4. VD-f blocks Phase 6, VD-g blocks Phase 13, and VD-c and
-  VD-e block only the optional dictionary pack (post-v1).
-- **Open for `DECISIONS.md`, from item 2.9:** which sources build the German and Turkish
-  word-frequency lists. The plan names DTA plain text and Wikisource-TR as "CC0/PD"; their
-  transcriptions are CC-BY-SA, which D15 does not allow in a shipped artefact. English ships
-  from CC0 Standard Ebooks. Rebuild with
-  `cd eval && PYTHONPATH=src python -m oc_eval.generate.wordfreq en --out ../crates/oc-text/src/freq`.
-- **R2 §B.8 is not reproduced on PDFium `chromium/7881`:** it expands the U+FB00–FB06 ligatures
-  itself, even with a `/ToUnicode` CMap declaring U+FB01. `N` keeps its ligature table anyway —
-  the contract is about the text, not about which component expanded it — but `LigatureExpand`
-  will rarely fire on PDFium-sourced text, so its `Added` side is exercised by generated glyph
-  streams rather than by any PDF.
-- **`example_pdfs/` is the maintainer's local smoke set, added 2026-09-13.** Four real books —
-  English, German, Portuguese and a Turkish scan — git-ignored and never redistributed; two of the
-  four are in copyright. Not corpus, not holdout, no threshold fitted on it. It is what to point
-  `convert` at from **Phase 5** onward, when an EPUB first comes out the other end. Described in
-  `docs/TEST_CORPUS.md` §7.5a, including which two could become real corpus entries.
-- Commit messages carry **no** Claude Code attribution footer (maintainer's instruction, 2026-09-09).
-- Local tool versions: rustc 1.98.1, cargo-nextest 0.9.143, cargo-deny 0.20.2.
+- **`furniture` recovers no folio from a book that changes numbering system.** `f09` paginates
+  `i, ii` then `1, 2, 3`; digit masking puts the three arabic folios in one group covering 3 of 5
+  pages, a repetition ratio of 0.6, inside the grey zone where the detector abstains. The folios
+  stay in the flow as one-character paragraphs and every `PageRef.label` is `None` — which also
+  removes the arabic-1 reset PIPELINE §9 step 1 calls a hard boundary signal. The fix is a change
+  to how a folio group is scoped (per numbering system, or per pagination run) and wants the
+  Phase 7 corpus to choose between them. `docs/DECISIONS_LOG.md`, 2026-09-14.
+- **Two of four real books outside the corpus are refused by the conservation law**, both in
+  `structure`, and both are Phase 7's to calibrate rather than Phase 5's to guess at:
+  - *AI Engineering* (O'Reilly, ~500 pp): `structure` emits 21 526 characters twice. The ruled-
+    table detector finds **365 tables** in a book that has perhaps twenty — it fires on figure
+    boxes and code blocks — and `tables.consumed` does not cover every block whose text it
+    claimed, so the same lines are in a table's cells *and* in the flow. Attributed by source,
+    every duplicate but three involves a table (`list+table` 84, `caption+table` 47,
+    `heading+table` 16). `table.{min_row_rules, min_column_rules, grid_snap_pt, rule_overlap_min}`
+    are all `provisional` and have never met a real book.
+  - *Aus dem Leben eines Taugenichts* (Project Gutenberg): 66 730 characters **lost** with no
+    ledger entry — the other direction, and a different bug.
+  - *Tschick* and *O Crime do Padre Amaro* convert clean, and EPUBCheck reports 0 errors and
+    0 warnings on both. The law refusing two books rather than shipping duplicated or missing
+    paragraphs is it working.
+- **A fallback table is emitted as a grid, not as an image plus `<details>`.** PIPELINE §8.7 wants
+  the image; rasterising a vector region needs a page renderer in `oc-pdf` that does not exist.
+  No text is lost either way, and `El::details` is written and tested for when it does.
+- **A tightly set ruled table falls back to an image.** When a cell gutter is narrower than
+  `text.line_split_gap_em`, `words` keeps two cells in one run and a `Run` carries a box and its
+  text but not its glyphs' positions, so nothing in `structure` can split it. The long-term fix is
+  to split runs at vertical rules in `layout`, which needs the rules to reach `layout`.
+- **A contents page with no drawn leader is not parsed.** `"Preface    i"` reaches the parser as
+  `"Preface i"` — the gap is geometry and a line's text is not.
+- **`Note.body` is one paragraph.** A note that runs to several paragraphs is one paragraph here.
+- **`RunId` is page-local**, whatever IR_SKETCH calls it. Every map from a run is keyed on
+  `(page, RunId)`; `oc_structure::build::NoteRefRuns` names the pair once.
+- **Language detection is not wired into the driver.** `convert` uses the configured tag and falls
+  back to `LangTag::UND`. `whatlang` is a Phase 2 capability that the stage driver never calls.
+- **EPUBCheck and its corpus are fetched, never committed**: `cargo run -p xtask -- fetch-epubcheck`
+  and `fetch-epubcheck-corpus` put them under `vendor/`, which `.gitignore` covers.
+- Local tool versions: rustc 1.98.1, cargo-nextest 0.9.143, cargo-deny 0.20.2, EPUBCheck 5.3.0,
+  Temurin-compatible JVM 23 locally / Temurin 21 in CI.
 
 ## Blocked
 
 _(empty — Q1 resolved 2026-09-09; see `docs/DECISIONS_LOG.md`)_
+
+## Phase 5 — Definition of Done
+
+Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-14. **One row cannot be verified on a
+single machine** and is named as such rather than counted as a pass.
+
+1. **Every named test exists and passes** — all twenty rows of the Phase 5 table (5.1–5.20), plus
+   about sixty additions. `docs/TEST_MATRIX.md` lists every one and the CI job that runs it.
+   Row 5.17 is behind the `epubcheck` cargo feature and row 5.5 is a CI job; neither is
+   `#[ignore]`d, which `xtask ci-lint` enforces.
+2. **`cargo nextest run --workspace` green on three OSes** — green locally on Windows. The Linux
+   and macOS legs are the `test` matrix job and are unverified until CI runs.
+3. **`cargo clippy --workspace --all-targets -- -D warnings`** — clean.
+4. **`cargo fmt --all --check`** — clean.
+5. **`cargo deny check`** — clean (advisories, bans, licences, sources).
+6. **`cargo xtask thresholds-lint`** — clean; four new entries, each with the five keys.
+7. **Every acceptance criterion demonstrated:**
+   - **A5.1** (every fixture, 0 EPUBCheck errors) — **met, and measured**: EPUBCheck 5.3.0 reports
+     0 errors *and 0 warnings* on all ten fixtures. Row 5.17 is the standing gate.
+   - **A5.2** (the same input twice is byte-identical modulo `dcterms:modified`) — row 5.4 over all
+     ten fixtures, and `cli::convert_writes_a_valid_container_and_leaves_no_temporary` through the
+     binary.
+   - **A5.3** (identical sha256 on ubuntu/macos/windows) — **partial, and unverifiable here**: the
+     `epub-bytes` matrix job and the `epub_is_byte_identical_across_os` job are written, and one
+     machine cannot run them. Everything they depend on — pure-Rust codecs, a fixed JPEG quality, a
+     fixed resampling filter, sorted entries, fixed timestamps, `--modified` — is in place and
+     tested on this machine.
+   - **A5.4** (Tier 1: bijection, page-list, alt, no-script) — `tier1_passes_on_every_fixture`,
+     plus one test per check against a container broken in exactly that way.
+   - **A5.5** (a footnote inside a paragraph does not compile) — `phrasing_cannot_contain_figure`
+     is the same claim about the same trait bound; `El<Phrasing>` has neither `figure` nor
+     `aside_footnote`, both being `FlowContext` methods.
+   - **A5.6** (per-message-id parity recorded and non-decreasing) — `docs/TIER1_PARITY.md` is
+     generated by `xtask epubcheck-parity` over EPUBCheck's own corpus, and `--check` is the CI
+     gate. Expanded publications are zipped by this project's writer on the way in, so an
+     OCF-level defect in one of those cases is repaired before Tier 1 sees it; the 25 packaged
+     `.epub` files are the ones whose container bytes are measured.
+8. **`docs/CHANGELOG.md`** — Phase 5 entry written.
+9. **No `TODO`/`FIXME` without an issue number** — `xtask ci-lint` clean.
+
+### What EPUBCheck found that the tests did not
+
+Two real defects, both fixed, both now with a Tier-1 check of their own:
+
+- Image `src` was written package-root-relative from a document in `text/`, so every figure
+  resolved to `text/images/…` and was missing (`RSC-007`). Tier 1 checked fragments and not
+  resources; it checks both now.
+- A document that yielded no text produced an empty spine, an empty nav `<ol>` and an empty
+  `navMap` — three `RSC-005`s and not a book. A book with no text now carries its pages as
+  figures (PIPELINE §10).
+
+That is the whole argument for D6's Tier 2 being a hard gate rather than a nice-to-have.
 
 ## Phase 4 — Definition of Done
 
@@ -525,3 +454,11 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-14  P4.8      oc-structure lists + tables, and the honest fallback (4.11-4.14 + 5)       9b2b2ad
 2026-09-14  P4.9      oc-structure quotes + meta; XMP over boilerplate (4.16-4.18 + 4)           4076f40
 2026-09-14  P4.10     openconvert structure stage under the conservation law (4.15, 4.19-4.21)   70439b6
+2026-09-14  P5.1      oc-model Document + the document stage; page breaks, class, preset (10)   5d3717a
+2026-09-14  P5.2      oc-epub: the typed XHTML builder; two compile-fail rows (5.1, 5.2 + 14)    b100485
+2026-09-14  P5.3      oc-epub: the deterministic OCF container (5.3 + 3)                          b57bfad
+2026-09-14  P5.4      oc-epub: one stylesheet that names no typeface (5.12 + 2)                   c7cd1e5
+2026-09-14  P5.5      oc-structure: spans carry their styles and their note references (2)        ea69e20
+2026-09-14  P5.6      oc-epub: content documents, package, nav, ncx, images, container (5.4-5.14, 5.20 + 14)  24087ae
+2026-09-14  P5.7      oc-validate: Tier 1, against real and crafted output (5.15, 5.16 + 6)       a4b8e7b
+2026-09-14  P5.8      openconvert: convert + validate; the pipeline moved into the library (5.19 + 5)  19c31b1

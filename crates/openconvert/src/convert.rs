@@ -160,6 +160,7 @@ pub fn convert(
             landscape: &landscape,
             column_counts: &column_counts,
             block_pages: &block_pages,
+            images: &images,
             language,
             preset: options.preset,
             ledger,

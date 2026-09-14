@@ -271,7 +271,11 @@ fn build_spine(
             } else {
                 title.clone()
             },
-            anchor: heading_id.clone(),
+            // A section with no heading still has to be reachable, and its own `<section>` id
+            // is the anchor: pointing at the first file of the *book* instead — which is what
+            // "no anchor" would mean — sends a reader to chapter one from every untitled
+            // section after the first.
+            anchor: heading_id.clone().or_else(|| Some(id.clone())),
             children: nav_children,
         },
         id,
@@ -495,7 +499,11 @@ fn emit_figure<C: FlowContext>(el: El<C>, id: oc_model::ids::FigureId, ctx: &mut
         return el;
     };
     let caption_spans = figure.caption.clone();
-    let Some(href) = ctx.images.get(&figure.image).cloned() else {
+    let Some(href) = ctx
+        .images
+        .get(&figure.image)
+        .map(|path| from_text_dir(path))
+    else {
         // No file for the image — it was dropped as an ornament, or the backend could not
         // decode it. The caption is still text the book contained, so it stays: dropping it
         // would be the stage losing characters it cannot account for.
@@ -787,6 +795,9 @@ fn pack(
             } else {
                 format!("{}-{}", spine.id, index + 1)
             };
+            // The `<section>` wrapper's own id is defined in this file, so the nav may point
+            // at it. Registered here rather than on a piece because `pack` is what creates it.
+            anchors.insert(id.clone(), path.clone());
             // The first fragment carries the semantics and points at its own heading; the rest
             // repeat the heading's text, because `aria-labelledby` may only reference an
             // element in the same document (IMPLEMENTATION_PLAN Phase 5 detail 6).
@@ -914,6 +925,15 @@ fn landmarks(
 // ---------------------------------------------------------------------------
 // Names and labels
 // ---------------------------------------------------------------------------
+
+/// A package-root-relative path, as a content document has to spell it.
+///
+/// Every content document lives in `text/`, so `images/i0001.jpg` in the manifest is
+/// `../images/i0001.jpg` in the markup. Getting this wrong is EPUBCheck's `RSC-007` — the
+/// reader looks for `text/images/i0001.jpg`, finds nothing, and shows a broken figure.
+fn from_text_dir(path: &str) -> String {
+    format!("../{path}")
+}
 
 fn note_anchor(id: NoteId) -> String {
     format!("fn{}", id.0)

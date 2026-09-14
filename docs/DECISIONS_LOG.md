@@ -2301,3 +2301,57 @@ that does not exist. `a_paragraphs_spans_are_its_text_split` asserts it on six f
 A drop cap joined from its own block is prepended as a span rather than folded into the text
 for the same reason: rebuilding `spans` from the joined string would throw away every style and
 every note reference the paragraph's runs carried.
+
+## 2026-09-14 — `dcterms:conformsTo` is not emitted
+
+IMPLEMENTATION_PLAN Phase 5 detail 2 lists `dcterms:conformsTo` "matching the required string
+pattern" among the required package metadata. PIPELINE §9.6 says the opposite in as many words:
+"Never auto-claim WCAG conformance — the tool cannot guarantee it from PDF source."
+
+In EPUB Accessibility 1.1 that property *is* the conformance claim; there is no version of it
+that means "some accessibility work was done". The authority order puts PIPELINE above the plan,
+and a false conformance claim is a worse defect than a missing optional property — an
+institutional buyer filtering on it would get a book that does not meet what it says it meets.
+
+So it is absent, and `schema:accessibilitySummary` says plainly what was done and that no
+conformance is claimed. EPUBCheck 5.3.0 reports neither an error nor a warning for its absence.
+
+## 2026-09-14 — `fuzz_xhtml_emitter_roundtrip` is a property test, not a fuzz target
+
+The plan names `cargo-fuzz` for row 5.19. A fuzz target is not a test: it has no pass condition,
+it runs until someone stops it, and CI cannot hold it to "green" — which is exactly what §0.3
+item 1 requires of every named row.
+
+It is a `proptest` with a generator weighted towards the characters that break serialisers, and
+the property is two-sided: the emitter must either produce a document that parses, or refuse.
+Refusing is a legitimate answer for a character XML 1.0 cannot carry, and a test that demanded
+output would be demanding the wrong thing. `PROPTEST_CASES=4096` is the nightly tier (§0.5).
+
+## 2026-09-14 — a continuation fragment carries `aria-label`, not `aria-labelledby`
+
+Phase 5 detail 6 says a mid-chapter split's continuation fragments are "plain `<section>`
+continuations with the same `aria-labelledby`". `aria-labelledby` is an IDREF and may only
+reference an element in the *same document*; a continuation's heading is in the previous file, so
+the attribute would point at nothing.
+
+The first fragment keeps `aria-labelledby` pointing at its own heading, which is better than a
+repeated string because the two cannot drift apart. The continuations carry `aria-label` with the
+heading's text, which is self-contained and valid. Both keep the fragments reading as one chapter,
+which is what the detail is for.
+
+## 2026-09-14 — what EPUBCheck found that seventy tests did not
+
+Two defects, on the first run of the Tier-2 gate over the ten fixtures:
+
+- Image `src` was written package-root-relative — `images/i0001.jpg` — from a document living in
+  `text/`, so every figure resolved to `text/images/…` and was missing. `RSC-007`, twice on `f10`.
+  Tier 1 checked that *fragments* resolved and never that *resources* did; it checks both now.
+- A document that yielded no text produced an empty spine, an empty nav `<ol>` and an empty
+  `navMap`: three `RSC-005`s on `f03`, and not a publication at all. PIPELINE §10 already said
+  what to do — "pages that failed to yield text … become an image inside a `<figure>` … rather
+  than being dropped silently" — and the `document` stage now does it.
+
+Both are recorded here because they are the argument for D6's Tier 2 being a hard gate rather
+than a nice-to-have: seventy tests written against this emitter, including a Tier-1 validator
+whose whole job is to find this class of defect, and neither of these surfaced until an outside
+implementation read the output.
