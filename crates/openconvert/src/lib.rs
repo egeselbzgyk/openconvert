@@ -12,6 +12,7 @@
 //! conservation checker, the stage declarations, cancellation, events and exit codes.
 
 pub mod dump_layout;
+pub mod dump_structure;
 pub mod dump_text;
 pub mod input;
 pub mod pipeline;

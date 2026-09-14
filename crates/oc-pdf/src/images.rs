@@ -256,3 +256,99 @@ fn image_kind_covers_every_arm() {
         ImageKind::FullPageBackground
     );
 }
+
+/// The side of the grid a perceptual hash is computed over: 8 × 8 = 64 bits.
+const AHASH_SIDE: u32 = 8;
+
+/// A perceptual hash of a decoded image — the average hash, 64 bits.
+///
+/// Downscale to 8 × 8 greyscale by box-averaging, then set a bit where a cell is at or above
+/// the mean. It is the simplest hash in the family and the right one for the job D13.11 gives
+/// it: deciding whether *the same ornament* was drawn on thirty pages. Two placements of one
+/// XObject are byte-identical, so an exact hash would do; aHash also survives the case where
+/// a producer re-encoded the ornament per page, which some do.
+///
+/// It is not a similarity measure and must not be used as one. Equality is the only predicate
+/// read from it.
+pub fn perceptual_hash(image: &DecodedImage) -> u64 {
+    if image.width == 0 || image.height == 0 {
+        return 0;
+    }
+    let mut cells = [0f64; (AHASH_SIDE * AHASH_SIDE) as usize];
+    for (index, cell) in cells.iter_mut().enumerate() {
+        let index = u32::try_from(index).unwrap_or_default();
+        let (cx, cy) = (index % AHASH_SIDE, index / AHASH_SIDE);
+        // The source rectangle this cell averages, at least one pixel on a side.
+        let x0 = cx * image.width / AHASH_SIDE;
+        let x1 = ((cx + 1) * image.width / AHASH_SIDE)
+            .max(x0 + 1)
+            .min(image.width);
+        let y0 = cy * image.height / AHASH_SIDE;
+        let y1 = ((cy + 1) * image.height / AHASH_SIDE)
+            .max(y0 + 1)
+            .min(image.height);
+
+        let mut total = 0f64;
+        let mut count = 0f64;
+        for y in y0..y1 {
+            for x in x0..x1 {
+                let Some(pixel) = image.pixel(x, y) else {
+                    continue;
+                };
+                // Rec. 601 luma, and the alpha channel folded in as a white matte, so a
+                // transparent ornament and a white one hash alike — which is what a reader
+                // sees.
+                let alpha = f64::from(pixel[3]) / 255.0;
+                let luma = 0.299 * f64::from(pixel[0])
+                    + 0.587 * f64::from(pixel[1])
+                    + 0.114 * f64::from(pixel[2]);
+                total += luma * alpha + 255.0 * (1.0 - alpha);
+                count += 1.0;
+            }
+        }
+        *cell = if count > 0.0 { total / count } else { 0.0 };
+    }
+
+    let mean = cells.iter().sum::<f64>() / cells.len() as f64;
+    cells
+        .iter()
+        .enumerate()
+        .filter(|(_, cell)| **cell >= mean)
+        .fold(0u64, |hash, (index, _)| hash | (1u64 << index))
+}
+
+/// Two images drawn from one XObject hash alike; two different ones do not.
+#[test]
+fn the_perceptual_hash_separates_two_greys_and_joins_two_copies() {
+    let flat = |grey: u8| DecodedImage {
+        width: 8,
+        height: 8,
+        rgba: (0..64).flat_map(|_| [grey, grey, grey, 255]).collect(),
+    };
+    // A flat image has every cell at the mean, so every bit is set: identical by
+    // construction, which is the property the ornament rule needs.
+    assert_eq!(perceptual_hash(&flat(96)), perceptual_hash(&flat(96)));
+
+    // A gradient and a flat field differ.
+    let gradient = DecodedImage {
+        width: 8,
+        height: 8,
+        rgba: (0..64)
+            .flat_map(|index| {
+                let grey = u8::try_from(index * 4).unwrap_or(255);
+                [grey, grey, grey, 255]
+            })
+            .collect(),
+    };
+    assert_ne!(perceptual_hash(&gradient), perceptual_hash(&flat(96)));
+
+    // A zero-sized image hashes to zero rather than panicking on a divide.
+    assert_eq!(
+        perceptual_hash(&DecodedImage {
+            width: 0,
+            height: 0,
+            rgba: Vec::new(),
+        }),
+        0
+    );
+}

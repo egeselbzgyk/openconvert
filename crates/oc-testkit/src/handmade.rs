@@ -85,6 +85,7 @@ pub fn all() -> Vec<(&'static str, Vec<u8>)> {
         ("h26_borderless_table", h26_borderless_table()),
         ("h27_repeated_ornament", h27_repeated_ornament()),
         ("h28_xmp_over_boilerplate", h28_xmp_over_boilerplate()),
+        ("h29_drop_cap", h29_drop_cap()),
     ]
 }
 
@@ -852,6 +853,63 @@ pub fn h28_xmp_over_boilerplate() -> Vec<u8> {
         .text_at((WIDE_MARGIN_PT, 700.0), XMP_TITLE, HEADING_SIZE_PT)
         .text((WIDE_MARGIN_PT, 660.0), "by A. Writer")
         .text((WIDE_MARGIN_PT, 600.0), "The first paragraph of the book.")])
+}
+
+/// The letter h29 sets as its drop cap, and the size it is set at.
+pub const DROP_CAP: &str = "W";
+/// Thirty-six point against a 12 pt body: `dropcap.min_height_lines` is 2.0 and the bar is
+/// two *line heights*, which include the leading, so a cap set at exactly twice the body size
+/// falls just under it. Measured on this fixture: 30 pt gives a 21.5 pt line against a 22.4 pt
+/// bar, and 36 pt gives 25.8 pt.
+pub const DROP_CAP_SIZE_PT: f32 = 36.0;
+/// The first words of the paragraph the drop cap opens, without the cap itself.
+pub const DROP_CAP_PARAGRAPH: &str = "hen the survey party reached the delta the water";
+
+/// h29 - a drop cap drawn clear of the text grid, with the paragraph it opens set beside it.
+///
+/// The cap's baseline sits ten points off every body baseline, which is what a producer that
+/// draws the cap as a box of its own produces and is what makes it a *line* of one character.
+/// That line is the stray one-character paragraph defect in waiting: a converter that treats
+/// it as a block of its own emits `<p>W</p>` and then a paragraph beginning "hen the survey".
+/// The cap belongs to the paragraph it opens (test 4.21, PIPELINE §6 step 6).
+pub fn h29_drop_cap() -> Vec<u8> {
+    // 30 pt leading, so the cap's baseline halfway between two lines is 15 pt from each.
+    // `text.line_baseline_tolerance_ratio` is 0.3 of the *size*, and the size here is the
+    // cap's 36 pt, so the clearance has to beat 10.8 pt: at 20 pt leading the cap's line
+    // swallowed two body lines and came back as interleaved letters.
+    const LEADING: f32 = 30.0;
+    const FIRST_BASELINE: f32 = 720.0;
+    const INDENT_X: f32 = 105.0;
+
+    let mut page = Page::default()
+        .media_box(STRUCTURE_PAGE)
+        // The cap: one glyph, 30 pt, its baseline between the first and second body lines.
+        .text_at(
+            (WIDE_MARGIN_PT, FIRST_BASELINE - LEADING / 2.0),
+            DROP_CAP,
+            DROP_CAP_SIZE_PT,
+        )
+        // The first two lines run beside it, indented past its width.
+        .text((INDENT_X, FIRST_BASELINE), DROP_CAP_PARAGRAPH)
+        .text(
+            (INDENT_X, FIRST_BASELINE - LEADING),
+            "had already fallen and",
+        );
+    // The rest of the paragraph returns to the margin, below the cap.
+    for (index, line) in [
+        "the channel was a chain of pools between banks of",
+        "grey silt, each one lower than the last.",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let row = f32::from(u8::try_from(index).unwrap_or(0));
+        page = page.text(
+            (WIDE_MARGIN_PT, FIRST_BASELINE - LEADING * (2.0 + row)),
+            line,
+        );
+    }
+    build_pages(vec![page])
 }
 
 /// A page under construction: text runs, plus the two boxes and the rotation.

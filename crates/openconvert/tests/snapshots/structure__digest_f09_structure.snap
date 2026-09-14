@@ -1,0 +1,66 @@
+---
+source: crates/openconvert/tests/structure.rs
+expression: digest(&stage.output)
+---
+{
+  "content": {
+    "block_quote": 0,
+    "epigraph": 0,
+    "figure": 0,
+    "heading": 7,
+    "list": 0,
+    "note_ref_anchor": 0,
+    "page_break": 0,
+    "paragraph": 15,
+    "preformatted": 0,
+    "rule": 0,
+    "table": 0,
+    "verse": 0
+  },
+  "headings": [
+    [
+      1,
+      "Preface"
+    ],
+    [
+      1,
+      "Contents"
+    ],
+    [
+      1,
+      "Chapter One"
+    ],
+    [
+      2,
+      "A Section Within"
+    ],
+    [
+      1,
+      "Chapter Two"
+    ],
+    [
+      1,
+      "Appendix A"
+    ],
+    [
+      1,
+      "Index"
+    ]
+  ],
+  "sections": 7,
+  "notes": 0,
+  "note_match_percent": 100,
+  "figures": 0,
+  "captioned_figures": 0,
+  "tables": 0,
+  "tables_as_image": 0,
+  "lists": 0,
+  "list_items": 0,
+  "images_kept": 0,
+  "images_dropped": 0,
+  "escalations": 0,
+  "warnings": [],
+  "style_clusters": 4,
+  "inventory_valid": true,
+  "metadata_source": "xmp"
+}

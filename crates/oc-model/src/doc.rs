@@ -131,6 +131,15 @@ impl Heading {
 pub struct ListItem {
     pub content: Vec<Content>,
     pub nested: Option<Box<List>>,
+    /// The marker as printed: `"1."`, `"•"`.
+    ///
+    /// The marker stays **inside** the item's text as well, and that is the conservation law
+    /// rather than an oversight: `structure` is Conserving, `Reason` is a closed set of
+    /// fifteen variants and none of them is "a list marker", so a stage that removed one
+    /// would be removing text it cannot account for. Recorded here so that `epub` — which
+    /// does know that `<ol>` draws its own numbers — can elide exactly this prefix and
+    /// declare what it did.
+    pub marker: Option<String>,
 }
 
 /// An ordered or unordered list.

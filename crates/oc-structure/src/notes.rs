@@ -66,6 +66,7 @@ pub fn link_notes(
     body_size_pt: f32,
     t: &Thresholds,
 ) -> (Vec<Note>, Vec<NoteRef>, NoteLinkStats) {
+    let mut minter = crate::build::Minter::new();
     let zone: Vec<&BlockView> = blocks
         .iter()
         .filter(|block| is_note_block(block, body_size_pt, t))
@@ -170,7 +171,18 @@ pub fn link_notes(
             id,
             kind: NoteKind::Footnote,
             marker: note.marker.clone(),
-            body: Vec::new(),
+            // The note's own text, marker and all. `structure` is Conserving: the marker is
+            // part of what the page printed, and the note is where those characters live once
+            // the block they were in has left the flow.
+            body: vec![oc_model::doc::Content::Paragraph(
+                crate::build::para_of_text(
+                    &mut minter,
+                    note.page,
+                    &[note.block],
+                    note.lines.clone(),
+                    &note.text,
+                ),
+            )],
             anchor,
             page: oc_model::extract::PageRef::new(note.page),
             confidence: if anchor.is_some() {
@@ -203,6 +215,8 @@ struct Found {
     /// The line of its block the note starts on, for the separator-rule test.
     top_y: f32,
     text: String,
+    /// The lines the note was printed on, so its body is a paragraph with real geometry.
+    lines: Vec<oc_model::text::Line>,
     marker_index: Option<usize>,
 }
 
@@ -282,14 +296,16 @@ fn note_bodies(zone: &[&BlockView]) -> Vec<Found> {
                     page: block.page,
                     block: block.id,
                     top_y: line.bbox().y0,
-                    text: line.text.clone(),
+                    text: line.text.trim().to_owned(),
+                    lines: vec![line.line.clone()],
                     marker_index: None,
                 }),
                 // A continuation line belongs to the note above it.
                 None => {
                     if let Some(open) = notes.last_mut() {
                         open.text.push(' ');
-                        open.text.push_str(&line.text);
+                        open.text.push_str(line.text.trim());
+                        open.lines.push(line.line.clone());
                     }
                 }
             }

@@ -69,9 +69,14 @@ struct Marked {
 /// Works on *lines* rather than on blocks, because a run of one-line items is one block to
 /// Docstrum — five items set a body leading apart are geometrically one paragraph — and the
 /// marker is what distinguishes them.
-pub fn detect_lists(blocks: &[BlockView], t: &Thresholds) -> (Vec<List>, Vec<Warning>) {
+pub fn detect_lists(blocks: &[BlockView], skip: &[BlockId], t: &Thresholds) -> ListOutcome {
     let lines: Vec<(&BlockView, &LineView)> = blocks
         .iter()
+        // A note at the foot of a page opens with `*` and so does a bulleted item, and two
+        // notes on one page are two siblings at one indent. The note zone is decided first —
+        // by the font size and the band, which a list has neither of — and the blocks it
+        // claimed do not enter this one.
+        .filter(|block| !skip.contains(&block.id))
         .flat_map(|block| block.lines.iter().map(move |line| (block, line)))
         .collect();
 
@@ -96,6 +101,7 @@ pub fn detect_lists(blocks: &[BlockView], t: &Thresholds) -> (Vec<List>, Vec<War
     let mut minter = Minter::new();
     let mut warnings = Vec::new();
     let mut lists = Vec::new();
+    let mut consumed_lines: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
 
     // A list is a maximal run of marked lines, allowing unmarked continuation lines between
     // them, that holds at least `min_siblings` markers at its shallowest indent.
@@ -136,11 +142,47 @@ pub fn detect_lists(blocks: &[BlockView], t: &Thresholds) -> (Vec<List>, Vec<War
             &mut warnings,
         ) {
             lists.push(list);
+            // Every line of the run, marked or continuation, is inside the list now.
+            consumed_lines.extend(start..=last_marked);
         }
         start = last_marked + 1;
     }
 
-    (lists, warnings)
+    // A block is consumed only when *every* one of its non-empty lines is inside a list. A
+    // block that mixes a list with the prose introducing it keeps its prose in the flow, and
+    // the conservation check across the stage is what would catch the alternative.
+    let mut covered: std::collections::BTreeMap<BlockId, (usize, usize)> =
+        std::collections::BTreeMap::new();
+    for (index, (block, line)) in lines.iter().enumerate() {
+        if line.text.trim().is_empty() {
+            continue;
+        }
+        let entry = covered.entry(block.id).or_insert((0, 0));
+        entry.1 += 1;
+        if consumed_lines.contains(&index) {
+            entry.0 += 1;
+        }
+    }
+    let consumed = covered
+        .into_iter()
+        .filter(|(_, (inside, total))| *total > 0 && inside == total)
+        .map(|(block, _)| block)
+        .collect();
+
+    ListOutcome {
+        lists,
+        consumed,
+        warnings,
+    }
+}
+
+/// What list detection produced.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ListOutcome {
+    pub lists: Vec<List>,
+    /// Blocks every one of whose lines is inside a list, so the flow does not emit them twice.
+    pub consumed: Vec<BlockId>,
+    pub warnings: Vec<Warning>,
 }
 
 /// Turn one run of marked lines into a list, if it is one.
@@ -239,13 +281,7 @@ fn build_level(
             // The item's own lines: its marked line and every unmarked line beneath it
             // before the next marker.
             let own = lines.get(marker.line).map(|(_, line)| *line)?;
-            let para = para_of(
-                minter,
-                marker.page,
-                &[marker.block],
-                &[own],
-                Some(&marker.marker),
-            );
+            let para = para_of(minter, marker.page, &[marker.block], &[own]);
 
             let nested = if deeper.is_empty() || depth >= max_depth {
                 None
@@ -279,6 +315,7 @@ fn build_level(
             Some(ListItem {
                 content: vec![Content::Paragraph(para)],
                 nested,
+                marker: Some(marker.marker.clone()),
             })
         })
         .collect()

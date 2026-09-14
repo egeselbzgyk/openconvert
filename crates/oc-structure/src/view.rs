@@ -109,6 +109,20 @@ impl BlockView {
             .map_or(0.0, LineView::size_pt)
     }
 
+    /// Whether the block is centred within its column.
+    ///
+    /// Measured against the column rather than the page, so a centred heading over a
+    /// two-column page is centred over its column.
+    pub fn is_centered(&self, column_x0: f32, t: &oc_core::thresholds::Thresholds) -> bool {
+        if self.column_width_pt <= 0.0 {
+            return false;
+        }
+        let column_centre = column_x0 + self.column_width_pt / 2.0;
+        let block_centre = (self.bbox.x0 + self.bbox.x1) / 2.0;
+        f64::from((block_centre - column_centre).abs())
+            <= t.headings.centered_tolerance_ratio * f64::from(self.column_width_pt)
+    }
+
     /// Where the block sits down the page, as a fraction: 0 at the top, 1 at the bottom.
     pub fn band(&self) -> f32 {
         if self.page_height_pt <= 0.0 {

@@ -45,25 +45,15 @@ impl Minter {
 /// The text is the lines joined by single spaces, which is the same flattening `layout` uses
 /// — and it has to stay the same, because the conservation check across `structure` compares
 /// the two multisets and a different join would read as a stage that changed the text.
-pub fn para_of(
-    minter: &mut Minter,
-    page: u32,
-    source: &[BlockId],
-    lines: &[&LineView],
-    strip_prefix: Option<&str>,
-) -> Para {
-    let mut text = lines
+pub fn para_of(minter: &mut Minter, page: u32, source: &[BlockId], lines: &[&LineView]) -> Para {
+    // Every character of every line, joined the way `layout` joins them. Nothing is stripped
+    // — not even a list marker — because `structure` is Conserving and `Reason` has no
+    // variant for text this stage chose to drop.
+    let text = lines
         .iter()
         .map(|line| line.text.trim())
         .collect::<Vec<_>>()
         .join(" ");
-    // A list marker is not part of its item's text: `<ol>` draws it. It is removed here and
-    // nowhere else, and the stage that calls this declares it to the ledger.
-    if let Some(prefix) = strip_prefix {
-        if let Some(rest) = text.strip_prefix(prefix) {
-            text = rest.trim_start().to_owned();
-        }
-    }
 
     let bbox = lines
         .iter()
@@ -92,6 +82,47 @@ pub fn para_of(
         drop_cap: false,
         lang: None,
         align: Align::Left,
+        confidence: None,
+    }
+}
+
+/// A paragraph whose text is already assembled, for the callers that joined it themselves.
+///
+/// `notes` is one: a note's body is the lines from its marker to the next marker, which may
+/// be a suffix of one block's lines, and the text was built while they were being walked.
+pub fn para_of_text(
+    minter: &mut Minter,
+    page: u32,
+    source: &[BlockId],
+    lines: Vec<oc_model::text::Line>,
+    text: &str,
+) -> Para {
+    let bbox = lines
+        .iter()
+        .map(|line| line.bbox)
+        .reduce(|a, b| Rect {
+            x0: a.x0.min(b.x0),
+            y0: a.y0.min(b.y0),
+            x1: a.x1.max(b.x1),
+            y1: a.y1.max(b.y1),
+        })
+        .unwrap_or(Rect {
+            x0: 0.0,
+            y0: 0.0,
+            x1: 0.0,
+            y1: 0.0,
+        });
+    Para {
+        id: minter.mint(page, bbox, text),
+        blocks: source.to_vec(),
+        first_line_indent: lines.first().is_some_and(|line| line.indent_pt > 0.0),
+        lines,
+        spans: vec![Span::plain(text.to_owned())],
+        text: text.to_owned(),
+        pages: (page, page),
+        drop_cap: false,
+        align: Align::Left,
+        lang: None,
         confidence: None,
     }
 }

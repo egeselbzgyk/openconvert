@@ -462,6 +462,43 @@ pub fn paragraphs_stage(
     })
 }
 
+/// What `structure` produced, and the check that says it labelled rather than edited.
+pub struct StructureStage {
+    pub output: oc_structure::stage::StructureOutput,
+    pub delta: LedgerDelta,
+    pub check: StageCheck,
+}
+
+/// Run `structure`: roles, the section tree, notes, figures, tables and metadata (PIPELINE §8).
+///
+/// Conserving, and checked as such against the blocks `layout` produced. The check is the
+/// reason the stage is written the way it is: a block's text lands in exactly one of a
+/// section's content, a note's body, a table's cells or a figure's caption, and anything
+/// counted twice or dropped fails plain multiset equality here rather than silently in an
+/// EPUB somebody reads.
+pub fn structure_stage(
+    layout: &LayoutStage,
+    input: &oc_structure::stage::StructureInput,
+    totals: &mut ReasonTotals,
+    t: &Thresholds,
+) -> Result<StructureStage, ConservationError> {
+    let before = block_chars(&layout.blocks, &layout.pages);
+    let output = oc_structure::stage::structure(input, t);
+
+    let mut after = CharHistogram::new();
+    for text in output.emitted_text() {
+        after = after.union(&c_of(&text));
+    }
+    let delta = LedgerDelta::default();
+    let check = check_invariants(&before, &after, &delta, stages::STRUCTURE, totals)?;
+
+    Ok(StructureStage {
+        output,
+        delta,
+        check,
+    })
+}
+
 /// The runs that survive into the body flow: those of the lines `furniture` kept.
 ///
 /// What `structure`'s style clustering is fed. Clustering before furniture removal would put

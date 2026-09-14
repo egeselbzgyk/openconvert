@@ -95,7 +95,13 @@ pub fn classify_indented(
     let mut candidates = Vec::new();
 
     for block in blocks {
-        let indent = block.bbox.x0 - margin;
+        // The indent is measured from the block's lines *after* the first, and a one-line
+        // block has none. That is not a technicality: a first-line indent is a paragraph's
+        // own mark — Typst sets 1.2 em and most book designers set between one and two — so a
+        // one-line paragraph's box starts where a block quote's does, and nothing but the
+        // lines under it can tell them apart. PIPELINE §7 already measures a line's indent
+        // "relative to the block's dominant left edge" for the same reason.
+        let indent = block_indent(block, margin);
         let indented = indent >= minimum;
         let short_ratio = short_line_ratio(block, t);
         let monospace = block.runs().next().is_some_and(|_| {
@@ -114,6 +120,16 @@ pub fn classify_indented(
         if !indented && !monospace {
             continue;
         }
+        // A centred block of one or two lines is a folio, a title or a caption. Every one of
+        // them is "indented" against the body margin and none of them is a quotation.
+        // Centred *verse* exists — §8.6 names "centered short lines with a high line count" —
+        // so the exclusion stops where verse begins.
+        let centered = block.is_centered(margin, t);
+        if centered
+            && i64::try_from(block.lines.len()).unwrap_or(i64::MAX) <= t.quote.centered_max_lines
+        {
+            continue;
+        }
 
         let signals = vec![
             Signal::new("indent_pt", indent),
@@ -122,6 +138,7 @@ pub fn classify_indented(
             Signal::new("quote_glyph", f32::from(u8::from(quoted))),
             Signal::new("attribution", f32::from(u8::from(attributed))),
             Signal::new("monospace", f32::from(u8::from(monospace))),
+            Signal::new("centered", f32::from(u8::from(centered))),
         ];
 
         // The monospace test is the one unambiguous signal in the whole section: a family
@@ -169,6 +186,24 @@ pub fn classify_indented(
     }
 
     (classified, candidates)
+}
+
+/// How far a block's body is set in from the margin.
+///
+/// Its lines after the first, because the first carries the paragraph indent. `NEG_INFINITY`
+/// for a one-line block: there is no body to measure, so there is no evidence of an indent,
+/// and the safe reading of no evidence is "not a quotation".
+fn block_indent(block: &BlockView, margin: f32) -> f32 {
+    if block.lines.len() < 2 {
+        return f32::NEG_INFINITY;
+    }
+    block
+        .lines
+        .iter()
+        .skip(1)
+        .map(|line| line.bbox().x0)
+        .fold(f32::INFINITY, f32::min)
+        - margin
 }
 
 /// The document's body left margin: the modal left edge of its blocks.

@@ -17,15 +17,19 @@ use oc_structure::headings::candidate::heading_candidates;
 use oc_structure::headings::cluster::{cluster_styles, StyleInventory};
 use oc_structure::headings::levels::{assign_levels, HeadingAssignment, LevelSource};
 use oc_structure::headings::toc_page::{parse_toc_page, TocPage};
+use oc_structure::images::{drop_ornaments, W_ORNAMENT_DROPPED};
 use oc_structure::lists::detect_lists;
 use oc_structure::meta::{metadata, InfoDict, MetaSources};
 use oc_structure::notes::link_notes;
 use oc_structure::quotes::{classify_indented, IndentedKind, TASK_VERSE_QUOTE};
+use oc_structure::stage::StructureInput;
 use oc_structure::tables::{extract_tables, W_TABLE_AS_IMAGE};
 use oc_structure::view::BlockView;
+use openconvert::dump_structure::digest;
 use openconvert::pipeline::{
     body_runs, furniture_stage, layout_stage, text_stage, LayoutStage, TextStage,
 };
+use openconvert::pipeline::{structure_stage, StructureStage};
 use openconvert::structure_input::block_views;
 
 /// Everything the `structure` stage reads, for one fixture.
@@ -38,6 +42,12 @@ struct Read {
     images: Vec<oc_model::extract::ImageRef>,
     xmp: oc_pdf::meta::XmpMeta,
     info: InfoDict,
+    /// Per image in `images`, its perceptual hash. Decoding is the backend's, so the hashes
+    /// are taken here and handed to `structure` as numbers.
+    hashes: Vec<u64>,
+    pages: u32,
+    labels: Vec<Option<String>>,
+    totals: ReasonTotals,
 }
 
 impl Read {
@@ -47,6 +57,37 @@ impl Read {
 
     fn inventory(&self) -> StyleInventory {
         cluster_styles(&self.runs, &self.text.fonts, &T)
+    }
+
+    /// Everything the stage reads, assembled the way a conversion assembles it.
+    fn stage_input(&self, filename: &str) -> StructureInput {
+        StructureInput {
+            blocks: self.views(),
+            runs: self.runs.clone(),
+            fonts: self.text.fonts.clone(),
+            images: self.images.clone(),
+            image_hashes: self.hashes.clone(),
+            vectors: self.vectors.clone(),
+            outline: self.outline.clone(),
+            labels: self.labels.clone(),
+            drop_caps: self.layout.drop_caps.iter().flatten().cloned().collect(),
+            page_count: self.pages,
+            meta: MetaSources {
+                xmp: self.xmp.clone(),
+                info: self.info.clone(),
+                filename: filename.to_owned(),
+                source_sha256: "0f0f0f".to_owned(),
+                language: LangTag::EN,
+            },
+            lang: LangTag::EN,
+        }
+    }
+
+    /// Run the whole stage, under the conservation law, as a conversion would.
+    fn structure(&self, filename: &str) -> StructureStage {
+        let mut totals = self.totals.clone();
+        structure_stage(&self.layout, &self.stage_input(filename), &mut totals, &T)
+            .expect("structure conserves")
     }
 }
 
@@ -74,7 +115,30 @@ fn read(relative: &str) -> Read {
         .collect();
     let images = openconvert::structure_input::document_images(&text);
     let doc_info = document.doc_info();
+    let hashes = images
+        .iter()
+        .map(|image| {
+            // The page-local index is the image's position among those sharing its page,
+            // which `document_images` preserves.
+            let local = images
+                .iter()
+                .filter(|other| other.page.index == image.page.index)
+                .position(|other| other.id == image.id)
+                .unwrap_or_default();
+            document
+                .image_bytes(
+                    image.page.index,
+                    oc_model::extract::ImageId(u32::try_from(local).unwrap_or_default()),
+                )
+                .map(|decoded| oc_pdf::images::perceptual_hash(&decoded))
+                .unwrap_or_default()
+        })
+        .collect();
     Read {
+        hashes,
+        pages: document.page_count(),
+        labels: furniture.labels.clone(),
+        totals,
         xmp: document.xmp(),
         info: InfoDict {
             title: doc_info.title.clone(),
@@ -533,7 +597,8 @@ fn ambiguous_caption_left_unassociated() {
 #[test]
 fn ordered_list_numbering_is_contiguous() {
     let read = read("../../target/fixtures/f10_lists_and_table.pdf");
-    let (lists, warnings) = detect_lists(&read.views(), &T);
+    let outcome = detect_lists(&read.views(), &[], &T);
+    let (lists, warnings) = (outcome.lists, outcome.warnings);
 
     assert_eq!(lists.len(), 1, "f10 sets one list");
     assert!(warnings.is_empty(), "{warnings:?}");
@@ -567,14 +632,20 @@ fn ordered_list_numbering_is_contiguous() {
         Some(oc_model::doc::Content::Paragraph(para)) => para.text.clone(),
         other => panic!("a list item holds a paragraph, got {other:?}"),
     };
+    // The marker stays in the text, and that is the conservation law rather than an
+    // oversight: `Reason` is a closed set of fifteen variants and none of them is "a list
+    // marker", so `structure` may not drop one. `ListItem.marker` records it for `epub`,
+    // which does know that `<ol>` draws its own numbers.
     assert_eq!(
         text_of(&list.items[0]),
-        "Open the document and read its outline."
+        "1. Open the document and read its outline."
     );
+    assert_eq!(list.items[0].marker.as_deref(), Some("1."));
     assert_eq!(
         text_of(&inner.items[1]),
-        "Record which candidates were left unbound."
+        "2. Record which candidates were left unbound."
     );
+    assert_eq!(inner.items[1].marker.as_deref(), Some("2."));
 }
 
 /// The other half of row 4.12, on a real document: `f01` is prose with no list in it, and a
@@ -582,7 +653,8 @@ fn ordered_list_numbering_is_contiguous() {
 #[test]
 fn prose_with_no_list_yields_no_list() {
     let read = read("../../target/fixtures/f01_prose_single_column.pdf");
-    let (lists, warnings) = detect_lists(&read.views(), &T);
+    let outcome = detect_lists(&read.views(), &[], &T);
+    let (lists, warnings) = (outcome.lists, outcome.warnings);
     assert!(lists.is_empty(), "{lists:?}");
     assert!(warnings.is_empty());
 }
@@ -832,4 +904,162 @@ fn identifier_is_stable_across_reconversions() {
     assert_eq!(once.identifier, renamed.identifier);
     let other = metadata(&sources("book.pdf", "0000"), &views, body, &T).0;
     assert_ne!(once.identifier, other.identifier);
+}
+
+/// Row 4.15. `h27` draws the same small image at the foot of all five of its pages and one
+/// figure on one of them. The ornament goes; the figure stays.
+///
+/// The removal cites no ledger `Reason` and spends no budget, and that is correct rather than
+/// an omission: `C` is a multiset of *characters* and an image is not in it (D13.4). What it
+/// does instead is warn — a removal nobody can see in the ledger has to be visible somewhere.
+#[test]
+fn ornament_repeated_on_most_pages_is_dropped() {
+    let read = read("../../corpus/fixtures/handmade/h27_repeated_ornament.pdf");
+    assert_eq!(read.pages as usize, oc_testkit::handmade::H27_PAGES);
+    assert_eq!(
+        read.images.len(),
+        oc_testkit::handmade::H27_ORNAMENT_PAGES + 1,
+        "five ornaments and one figure"
+    );
+
+    let policy = drop_ornaments(&read.images, &read.hashes, read.pages, &T);
+
+    assert_eq!(
+        policy.dropped.len(),
+        oc_testkit::handmade::H27_ORNAMENT_PAGES,
+        "every copy of the ornament goes: {policy:?}"
+    );
+    assert_eq!(
+        policy.kept.len(),
+        1,
+        "and the figure stays — a rule that dropped every small image would pass without this"
+    );
+    assert!(
+        policy
+            .warnings
+            .iter()
+            .any(|warning| warning.code == W_ORNAMENT_DROPPED),
+        "{:?}",
+        policy.warnings
+    );
+
+    // The one that stays is the figure, not an ornament that happened to be missed.
+    let kept = read
+        .images
+        .iter()
+        .find(|image| policy.kept.contains(&image.id))
+        .expect("one image is kept");
+    assert!(
+        (kept.bbox.x1 - kept.bbox.x0) > T.images.ornament_max_side_pt as f32,
+        "the survivor is the large image"
+    );
+}
+
+/// Row 4.19. `structure` is Conserving: every operation in it is a label, so I-3 reduces to
+/// plain multiset equality across the stage and the ledger is empty.
+///
+/// The check is what forces the stage's shape. Every block's text lands in exactly one of a
+/// section's content, a note's body, a table's cells or a figure's caption; a block consumed
+/// by a table is not also a paragraph, a bound caption does not also sit in the flow, and a
+/// list marker stays inside its item's text because `Reason` has no variant for it. Anything
+/// counted twice or dropped fails here rather than silently in an EPUB somebody reads.
+#[test]
+fn structure_stage_is_conserving() {
+    for name in [
+        "../../target/fixtures/f01_prose_single_column.pdf",
+        "../../target/fixtures/f02_two_column.pdf",
+        "../../target/fixtures/f07_verse_and_quote.pdf",
+        "../../target/fixtures/f08_footnotes.pdf",
+        "../../target/fixtures/f09_novel_structure.pdf",
+        "../../target/fixtures/f10_lists_and_table.pdf",
+        "../../corpus/fixtures/handmade/h24_footnote_symbol_cycle.pdf",
+        "../../corpus/fixtures/handmade/h26_borderless_table.pdf",
+        "../../corpus/fixtures/handmade/h29_drop_cap.pdf",
+    ] {
+        let read = read(name);
+        let stage = read.structure("book.pdf");
+        assert!(
+            stage.delta.entries().is_empty(),
+            "{name}: a Conserving stage has an empty ledger"
+        );
+        assert_eq!(stage.check.removed_chars, 0, "{name}");
+        assert_eq!(stage.check.added_chars, 0, "{name}");
+    }
+}
+
+/// Row 4.21. `h29` draws its drop cap clear of the text grid, so `layout` gives it a line —
+/// and therefore a block — of its own.
+///
+/// That block is the stray one-character paragraph in waiting: a converter that emits it as a
+/// block produces `<p>W</p>` followed by a paragraph beginning "hen the survey", which is a
+/// very visible EPUB defect (PIPELINE §6 step 6). The cap belongs to the paragraph it opens,
+/// as its first *character* — no space between them.
+#[test]
+fn drop_cap_is_not_a_one_char_paragraph() {
+    let read = read("../../corpus/fixtures/handmade/h29_drop_cap.pdf");
+    let cap = oc_testkit::handmade::DROP_CAP;
+
+    // `layout` really does hand it over as its own block, or the test would pass vacuously.
+    assert!(
+        read.views().iter().any(|block| block.text.trim() == cap),
+        "the fixture must present the cap as a block of its own"
+    );
+    assert_eq!(
+        read.layout.drop_caps.iter().flatten().count(),
+        1,
+        "and `layout` must have detected it"
+    );
+
+    let stage = read.structure("h29_drop_cap.pdf");
+    let paragraphs: Vec<&oc_model::layout::Para> =
+        openconvert::dump_structure::walk(&stage.output.sections)
+            .into_iter()
+            .flat_map(|section| section.content.iter())
+            .filter_map(|content| match content {
+                oc_model::doc::Content::Paragraph(para) => Some(para),
+                _ => None,
+            })
+            .collect();
+
+    assert!(
+        !paragraphs.iter().any(|para| para.text.trim() == cap),
+        "no stray one-character paragraph: {:?}",
+        paragraphs
+            .iter()
+            .map(|p| p.text.as_str())
+            .collect::<Vec<_>>()
+    );
+    let opening = paragraphs
+        .iter()
+        .find(|para| para.drop_cap)
+        .expect("one paragraph carries the drop cap");
+    assert!(
+        opening.text.starts_with(&format!(
+            "{cap}{}",
+            oc_testkit::handmade::DROP_CAP_PARAGRAPH
+        )),
+        "the cap is the paragraph's first character, with no space after it: {:?}",
+        opening.text
+    );
+}
+
+/// Row 4.20. The structural digest of `f09`, snapshotted.
+///
+/// Counts and shapes, no geometry and nothing derived from it — the lesson of Phase 3's
+/// host-dependent glyph boxes (`docs/DECISIONS_LOG.md`, 2026-09-13). IR_SKETCH specifies the
+/// contents: counts per `Content` variant and the heading tree as `(level, text[..40])`.
+#[test]
+fn digest_f09_structure() {
+    let read = read("../../target/fixtures/f09_novel_structure.pdf");
+    let stage = read.structure("f09_novel_structure.pdf");
+    insta::assert_json_snapshot!(digest(&stage.output));
+}
+
+/// The same for `f10`, whose subject is the three structures `f09` has none of: a list, a
+/// ruled table and a captioned figure.
+#[test]
+fn digest_f10_structure() {
+    let read = read("../../target/fixtures/f10_lists_and_table.pdf");
+    let stage = read.structure("f10_lists_and_table.pdf");
+    insta::assert_json_snapshot!(digest(&stage.output));
 }

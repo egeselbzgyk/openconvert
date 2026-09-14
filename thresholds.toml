@@ -1044,3 +1044,17 @@ source = "provisional"
 evidence = "PIPELINE §8.6 measures an indent delta against the body left margin without a floor. One em is the same bar `paragraph.indent_min_em` sets for a first-line indent, and a block indent is never smaller than a first-line one"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+[images.ornament_min_pages]
+value = 3
+source = "provisional"
+evidence = "`images.ornament_page_share` alone makes every image in a two-page document an ornament, because one image on one page is half the pages. Three pages is the same floor `layout.furniture.min_repeat_pages` sets for the same reason"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[quote.centered_max_lines]
+value = 2
+source = "provisional"
+evidence = "A centred block of one or two lines is a folio, a title or a caption; PIPELINE §8.6's cues are about blocks indented on the left. Centred verse exists and is longer — §8.6 names 'centered short lines with a high line count' — so the exclusion stops at `verse.min_lines`"
+owner = "maintainer"
+review_by = "2027-06-30"
