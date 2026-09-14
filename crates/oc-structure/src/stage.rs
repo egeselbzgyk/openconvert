@@ -310,14 +310,40 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
             block.lines.len() as f32,
         )]));
 
+        // Verse and preformatted text are emitted as themselves rather than as paragraphs,
+        // because the one thing a reflowable format must not do to either of them is re-wrap
+        // their lines. The characters are the same either way — this is where the *line
+        // breaks* survive.
+        let content = match quoted {
+            Some(crate::quotes::IndentedKind::BlockQuote) => {
+                Content::BlockQuote(vec![Content::Paragraph(para)])
+            }
+            Some(crate::quotes::IndentedKind::Verse) => Content::Verse(oc_model::doc::Verse {
+                id: block.id,
+                stanzas: vec![block
+                    .lines
+                    .iter()
+                    .map(|line| vec![oc_model::doc::Span::plain(line.text.trim().to_owned())])
+                    .collect()],
+                confidence: Confidence::deterministic(vec![Signal::new(
+                    "lines",
+                    block.lines.len() as f32,
+                )]),
+            }),
+            Some(crate::quotes::IndentedKind::Pre) => Content::Preformatted(oc_model::doc::Pre {
+                id: block.id,
+                lines: block
+                    .lines
+                    .iter()
+                    .map(|line| line.text.trim().to_owned())
+                    .collect(),
+                confidence: Confidence::deterministic(vec![Signal::new("monospace", 1.0)]),
+            }),
+            _ => Content::Paragraph(para),
+        };
         flow.push(FlowItem {
             page: block.page,
-            content: match quoted {
-                Some(crate::quotes::IndentedKind::BlockQuote) => {
-                    Content::BlockQuote(vec![Content::Paragraph(para)])
-                }
-                _ => Content::Paragraph(para),
-            },
+            content,
         });
     }
 

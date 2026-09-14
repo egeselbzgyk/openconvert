@@ -834,6 +834,34 @@ fn verse_and_quote_ambiguity_recorded_not_guessed() {
     assert!(classified
         .iter()
         .all(|entry| entry.resolved != IndentedKind::Ambiguous));
+
+    // And the three reach the flow as what they were decided to be. Verse is emitted as
+    // `Content::Verse` rather than as a paragraph because the one thing a reflowable format
+    // must not do to a stanza is re-wrap its lines.
+    let stage = read.structure("f07_verse_and_quote.pdf");
+    let content: Vec<&oc_model::doc::Content> =
+        openconvert::dump_structure::walk(&stage.output.sections)
+            .into_iter()
+            .flat_map(|section| section.content.iter())
+            .collect();
+    let verse = content
+        .iter()
+        .find_map(|item| match item {
+            oc_model::doc::Content::Verse(verse) => Some(verse),
+            _ => None,
+        })
+        .expect("the stanza is emitted as verse");
+    assert_eq!(verse.stanzas.len(), 1);
+    assert_eq!(verse.stanzas[0].len(), 4, "four lines, kept as four");
+    assert!(oc_model::doc::spans_text(&verse.stanzas[0][0]).starts_with("Tyger Tyger"));
+    assert_eq!(
+        content
+            .iter()
+            .filter(|item| matches!(item, oc_model::doc::Content::BlockQuote(_)))
+            .count(),
+        2,
+        "the quotation and the ambiguous block"
+    );
 }
 
 /// Row 4.16. `h28` carries `"Microsoft Word - draft.docx"` in its Info dictionary and the
