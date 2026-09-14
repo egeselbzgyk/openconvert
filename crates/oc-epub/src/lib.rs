@@ -3,3 +3,4 @@
 //! deterministic zip and image encoding (D5).
 
 pub mod xhtml;
+pub mod zip;
