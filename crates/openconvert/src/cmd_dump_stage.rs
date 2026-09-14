@@ -190,6 +190,7 @@ fn write_text_dump(
             width_pt: geometry.width_pt(),
             height_pt: geometry.height_pt(),
             glyphs: glyphs.glyphs,
+            fonts: glyphs.fonts,
             images: document.page_images(index).unwrap_or_default(),
         });
     }
@@ -256,6 +257,7 @@ fn read_pages(
             width_pt: geometry.width_pt(),
             height_pt: geometry.height_pt(),
             glyphs: glyphs.glyphs,
+            fonts: glyphs.fonts,
             images: document.page_images(index).unwrap_or_default(),
         });
     }

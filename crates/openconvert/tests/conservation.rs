@@ -30,24 +30,7 @@ fn read(path: &str) -> Vec<PageInput> {
         .unwrap_or_else(|error| panic!("missing fixture {}: {error}", path.display()));
     let backend = PdfiumBackend::bind().expect("PDFium is vendored");
     let document = backend.open(&bytes, None).expect("the fixture opens");
-    (0..document.page_count())
-        .map(|index| PageInput {
-            page: PageRef::new(index),
-            width_pt: document
-                .page_geometry(index)
-                .expect("the page has geometry")
-                .width_pt(),
-            height_pt: document
-                .page_geometry(index)
-                .expect("the page has geometry")
-                .height_pt(),
-            glyphs: document
-                .page_glyphs(index)
-                .expect("the page extracts")
-                .glyphs,
-            images: document.page_images(index).unwrap_or_default(),
-        })
-        .collect()
+    openconvert::input::page_inputs(document.as_ref()).expect("every page extracts")
 }
 
 /// I-1, stated the way ARCHITECTURE §5.4 states it.
@@ -189,6 +172,9 @@ fn page_of(page: u32, lines: usize, per_line: usize, alphabet: &[char]) -> PageI
         width_pt: 600.0,
         height_pt: 800.0,
         glyphs,
+        // Generated glyphs point at font zero, which no table describes: the conservation
+        // law is about characters and knows nothing about faces.
+        fonts: Vec::new(),
         images: Vec::new(),
     }
 }

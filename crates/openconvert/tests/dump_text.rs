@@ -11,7 +11,6 @@
 //! it is a snapshot nobody reviews.
 
 use oc_core::thresholds::T;
-use oc_model::extract::PageRef;
 use oc_model::lang::LangTag;
 use oc_pdf::inspect::PdfOpen;
 use oc_pdf::pdfium::PdfiumBackend;
@@ -28,24 +27,7 @@ fn read(relative: &str) -> Vec<PageInput> {
     });
     let backend = PdfiumBackend::bind().expect("PDFium is vendored");
     let document = backend.open(&bytes, None).expect("the fixture opens");
-    (0..document.page_count())
-        .map(|index| PageInput {
-            page: PageRef::new(index),
-            width_pt: document
-                .page_geometry(index)
-                .expect("the page has geometry")
-                .width_pt(),
-            height_pt: document
-                .page_geometry(index)
-                .expect("the page has geometry")
-                .height_pt(),
-            glyphs: document
-                .page_glyphs(index)
-                .expect("the page extracts")
-                .glyphs,
-            images: document.page_images(index).unwrap_or_default(),
-        })
-        .collect()
+    openconvert::input::page_inputs(document.as_ref()).expect("every page extracts")
 }
 
 #[test]

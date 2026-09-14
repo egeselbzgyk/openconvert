@@ -10,7 +10,7 @@
 use oc_core::ledger_check::{check_invariants, ConservationError, ReasonTotals};
 use oc_core::stages;
 use oc_core::thresholds::T;
-use oc_model::extract::{CharHistogram, PageRef};
+use oc_model::extract::CharHistogram;
 use oc_model::lang::LangTag;
 use oc_model::layout::{BlockKindHint, ParagraphConvention};
 use oc_model::ledger::{LedgerDelta, LedgerEntry, Reason, StageKind};
@@ -18,7 +18,7 @@ use oc_pdf::inspect::PdfOpen;
 use oc_pdf::pdfium::PdfiumBackend;
 use openconvert::pipeline::{
     block_text, furniture_stage, layout_stage, paragraphs_stage, text_stage, LayoutStage,
-    PageInput, ParagraphStage,
+    ParagraphStage,
 };
 
 /// Read a fixture and run `text`, `furniture` and `layout` over it, as a conversion would.
@@ -32,23 +32,7 @@ fn layout_of(relative: &str) -> LayoutStage {
     });
     let backend = PdfiumBackend::bind().expect("PDFium is vendored");
     let document = backend.open(&bytes, None).expect("the fixture opens");
-    let input: Vec<PageInput> = (0..document.page_count())
-        .map(|index| {
-            let geometry = document
-                .page_geometry(index)
-                .expect("the page has geometry");
-            PageInput {
-                page: PageRef::new(index),
-                width_pt: geometry.width_pt(),
-                height_pt: geometry.height_pt(),
-                glyphs: document
-                    .page_glyphs(index)
-                    .expect("the page extracts")
-                    .glyphs,
-                images: document.page_images(index).unwrap_or_default(),
-            }
-        })
-        .collect();
+    let input = openconvert::input::page_inputs(document.as_ref()).expect("every page extracts");
 
     let mut totals = ReasonTotals::default();
     let text = text_stage(&input, &mut totals, &T).expect("text conserves");
@@ -64,23 +48,7 @@ fn paragraphs_of(relative: &str, lang: LangTag) -> ParagraphStage {
         .unwrap_or_else(|error| panic!("missing fixture {}: {error}", path.display()));
     let backend = PdfiumBackend::bind().expect("PDFium is vendored");
     let document = backend.open(&bytes, None).expect("the fixture opens");
-    let input: Vec<PageInput> = (0..document.page_count())
-        .map(|index| {
-            let geometry = document
-                .page_geometry(index)
-                .expect("the page has geometry");
-            PageInput {
-                page: PageRef::new(index),
-                width_pt: geometry.width_pt(),
-                height_pt: geometry.height_pt(),
-                glyphs: document
-                    .page_glyphs(index)
-                    .expect("the page extracts")
-                    .glyphs,
-                images: document.page_images(index).unwrap_or_default(),
-            }
-        })
-        .collect();
+    let input = openconvert::input::page_inputs(document.as_ref()).expect("every page extracts");
 
     let mut totals = ReasonTotals::default();
     let text = text_stage(&input, &mut totals, &T).expect("text conserves");

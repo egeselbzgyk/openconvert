@@ -841,3 +841,32 @@ source = "provisional"
 evidence = "PIPELINE §8.3/§8.7: 'long, thin, axis-aligned'. Ten to one is the ratio at which a filled rectangle stops reading as a box and starts reading as a line; a 60 pt separator at 0.5 pt is 120:1, a table cell's border likewise"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+# ---------- heading style clustering (PIPELINE 8.2) ----------
+[headings.size_quantum_pt]
+value = 0.5
+source = "published"
+evidence = "PIPELINE §8.2: cluster on size rounded to 0.5 pt. R1 §A.11 #23: quantising and clustering rather than comparing absolute sizes is what survives font substitution and size jitter from non-embedded fonts"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[headings.bold_weight_min]
+value = 600
+source = "provisional"
+evidence = "CSS font-weight: 600 is semi-bold and 700 bold; PDF producers report 400 for regular and 700 for bold. 600 is the boundary that puts semi-bold on the heading side, where a designer using it for headings intends it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.centered_tolerance_ratio]
+value = 0.05
+source = "provisional"
+evidence = "PIPELINE §8.2 lists centring as a clustering signal without a tolerance. 5% of the text width is below the ragged-right jitter of a justified body line and above the sub-point asymmetry a centred line carries"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[inventory.max_examples]
+value = 5
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 4 architecture: StyleCluster.examples is SmallVec<[_; 5]>. Exemplars shown to a model in ARCHITECTURE §9.6 task 2; five is what the struct reserves"
+owner = "maintainer"
+review_by = "2027-06-30"

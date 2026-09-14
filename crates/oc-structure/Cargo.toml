@@ -9,9 +9,11 @@ description  = "Headings, outline/TOC matching, book structure, lists, notes, fi
 publish      = false
 
 [dependencies]
+oc-core = { path = "../oc-core", version = "0.1.0" }
 oc-model = { path = "../oc-model", version = "0.1.0" }
 oc-text = { path = "../oc-text", version = "0.1.0" }
 oc-layout = { path = "../oc-layout", version = "0.1.0" }
+serde.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
