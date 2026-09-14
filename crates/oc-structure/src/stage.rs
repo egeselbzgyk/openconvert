@@ -163,6 +163,16 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
     let run_ins = run_in_candidates(blocks, t);
 
     let (notes, note_refs, note_stats) = link_notes(blocks, &input.vectors, body_size, t);
+    // Which run carries which marker. `NoteRef` names the run rather than the block precisely
+    // so that exactly that run becomes a `Span` with a `noteref` on it and `epub` can turn it
+    // into `<a epub:type="noteref">` — which is what the bijection check in the output reads.
+    let noteref_runs: std::collections::BTreeMap<
+        (u32, oc_model::text::RunId),
+        oc_model::ids::NoteId,
+    > = note_refs
+        .iter()
+        .map(|entry| ((entry.page, entry.run), entry.note))
+        .collect();
     // The blocks the notes took. Named here because list detection has to skip them: a note
     // opens with `*` exactly as a bulleted item does.
     let note_blocks: Vec<BlockId> = notes
@@ -182,7 +192,7 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
     );
     let (figures, captions, caption_warnings) =
         associate_captions(&input.images, blocks, body_size, &input.lang, t);
-    let lists = detect_lists(blocks, &note_blocks, t);
+    let lists = detect_lists(blocks, &note_blocks, &noteref_runs, t);
     let (indented, escalations) = classify_indented(blocks, body_size, t);
     let images = drop_ornaments(&input.images, &input.image_hashes, input.page_count, t);
     let (metadata, meta_confidence) = metadata(&input.meta, blocks, body_size, t);
@@ -289,11 +299,22 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
             continue;
         }
 
-        let mut para = para_of(&mut minter, block.page, &[block.id], &lines);
+        let mut para = para_of(
+            &mut minter,
+            block.page,
+            &[block.id],
+            &lines,
+            &noteref_runs,
+            t,
+        );
         if let Some((cap_block, cap)) = pending_cap.take() {
             // No space: the cap is the paragraph's first *character*, not its first word.
+            // Prepended as a span of its own rather than folded into the text: rebuilding
+            // `spans` from the joined string would throw away every style and every note
+            // reference the paragraph's runs carried, which is the whole of what `epub` reads.
+            para.spans
+                .insert(0, oc_model::doc::Span::plain(cap.clone()));
             para.text = format!("{cap}{}", para.text);
-            para.spans = vec![oc_model::doc::Span::plain(para.text.clone())];
             para.blocks.insert(0, cap_block);
             para.drop_cap = true;
         } else if input.drop_caps.iter().any(|cap| opens_with(cap, block)) {

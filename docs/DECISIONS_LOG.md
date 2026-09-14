@@ -2269,3 +2269,35 @@ So the list is emitted as `<ol class="list-printed-markers">` with the printed m
 the item text, and `style.css` sets `list-style-type: none` on that class. The semantics a
 screen reader needs are on the `<ol>`; the markers a sighted reader sees are the ones the book
 printed; and not one character moved.
+
+## 2026-09-14 — `RunId` is page-local, whatever IR_SKETCH calls it
+
+IR_SKETCH describes `RunId` as a "per-document run index (stable within one extraction)".
+`oc_text::words::assemble_runs` numbers runs from zero on every page, so run 7 exists once per
+page of the book. Keyed on the id alone, a map from run to note marker silently loses one
+marker per collision: on `f08` the spans came out `[2, 1, 2]` against note refs `[0, 1, 2]` —
+the first footnote's reference overwritten by the third page's run of the same index.
+
+Every map from a run is therefore keyed on `(page, RunId)`, and `crate::build::NoteRefRuns`
+names that pair once so the next one cannot get it wrong. Renumbering runs document-wide would
+be the other fix; it is an `ir_version` question and a change to a Phase 2 stage, so it is not
+this phase's.
+
+## 2026-09-14 — spans are built where the runs still are
+
+Phase 4 set `Para.spans` to a single plain span, and IR_SKETCH gives `structure` the job of
+filling them. Phase 5 needs them filled for a reason that is not cosmetic: `NoteRef` names the
+*run* that printed a marker, and unless that run becomes a `Span` carrying the note's id there
+is nothing for `epub` to turn into `<a epub:type="noteref">` — the emitted book would have
+footnote bodies and nothing pointing at them, which is the `RSC-007` bijection failure test
+5.10 exists to catch.
+
+So `build::para_of` now splits the paragraph at every style change and every note marker. The
+hard constraint is `spans_text(&spans) == text`: `Para` carries both and the conservation check
+reads one of them, so a span list that said anything else would make I-3 pass on a document
+that does not exist. `a_paragraphs_spans_are_its_text_split` asserts it on six fixtures, and a
+`debug_assert` in `para_of` asserts it on every paragraph of every test run.
+
+A drop cap joined from its own block is prepended as a span rather than folded into the text
+for the same reason: rebuilding `spans` from the joined string would throw away every style and
+every note reference the paragraph's runs carried.

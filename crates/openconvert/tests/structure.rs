@@ -597,7 +597,7 @@ fn ambiguous_caption_left_unassociated() {
 #[test]
 fn ordered_list_numbering_is_contiguous() {
     let read = read("../../target/fixtures/f10_lists_and_table.pdf");
-    let outcome = detect_lists(&read.views(), &[], &T);
+    let outcome = detect_lists(&read.views(), &[], &std::collections::BTreeMap::new(), &T);
     let (lists, warnings) = (outcome.lists, outcome.warnings);
 
     assert_eq!(lists.len(), 1, "f10 sets one list");
@@ -653,7 +653,7 @@ fn ordered_list_numbering_is_contiguous() {
 #[test]
 fn prose_with_no_list_yields_no_list() {
     let read = read("../../target/fixtures/f01_prose_single_column.pdf");
-    let outcome = detect_lists(&read.views(), &[], &T);
+    let outcome = detect_lists(&read.views(), &[], &std::collections::BTreeMap::new(), &T);
     let (lists, warnings) = (outcome.lists, outcome.warnings);
     assert!(lists.is_empty(), "{lists:?}");
     assert!(warnings.is_empty());
@@ -1212,4 +1212,78 @@ fn dump_stage_structure_header_f09() {
             .map(|section| format!("{:?}", section.role))
             .collect::<Vec<_>>(),
     ));
+}
+
+/// `Para` carries both its text and its spans, and the conservation check reads one of them.
+/// A span list that said anything other than the paragraph's own text would make I-3 pass on a
+/// document that does not exist, so the two have to be the same characters — on every fixture,
+/// not on a constructed example.
+#[test]
+fn a_paragraphs_spans_are_its_text_split() {
+    for stem in [
+        "f01_prose_single_column",
+        "f02_two_column",
+        "f07_verse_and_quote",
+        "f08_footnotes",
+        "f09_novel_structure",
+        "f10_lists_and_table",
+    ] {
+        let read = read(&format!("../../target/fixtures/{stem}.pdf"));
+        let stage = read.structure(&format!("{stem}.pdf"));
+        for section in stage
+            .output
+            .sections
+            .iter()
+            .flat_map(oc_model::doc::Section::walk)
+        {
+            for content in &section.content {
+                if let oc_model::doc::Content::Paragraph(para) = content {
+                    assert_eq!(
+                        oc_model::doc::spans_text(&para.spans),
+                        para.text,
+                        "{stem}: a paragraph's spans are not its text"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// `NoteRef` names the *run* that printed the marker, not the block, and this is why: exactly
+/// that run becomes a `Span` carrying the note's id, so `epub` can turn exactly that run into
+/// `<a epub:type="noteref">`. Without it the emitted book has footnote bodies and nothing
+/// pointing at them — the bijection failure EPUBCheck reports as `RSC-007`.
+#[test]
+fn a_note_marker_becomes_a_span_that_carries_the_note_it_refers_to() {
+    let read = read("../../target/fixtures/f08_footnotes.pdf");
+    let stage = read.structure("f08_footnotes.pdf");
+
+    let referenced: Vec<oc_model::ids::NoteId> = stage
+        .output
+        .sections
+        .iter()
+        .flat_map(oc_model::doc::Section::walk)
+        .flat_map(|section| section.content.clone())
+        .filter_map(|content| match content {
+            oc_model::doc::Content::Paragraph(para) => Some(para.spans),
+            _ => None,
+        })
+        .flatten()
+        .filter_map(|span| span.noteref)
+        .collect();
+
+    assert!(
+        !referenced.is_empty(),
+        "f08 prints footnote markers in its body"
+    );
+    let linked: Vec<oc_model::ids::NoteId> = stage
+        .output
+        .note_refs
+        .iter()
+        .map(|entry| entry.note)
+        .collect();
+    assert_eq!(
+        referenced, linked,
+        "every linked marker reaches the spans, in document order"
+    );
 }

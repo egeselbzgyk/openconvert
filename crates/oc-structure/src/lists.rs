@@ -69,7 +69,12 @@ struct Marked {
 /// Works on *lines* rather than on blocks, because a run of one-line items is one block to
 /// Docstrum — five items set a body leading apart are geometrically one paragraph — and the
 /// marker is what distinguishes them.
-pub fn detect_lists(blocks: &[BlockView], skip: &[BlockId], t: &Thresholds) -> ListOutcome {
+pub fn detect_lists(
+    blocks: &[BlockView],
+    skip: &[BlockId],
+    noterefs: &crate::build::NoteRefRuns,
+    t: &Thresholds,
+) -> ListOutcome {
     let lines: Vec<(&BlockView, &LineView)> = blocks
         .iter()
         // A note at the foot of a page opens with `*` and so does a bulleted item, and two
@@ -137,8 +142,11 @@ pub fn detect_lists(blocks: &[BlockView], skip: &[BlockId], t: &Thresholds) -> L
             &lines,
             minimum,
             tolerance,
-            t,
-            &mut minter,
+            &mut Build {
+                noterefs,
+                t,
+                minter: &mut minter,
+            },
             &mut warnings,
         ) {
             lists.push(list);
@@ -186,13 +194,20 @@ pub struct ListOutcome {
 }
 
 /// Turn one run of marked lines into a list, if it is one.
+/// What every level of list construction is handed and none of it decides: the numbers, the
+/// note markers, and the one minter whose collision set has to be shared.
+struct Build<'a> {
+    noterefs: &'a crate::build::NoteRefRuns,
+    t: &'a Thresholds,
+    minter: &'a mut Minter,
+}
+
 fn build_list(
     run: &[Option<Marked>],
     lines: &[(&BlockView, &LineView)],
     minimum: usize,
     tolerance: f32,
-    t: &Thresholds,
-    minter: &mut Minter,
+    build: &mut Build<'_>,
     warnings: &mut Vec<Warning>,
 ) -> Option<List> {
     let markers: Vec<&Marked> = run.iter().flatten().collect();
@@ -217,11 +232,11 @@ fn build_list(
         return None;
     }
 
-    let items = build_level(&markers, top, tolerance, 1, t, minter, lines);
+    let items = build_level(&markers, top, tolerance, 1, build, lines);
     check_numbering(&siblings, warnings);
 
     Some(List {
-        id: minter.mint(
+        id: build.minter.mint(
             siblings.first()?.page,
             lines
                 .get(siblings.first()?.line)
@@ -253,11 +268,10 @@ fn build_level(
     indent: f32,
     tolerance: f32,
     depth: u8,
-    t: &Thresholds,
-    minter: &mut Minter,
+    build: &mut Build<'_>,
     lines: &[(&BlockView, &LineView)],
 ) -> Vec<ListItem> {
-    let max_depth = u8::try_from(t.list.max_depth).unwrap_or(5);
+    let max_depth = u8::try_from(build.t.list.max_depth).unwrap_or(5);
     let at_level: Vec<usize> = markers
         .iter()
         .enumerate()
@@ -281,7 +295,14 @@ fn build_level(
             // The item's own lines: its marked line and every unmarked line beneath it
             // before the next marker.
             let own = lines.get(marker.line).map(|(_, line)| *line)?;
-            let para = para_of(minter, marker.page, &[marker.block], &[own]);
+            let para = para_of(
+                build.minter,
+                marker.page,
+                &[marker.block],
+                &[own],
+                build.noterefs,
+                build.t,
+            );
 
             let nested = if deeper.is_empty() || depth >= max_depth {
                 None
@@ -293,7 +314,9 @@ fn build_level(
                 let owned: Vec<&Marked> = deeper.iter().map(|marker| **marker).collect();
                 let kind = owned.first()?.kind;
                 Some(Box::new(List {
-                    id: minter.mint(owned.first()?.page, own.bbox(), "nested list"),
+                    id: build
+                        .minter
+                        .mint(owned.first()?.page, own.bbox(), "nested list"),
                     ordered: kind.is_ordered(),
                     start: owned.first().and_then(|m| m.value).filter(|v| *v != 1),
                     items: build_level(
@@ -301,8 +324,7 @@ fn build_level(
                         child_indent,
                         tolerance,
                         depth.saturating_add(1),
-                        t,
-                        minter,
+                        build,
                         lines,
                     ),
                     confidence: Confidence::deterministic(vec![Signal::new(
