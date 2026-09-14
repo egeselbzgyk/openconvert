@@ -7,6 +7,11 @@
 /corpus/cache/
 /eval/.venv
 /vendor/pdfium/
+# Fetched by `xtask fetch-epubcheck` and `xtask fetch-epubcheck-corpus`. Never committed:
+# EPUBCheck is 33 MB and its test corpus is several thousand files of other people's fixtures.
+/vendor/epubcheck/
+/vendor/epubcheck-corpus/
+/vendor/.epubcheck-corpus-staging/
 __pycache__/
 *.pyc
 .DS_Store

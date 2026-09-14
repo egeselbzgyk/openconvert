@@ -1,0 +1,15 @@
+error[E0599]: no method named `link` found for struct `El<NoAnchor>` in the current scope
+ --> tests/ui/anchor_cannot_nest.rs:7:59
+  |
+7 |     let _ = frag(|text| text.link("#outer", |inner| inner.link("#inner", |deepest| deepest)));
+  |                                                           ^^^^ method not found in `El<NoAnchor>`
+  |
+  = note: the method was found for `El<Phrasing>`
+
+error[E0599]: no method named `noteref` found for struct `El<NoAnchor>` in the current scope
+ --> tests/ui/anchor_cannot_nest.rs:9:59
+  |
+9 |     let _ = frag(|text| text.link("#outer", |inner| inner.noteref("fn1", "1")));
+  |                                                           ^^^^^^^ method not found in `El<NoAnchor>`
+  |
+  = note: the method was found for `El<Phrasing>`

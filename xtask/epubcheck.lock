@@ -1,0 +1,18 @@
+# The EPUBCheck release this repository validates against (D6, IMPLEMENTATION_PLAN Phase 5).
+#
+# Pinned by digest, not by version, for the same reason PDFium is: a release asset that is
+# re-uploaded — which does happen — would silently change what the gate means. Moving the pin
+# is a reviewed commit that has to carry the new digest.
+#
+# EPUBCheck is BSD-3-Clause, which is on D15's allow-list. It is never bundled into a shipped
+# artefact: CI downloads it, and in-app it arrives with the optional validation pack (D6).
+
+schema_version = 1
+repo = "w3c/epubcheck"
+tag = "v5.3.0"
+version = "5.3.0"
+asset = "epubcheck-5.3.0.zip"
+sha256 = "6c07e68584b2e2ce2f89fe06e1246dfead3eb36b46b340e7d93524f29dcff6c5"
+size_bytes = 33071108
+# Where the jar sits inside the archive.
+jar = "epubcheck-5.3.0/epubcheck.jar"

@@ -1,0 +1,40 @@
+---
+source: crates/openconvert/tests/epub.rs
+expression: redact(&opf)
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/">
+<dc:identifier id="pub-id">urn:uuid:bbe14a03-b8b6-5f3c-87a8-8b56e070c3cd</dc:identifier>
+<dc:title>A Short Novel</dc:title>
+<dc:language>en</dc:language>
+<meta property="dcterms:modified">[redacted]</meta>
+<dc:creator>O. Convert</dc:creator>
+<meta property="schema:accessMode">textual</meta>
+<meta property="schema:accessibilityFeature">readingOrder</meta>
+<meta property="schema:accessibilityFeature">structuralNavigation</meta>
+<meta property="schema:accessibilityFeature">tableOfContents</meta>
+<meta property="schema:accessibilityFeature">printPageNumbers</meta>
+<meta property="schema:accessibilityHazard">none</meta>
+<meta property="schema:accessibilitySummary">Converted from PDF by OpenConvert. The reading order, a heading-based table of contents, and the printed page numbers as a page list come from the source document. No conformance to WCAG is claimed: a converter cannot guarantee it from PDF source.</meta>
+</metadata>
+<manifest>
+<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+<item id="css" href="style.css" media-type="text/css"/>
+<item id="x0001" href="text/c0001.xhtml" media-type="application/xhtml+xml"/>
+<item id="x0002" href="text/c0002.xhtml" media-type="application/xhtml+xml"/>
+<item id="x0003" href="text/c0003.xhtml" media-type="application/xhtml+xml"/>
+<item id="x0004" href="text/c0004.xhtml" media-type="application/xhtml+xml"/>
+<item id="x0005" href="text/c0005.xhtml" media-type="application/xhtml+xml"/>
+<item id="x0006" href="text/c0006.xhtml" media-type="application/xhtml+xml"/>
+</manifest>
+<spine toc="ncx">
+<itemref idref="x0001"/>
+<itemref idref="x0002"/>
+<itemref idref="x0003"/>
+<itemref idref="x0004"/>
+<itemref idref="x0005"/>
+<itemref idref="x0006"/>
+</spine>
+</package>

@@ -499,6 +499,124 @@ pub fn structure_stage(
     })
 }
 
+/// What `document` produced: the book, and the check that says assembling it changed nothing.
+pub struct DocumentStage {
+    pub document: oc_model::document::Document,
+    pub delta: LedgerDelta,
+    pub check: StageCheck,
+}
+
+/// Run `document`: page breaks, classification, the preset, and closure (PIPELINE §9).
+///
+/// Conserving, and checked as such against what `structure` emitted. The stage moves no text
+/// between the four places it can live and adds none: a `PageBreak` carries the printed page
+/// label, and a label is outside `C` (ARCHITECTURE §5.2). So the multiset before and the
+/// multiset after are the same multiset, and the check says so rather than the comment.
+///
+/// The stage's own postcondition is closure: every reference in the flow names something the
+/// document carries. A dangling one here becomes an `<img src>` or an `<a href>` pointing at
+/// a file the manifest does not list, and it is cheaper to fail now than to have EPUBCheck
+/// find it (PIPELINE §9, "every nav target resolves to a heading id").
+pub fn document_stage(
+    structure: &StructureStage,
+    input: crate::document::DocumentInput<'_>,
+    totals: &mut ReasonTotals,
+    t: &Thresholds,
+) -> Result<DocumentStage, DocumentError> {
+    let mut before = CharHistogram::new();
+    for text in structure.output.emitted_text() {
+        before = before.union(&c_of(&text));
+    }
+
+    let document = crate::document::assemble(input, t);
+
+    let dangling = document.dangling_references();
+    if !dangling.is_empty() {
+        return Err(DocumentError::Dangling(dangling));
+    }
+
+    let mut after = CharHistogram::new();
+    for text in document.text_pieces() {
+        after = after.union(&c_of(&text));
+    }
+    let delta = LedgerDelta::default();
+    let check = check_invariants(&before, &after, &delta, stages::DOCUMENT, totals)?;
+
+    Ok(DocumentStage {
+        document,
+        delta,
+        check,
+    })
+}
+
+/// Why assembling the document failed.
+#[derive(Debug, thiserror::Error)]
+pub enum DocumentError {
+    #[error(transparent)]
+    Conservation(#[from] ConservationError),
+    /// The flow names something the document does not carry. Listed rather than counted: a
+    /// failure that says *what* is missing is a bug report, and one that says how many is not.
+    #[error("the flow refers to {} things this document does not carry: {}", .0.len(), .0.join(", "))]
+    Dangling(Vec<String>),
+}
+
+/// What `epub` produced: the container, and the check that says the book came through it.
+pub struct EpubStage {
+    pub built: oc_epub::BuiltEpub,
+    pub delta: LedgerDelta,
+    pub check: StageCheck,
+}
+
+/// Run `epub`: serialise the container (PIPELINE §10).
+///
+/// Conserving, and checked by **reading the output back**. The check parses the `<body>` of
+/// every content document it emitted and compares that multiset against the document's own —
+/// not against what the emitter believes it wrote, because an emitter checked against its own
+/// intentions is checked against nothing (D6). Metadata, `alt` and page-list labels are
+/// outside `C` by definition (ARCHITECTURE §5.2) and the parse leaves them out; `nav.xhtml` is
+/// nav text and is left out for the same reason.
+pub fn epub_stage(
+    document: &oc_model::document::Document,
+    images: &[oc_epub::images::SourceImage],
+    options: &oc_epub::EpubOptions,
+    totals: &mut ReasonTotals,
+) -> Result<EpubStage, EpubStageError> {
+    let mut before = CharHistogram::new();
+    for text in document.text_pieces() {
+        before = before.union(&c_of(&text));
+    }
+
+    let built = oc_epub::build_epub(document, images, options)?;
+
+    let mut after = CharHistogram::new();
+    for file in &built.emitted.files {
+        after = after.union(&c_of(&oc_epub::textcontent::body_text(&file.markup)?));
+    }
+
+    let delta = LedgerDelta::default();
+    let check = check_invariants(&before, &after, &delta, stages::EPUB, totals)?;
+
+    Ok(EpubStage {
+        built,
+        delta,
+        check,
+    })
+}
+
+/// Why the container could not be emitted.
+#[derive(Debug, thiserror::Error)]
+pub enum EpubStageError {
+    #[error(transparent)]
+    Conservation(#[from] ConservationError),
+    #[error(transparent)]
+    Emit(#[from] oc_epub::EpubError),
+    /// The emitter produced a document it cannot read back. There is no fallback path here:
+    /// "an emitter failure is a bug, and the correct response is to fix the emitter"
+    /// (PIPELINE §10).
+    #[error("the emitted XHTML could not be read back: {0}")]
+    Reparse(#[from] oc_epub::textcontent::TextError),
+}
+
 /// The runs that survive into the body flow: those of the lines `furniture` kept.
 ///
 /// What `structure`'s style clustering is fed. Clustering before furniture removal would put

@@ -2173,3 +2173,185 @@ cannot account for, and the conservation check would fail — correctly.
 So the marker stays in `Para.text` and `ListItem.marker` records it. `epub` knows that `<ol>`
 draws its own numbers and is the stage that may elide exactly that prefix; deciding how it
 declares that is Phase 5's.
+
+## 2026-09-14 — `Decision.subject` is optional, because two of the first decisions are not about a block
+
+IR_SKETCH gives `Decision { subject: BlockId, … }`. The first two decisions the pipeline
+actually records are the document class and the preset, and both are choices about the *book*:
+there is no block to name. Filling the field with a block id chosen for the purpose would make
+a document-level decision indistinguishable from a decision about whichever block that id
+belongs to, which is exactly the confusion the decisions log exists to prevent.
+
+So `subject: Option<BlockId>`. IR_SKETCH says documents may elaborate but must not contradict;
+this is the smallest elaboration that keeps the record honest, and a per-block decision still
+carries its block.
+
+## 2026-09-14 — a page break before a heading, and where it is recorded
+
+`book_structure` moves a section's opening heading out of the content list and into
+`Section.heading`. A page-break walk that looked only at content would therefore attach the
+break for a page that begins with a chapter title to the first *paragraph* of that chapter, and
+"go to page 57" would land past the title of the chapter that starts on page 57.
+
+The break is recorded as the first item of the section's content list, and `epub` lifts a
+leading run of `Content::PageBreak` above the heading. The alternative — a second place for
+`epub` to look, keyed on `before_block == heading.id` — puts the same rule in two places and
+makes the flow no longer the authority on order.
+
+## 2026-09-14 — `furniture` recovers no folio from a book that changes numbering system
+
+`f09` paginates its front matter `i, ii` and its body `1, 2, 3`. Digit masking puts the three
+arabic folios in one group and the two roman ones in groups of one, so the largest folio group
+covers 3 of 5 pages: a repetition ratio of 0.6, inside the grey zone `[0.30, 0.70)`, where the
+detector abstains. The folios stay in the flow as one-character paragraphs and every
+`PageRef.label` is `None` — which also removes the arabic-1 reset that PIPELINE §9 step 1 calls
+a hard boundary signal.
+
+Not fixed here: it is a `furniture` rule, the fix is a change to how a folio group is scoped
+(per numbering system, or per pagination run), and choosing between those wants the Phase 7
+corpus rather than one fixture. Phase 5's label test therefore runs against `f01`, where the
+folios are recovered, and asserts what the `document` stage owns: that a label `furniture`
+found reaches the page break that opens its page.
+
+## 2026-09-14 — `noteref` returns `Phrasing`, and `anchor_cannot_nest` tests nesting
+
+The plan's builder sketch has `noteref` return "Phrasing sans anchors", and test 5.2's
+assertion column reads `noteref(...).noteref(...)` fails to compile. Implemented that way, a
+paragraph with two footnotes would be unrepresentable — which is not a rare shape, it is most
+of academic prose — and, worse, the natural emitter becomes unwritable: the emitter folds a
+paragraph's spans into one phrasing element in a loop, and a loop cannot change the type of its
+accumulator halfway through.
+
+So the type that forbids `<a>` inside `<a>` is the *content* of an anchor, not its successor:
+`link` hands its closure an `El<NoAnchor>`, and `El<NoAnchor>` has neither `link` nor
+`noteref`. `noteref` itself takes the marker as plain text and has no closure at all, so
+nothing can be placed inside one by construction.
+
+`anchor_cannot_nest` keeps its name and tests what the name says — an anchor inside an anchor,
+both spellings — rather than two anchors in sequence, which is legal XHTML and legal in books.
+
+## 2026-09-14 — an XML-illegal character is refused, not dropped
+
+XML 1.0 has no spelling for a C0 control other than tab, line feed and carriage return:
+`&#1;` is as ill-formed as the raw byte, so escaping cannot rescue one. `epub` is Conserving
+with an empty ledger and `Reason` has no variant that covers "a character XML could not
+carry", so dropping one would be removing text the stage cannot account for.
+
+The emitter therefore refuses, and that is the honest signal rather than a cop-out: a control
+character in the body flow means a page that decoded to garbage took the text path, and
+PIPELINE §2 routes those pages — `broken-text` — to OCR or to a page image precisely so that
+they do not. "There is no fallback path. An emitter failure is a bug" (PIPELINE §10).
+
+Open, and for the ADR rather than for this phase: if a real book turns out to reach `epub`
+with a control character in it, the fix is a `Reason` for it in `ingest`, not a silent drop in
+the serialiser.
+
+## 2026-09-14 — an `<img>` with no alt text cannot be built
+
+`Figure.alt` is empty when nothing could be derived, and `alt=""` is EPUB's way of marking an
+image *decorative*. Tier 1 requires every `<img>` to carry at least one non-space character
+(the ACC-001 class, D6), so emitting `alt=""` for every unlabelled figure would be both a
+validation failure and a false claim about the book's illustrations.
+
+`ImgRef::new` therefore returns `None` on empty alt text, which moves the decision to the one
+place that has the context to make it and makes "an `<img>` with no alt" unrepresentable in the
+same way an illegal nesting is.
+
+## 2026-09-14 — a list keeps the markers the book printed, and says so in CSS
+
+`structure` leaves `1.` inside the item's text, because `Reason` has no variant for a list
+marker (entry of 2026-09-14 above). `epub` is Conserving too — D13.4 names "chapter splitting,
+XHTML serialization" among the Conserving operations and I-3 gives them empty ledgers — so
+`epub` may not elide the prefix either. The plan's Phase 4 note left *how it declares that* to
+this phase, on the assumption the elision would happen here; under D13.4 it cannot.
+
+So the list is emitted as `<ol class="list-printed-markers">` with the printed marker still in
+the item text, and `style.css` sets `list-style-type: none` on that class. The semantics a
+screen reader needs are on the `<ol>`; the markers a sighted reader sees are the ones the book
+printed; and not one character moved.
+
+## 2026-09-14 — `RunId` is page-local, whatever IR_SKETCH calls it
+
+IR_SKETCH describes `RunId` as a "per-document run index (stable within one extraction)".
+`oc_text::words::assemble_runs` numbers runs from zero on every page, so run 7 exists once per
+page of the book. Keyed on the id alone, a map from run to note marker silently loses one
+marker per collision: on `f08` the spans came out `[2, 1, 2]` against note refs `[0, 1, 2]` —
+the first footnote's reference overwritten by the third page's run of the same index.
+
+Every map from a run is therefore keyed on `(page, RunId)`, and `crate::build::NoteRefRuns`
+names that pair once so the next one cannot get it wrong. Renumbering runs document-wide would
+be the other fix; it is an `ir_version` question and a change to a Phase 2 stage, so it is not
+this phase's.
+
+## 2026-09-14 — spans are built where the runs still are
+
+Phase 4 set `Para.spans` to a single plain span, and IR_SKETCH gives `structure` the job of
+filling them. Phase 5 needs them filled for a reason that is not cosmetic: `NoteRef` names the
+*run* that printed a marker, and unless that run becomes a `Span` carrying the note's id there
+is nothing for `epub` to turn into `<a epub:type="noteref">` — the emitted book would have
+footnote bodies and nothing pointing at them, which is the `RSC-007` bijection failure test
+5.10 exists to catch.
+
+So `build::para_of` now splits the paragraph at every style change and every note marker. The
+hard constraint is `spans_text(&spans) == text`: `Para` carries both and the conservation check
+reads one of them, so a span list that said anything else would make I-3 pass on a document
+that does not exist. `a_paragraphs_spans_are_its_text_split` asserts it on six fixtures, and a
+`debug_assert` in `para_of` asserts it on every paragraph of every test run.
+
+A drop cap joined from its own block is prepended as a span rather than folded into the text
+for the same reason: rebuilding `spans` from the joined string would throw away every style and
+every note reference the paragraph's runs carried.
+
+## 2026-09-14 — `dcterms:conformsTo` is not emitted
+
+IMPLEMENTATION_PLAN Phase 5 detail 2 lists `dcterms:conformsTo` "matching the required string
+pattern" among the required package metadata. PIPELINE §9.6 says the opposite in as many words:
+"Never auto-claim WCAG conformance — the tool cannot guarantee it from PDF source."
+
+In EPUB Accessibility 1.1 that property *is* the conformance claim; there is no version of it
+that means "some accessibility work was done". The authority order puts PIPELINE above the plan,
+and a false conformance claim is a worse defect than a missing optional property — an
+institutional buyer filtering on it would get a book that does not meet what it says it meets.
+
+So it is absent, and `schema:accessibilitySummary` says plainly what was done and that no
+conformance is claimed. EPUBCheck 5.3.0 reports neither an error nor a warning for its absence.
+
+## 2026-09-14 — `fuzz_xhtml_emitter_roundtrip` is a property test, not a fuzz target
+
+The plan names `cargo-fuzz` for row 5.19. A fuzz target is not a test: it has no pass condition,
+it runs until someone stops it, and CI cannot hold it to "green" — which is exactly what §0.3
+item 1 requires of every named row.
+
+It is a `proptest` with a generator weighted towards the characters that break serialisers, and
+the property is two-sided: the emitter must either produce a document that parses, or refuse.
+Refusing is a legitimate answer for a character XML 1.0 cannot carry, and a test that demanded
+output would be demanding the wrong thing. `PROPTEST_CASES=4096` is the nightly tier (§0.5).
+
+## 2026-09-14 — a continuation fragment carries `aria-label`, not `aria-labelledby`
+
+Phase 5 detail 6 says a mid-chapter split's continuation fragments are "plain `<section>`
+continuations with the same `aria-labelledby`". `aria-labelledby` is an IDREF and may only
+reference an element in the *same document*; a continuation's heading is in the previous file, so
+the attribute would point at nothing.
+
+The first fragment keeps `aria-labelledby` pointing at its own heading, which is better than a
+repeated string because the two cannot drift apart. The continuations carry `aria-label` with the
+heading's text, which is self-contained and valid. Both keep the fragments reading as one chapter,
+which is what the detail is for.
+
+## 2026-09-14 — what EPUBCheck found that seventy tests did not
+
+Two defects, on the first run of the Tier-2 gate over the ten fixtures:
+
+- Image `src` was written package-root-relative — `images/i0001.jpg` — from a document living in
+  `text/`, so every figure resolved to `text/images/…` and was missing. `RSC-007`, twice on `f10`.
+  Tier 1 checked that *fragments* resolved and never that *resources* did; it checks both now.
+- A document that yielded no text produced an empty spine, an empty nav `<ol>` and an empty
+  `navMap`: three `RSC-005`s on `f03`, and not a publication at all. PIPELINE §10 already said
+  what to do — "pages that failed to yield text … become an image inside a `<figure>` … rather
+  than being dropped silently" — and the `document` stage now does it.
+
+Both are recorded here because they are the argument for D6's Tier 2 being a hard gate rather
+than a nice-to-have: seventy tests written against this emitter, including a Tier-1 validator
+whose whole job is to find this class of defect, and neither of these surfaced until an outside
+implementation read the output.

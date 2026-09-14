@@ -166,21 +166,100 @@ jobs:
       # it must find `pdftotext` or fail.
       - run: cargo nextest run -p oc-pdf --features poppler-oracle --locked -E 'test(differential_)'
 
-  # Off until Phase 5, which builds `oc-validate`'s EPUBCheck runner and the
-  # `fetch-epubcheck` / `epubcheck-corpus` xtask tasks these steps call. A job that asserts
-  # nothing because its commands do not exist is worse than an absent one: it reports red
-  # for a reason unrelated to the code under review.
+  # D6's Tier-2 gate: EPUBCheck is authoritative and it is Java, so it runs here rather than
+  # on the conversion path. `epubcheck.max_errors = 0` is a binary threshold — this is the one
+  # gate in Phase 5 that is not this project's opinion of its own output.
   epubcheck:                                           # D6 Tier 2 hard gate
-    if: false
     runs-on: ubuntu-latest
     needs: test
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '21' }
+      - run: cargo run -p xtask -- vendor-pdfium
+      - run: cargo run -p xtask -- fixtures
       - run: cargo run -p xtask -- fetch-epubcheck     # pinned version + SHA-256
-      - run: cargo nextest run -p oc-validate --features epubcheck --locked -E 'test(epubcheck_)'
-      - run: cargo run -p xtask -- epubcheck-corpus --max-errors 0
+      # Row 5.17, acceptance criterion A5.1.
+      - run: cargo nextest run -p openconvert --features epubcheck --locked -E 'test(epubcheck_zero_errors)'
+
+  # Row 5.18 (RT A6.2). Tier 1's coverage is a measured number, not a claim, and the number may
+  # never silently fall. Separate from the gate above because it needs the test corpus as well
+  # as the jar, and because it is four hundred JVM launches rather than ten.
+  tier1-parity:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - run: cargo run -p xtask -- fetch-epubcheck
+      - run: cargo run -p xtask -- fetch-epubcheck-corpus
+      # `--check` compares against the committed number and does not rewrite it: a job that
+      # regenerated what it is about to compare against would pass on any input.
+      - run: cargo run -p xtask -- epubcheck-parity --check
+
+  # Row 5.5 and acceptance criterion A5.3 (D13.8). Each OS converts one fixture with
+  # `dcterms:modified` pinned and uploads the sha256; this job asserts the three agree. Pure-Rust
+  # image codecs and a fixed JPEG quality are what make that possible, and this is what would
+  # notice if either stopped being true.
+  epub-bytes:
+    strategy:
+      fail-fast: false
+      matrix: { os: [ubuntu-latest, macos-latest, windows-latest] }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo run -p xtask -- vendor-pdfium
+      - run: cargo run -p xtask -- fixtures
+      - run: cargo build -p openconvert --locked
+      - name: convert f07 with the timestamp pinned
+        shell: bash
+        run: |
+          ./target/debug/openconvert convert target/fixtures/f07_verse_and_quote.pdf -o f07.epub --lang en --modified 2026-01-01T00:00:00Z --no-ai
+          # `sha256sum` on Linux and on Git Bash; `shasum` on macOS, which ships neither.
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum f07.epub | cut -d' ' -f1 > sha256.txt
+          else
+            shasum -a 256 f07.epub | cut -d' ' -f1 > sha256.txt
+          fi
+          cat sha256.txt
+      - uses: actions/upload-artifact@v4
+        with: { name: "epub-sha256-${{ matrix.os }}", path: sha256.txt }
+
+  epub_is_byte_identical_across_os:
+    runs-on: ubuntu-latest
+    needs: epub-bytes
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { pattern: "epub-sha256-*", path: sums }
+      - name: the three operating systems agree
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=$(find sums -name sha256.txt | sort)
+          echo "$found" | while read -r file; do echo "$file: $(cat "$file")"; done
+          # Three legs, or the comparison is between fewer operating systems than it claims —
+          # a matrix leg that failed to upload would otherwise make this job pass on two.
+          legs=$(echo "$found" | grep -c .)
+          if [ "$legs" -ne 3 ]; then
+            echo "expected three sha256 artefacts, found $legs" >&2
+            exit 1
+          fi
+          count=$(cat $found | sort -u | grep -c .)
+          if [ "$count" -ne 1 ]; then
+            echo "the operating systems produced $count different EPUBs (D13.8)" >&2
+            exit 1
+          fi
 
   # Off until Phase 6, which creates `tests/dom`. Same reasoning as `epubcheck` above.
   dom-checks:                                          # D7 / R6 §11 Layer 2, Chromium only on PRs

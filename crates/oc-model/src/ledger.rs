@@ -224,6 +224,52 @@ impl LedgerDelta {
     }
 }
 
+/// The whole ledger of one conversion: every entry, both baselines, and the per-stage
+/// invariant results (IR_SKETCH).
+///
+/// [`LedgerDelta`] is what a stage produces and what the checker reads; this is what the
+/// finished [`Document`](crate::document::Document) carries, and it is the record the report
+/// and invariant I-7 are written against. Keeping the two apart is what lets the checker say
+/// *which* stage broke the law rather than that the book no longer balances.
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+pub struct Ledger {
+    pub entries: Vec<LedgerEntry>,
+    /// `C_raw` — the multiset as extraction produced it, before normalisation `N`.
+    pub c_raw: CharHistogram,
+    /// `C_0` — the retention denominator: after `N`, overdraw dedup and OCR-layer dedup
+    /// (ARCHITECTURE §5.2).
+    pub c_0: CharHistogram,
+    pub per_stage_checks: Vec<StageCheck>,
+}
+
+impl Ledger {
+    /// Fold one stage's delta and its check into the document ledger, in stage order.
+    pub fn push_stage(&mut self, delta: &LedgerDelta, check: StageCheck) {
+        self.entries.extend(delta.entries().iter().cloned());
+        self.per_stage_checks.push(check);
+    }
+
+    /// Everything every stage removed, as one multiset — the `Removed_all` of invariant I-7.
+    pub fn removed_all(&self) -> CharHistogram {
+        self.side(false)
+    }
+
+    /// Everything every stage added — the `Added_all` of invariant I-7.
+    pub fn added_all(&self) -> CharHistogram {
+        self.side(true)
+    }
+
+    fn side(&self, added: bool) -> CharHistogram {
+        let mut histogram = CharHistogram::new();
+        for entry in self.entries.iter().filter(|e| e.added == added) {
+            for ch in entry.text.chars().filter(|ch| !ch.is_whitespace()) {
+                histogram.add(ch);
+            }
+        }
+        histogram
+    }
+}
+
 /// Whether a stage is allowed to change the text at all (ARCHITECTURE §5.3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]

@@ -59,7 +59,7 @@ pub struct FontInfo {
 ///
 /// ASCII is a flat array because that is where nearly every character in a Latin-script book
 /// lands, and everything else is a `BTreeMap` so the counts iterate in a deterministic order.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CharHistogram {
     /// Counts for U+0000..U+007F.
     ascii: Vec<u32>,
@@ -91,6 +91,18 @@ impl Serialize for CharHistogram {
 
 /// The size of the flat ASCII table.
 const ASCII_SLOTS: usize = 128;
+
+/// `Default` is [`CharHistogram::new`] and not the derived one.
+///
+/// The derived implementation leaves the flat ASCII array empty, so an ASCII character
+/// counted into a defaulted histogram lands in the `tail` map instead of its slot — the same
+/// text in two representations, unequal under `PartialEq`. Two conversions of one book must
+/// not compare unequal because of which constructor a caller reached for.
+impl Default for CharHistogram {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl CharHistogram {
     pub fn new() -> Self {

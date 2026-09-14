@@ -24,7 +24,9 @@ CI job that enables that feature is named here (`IMPLEMENTATION_PLAN.md` §0.2).
 | `no-network` | conversion + inspection tests under `unshare -n` | now |
 | `poppler-oracle` | `oc-pdf --features poppler-oracle`, the differential `pdftotext` tests | now |
 | `ui` | Vitest + lint for `apps/desktop/ui` | now |
-| `epubcheck` | `oc-validate --features epubcheck`, `xtask epubcheck-corpus --max-errors 0` | **Phase 5** |
+| `epubcheck` | `openconvert --features epubcheck -E 'test(epubcheck_zero_errors)'` — row 5.17, A5.1 | now |
+| `tier1-parity` | `xtask epubcheck-parity --check` over EPUBCheck's own corpus — row 5.18 | now |
+| `epub-bytes` + `epub_is_byte_identical_across_os` | each OS converts `f07` with `--modified` pinned; a fourth job asserts the three sha256s agree — row 5.5, A5.3 | now |
 | `dom-checks` | Playwright DOM assertions (Chromium) | **Phase 6** |
 | `no-network` → `assert-no-net-deps` | `xtask assert-no-net-deps` (one step, not a job) | **Phase 14** |
 
@@ -369,3 +371,90 @@ indicative (PROGRESS.md).
 | 4.26a | `doc::heading_levels_are_clamped_into_the_xhtml_range` | `oc-model` | unit | `test` | green |
 | 4.26b | `doc::the_three_zones_are_ordered_front_body_back` | `oc-model` | unit | `test` | green |
 | 4.27 | `similarity::distance_is_zero_for_equal_strings_and_scaled_by_the_longer` | `oc-text` | unit | `test` | green |
+
+## Phase 5 — EPUB generation, Tier-1 validator, EPUBCheck CI gate
+
+| # | Test | Crate | Kind | CI job | Status |
+|---|---|---|---|---|---|
+| 5.1 | `compile_fail::phrasing_cannot_contain_figure` | `oc-epub` | compile-fail (`trybuild`) | `test` | green |
+| 5.2 | `compile_fail::anchor_cannot_nest` | `oc-epub` | compile-fail (`trybuild`) | `test` | green |
+| 5.3 | `zip::zip_mimetype_is_first_and_stored` | `oc-epub` | unit | `test` | green |
+| 5.3a | `zip::the_same_entries_in_any_order_produce_the_same_bytes` | `oc-epub` | unit | `test` | green |
+| 5.3b | `zip::the_container_reads_back_as_the_entries_it_was_given` | `oc-epub` | unit | `test` | green |
+| 5.3c | `zip::entry_names_that_collide_case_insensitively_are_refused` | `oc-epub` | unit | `test` | green |
+| 5.4 | `epub::zip_is_byte_identical_across_runs` | `openconvert` | fixture (10) | `test` | green |
+| 5.5 | `epub_is_byte_identical_across_os` | CI | gate | `epub-bytes` then `epub_is_byte_identical_across_os` | green |
+| 5.6 | `epub::opf_has_all_required_metadata` | `openconvert` | snapshot (f09) | `test` | green |
+| 5.7 | `opf::manifest_properties_are_computed_from_bytes` | `oc-epub` | unit | `test` | green |
+| 5.7a | `opf::a_url_in_the_text_is_not_a_remote_resource` | `oc-epub` | unit | `test` | green |
+| 5.8 | `epub::nav_and_ncx_agree` | `openconvert` | fixture (10) | `test` | green |
+| 5.8a | `nav::a_nav_item_is_an_anchor_and_at_most_a_nested_list` | `oc-epub` | unit | `test` | green |
+| 5.8b | `nav::the_page_list_carries_the_printed_folios` | `oc-epub` | unit | `test` | green |
+| 5.8c | `nav::an_empty_nav_is_absent_rather_than_empty` | `oc-epub` | unit | `test` | green |
+| 5.8d | `ncx::play_order_counts_across_the_whole_document_depth_first` | `oc-epub` | unit | `test` | green |
+| 5.8e | `ncx::the_navigation_map_keeps_the_trees_own_order` | `oc-epub` | unit | `test` | green |
+| 5.9 | `epub::page_list_targets_all_resolve` | `openconvert` | fixture (10) | `test` | green |
+| 5.10 | `epub::noteref_footnote_bijection_in_output` | `openconvert` | fixture (f08) | `test` | green |
+| 5.10a | `tier1::tier1_reports_the_bijection_and_notices_when_it_is_broken` | `openconvert` | fixture (f08) | `test` | green |
+| 5.11 | `epub::split_happens_on_paragraph_boundary` | `openconvert` | fixture (f09, split at 900 B) | `test` | green |
+| 5.12 | `css::css_has_no_font_family_or_absolute_size` | `oc-epub` | unit | `test` | green |
+| 5.12a | `css::every_class_the_builder_can_emit_has_a_rule` | `oc-epub` | unit | `test` | green |
+| 5.12b | `css::a_chapter_breaks_the_page_before_it` | `oc-epub` | unit | `test` | green |
+| 5.13 | `epub::img_alt_is_never_empty` | `openconvert` | fixture (10) | `test` | green |
+| 5.13a | `flow::an_image_without_alt_text_cannot_be_built` | `oc-epub` | unit | `test` | green |
+| 5.14 | `epub::no_script_no_remote_resources` | `openconvert` | fixture (10) | `test` | green |
+| 5.15 | `tier1::tier1_catches_rsc005_malformed_xml` | `openconvert` | crafted container | `test` | green |
+| 5.16 | `tier1::tier1_catches_pkg007_mimetype` | `openconvert` | crafted container | `test` | green |
+| 5.17 | `epubcheck::epubcheck_zero_errors_on_all_fixtures` | `openconvert` (feature `epubcheck`) | gate | `epubcheck` | green |
+| 5.18 | `epubcheck::tier1_parity_does_not_regress` plus `xtask epubcheck-parity --check` | `openconvert`, `xtask` | gate | `tier1-parity` | green |
+| 5.19 | `fuzz_roundtrip::fuzz_xhtml_emitter_roundtrip` | `oc-epub` | property (`proptest`) | `test` | green |
+| 5.20 | `epub::golden_epub_bytes_f01` | `openconvert` | snapshot (sha256) | `test` | green |
+| 5.21 | `tier1::tier1_passes_on_every_fixture` | `openconvert` | fixture (10) | `test` | green |
+| 5.21a | `tier1::tier1_catches_an_image_that_did_not_arrive` | `openconvert` | crafted | `test` | green |
+| 5.21b | `tier1::tier1_catches_empty_alt_text` | `openconvert` | crafted | `test` | green |
+| 5.21c | `tier1::tier1_catches_a_script_and_the_property_that_was_not_declared` | `openconvert` | crafted | `test` | green |
+| 5.21d | `tier1::tier1_catches_missing_required_metadata` | `openconvert` | crafted | `test` | green |
+| 5.21e | `tier1::tier1_catches_a_resource_reference_that_resolves_to_nothing` | `openconvert` | crafted | `test` | green |
+| 5.22 | `epub::every_manifest_item_and_internal_href_resolves` | `openconvert` | fixture (10) | `test` | green |
+| 5.22a | `epub::the_stylesheet_is_in_the_container_and_every_document_points_at_it` | `openconvert` | fixture (f07) | `test` | green |
+| 5.23 | `escape::the_markup_characters_are_escaped_on_both_sides_of_the_tag` | `oc-epub` | unit | `test` | green |
+| 5.23a | `escape::whitespace_in_an_attribute_survives_as_a_character_reference` | `oc-epub` | unit | `test` | green |
+| 5.23b | `escape::a_character_xml_cannot_carry_is_refused_rather_than_dropped` | `oc-epub` | unit | `test` | green |
+| 5.24 | `xhtml::a_page_serialises_as_the_markup_it_was_built_from` | `oc-epub` | unit | `test` | green |
+| 5.24a | `xhtml::an_illegal_character_propagates_out_of_every_nesting_it_was_written_into` | `oc-epub` | unit | `test` | green |
+| 5.24b | `phrasing::a_paragraph_may_carry_more_than_one_note_reference` | `oc-epub` | unit | `test` | green |
+| 5.24c | `phrasing::a_link_may_hold_emphasis_but_its_content_model_is_not_phrasing` | `oc-epub` | unit | `test` | green |
+| 5.24d | `phrasing::a_span_carries_a_class_from_the_stylesheet_and_nothing_else` | `oc-epub` | unit | `test` | green |
+| 5.24e | `flow::a_page_break_marker_holds_no_text` | `oc-epub` | unit | `test` | green |
+| 5.24f | `flow::a_list_that_kept_its_printed_markers_says_so` | `oc-epub` | unit | `test` | green |
+| 5.24g | `flow::a_fallback_table_carries_its_text_beside_its_image` | `oc-epub` | unit | `test` | green |
+| 5.24h | `sectioning::a_heading_level_is_clamped_into_the_range_xhtml_has` | `oc-epub` | unit | `test` | green |
+| 5.24i | `sectioning::a_continuation_section_borrows_the_first_fragments_heading` | `oc-epub` | unit | `test` | green |
+| 5.25 | `images::an_image_with_alpha_becomes_png_and_an_opaque_one_becomes_jpeg` | `oc-epub` | unit | `test` | green |
+| 5.25a | `images::an_image_is_scaled_down_to_the_bound_and_never_up` | `oc-epub` | unit | `test` | green |
+| 5.25b | `images::encoding_the_same_image_twice_produces_the_same_bytes` | `oc-epub` | unit | `test` | green |
+| 5.25c | `images::a_buffer_that_is_not_rgba_is_refused` | `oc-epub` | unit | `test` | green |
+| 5.26 | `textcontent::the_head_and_every_attribute_are_outside_the_text` | `oc-epub` | unit | `test` | green |
+| 5.26a | `textcontent::entities_are_resolved_back_to_their_characters` | `oc-epub` | unit | `test` | green |
+| 5.26b | `textcontent::nested_markup_contributes_its_text_in_order` | `oc-epub` | unit | `test` | green |
+| 5.27 | `document::the_document_closes_every_reference_it_makes` | `openconvert` | fixture (10) | `test` | green |
+| 5.27a | `document::page_breaks_open_every_page_the_flow_reaches` | `openconvert` | fixture (10) | `test` | green |
+| 5.27b | `document::page_breaks_carry_the_printed_labels_furniture_recovered` | `openconvert` | fixture (f01) | `test` | green |
+| 5.27c | `document::a_section_that_opens_a_page_breaks_before_its_heading` | `openconvert` | fixture (f09) | `test` | green |
+| 5.27d | `document::every_page_break_anchors_on_a_block_the_flow_still_carries` | `openconvert` | fixture (10) | `test` | green |
+| 5.27e | `document::a_book_is_classified_by_what_the_pipeline_measured` | `openconvert` | fixture (f01, f02) | `test` | green |
+| 5.27f | `document::document_records_a_conserving_check_in_the_ledger` | `openconvert` | fixture (f09) | `test` | green |
+| 5.27g | `tier1::a_document_with_no_text_still_carries_its_pages` | `openconvert` | fixture (f03) | `test` | green |
+| 5.28 | `document::a_dangling_reference_is_found_at_every_nesting_depth` | `oc-model` | unit | `test` | green |
+| 5.28a | `document::auto_resolves_to_a_concrete_preset_and_an_explicit_choice_survives` | `oc-model` | unit | `test` | green |
+| 5.28b | `lang::the_undetermined_tag_is_a_tag` | `oc-model` | unit | `test` | green |
+| 5.29 | `structure::a_paragraphs_spans_are_its_text_split` | `openconvert` | fixture (6) | `test` | green |
+| 5.29a | `structure::a_note_marker_becomes_a_span_that_carries_the_note_it_refers_to` | `openconvert` | fixture (f08) | `test` | green |
+| 5.30 | `cli::convert_writes_a_valid_container_and_leaves_no_temporary` | `openconvert` | binary | `test` | green |
+| 5.30a | `cli::validate_reports_tier_one_and_exits_on_the_verdict` | `openconvert` | binary | `test` | green |
+| 5.30b | `cli::validate_tier_two_without_a_jar_says_so` | `openconvert` | binary | `test` | green |
+| 5.31 | `epubcheck::a_report_with_errors_is_not_read_as_a_clean_one` | `oc-validate` | unit | `test` | green |
+| 5.31a | `epubcheck::an_unreadable_report_is_an_error_and_not_an_empty_one` | `oc-validate` | unit | `test` | green |
+| 5.32 | `fetch_epubcheck::the_lock_pins_a_digest_and_a_size` | `xtask` | unit | `test` | green |
+| 5.32a | `epubcheck_parity::the_recorded_number_round_trips_through_the_report` | `xtask` | unit | `test` | green |
+| 5.32b | `epubcheck_parity::a_report_without_a_number_is_not_a_number` | `xtask` | unit | `test` | green |
