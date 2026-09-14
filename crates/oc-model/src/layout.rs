@@ -90,9 +90,10 @@ pub enum ParagraphConvention {
 /// A paragraph: the lines of one, in order, from wherever they were printed.
 ///
 /// One `Para` may span several blocks, several columns and several pages — that is the point
-/// of it. What it does not yet carry is meaning: `spans` (with their styles), `align`, `lang`
-/// and `confidence` are `structure`'s to add in Phase 4, and adding them here with nothing to
-/// fill them would be a field that is always the same value.
+/// of it. `paragraphs` fills the first half — the blocks, the lines, the text and the indent —
+/// and `structure` fills the second: `spans` with their styles, `drop_cap`, `align`, `lang`
+/// and `confidence`. Until it has run they are the empty values, which is honest rather than
+/// convenient: a paragraph nobody has interpreted has no spans, not a guess at them.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Para {
     pub id: BlockId,
@@ -106,6 +107,17 @@ pub struct Para {
     pub first_line_indent: bool,
     /// The pages it covers, first and last.
     pub pages: (u32, u32),
+    /// The paragraph's text, split at every style change. Empty until `structure` has run;
+    /// once it has, `spans_text(&spans) == text`, which is what makes I-3 checkable on the
+    /// semantic layer rather than only on the layout one.
+    pub spans: Vec<crate::doc::Span>,
+    /// Whether the paragraph opens with a drop cap. `layout` detects the drop caps and
+    /// `structure` attaches them, because attaching one is a statement about the paragraph.
+    pub drop_cap: bool,
+    pub align: crate::doc::Align,
+    /// A language of this paragraph's own, when the evidence cleared PIPELINE §4 step 7's bar.
+    pub lang: Option<crate::lang::LangTag>,
+    pub confidence: Option<crate::confidence::Confidence>,
 }
 
 impl Para {

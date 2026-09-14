@@ -84,6 +84,10 @@ pub struct Segment {
     pub run: RunId,
     pub bbox: Rect,
     pub text: String,
+    /// The size the run is drawn at. Carried because block segmentation needs it: Docstrum
+    /// reads geometry alone and a heading set a leading above its paragraph is geometrically
+    /// part of it (see [`split_at_size_change`]).
+    pub size_pt: f32,
 }
 
 /// One line, with the text a [`BlockId`] is derived from and the segments it is made of.
@@ -102,6 +106,19 @@ impl LayoutLine {
     /// The line's bounding box in normalised page space.
     pub fn bbox(&self) -> Rect {
         self.line.bbox
+    }
+
+    /// The size the line is mostly set at: the size of its longest segment.
+    ///
+    /// The longest, not the largest: a drop cap is the largest thing on the first line of a
+    /// paragraph and the line is still a body line. Reading the *dominant* size is what keeps
+    /// the barrier below from splitting a drop cap into a one-character block, which is the
+    /// classic stray-paragraph defect (PIPELINE §6 step 6).
+    pub fn size_pt(&self) -> f32 {
+        self.segments
+            .iter()
+            .max_by_key(|segment| segment.text.chars().count())
+            .map_or(0.0, |segment| segment.size_pt)
     }
 
     /// Rebuild a line from a subset of its segments — what splitting at a gutter produces.
@@ -204,12 +221,26 @@ pub fn segment_blocks(
     }
 
     let boxes: Vec<Rect> = page.lines.iter().map(LayoutLine::bbox).collect();
-    let primary = order_groups(&boxes, docstrum_groups(&boxes, t));
+    let sizes: Vec<f32> = page.lines.iter().map(LayoutLine::size_pt).collect();
+    // The style barrier applies to *both* segmenters, because it is a fact about the page
+    // rather than a property of either algorithm. Applying it to Docstrum alone would make
+    // the two disagree at every heading and flag the whole book low-confidence.
+    let primary = order_groups(
+        &boxes,
+        split_at_size_change(order_groups(&boxes, docstrum_groups(&boxes, t)), &sizes, t),
+    );
     let whitespace = white_rectangles(page, &boxes, columns, t);
     let min_separator = median_line_height(&boxes) * t.layout.block.separator_height_ratio as f32;
     let secondary = order_groups(
         &boxes,
-        whitespace_groups(&boxes, &whitespace, min_separator, columns),
+        split_at_size_change(
+            order_groups(
+                &boxes,
+                whitespace_groups(&boxes, &whitespace, min_separator, columns),
+            ),
+            &sizes,
+            t,
+        ),
     );
 
     let secondary_boxes: Vec<Rect> = secondary.iter().map(|g| union_of(&boxes, g)).collect();
@@ -335,6 +366,55 @@ fn docstrum_groups(boxes: &[Rect], t: &Thresholds) -> Vec<Vec<usize>> {
         }
     }
     union.groups()
+}
+
+/// The one size every hand-built test line is set at, so that the style barrier never fires
+/// in a test whose subject is geometry. A test that *wants* a size change builds its lines
+/// through the real pipeline, on a fixture that has one.
+#[cfg(test)]
+pub(crate) const TEST_SIZE_PT: f32 = 10.0;
+
+/// Split every group wherever consecutive lines are set at materially different sizes.
+///
+/// Docstrum reads geometry and nothing else, so a heading one leading above its paragraph is
+/// geometrically part of it: on `f09` the gap between a 14 pt heading and the 10 pt line
+/// under it is 14.1 pt against a body leading of 13.1 pt, a difference of 7 %, which no
+/// distance multiplier can be made to catch without splitting every paragraph in the book.
+/// The size difference is 29 %, and it is unambiguous.
+///
+/// PIPELINE §6 defines a block as "one paragraph, one heading", so this is the definition
+/// being enforced rather than a heuristic added on top of it. The barrier is *per line* and
+/// on the line's dominant size, which is what keeps a drop cap — the largest glyph on a body
+/// line — inside its paragraph.
+///
+/// Groups arrive in line order (`order_groups` sorts them), so a split is a cut of the
+/// vector rather than a re-partition.
+fn split_at_size_change(groups: Vec<Vec<usize>>, sizes: &[f32], t: &Thresholds) -> Vec<Vec<usize>> {
+    let tolerance = t.layout.block.size_barrier_ratio as f32;
+    let mut out = Vec::with_capacity(groups.len());
+    for group in groups {
+        let mut current: Vec<usize> = Vec::new();
+        let mut previous: Option<f32> = None;
+        for line in group {
+            let size = sizes.get(line).copied().unwrap_or_default();
+            let differs = match previous {
+                Some(before) => {
+                    let largest = before.max(size);
+                    largest > 0.0 && (before - size).abs() / largest > tolerance
+                }
+                None => false,
+            };
+            if differs && !current.is_empty() {
+                out.push(std::mem::take(&mut current));
+            }
+            current.push(line);
+            previous = Some(size);
+        }
+        if !current.is_empty() {
+            out.push(current);
+        }
+    }
+    out
 }
 
 /// The mode of a set of distances, to the nearest point.
@@ -905,6 +985,7 @@ mod tests {
                 run: RunId(0),
                 bbox,
                 text: text.to_owned(),
+                size_pt: TEST_SIZE_PT,
             }],
         }
     }
@@ -1020,4 +1101,87 @@ mod tests {
             "two blocks of identical text on one page still differ by their boxes"
         );
     }
+}
+
+/// A heading and the paragraph under it are two blocks, whatever the distance between them.
+///
+/// Measured on `f09`: the gap between a 14 pt heading and the 10 pt line beneath it is
+/// 14.1 pt against a body leading of 13.1 pt — 7 % apart, which no distance multiplier can
+/// catch without splitting every paragraph in the book. PIPELINE §6 defines a block as "one
+/// paragraph, one heading", and the size difference is 29 %.
+#[test]
+fn a_size_change_splits_a_block_where_distance_alone_cannot() {
+    let t = &oc_core::thresholds::T;
+    // Three lines a uniform 13 pt apart: a 14 pt heading and two 10 pt body lines. A
+    // geometric segmenter has no reason at all to split these.
+    let sizes = [14.0f32, 10.0, 10.0];
+    let groups = split_at_size_change(vec![vec![0, 1, 2]], &sizes, t);
+    assert_eq!(groups, vec![vec![0], vec![1, 2]]);
+
+    // Uniform sizes are one block, which is the case every earlier phase's fixtures are.
+    assert_eq!(
+        split_at_size_change(vec![vec![0, 1, 2]], &[10.0, 10.0, 10.0], t),
+        vec![vec![0, 1, 2]]
+    );
+
+    // Sub-threshold jitter — a substituted face reporting 10.0 and 10.4 — does not split.
+    assert_eq!(
+        split_at_size_change(vec![vec![0, 1]], &[10.0, 10.4], t),
+        vec![vec![0, 1]]
+    );
+
+    // An empty group survives as nothing rather than as an empty block.
+    assert!(split_at_size_change(vec![Vec::new()], &sizes, t).is_empty());
+}
+
+/// The barrier reads the line's *dominant* size, so a drop cap — the largest glyph on the
+/// first line of a paragraph — does not split itself off into a one-character block. That
+/// stray one-character paragraph is the classic EPUB defect (PIPELINE §6 step 6).
+#[test]
+fn a_drop_cap_does_not_split_its_own_line_off() {
+    let line = LayoutLine {
+        line: Line {
+            runs: vec![RunId(0), RunId(1)],
+            bbox: Rect {
+                x0: 0.0,
+                y0: 0.0,
+                x1: 300.0,
+                y1: 40.0,
+            },
+            baseline_y: 30.0,
+            ends_with_hyphen: false,
+            indent_pt: 0.0,
+            right_gap_pt: 0.0,
+        },
+        text: "It was a dark and stormy night".to_owned(),
+        segments: vec![
+            Segment {
+                run: RunId(0),
+                bbox: Rect {
+                    x0: 0.0,
+                    y0: 0.0,
+                    x1: 30.0,
+                    y1: 40.0,
+                },
+                text: "I".to_owned(),
+                size_pt: 40.0,
+            },
+            Segment {
+                run: RunId(1),
+                bbox: Rect {
+                    x0: 30.0,
+                    y0: 20.0,
+                    x1: 300.0,
+                    y1: 30.0,
+                },
+                text: "t was a dark and stormy night".to_owned(),
+                size_pt: 10.0,
+            },
+        ],
+    };
+    assert_eq!(
+        line.size_pt(),
+        10.0,
+        "the dominant size is the body's, not the drop cap's"
+    );
 }

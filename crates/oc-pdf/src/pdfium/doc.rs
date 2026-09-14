@@ -18,7 +18,9 @@ use crate::images::{classify_image, effective_dpi};
 use crate::inspect::{DocMetadata, PdfDoc};
 use crate::limits::check_image;
 use oc_core::limits::Limits;
-use oc_model::extract::{CharHistogram, FontId, FontInfo, Glyph, ImageId, ImageRef, PageRef};
+use oc_model::extract::{
+    CharHistogram, FontId, FontInfo, Glyph, ImageId, ImageRef, PageRef, VecId, VectorRegion,
+};
 use oc_model::ledger::{LedgerEntry, Reason};
 
 /// Unicode private-use areas. A subset font with no `ToUnicode` map lands here rather than
@@ -183,6 +185,18 @@ impl PdfDoc for PdfiumDoc {
         self.image_bytes_impl(page, image)
     }
 
+    fn page_vectors(&self, index: u32) -> Result<Vec<VectorRegion>, PdfError> {
+        self.page_vectors_impl(index)
+    }
+
+    fn xmp(&self) -> crate::meta::XmpMeta {
+        self.structure
+            .as_ref()
+            .and_then(|structure| crate::meta::xmp_packet(structure, &self.limits))
+            .map(|packet| crate::meta::read_xmp(&packet))
+            .unwrap_or_default()
+    }
+
     fn outline(&self) -> Vec<oc_model::extract::OutlineEntry> {
         crate::outline::read_outline(&self.document, &self.limits)
     }
@@ -309,6 +323,48 @@ impl PdfiumDoc {
             });
         }
         Ok(images)
+    }
+
+    /// Extract one page's vector regions (PIPELINE §3, "long, thin, axis-aligned paths").
+    ///
+    /// One region per path object, in draw order, with no merging. Merging adjacent paths
+    /// into a figure is what the rasteriser would want; the two consumers here — the footnote
+    /// separator and the table lattice — want the *individual* rules, and a merged region
+    /// would hide exactly the thing they look for.
+    ///
+    /// A path whose bounds PDFium refuses is skipped rather than failing the page: a vector
+    /// region is an optional signal, and refusing a book because one decorative path could
+    /// not be measured would trade a missing rule for a missing book.
+    pub fn page_vectors_impl(&self, index: u32) -> Result<Vec<VectorRegion>, PdfError> {
+        let page = self.page(index)?;
+        let geometry = self.page_geometry(index)?;
+        let t = &oc_core::thresholds::T;
+
+        let mut regions = Vec::new();
+        for object in page
+            .objects()
+            .iter()
+            .filter(|object| object.object_type() == PdfPageObjectType::Path)
+        {
+            let Ok(bounds) = object.bounds() else {
+                continue;
+            };
+            let bbox = geometry.normalise(PdfRect {
+                llx: bounds.left().value,
+                lly: bounds.bottom().value,
+                urx: bounds.right().value,
+                ury: bounds.top().value,
+            });
+            let id = VecId(u32::try_from(regions.len()).unwrap_or(u32::MAX));
+            regions.push(VectorRegion {
+                id,
+                page: PageRef::new(index),
+                bbox,
+                path_count: 1,
+                is_rule: is_rule(bbox, t),
+            });
+        }
+        Ok(regions)
     }
 
     /// Decode and composite one image (VD-d).
@@ -771,4 +827,27 @@ fn find_bytes(haystack: &[u8], needle: &[u8]) -> bool {
     haystack
         .windows(needle.len())
         .any(|window| window == needle)
+}
+
+/// Whether a path's box is a rule: thin across, and long along, its own axis.
+///
+/// Both conditions, not either. "Thin" alone admits a hairline box the height of a page, and
+/// "long and narrow" alone admits a tall thin column of shading. A rule is the intersection:
+/// no thicker than `vector.rule_max_thickness_pt`, and at least `vector.rule_min_aspect`
+/// times as long as it is thick.
+fn is_rule(bbox: oc_model::geom::Rect, t: &oc_core::thresholds::Thresholds) -> bool {
+    let width = bbox.x1 - bbox.x0;
+    let height = bbox.y1 - bbox.y0;
+    if !width.is_finite() || !height.is_finite() || width < 0.0 || height < 0.0 {
+        return false;
+    }
+    let long = width.max(height);
+    let thin = width.min(height);
+    if thin > t.vector.rule_max_thickness_pt as f32 {
+        return false;
+    }
+    // A zero-thickness stroke is the commonest hairline there is, so the aspect test is
+    // stated as a product rather than a ratio: `long >= aspect * thin` holds at thin = 0 for
+    // any positive length, and divides by nothing.
+    long > 0.0 && long >= t.vector.rule_min_aspect as f32 * thin
 }

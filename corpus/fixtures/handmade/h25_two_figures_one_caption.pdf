@@ -1,0 +1,127 @@
+%PDF-1.7
+%€€€€
+
+1 0 obj
+<<
+  /Type /Catalog
+  /Pages 2 0 R
+>>
+endobj
+
+2 0 obj
+<<
+  /Type /Pages
+  /Kids [8 0 R]
+  /Count 1
+>>
+endobj
+
+8 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 400 800]
+  /Contents 9 0 R
+  /Resources <<
+    /Font <<
+      /F1 3 0 R
+    >>
+    /XObject <<
+      /Im1 4 0 R
+      /Im2 5 0 R
+    >>
+  >>
+>>
+endobj
+
+9 0 obj
+<<
+  /Length 260
+>>
+stream
+q
+100 0 0 100 60 600 cm
+/Im1 Do
+Q
+q
+100 0 0 100 240 600 cm
+/Im2 Do
+Q
+BT
+/F1 12 Tf
+60 740 Td
+(Body text above the figures.) Tj
+ET
+BT
+/F1 9 Tf
+120 570 Td
+(Figure 1: a caption between two figures.) Tj
+ET
+BT
+/F1 12 Tf
+60 500 Td
+(Body text below the figures.) Tj
+ET
+endstream
+endobj
+
+3 0 obj
+<<
+  /Type /Font
+  /Subtype /Type1
+  /BaseFont /Helvetica
+  /Encoding /WinAnsiEncoding
+>>
+endobj
+
+4 0 obj
+<<
+  /Length 64
+  /Type /XObject
+  /Subtype /Image
+  /Width 8
+  /Height 8
+  /BitsPerComponent 8
+  /ColorSpace /DeviceGray
+>>
+stream
+````````````````````````````````````````````````````````````````
+endstream
+endobj
+
+5 0 obj
+<<
+  /Length 64
+  /Type /XObject
+  /Subtype /Image
+  /Width 8
+  /Height 8
+  /BitsPerComponent 8
+  /ColorSpace /DeviceGray
+>>
+stream
+ÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈ
+endstream
+endobj
+
+xref
+0 10
+0000000006 65535 f
+0000000016 00000 n
+0000000070 00000 n
+0000000658 00000 n
+0000000764 00000 n
+0000000987 00000 n
+0000000007 00000 f
+0000000000 00000 f
+0000000134 00000 n
+0000000344 00000 n
+trailer
+<<
+  /Size 10
+  /Root 1 0 R
+  /ID [(openconvert-fixture) (openconvert-fixture)]
+>>
+startxref
+1210
+%%EOF

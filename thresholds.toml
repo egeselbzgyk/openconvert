@@ -826,3 +826,235 @@ source = "published"
 evidence = "RT A9 / R1 §A.10: real world measured at 12.6% tagged"
 owner = "maintainer"
 review_by = "2028-01-01"
+
+# ---------- vector regions (PIPELINE 8.3, 8.7) ----------
+[vector.rule_max_thickness_pt]
+value = 3.0
+source = "provisional"
+evidence = "PIPELINE §8.3/§8.7 say 'thin' without a number. A footnote separator and a table ruling are hairlines to 2 pt in every book measured; 3 pt admits a heavy rule and still excludes the thinnest filled bar a designer would call a block"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[vector.rule_min_aspect]
+value = 10.0
+source = "provisional"
+evidence = "PIPELINE §8.3/§8.7: 'long, thin, axis-aligned'. Ten to one is the ratio at which a filled rectangle stops reading as a box and starts reading as a line; a 60 pt separator at 0.5 pt is 120:1, a table cell's border likewise"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# ---------- heading style clustering (PIPELINE 8.2) ----------
+[headings.size_quantum_pt]
+value = 0.5
+source = "published"
+evidence = "PIPELINE §8.2: cluster on size rounded to 0.5 pt. R1 §A.11 #23: quantising and clustering rather than comparing absolute sizes is what survives font substitution and size jitter from non-embedded fonts"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[headings.bold_weight_min]
+value = 600
+source = "provisional"
+evidence = "CSS font-weight: 600 is semi-bold and 700 bold; PDF producers report 400 for regular and 700 for bold. 600 is the boundary that puts semi-bold on the heading side, where a designer using it for headings intends it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.centered_tolerance_ratio]
+value = 0.05
+source = "provisional"
+evidence = "PIPELINE §8.2 lists centring as a clustering signal without a tolerance. 5% of the text width is below the ragged-right jitter of a justified body line and above the sub-point asymmetry a centred line carries"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[inventory.max_examples]
+value = 5
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 4 architecture: StyleCluster.examples is SmallVec<[_; 5]>. Exemplars shown to a model in ARCHITECTURE §9.6 task 2; five is what the struct reserves"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# ---------- outline / TOC fast paths (PIPELINE 8.1) ----------
+[headings.outline_match_ned_max]
+value = 0.25
+source = "provisional"
+evidence = "An outline entry and the heading it names differ by the numbering a producer wrote into one and not the other ('3' vs 'Chapter 3'), by a trailing folio, or by a dehyphenation. A quarter of the longer string absorbs those and rejects a different chapter title; measured 0.0 on every f09/f10 binding"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.runin_max_words]
+value = 8
+source = "published"
+evidence = "R10 §6.7 / IMPLEMENTATION_PLAN Phase 4 detail 4: a run-in heading is a bold or italic run at paragraph start of at most eight words, terminated by '.', '—' or ':'"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[toc.min_entries]
+value = 3
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 4 test 4.2 asserts >= 3 entries parsed. Two lines with a leader and a number is a price list; three is a table of contents"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[toc.min_line_share]
+value = 0.6
+source = "provisional"
+evidence = "PIPELINE §8.1: a front-matter page 'dominated by' leader lines. Three fifths leaves room for the page's own heading, a blank and a stray without admitting a body page that happens to end two sentences in a number"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[toc.max_front_pages]
+value = 20
+source = "provisional"
+evidence = "PIPELINE §8.1 says front matter. Twenty pages is past the longest front matter in any book measured and far short of a chapter, so a mid-book list of tables cannot be mistaken for the contents"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[toc.min_leader_chars]
+value = 2
+source = "provisional"
+evidence = "A leader is a run of drawn fill between title and folio, spaces not counted. One dot is a sentence end; two is a leader. A contents page whose folios are set flush right with no fill at all reaches the parser as 'Preface i', indistinguishable from a two-word title, and is a known gap rather than a case this number can reach"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.space_above_min_em]
+value = 1.2
+source = "provisional"
+evidence = "PIPELINE §8.2: 'vertical whitespace above greater than the body leading'. Leading is body size x ~1.2 in every book measured, so one leading is 1.2 em; a block at the top of its column satisfies the condition trivially and is treated as satisfying it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.cluster_char_share_min]
+value = 0.6
+source = "provisional"
+evidence = "A block belongs to the cluster holding most of its characters. Three fifths keeps a heading with an italic word in it in its own cluster, and refuses a body paragraph that happens to open with a large drop cap"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.block.size_barrier_ratio]
+value = 0.15
+source = "provisional"
+evidence = "PIPELINE §6: a block is 'one paragraph, one heading'. Docstrum is purely geometric and merges a heading into the paragraph under it whenever the producer sets the two a leading apart, which Typst and InDesign both do. 15% of the larger size is below the smallest heading step a designer uses (a 1.2 em h3 over 10 pt body is 17%) and above the size jitter a substituted face introduces"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# ---------- footnotes (PIPELINE 8.3) ----------
+[footnote.zone_band_min]
+value = 0.55
+source = "provisional"
+evidence = "PIPELINE §8.3: the note zone is 'the bottom band'. A note block's top sitting below the middle of the page is the loosest reading that still excludes body text; measured 0.87 on f08 and h24, so the margin is wide"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[footnote.rule_max_width_ratio]
+value = 0.40
+source = "published"
+evidence = "IMPLEMENTATION_PLAN Phase 4 detail 6 / PIPELINE §8.3: the separator is a rule spanning < 40% of the column width"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[footnote.rule_gap_max_em]
+value = 3.0
+source = "provisional"
+evidence = "PIPELINE §8.3: the rule sits 'immediately above' the small-font block. Three body ems is the largest gap a separator and the note under it are set apart by in any book measured; beyond it the rule belongs to something else"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# ---------- captions and figures (PIPELINE 8.4) ----------
+[caption.max_gap_em]
+value = 4.0
+source = "provisional"
+evidence = "PIPELINE §8.4 associates a caption to a figure 'immediately above/below' it without a distance. Four body ems is wider than any figure-to-caption gap measured and narrower than the gap to the next figure on a normally set page; beyond it the caption is a paragraph that happens to start with the word Figure"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[caption.max_width_ratio]
+value = 1.0
+source = "provisional"
+evidence = "A caption may run the full width of its column — a long one does. The width test is therefore not what identifies a caption; the localized prefix and the smaller-or-italic setting are. Kept at 1.0 so the rule is present and inert, and a corpus can narrow it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# ---------- lists (PIPELINE 8.5) ----------
+[list.min_siblings]
+value = 2
+source = "published"
+evidence = "PIPELINE §8.5: 'a run of >= 2 siblings sharing marker type and indentation'. This is the guard that stops '1984 was a strange year' becoming an ordered item"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[list.max_depth]
+value = 5
+source = "published"
+evidence = "PIPELINE §8.5: 'depth is capped at 5'"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[list.indent_step_tolerance_pt]
+value = 3.0
+source = "provisional"
+evidence = "Two list items at the same level are set to the same left edge by the layout engine, so their indents differ only by the sub-point jitter of a substituted face and the first glyph's side bearing. Three points is far above that and far below the smallest indent step measured (12.3 pt on f10)"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# ---------- tables (PIPELINE 8.7) ----------
+[table.min_row_rules]
+value = 2
+source = "provisional"
+evidence = "PIPELINE §8.7 detects a lattice from ruling lines without naming a minimum. Two horizontal rules is the fewest that bound one row; below that there is no region, only a rule"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[table.min_column_rules]
+value = 2
+source = "provisional"
+evidence = "Two vertical rules are the fewest that bound one column. A region with fewer has no grid to read and falls back to the image plus its text, which is the branch PIPELINE §8.7 requires for everything that is not cleanly ruled"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[table.grid_snap_pt]
+value = 3.0
+source = "provisional"
+evidence = "Rules drawn as filled rectangles have a thickness, so a cell edge is a band rather than a line. Three points absorbs a 2 pt rule and its rounding without merging two columns of a table set at any measure a book uses"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[table.rule_overlap_min]
+value = 0.5
+source = "provisional"
+evidence = "Two horizontal rules belong to one table when their x-extents overlap. Half the shorter rule keeps a table whose last row is narrower together and separates two tables set side by side"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# ---------- quotes, verse and preformatted (PIPELINE 8.6) ----------
+[verse.short_line_fill_max]
+value = 0.85
+source = "provisional"
+evidence = "PIPELINE §8.6 uses a short-line ratio without saying what makes a line short. A justified body line fills its measure to within the last word; 85% of the block's widest line is below the raggedest justified line measured and above every line of verse in f07"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[verse.min_lines]
+value = 3
+source = "published"
+evidence = "PIPELINE §8's end-of-stage validation: 'verse blocks have >= 3 lines and a short-line ratio > 0.6'. Two short lines are a heading that wrapped"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[quote.indent_min_em]
+value = 1.0
+source = "provisional"
+evidence = "PIPELINE §8.6 measures an indent delta against the body left margin without a floor. One em is the same bar `paragraph.indent_min_em` sets for a first-line indent, and a block indent is never smaller than a first-line one"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[images.ornament_min_pages]
+value = 3
+source = "provisional"
+evidence = "`images.ornament_page_share` alone makes every image in a two-page document an ornament, because one image on one page is half the pages. Three pages is the same floor `layout.furniture.min_repeat_pages` sets for the same reason"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[quote.centered_max_lines]
+value = 2
+source = "provisional"
+evidence = "A centred block of one or two lines is a folio, a title or a caption; PIPELINE §8.6's cues are about blocks indented on the left. Centred verse exists and is longer — §8.6 names 'centered short lines with a high line count' — so the exclusion stops at `verse.min_lines`"
+owner = "maintainer"
+review_by = "2027-06-30"

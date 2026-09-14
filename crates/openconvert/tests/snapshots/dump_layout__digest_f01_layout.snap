@@ -4,9 +4,9 @@ expression: "digest(&layout, &T)"
 ---
 {
   "pages": 2,
-  "blocks": 4,
+  "blocks": 5,
   "blocks_per_page": [
-    3,
+    4,
     1
   ],
   "columns_per_page": [

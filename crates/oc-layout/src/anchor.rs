@@ -139,6 +139,7 @@ pub fn drop_caps(page: &LayoutPage, blocks: &[Block], t: &Thresholds) -> Vec<Dro
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::blocks::TEST_SIZE_PT;
     use oc_core::thresholds::T;
     use oc_model::extract::{ImageKind, PageRef};
     use oc_model::layout::BlockKindHint;
@@ -241,6 +242,7 @@ mod tests {
                 run: RunId(run),
                 bbox,
                 text: text.to_owned(),
+                size_pt: TEST_SIZE_PT,
             }],
         }
     }

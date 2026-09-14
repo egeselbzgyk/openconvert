@@ -3512,10 +3512,14 @@ name = "oc-structure"
 version = "0.1.0"
 dependencies = [
  "insta",
+ "oc-core",
  "oc-layout",
  "oc-model",
+ "oc-pdf",
  "oc-text",
+ "serde",
  "thiserror 2.0.20",
+ "uuid",
 ]
 
 [[package]]
@@ -3588,6 +3592,7 @@ dependencies = [
  "oc-model",
  "oc-net",
  "oc-pdf",
+ "oc-structure",
  "oc-testkit",
  "oc-text",
  "proptest",

@@ -484,3 +484,74 @@ of the Phase 3 table are green, plus about sixty additions. VD-b is closed.
   upstream, Turkish is LPPL-1.0+ and `en-us` carries a bespoke non-SPDX notice, and the
   compiled dictionaries fold in GPL/LGPL/MPL extended data. None of that is visible to a
   licence scanner, so the ban is where it is enforced.
+
+## Phase 4 — Structure
+
+Ordered paragraphs become a document tree: headings and their levels, the section skeleton,
+notes, figures and captions, lists, quotes and verse, tables, images and metadata.
+
+### New crate surface
+
+- New: `oc-model::doc` — the semantic layer of `IR_SKETCH`: `Span`, `SpanStyle`, `LinkTarget`,
+  `Align`, `Heading`, `List`, `ListItem`, `Verse`, `Pre`, `Note`, `NoteKind`, `Figure`, `Cell`,
+  `Table`, `PageBreak`, `Content`, `Section`, `SectionRole`, `FrontMatterKind`,
+  `BackMatterKind`, `Zone`, `Metadata`, `MetaSource`, `Warning`, `Severity`.
+  `Document` itself belongs to the `document` stage (PIPELINE §9) and is not here yet.
+- New: `oc-model::ids` — `NoteId`, `FigureId`, `TableId`, `ClusterId`, `PageBreakId`.
+- New IR fields on `layout::Para`: `spans`, `drop_cap`, `align`, `lang`, `confidence`. Optional
+  additions, so `IR_VERSION` stays 1.
+- New: `oc-model::extract::{VecId, VectorRegion}` and `PdfDoc::page_vectors`.
+- New: `PdfDoc::xmp`, returning the packet's Dublin Core fields.
+- New: `oc-pdf::images::perceptual_hash` — the 64-bit average hash the ornament rule compares.
+- New: `oc-text::similarity::normalised_edit_distance`, moved out of `oc-layout::furniture`,
+  which now has a second consumer.
+- New: `oc-structure` — `view`, `build`, `headings::{cluster, candidate, numbering,
+  outline/levels, toc_page, runin}`, `notes`, `figures`, `lists`, `quotes`, `tables`, `images`,
+  `meta`, `book`, `stage`.
+- New: `openconvert::{input, structure_input, dump_structure}` and
+  `pipeline::{structure_stage, body_runs}`.
+
+### New CLI surface
+
+- New: `dump-stage structure` — a header carrying the stage check, the structural digest, the
+  metadata, the note match rate and whether escalation is allowed, then one line per top-level
+  section.
+
+### New warning codes
+
+`W_STYLE_INVENTORY_INVALID`, `W_NOTE_UNMATCHED`, `W_CAPTION_AMBIGUOUS`,
+`W_LIST_NUMBERING_GAP`, `W_TABLE_AS_IMAGE`, `W_ORNAMENT_DROPPED`, `W_ZONES_OUT_OF_ORDER`,
+`W_SECTION_PAGES_NOT_MONOTONE`.
+
+### New `thresholds.toml` entries
+
+`vector.{rule_max_thickness_pt, rule_min_aspect}`;
+`headings.{size_quantum_pt, bold_weight_min, centered_tolerance_ratio, space_above_min_em,
+cluster_char_share_min, outline_match_ned_max, runin_max_words}`;
+`inventory.max_examples`; `toc.{min_entries, min_line_share, max_front_pages, min_leader_chars}`;
+`layout.block.size_barrier_ratio`;
+`footnote.{zone_band_min, rule_max_width_ratio, rule_gap_max_em}`;
+`caption.{max_gap_em, max_width_ratio}`; `list.{min_siblings, max_depth,
+indent_step_tolerance_pt}`; `table.{min_row_rules, min_column_rules, grid_snap_pt,
+rule_overlap_min}`; `verse.{short_line_fill_max, min_lines}`;
+`quote.{indent_min_em, centered_max_lines}`; `images.ornament_min_pages`.
+
+### New fixtures
+
+Typst `f07_verse_and_quote`, `f08_footnotes`, `f09_novel_structure`, `f10_lists_and_table`
+(the plan's `f06`–`f08`, shifted because Phases 2 and 3 spent those numbers; `f07` is the
+verse fixture Phase 3 deferred). Hand-made `h24_footnote_symbol_cycle`,
+`h25_two_figures_one_caption`, `h26_borderless_table`, `h27_repeated_ornament`,
+`h28_xmp_over_boilerplate`, `h29_drop_cap`. The hand-made builder gained filled rules, placed
+images, an Info dictionary and an XMP packet.
+
+### Fixed in earlier phases
+
+- `oc-pdf::outline::read_outline` expanded every `/Next` chain at every node, so a chain of
+  five came back with thirty-two entries. The outline is heading ground truth, so every
+  duplicate would have become a heading.
+- Docstrum merged a heading into the paragraph beneath it whenever a producer set the two one
+  leading apart, which Typst and most book designers do. `layout` now splits a block at a
+  material size change, and `paragraphs` closes an open paragraph at one.
+- A superscript set with an OpenType `sups` glyph — drawn on the baseline at the body size —
+  was read as ordinary text, so footnote markers were swallowed into the middle of body runs.

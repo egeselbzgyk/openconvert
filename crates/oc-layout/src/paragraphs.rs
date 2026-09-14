@@ -32,7 +32,7 @@ use oc_model::text::Line;
 
 use oc_text::dehyphen::{dehyphenate, Decision, DocLexicon, HyphenAction, LINE_BREAK_HYPHENS};
 
-use crate::blocks::LayoutPage;
+use crate::blocks::{LayoutLine, LayoutPage};
 use crate::continuity::runs_on;
 
 /// Decide, once for the whole book, how it marks a paragraph start (PIPELINE §7 step 1).
@@ -96,16 +96,17 @@ pub fn reconstruct_paragraphs(
 
             for (position, line) in block.lines.iter().enumerate() {
                 let text = text_of(pages, index, line);
+                let size = size_of(pages, index, line);
                 let starts = starts_paragraph(block, position, line, convention, em, t);
                 let continues = match (&open, starts) {
-                    (Some(previous), false) => previous.accepts(index, &text),
+                    (Some(previous), false) => previous.accepts(index, &text, size),
                     _ => false,
                 };
                 if !continues {
                     if let Some(finished) = open.take() {
                         paragraphs.push(finished);
                     }
-                    open = Some(Open::new(block, line, &text, index, em, t));
+                    open = Some(Open::new(block, line, &text, index, em, t).at_size(size));
                     continue;
                 }
                 if let Some(current) = open.as_mut() {
@@ -236,6 +237,17 @@ pub fn dehyphenate_paragraphs(
 ///
 /// Keyed on the run ids: `blocks` re-measures a line's indent against its block, so the copy
 /// in the block is deliberately not equal to the copy on the page.
+fn size_of(pages: &[LayoutPage], page: usize, line: &Line) -> f32 {
+    pages
+        .get(page)
+        .and_then(|page| {
+            page.lines
+                .iter()
+                .find(|candidate| candidate.line.runs == line.runs)
+        })
+        .map_or(0.0, LayoutLine::size_pt)
+}
+
 fn text_of(pages: &[LayoutPage], page: usize, line: &Line) -> String {
     pages
         .get(page)
@@ -264,9 +276,23 @@ struct Open {
     /// Whether the last line ends on a hyphen, for the dehyphenation that follows.
     last_ends_with_hyphen: bool,
     unwrap_factor: f32,
+    /// The size the paragraph's first line is set at. A paragraph is set in one style, so a
+    /// line at a materially different size is the start of something else — which is what
+    /// keeps a chapter heading out of the paragraph beneath it when the producer does not
+    /// indent the first line after a heading, as Typst and most book designers do not.
+    size_pt: f32,
+    /// The barrier, as a fraction of the larger of the two sizes.
+    size_barrier: f32,
 }
 
 impl Open {
+    /// Record the size the paragraph opens at, which is the size every later line of it is
+    /// compared against.
+    fn at_size(mut self, size_pt: f32) -> Self {
+        self.size_pt = size_pt;
+        self
+    }
+
     fn new(block: &Block, line: &Line, text: &str, page: usize, _em: f32, t: &Thresholds) -> Self {
         let page = u32::try_from(page).unwrap_or(u32::MAX);
         Self {
@@ -280,6 +306,11 @@ impl Open {
             last_fill: fill_of(block, line),
             last_ends_with_hyphen: line.ends_with_hyphen,
             unwrap_factor: t.paragraph.line_unwrap_factor as f32,
+            // Filled by `at_size`, which is the only constructor the stage uses. Zero here
+            // disables the barrier, which is the safe direction for a caller that has no
+            // size to give: it merges as the stage did before the barrier existed.
+            size_pt: 0.0,
+            size_barrier: t.layout.block.size_barrier_ratio as f32,
         }
     }
 
@@ -302,8 +333,12 @@ impl Open {
     /// The short last line is the cue, and the one extra condition is for the case it cannot
     /// see: across a page boundary a paragraph may also be ended by the text itself, which the
     /// continuity proxy reads.
-    fn accepts(&self, page: usize, next: &str) -> bool {
+    fn accepts(&self, page: usize, next: &str, size_pt: f32) -> bool {
         if self.last_fill < self.unwrap_factor {
+            return false;
+        }
+        let largest = self.size_pt.max(size_pt);
+        if largest > 0.0 && (self.size_pt - size_pt).abs() / largest > self.size_barrier {
             return false;
         }
         let crosses_page = u32::try_from(page).unwrap_or(u32::MAX) != self.pages.1;
@@ -333,6 +368,12 @@ impl Open {
                 text,
                 first_line_indent: self.first_line_indent,
                 pages: self.pages,
+                // `structure`'s half of the type, empty until it has run (IR_SKETCH).
+                spans: Vec::new(),
+                drop_cap: false,
+                align: oc_model::doc::Align::Left,
+                lang: None,
+                confidence: None,
             },
             self.texts,
             self.line_pages,
@@ -435,6 +476,7 @@ fn union(a: Rect, b: Rect) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::blocks::TEST_SIZE_PT;
     use oc_core::thresholds::T;
     use oc_model::extract::PageRef;
     use oc_model::text::RunId;
@@ -485,6 +527,7 @@ mod tests {
                     run,
                     bbox,
                     text: text.to_owned(),
+                    size_pt: TEST_SIZE_PT,
                 }],
             });
             self

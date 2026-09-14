@@ -18,7 +18,7 @@ use oc_layout::continuity::{continuity, Continuity};
 use oc_layout::furniture::{apply_furniture, detect_furniture, PageLines};
 use oc_layout::paragraphs::{dehyphenate_paragraphs, infer_convention, reconstruct_paragraphs};
 use oc_layout::reading_order::reading_order;
-use oc_model::extract::{CharHistogram, Glyph, ImageRef, PageRef};
+use oc_model::extract::{CharHistogram, FontId, FontInfo, Glyph, ImageRef, PageRef};
 use oc_model::geom::Rect;
 use oc_model::lang::LangTag;
 use oc_model::layout::{Block, Para, ParagraphConvention};
@@ -36,6 +36,10 @@ pub struct PageInput {
     pub width_pt: f32,
     pub height_pt: f32,
     pub glyphs: Vec<Glyph>,
+    /// The fonts this page's glyphs point at, indexed by the page's own [`FontId`]s.
+    /// Interning is per page in the backend, so two pages may number the same face
+    /// differently; `text` merges them into one document table and remaps the runs.
+    pub fonts: Vec<FontInfo>,
     /// The images `ingest` found on the page. `layout` anchors them into the flow and drops
     /// none of them (PIPELINE §6 step 5).
     pub images: Vec<ImageRef>,
@@ -56,6 +60,9 @@ pub struct TextPage {
 #[derive(Clone, Debug)]
 pub struct TextStage {
     pub pages: Vec<TextPage>,
+    /// The document's fonts, merged from the per-page tables. Every `Run.font` in
+    /// `pages` indexes into this, not into the page it came from.
+    pub fonts: Vec<FontInfo>,
     pub delta: LedgerDelta,
     /// `C_0`, the retention denominator: the multiset after `N` (ARCHITECTURE §5.2). Overdraw
     /// and OCR-layer dedup, the other two things folded into `C_0`, happen in `ingest` and in
@@ -113,10 +120,16 @@ pub fn text_stage(
 
     let mut delta = LedgerDelta::default();
     let mut pages = Vec::with_capacity(input.len());
+    let mut fonts: Vec<FontInfo> = Vec::new();
     for page in input {
+        let remap = merge_fonts(&mut fonts, &page.fonts);
         let mut assembly = assemble_runs(&page.glyphs, page.page.clone(), t);
         let mut offset: u32 = 0;
         for run in &mut assembly.runs {
+            run.font = remap
+                .get(usize::from(run.font.0))
+                .copied()
+                .unwrap_or(run.font);
             let width = u32::try_from(run.text.chars().count()).unwrap_or(u32::MAX);
             let site = LedgerSite {
                 stage: stages::TEXT.name,
@@ -145,10 +158,37 @@ pub fn text_stage(
 
     Ok(TextStage {
         pages,
+        fonts,
         delta,
         c_0: after,
         check,
     })
+}
+
+/// Merge one page's font table into the document's, returning the page's id-to-document-id
+/// map.
+///
+/// Keyed on the declared name, which is what the backend's own per-page interning keys on —
+/// so two pages that draw in one face agree, and two faces that differ only in their subset
+/// prefix stay apart until `family_key` folds them, which is a clustering decision and not
+/// this function's.
+fn merge_fonts(document: &mut Vec<FontInfo>, page: &[FontInfo]) -> Vec<FontId> {
+    page.iter()
+        .map(|font| {
+            let position = match document.iter().position(|known| known.name == font.name) {
+                Some(position) => position,
+                None => {
+                    document.push(font.clone());
+                    document.len() - 1
+                }
+            };
+            let id = FontId(u16::try_from(position).unwrap_or(u16::MAX));
+            if let Some(entry) = document.get_mut(position) {
+                entry.id = id;
+            }
+            id
+        })
+        .collect()
 }
 
 /// Run `furniture`: find the running heads, feet and page numbers, and remove them.
@@ -238,6 +278,7 @@ pub fn layout_stage(
                             run: run.id,
                             bbox: run.bbox,
                             text: run.text.trim().to_owned(),
+                            size_pt: run.size_pt,
                         })
                         .filter(|segment| !segment.text.is_empty())
                         .collect(),
@@ -419,6 +460,68 @@ pub fn paragraphs_stage(
         delta,
         check,
     })
+}
+
+/// What `structure` produced, and the check that says it labelled rather than edited.
+pub struct StructureStage {
+    pub output: oc_structure::stage::StructureOutput,
+    pub delta: LedgerDelta,
+    pub check: StageCheck,
+}
+
+/// Run `structure`: roles, the section tree, notes, figures, tables and metadata (PIPELINE §8).
+///
+/// Conserving, and checked as such against the blocks `layout` produced. The check is the
+/// reason the stage is written the way it is: a block's text lands in exactly one of a
+/// section's content, a note's body, a table's cells or a figure's caption, and anything
+/// counted twice or dropped fails plain multiset equality here rather than silently in an
+/// EPUB somebody reads.
+pub fn structure_stage(
+    layout: &LayoutStage,
+    input: &oc_structure::stage::StructureInput,
+    totals: &mut ReasonTotals,
+    t: &Thresholds,
+) -> Result<StructureStage, ConservationError> {
+    let before = block_chars(&layout.blocks, &layout.pages);
+    let output = oc_structure::stage::structure(input, t);
+
+    let mut after = CharHistogram::new();
+    for text in output.emitted_text() {
+        after = after.union(&c_of(&text));
+    }
+    let delta = LedgerDelta::default();
+    let check = check_invariants(&before, &after, &delta, stages::STRUCTURE, totals)?;
+
+    Ok(StructureStage {
+        output,
+        delta,
+        check,
+    })
+}
+
+/// The runs that survive into the body flow: those of the lines `furniture` kept.
+///
+/// What `structure`'s style clustering is fed. Clustering before furniture removal would put
+/// an 8 pt running head into the inventory as a style of its own, on every page of the book,
+/// and the validity gate counts clusters (PIPELINE §8.2).
+pub fn body_runs(text: &TextStage, furniture: &FurnitureStage) -> Vec<Run> {
+    text.pages
+        .iter()
+        .enumerate()
+        .flat_map(|(index, page)| {
+            furniture
+                .kept
+                .get(index)
+                .map(Vec::as_slice)
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|line| page.lines.get(*line))
+                .flat_map(|line| line.runs.iter())
+                .filter_map(|id| page.runs.get(usize::try_from(id.0).unwrap_or(usize::MAX)))
+                .cloned()
+                .collect::<Vec<Run>>()
+        })
+        .collect()
 }
 
 /// `C` of the reconstructed paragraphs.

@@ -9,12 +9,11 @@
 
 use oc_core::ledger_check::ReasonTotals;
 use oc_core::thresholds::T;
-use oc_model::extract::PageRef;
 use oc_model::lang::LangTag;
 use oc_pdf::inspect::PdfOpen;
 use oc_pdf::pdfium::PdfiumBackend;
 use openconvert::dump_layout::{digest, header, pages, rounded};
-use openconvert::pipeline::{furniture_stage, layout_stage, text_stage, LayoutStage, PageInput};
+use openconvert::pipeline::{furniture_stage, layout_stage, text_stage, LayoutStage};
 
 fn lay_out(relative: &str) -> LayoutStage {
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative);
@@ -26,23 +25,7 @@ fn lay_out(relative: &str) -> LayoutStage {
     });
     let backend = PdfiumBackend::bind().expect("PDFium is vendored");
     let document = backend.open(&bytes, None).expect("the fixture opens");
-    let input: Vec<PageInput> = (0..document.page_count())
-        .map(|index| {
-            let geometry = document
-                .page_geometry(index)
-                .expect("the page has geometry");
-            PageInput {
-                page: PageRef::new(index),
-                width_pt: geometry.width_pt(),
-                height_pt: geometry.height_pt(),
-                glyphs: document
-                    .page_glyphs(index)
-                    .expect("the page extracts")
-                    .glyphs,
-                images: document.page_images(index).unwrap_or_default(),
-            }
-        })
-        .collect();
+    let input = openconvert::input::page_inputs(document.as_ref()).expect("every page extracts");
 
     let mut totals = ReasonTotals::default();
     let text = text_stage(&input, &mut totals, &T).expect("text conserves");

@@ -119,6 +119,34 @@ impl core::fmt::Display for BlockId {
     }
 }
 
+/// A note's identifier: footnotes and endnotes share one sequence, numbered in the order
+/// the *body* refers to them rather than in the order the page prints them.
+///
+/// Its own type rather than a `BlockId` because a note is not a block: its body may be
+/// several blocks and its marker is not text anybody selected. Small integers because the
+/// bijection check in PIPELINE §8.3 counts them, and a counting check wants a dense index.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
+pub struct NoteId(pub u32);
+
+/// A figure's identifier: one image plus, when one could be associated, one caption.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
+pub struct FigureId(pub u32);
+
+/// A table's identifier.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
+pub struct TableId(pub u32);
+
+/// A style cluster's identifier, assigned by `structure`'s clustering in size-rank order.
+///
+/// Recorded on every heading so the report can say *which* cluster decided a level, and so
+/// that an override can move a whole cluster rather than one heading at a time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
+pub struct ClusterId(pub u32);
+
+/// A page break's identifier. One per source page that contributes content, in page order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
+pub struct PageBreakId(pub u32);
+
 /// Round a coordinate to whole points for hashing (D13.3, "bbox rounded to 1 pt").
 ///
 /// The saturating float-to-int cast keeps this total: a non-finite coordinate cannot reach

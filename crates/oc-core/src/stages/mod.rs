@@ -9,11 +9,13 @@ use oc_model::ledger::{Reason, StageKind};
 pub mod furniture;
 pub mod layout;
 pub mod paragraphs;
+pub mod structure;
 pub mod text;
 
 pub use furniture::FURNITURE;
 pub use layout::LAYOUT;
 pub use paragraphs::PARAGRAPHS;
+pub use structure::STRUCTURE;
 pub use text::TEXT;
 
 /// One stage's static contract: its name, whether it may change the text, and the closed set

@@ -11,73 +11,9 @@ endobj
 2 0 obj
 <<
   /Type /Pages
-  /Kids [4 0 R 6 0 R 8 0 R 10 0 R]
+  /Kids [8 0 R 10 0 R 12 0 R 14 0 R]
   /Count 4
 >>
-endobj
-
-4 0 obj
-<<
-  /Type /Page
-  /Parent 2 0 R
-  /MediaBox [0 0 200 800]
-  /Contents 5 0 R
-  /Resources <<
-    /Font <<
-      /F1 3 0 R
-    >>
-  >>
->>
-endobj
-
-5 0 obj
-<<
-  /Length 78
->>
-stream
-BT
-/F1 8 Tf
-20 30 Td
-(3) Tj
-ET
-BT
-/F1 12 Tf
-20 400 Td
-(Body text page 0) Tj
-ET
-endstream
-endobj
-
-6 0 obj
-<<
-  /Type /Page
-  /Parent 2 0 R
-  /MediaBox [0 0 200 800]
-  /Contents 7 0 R
-  /Resources <<
-    /Font <<
-      /F1 3 0 R
-    >>
-  >>
->>
-endobj
-
-7 0 obj
-<<
-  /Length 78
->>
-stream
-BT
-/F1 8 Tf
-20 30 Td
-(3) Tj
-ET
-BT
-/F1 12 Tf
-20 400 Td
-(Body text page 1) Tj
-ET
-endstream
 endobj
 
 8 0 obj
@@ -107,7 +43,7 @@ ET
 BT
 /F1 12 Tf
 20 400 Td
-(Body text page 2) Tj
+(Body text page 0) Tj
 ET
 endstream
 endobj
@@ -139,6 +75,70 @@ ET
 BT
 /F1 12 Tf
 20 400 Td
+(Body text page 1) Tj
+ET
+endstream
+endobj
+
+12 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 200 800]
+  /Contents 13 0 R
+  /Resources <<
+    /Font <<
+      /F1 3 0 R
+    >>
+  >>
+>>
+endobj
+
+13 0 obj
+<<
+  /Length 78
+>>
+stream
+BT
+/F1 8 Tf
+20 30 Td
+(3) Tj
+ET
+BT
+/F1 12 Tf
+20 400 Td
+(Body text page 2) Tj
+ET
+endstream
+endobj
+
+14 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 200 800]
+  /Contents 15 0 R
+  /Resources <<
+    /Font <<
+      /F1 3 0 R
+    >>
+  >>
+>>
+endobj
+
+15 0 obj
+<<
+  /Length 78
+>>
+stream
+BT
+/F1 8 Tf
+20 30 Td
+(3) Tj
+ET
+BT
+/F1 12 Tf
+20 400 Td
 (Body text page 3) Tj
 ET
 endstream
@@ -153,26 +153,60 @@ endobj
 >>
 endobj
 
+4 0 obj
+<<
+  /Length 64
+  /Type /XObject
+  /Subtype /Image
+  /Width 8
+  /Height 8
+  /BitsPerComponent 8
+  /ColorSpace /DeviceGray
+>>
+stream
+````````````````````````````````````````````````````````````````
+endstream
+endobj
+
+5 0 obj
+<<
+  /Length 64
+  /Type /XObject
+  /Subtype /Image
+  /Width 8
+  /Height 8
+  /BitsPerComponent 8
+  /ColorSpace /DeviceGray
+>>
+stream
+热热热热热热热热热热热热热热热热热热热热热热热热热热热热热热热热
+endstream
+endobj
+
 xref
-0 12
-0000000000 65535 f
+0 16
+0000000006 65535 f
 0000000016 00000 n
 0000000070 00000 n
-0000001292 00000 n
-0000000153 00000 n
-0000000306 00000 n
-0000000437 00000 n
-0000000590 00000 n
-0000000721 00000 n
-0000000874 00000 n
-0000001005 00000 n
-0000001160 00000 n
+0000001300 00000 n
+0000001406 00000 n
+0000001629 00000 n
+0000000007 00000 f
+0000000000 00000 f
+0000000155 00000 n
+0000000308 00000 n
+0000000439 00000 n
+0000000594 00000 n
+0000000726 00000 n
+0000000881 00000 n
+0000001013 00000 n
+0000001168 00000 n
 trailer
 <<
-  /Size 12
+  /Size 16
   /Root 1 0 R
   /ID [(openconvert-fixture) (openconvert-fixture)]
 >>
 startxref
-1398
+1852
 %%EOF

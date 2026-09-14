@@ -1,0 +1,168 @@
+%PDF-1.7
+%€€€€
+
+1 0 obj
+<<
+  /Type /Catalog
+  /Pages 2 0 R
+>>
+endobj
+
+2 0 obj
+<<
+  /Type /Pages
+  /Kids [8 0 R 10 0 R]
+  /Count 2
+>>
+endobj
+
+8 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 400 800]
+  /Contents 9 0 R
+  /Resources <<
+    /Font <<
+      /F1 3 0 R
+    >>
+  >>
+>>
+endobj
+
+9 0 obj
+<<
+  /Length 216
+>>
+stream
+60 120 60 0.5 re
+f
+BT
+/F1 12 Tf
+60 700 Td
+(Alpha beta gamma delta.) Tj
+ET
+BT
+/F1 7 Tf
+192 703 Td
+(*) Tj
+ET
+BT
+/F1 12 Tf
+60 684 Td
+(The first page runs on below.) Tj
+ET
+BT
+/F1 9 Tf
+60 100 Td
+(* First note text.) Tj
+ET
+endstream
+endobj
+
+10 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 400 800]
+  /Contents 11 0 R
+  /Resources <<
+    /Font <<
+      /F1 3 0 R
+    >>
+  >>
+>>
+endobj
+
+11 0 obj
+<<
+  /Length 218
+>>
+stream
+60 120 60 0.5 re
+f
+BT
+/F1 12 Tf
+60 700 Td
+(Epsilon zeta eta theta.) Tj
+ET
+BT
+/F1 7 Tf
+192 703 Td
+(*) Tj
+ET
+BT
+/F1 12 Tf
+60 684 Td
+(The second page does the same.) Tj
+ET
+BT
+/F1 9 Tf
+60 100 Td
+(* Second note text.) Tj
+ET
+endstream
+endobj
+
+3 0 obj
+<<
+  /Type /Font
+  /Subtype /Type1
+  /BaseFont /Helvetica
+  /Encoding /WinAnsiEncoding
+>>
+endobj
+
+4 0 obj
+<<
+  /Length 64
+  /Type /XObject
+  /Subtype /Image
+  /Width 8
+  /Height 8
+  /BitsPerComponent 8
+  /ColorSpace /DeviceGray
+>>
+stream
+````````````````````````````````````````````````````````````````
+endstream
+endobj
+
+5 0 obj
+<<
+  /Length 64
+  /Type /XObject
+  /Subtype /Image
+  /Width 8
+  /Height 8
+  /BitsPerComponent 8
+  /ColorSpace /DeviceGray
+>>
+stream
+ÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈÈ
+endstream
+endobj
+
+xref
+0 12
+0000000006 65535 f
+0000000016 00000 n
+0000000070 00000 n
+0000000992 00000 n
+0000001098 00000 n
+0000001321 00000 n
+0000000007 00000 f
+0000000000 00000 f
+0000000141 00000 n
+0000000294 00000 n
+0000000564 00000 n
+0000000719 00000 n
+trailer
+<<
+  /Size 12
+  /Root 1 0 R
+  /ID [(openconvert-fixture) (openconvert-fixture)]
+>>
+startxref
+1544
+%%EOF

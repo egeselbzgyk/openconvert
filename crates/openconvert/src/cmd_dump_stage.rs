@@ -43,6 +43,7 @@ pub fn run<W: Write>(
         oc_pdf::dump::STAGE,
         openconvert::dump_text::STAGE,
         openconvert::dump_layout::STAGE,
+        openconvert::dump_structure::STAGE,
     ];
     if !known.contains(&args.stage.as_str()) {
         events.fatal(
@@ -108,6 +109,8 @@ pub fn run<W: Write>(
         write_text_dump(document.as_ref(), stdout, &cancel)
     } else if args.stage == openconvert::dump_layout::STAGE {
         write_layout_dump(document.as_ref(), stdout, &cancel)
+    } else if args.stage == openconvert::dump_structure::STAGE {
+        write_structure_dump(document.as_ref(), &args.input, stdout, &cancel)
     } else {
         write_dump(
             document.as_ref(),
@@ -190,6 +193,7 @@ fn write_text_dump(
             width_pt: geometry.width_pt(),
             height_pt: geometry.height_pt(),
             glyphs: glyphs.glyphs,
+            fonts: glyphs.fonts,
             images: document.page_images(index).unwrap_or_default(),
         });
     }
@@ -235,6 +239,45 @@ fn write_layout_dump(
     Ok(Outcome::Completed)
 }
 
+/// Stream the `structure` stage's dump.
+///
+/// The header first, because everything in it is about the book rather than about a page:
+/// the digest, the metadata, the note match rate and whether escalation is allowed at all.
+/// Then one line per top-level section.
+fn write_structure_dump(
+    document: &dyn oc_pdf::inspect::PdfDoc,
+    input: &std::path::Path,
+    stdout: &mut dyn Write,
+    cancel: &Cancel,
+) -> Result<Outcome, String> {
+    if cancel.is_cancelled() {
+        return Ok(Outcome::Cancelled);
+    }
+    let bytes = std::fs::read(input).map_err(|error| error.to_string())?;
+    // The identifier is minted from the source bytes, so the dump has to hash them (R5 §A2).
+    let sha = {
+        use sha2::Digest as _;
+        format!("{:x}", sha2::Sha256::digest(&bytes))
+    };
+    let filename = input
+        .file_name()
+        .and_then(std::ffi::OsStr::to_str)
+        .unwrap_or_default();
+
+    let (header, sections) = openconvert::dump_structure::dump(
+        document,
+        filename,
+        &sha,
+        oc_model::lang::LangTag::EN,
+        &oc_core::thresholds::T,
+    )?;
+    write_line(stdout, &header)?;
+    for section in &sections {
+        write_line(stdout, section)?;
+    }
+    Ok(Outcome::Completed)
+}
+
 /// Read every page into the shape the post-`ingest` stages take, or `None` if cancelled.
 fn read_pages(
     document: &dyn oc_pdf::inspect::PdfDoc,
@@ -256,6 +299,7 @@ fn read_pages(
             width_pt: geometry.width_pt(),
             height_pt: geometry.height_pt(),
             glyphs: glyphs.glyphs,
+            fonts: glyphs.fonts,
             images: document.page_images(index).unwrap_or_default(),
         });
     }

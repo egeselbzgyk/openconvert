@@ -138,12 +138,36 @@ pub fn assemble_runs(glyphs: &[Glyph], page: PageRef, t: &Thresholds) -> RunAsse
     RunAssembly { runs, order }
 }
 
+/// The characters the raised-ink rule below will admit: the digits, and the footnote symbol
+/// cycle PIPELINE §8.3 names.
+///
+/// The restriction is not squeamishness, it is the only thing that separates the two cases.
+/// A superscript digit set with an OpenType `sups` glyph and a right single quotation mark
+/// are *geometrically identical*: small ink, entirely above the baseline, drawn on the
+/// baseline at the body size. Nothing in the geometry tells them apart. The costs are not
+/// symmetric either — a mis-flagged apostrophe splits `don't` into three runs and emits
+/// `don<sup>'</sup>t`, which is a visible corruption of the text, while a missed marker loses
+/// a footnote link, which the bijection check then reports.
+const MARKER_CHARS: [char; 6] = ['*', '\u{2020}', '\u{2021}', '§', '\u{2016}', '¶'];
+
 /// Whether a glyph sits above, on, or below its line's baseline.
 ///
-/// Signature as PIPELINE §4 step 4 states the rule: raised (or dropped) by at least
-/// `footnote.superscript_rise_ratio × size_pt`, **and** set smaller than
+/// Two rules, because producers make superscripts two ways.
+///
+/// **Raised and smaller** is PIPELINE §4 step 4's: the origin is moved off the baseline by at
+/// least `footnote.superscript_rise_ratio × size_pt` *and* the glyph is set under
 /// `text.superscript_size_ratio_max × body`. Both conditions, because a whole line set 3 pt
 /// higher than its neighbour is a line, not a page of superscripts.
+///
+/// **Raised ink at the body size** is what professional typesetting does, and it defeats the
+/// first rule completely: an OpenType `sups` glyph is drawn *on the baseline at the body
+/// size*, and only its outline is raised. Measured on `f08`, whose footnote markers Typst
+/// sets this way through Libertinus: origin y identical to the letter before it, `size_pt`
+/// identical, and the ink box sitting 3.6 pt clear of the baseline at 10 pt. The first rule
+/// reads that as ordinary text and the marker is swallowed into the middle of a body run —
+/// `"a reference1 in the"` — where nothing downstream can find it.
+///
+/// The second rule is restricted to [`MARKER_CHARS`] and the digits; see there.
 pub fn superscript_flags(glyphs: &[Glyph], baseline: f32, body_size: f32) -> Vec<bool> {
     let t = &oc_core::thresholds::T;
     glyphs
@@ -164,16 +188,36 @@ fn vertical_of(glyph: &Glyph, baseline: f32, body_size: f32, t: &Thresholds) -> 
     let offset = baseline - glyph.origin.1;
     let rise = t.footnote.superscript_rise_ratio as f32 * glyph.size_pt;
     let small = glyph.size_pt < t.text.superscript_size_ratio_max as f32 * body_size;
-    if !small {
+    if small {
+        if offset >= rise {
+            return Vertical::Superscript;
+        }
+        if offset <= -rise {
+            return Vertical::Subscript;
+        }
         return Vertical::Baseline;
     }
-    if offset >= rise {
-        Vertical::Superscript
-    } else if offset <= -rise {
-        Vertical::Subscript
-    } else {
-        Vertical::Baseline
+    if raised_ink(glyph, baseline, rise) {
+        return Vertical::Superscript;
     }
+    if dropped_ink(glyph, baseline, rise) {
+        return Vertical::Subscript;
+    }
+    Vertical::Baseline
+}
+
+/// Whether a marker glyph's whole inked box sits clear above the baseline.
+fn raised_ink(glyph: &Glyph, baseline: f32, rise: f32) -> bool {
+    is_marker(glyph.ch) && baseline - glyph.bbox.y1 >= rise
+}
+
+/// The same, below: a `subs` glyph's ink starts below the baseline and stays there.
+fn dropped_ink(glyph: &Glyph, baseline: f32, rise: f32) -> bool {
+    is_marker(glyph.ch) && glyph.bbox.y0 - baseline >= rise
+}
+
+fn is_marker(ch: char) -> bool {
+    ch.is_ascii_digit() || MARKER_CHARS.contains(&ch)
 }
 
 /// What makes two adjacent glyphs part of the same run.

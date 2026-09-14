@@ -80,6 +80,12 @@ pub fn all() -> Vec<(&'static str, Vec<u8>)> {
         ("h21_band_is_sole_content", h21_band_is_sole_content()),
         ("h22_false_gutter", h22_false_gutter()),
         ("h23_paragraph_across_pages", h23_paragraph_across_pages()),
+        ("h24_footnote_symbol_cycle", h24_footnote_symbol_cycle()),
+        ("h25_two_figures_one_caption", h25_two_figures_one_caption()),
+        ("h26_borderless_table", h26_borderless_table()),
+        ("h27_repeated_ornament", h27_repeated_ornament()),
+        ("h28_xmp_over_boilerplate", h28_xmp_over_boilerplate()),
+        ("h29_drop_cap", h29_drop_cap()),
     ]
 }
 
@@ -648,6 +654,264 @@ pub fn overlap_pair_at(offset_pt: f32, first: &str, second: &str) -> Vec<u8> {
     )
 }
 
+/// The page box the Phase-4 fixtures use: wide enough that a column has a width worth
+/// measuring a rule against, and the same 800 pt tall as everything else so the furniture
+/// bands fall where the earlier fixtures put them.
+pub const STRUCTURE_PAGE: [f32; 4] = [0.0, 0.0, 400.0, 800.0];
+
+/// The symbol h24 cycles: the first of `* † ‡ §`, used once on each of its two pages.
+pub const CYCLED_MARKER: &str = "*";
+/// What h24's two notes say. Different text, because the test is that the same *symbol*
+/// resolves to different notes — if the notes said the same thing the assertion would pass
+/// for the wrong reason.
+pub const FIRST_NOTE: &str = "* First note text.";
+pub const SECOND_NOTE: &str = "* Second note text.";
+/// The size h24 sets its notes at: 0.75 x body, inside `footnote.font_size_ratio_max`.
+pub const NOTE_SIZE_PT: f32 = 9.0;
+/// Where h24 puts its separator rule and its notes, in PDF user space.
+const NOTE_RULE_Y: f32 = 120.0;
+const NOTE_RULE_THICKNESS_PT: f32 = 0.5;
+const NOTE_BASELINE_Y: f32 = 100.0;
+/// The left margin every Phase-4 fixture sets its text at.
+pub const WIDE_MARGIN_PT: f32 = 60.0;
+
+/// h24 - two pages, each carrying a `*` in its body and a `*` note at its foot, separated
+/// from the body by a short rule.
+///
+/// The symbol cycle `* † ‡ §` **resets on every page** (PIPELINE §8.3), so the two `*`
+/// markers are not one marker referred to twice: they are two, and a matcher that keys on
+/// symbol equality across the book links both bodies to the first note and leaves the second
+/// note orphaned. That is exactly the EPUBCheck RSC-007 class the bijection exists to stop
+/// (test 4.8).
+pub fn h24_footnote_symbol_cycle() -> Vec<u8> {
+    let pages: Vec<Page> = [
+        (
+            "Alpha beta gamma delta.",
+            "The first page runs on below.",
+            FIRST_NOTE,
+        ),
+        (
+            "Epsilon zeta eta theta.",
+            "The second page does the same.",
+            SECOND_NOTE,
+        ),
+    ]
+    .into_iter()
+    .map(|(body, second, note)| {
+        Page::default()
+            .media_box(STRUCTURE_PAGE)
+            .text((WIDE_MARGIN_PT, 700.0), body)
+            // The marker rides on the body line: three points up and set at 7 pt, which is
+            // what `superscript_flags` reads as raised-and-small (test 2.9).
+            .text_at(
+                (WIDE_MARGIN_PT + 132.0, 700.0 + SUPERSCRIPT_RISE_PT),
+                CYCLED_MARKER,
+                SUPERSCRIPT_SIZE_PT,
+            )
+            .text((WIDE_MARGIN_PT, 684.0), second)
+            .rule([
+                WIDE_MARGIN_PT,
+                NOTE_RULE_Y,
+                WIDE_MARGIN_PT + 60.0,
+                NOTE_RULE_Y + NOTE_RULE_THICKNESS_PT,
+            ])
+            .text_at((WIDE_MARGIN_PT, NOTE_BASELINE_Y), note, NOTE_SIZE_PT)
+    })
+    .collect();
+    build_pages(pages)
+}
+
+/// A one-page document that draws the given filled rectangles and no text.
+///
+/// Not a committed fixture: it is parameterised, and a builder whose output depends on its
+/// argument cannot be one file on disk. It exists so that the rule predicate is exercised
+/// against boxes a producer actually drew rather than against the arithmetic alone.
+pub fn filled_boxes(boxes: &[[f32; 4]]) -> Vec<u8> {
+    let page = boxes
+        .iter()
+        .fold(Page::default().media_box(STRUCTURE_PAGE), |page, box_| {
+            page.rule(*box_)
+        });
+    build_pages(vec![page])
+}
+
+/// What h25's one caption says. It carries the localized prefix, so the *caption* is not in
+/// doubt — only which figure it belongs to is.
+pub const AMBIGUOUS_CAPTION: &str = "Figure 1: a caption between two figures.";
+
+/// h25 - one page, two figures side by side, and one caption placed symmetrically beneath
+/// the gap between them.
+///
+/// Caption association is ambiguous even for humans: DocLayNet's `Caption` class has
+/// inter-annotator agreement of 84-89 (R10 §6.10). The rule is to associate only when the
+/// second-best distance is at least `caption.distance_ratio_min` times the best, and to
+/// abstain otherwise. This fixture makes the ratio exactly one, which is the case the rule
+/// exists for: geometry cannot answer, so the answer is not guessed (test 4.10).
+pub fn h25_two_figures_one_caption() -> Vec<u8> {
+    // Both images the same height and the same vertical distance from the caption, their
+    // inner edges the same distance from its centre. Two distinct images, so that a
+    // perceptual hash cannot collapse them into one figure and make the question go away.
+    build_pages(vec![Page::default()
+        .media_box(STRUCTURE_PAGE)
+        .text((WIDE_MARGIN_PT, 740.0), "Body text above the figures.")
+        .place_image(0, [60.0, 600.0, 160.0, 700.0])
+        .place_image(1, [240.0, 600.0, 340.0, 700.0])
+        .text_at((120.0, 570.0), AMBIGUOUS_CAPTION, NOTE_SIZE_PT)
+        .text((WIDE_MARGIN_PT, 500.0), "Body text below the figures.")])
+}
+
+/// The cells h26 prints, row by row. Three columns, three rows, and no vertical rules
+/// anywhere — the arrangement a book actually uses for a table, and the one Camelot's lattice
+/// parser cannot read (R2 §B.9).
+pub const BORDERLESS_ROWS: [[&str; 3]; 3] = [
+    ["Stage", "Kind", "Budget"],
+    ["text", "Budgeted", "0.005"],
+    ["layout", "Conserving", "0.000"],
+];
+
+/// h26 - a table ruled above, below and under its header, with no vertical rules at all.
+///
+/// Two horizontal rules bound a region, so the table *is* found; with no verticals there is
+/// no grid to read, and PIPELINE §8.7 says what happens then — the image plus the extracted
+/// text in a `<details>` fallback, with `W_TABLE_AS_IMAGE`. Accessibility settles that shape
+/// rather than engineering taste: an image of a table takes the content away from anyone who
+/// cannot see it, so even the fallback carries the data (DAISY, R10 §6.12). Test 4.14.
+pub fn h26_borderless_table() -> Vec<u8> {
+    // Three column origins and three row baselines, with the rules between them.
+    const COLUMNS: [f32; 3] = [60.0, 160.0, 260.0];
+    const ROWS: [f32; 3] = [700.0, 670.0, 640.0];
+    const RULE_THICKNESS: f32 = 0.5;
+    let mut page = Page::default()
+        .media_box(STRUCTURE_PAGE)
+        .rule([55.0, 715.0, 345.0, 715.0 + RULE_THICKNESS])
+        .rule([55.0, 688.0, 345.0, 688.0 + RULE_THICKNESS])
+        .rule([55.0, 628.0, 345.0, 628.0 + RULE_THICKNESS]);
+    for (row, cells) in BORDERLESS_ROWS.iter().enumerate() {
+        for (column, cell) in cells.iter().enumerate() {
+            page = page.text((COLUMNS[column], ROWS[row]), cell);
+        }
+    }
+    build_pages(vec![
+        page.text((WIDE_MARGIN_PT, 560.0), "Body text beneath the table.")
+    ])
+}
+
+/// The ornament h27 repeats: a small image, the same XObject on every page, drawn in the
+/// same place. Byte-identical by construction rather than by the encoder happening to be
+/// deterministic, which is what makes the perceptual-hash test honest.
+const ORNAMENT_BOX: [f32; 4] = [180.0, 60.0, 220.0, 100.0];
+/// The one figure h27 draws, on one page only, so that a rule which dropped *every* small
+/// image would be caught.
+const H27_FIGURE_BOX: [f32; 4] = [60.0, 400.0, 260.0, 600.0];
+/// How many pages h27 has, and on how many of them the ornament appears.
+pub const H27_PAGES: usize = 5;
+pub const H27_ORNAMENT_PAGES: usize = 5;
+
+/// h27 - five pages, each carrying the same small image in the same place at the foot, and
+/// one page carrying a figure as well.
+///
+/// An ornament is dropped when a small identical image repeats on at least
+/// `images.ornament_page_share` of the pages (D13.11). The figure is there so that a rule
+/// which simply dropped every small image would fail: one image must survive (test 4.15).
+pub fn h27_repeated_ornament() -> Vec<u8> {
+    let pages: Vec<Page> = (0..H27_PAGES)
+        .map(|index| {
+            let page = Page::default()
+                .media_box(STRUCTURE_PAGE)
+                .text(
+                    (WIDE_MARGIN_PT, 700.0),
+                    &format!("Body text on page {index} of the ornamented book."),
+                )
+                .place_image(0, ORNAMENT_BOX);
+            if index == 2 {
+                page.place_image(1, H27_FIGURE_BOX)
+            } else {
+                page
+            }
+        })
+        .collect();
+    build_pages(pages)
+}
+
+/// What h28's Info dictionary claims, and what its XMP packet actually says.
+pub const BOILERPLATE_TITLE: &str = "Microsoft Word - draft.docx";
+pub const BOILERPLATE_AUTHOR: &str = "user";
+pub const XMP_TITLE: &str = "The Weather in the Delta";
+pub const XMP_AUTHOR: &str = "A. Writer";
+
+/// h28 - an Info dictionary carrying a Word export's filename as its title, and an XMP packet
+/// carrying the book's real one.
+///
+/// Boilerplate is **worse than nothing because it looks valid** (PIPELINE §8.8): a reader
+/// that trusts `/Title` ships a library full of `Microsoft Word - draft`. XMP first, then the
+/// Info dictionary, then the blocklist, then the heuristic (test 4.16).
+pub fn h28_xmp_over_boilerplate() -> Vec<u8> {
+    build_pages(vec![Page::default()
+        .media_box(STRUCTURE_PAGE)
+        .doc_info(BOILERPLATE_TITLE, BOILERPLATE_AUTHOR)
+        .xmp(XMP_TITLE, XMP_AUTHOR)
+        .text_at((WIDE_MARGIN_PT, 700.0), XMP_TITLE, HEADING_SIZE_PT)
+        .text((WIDE_MARGIN_PT, 660.0), "by A. Writer")
+        .text((WIDE_MARGIN_PT, 600.0), "The first paragraph of the book.")])
+}
+
+/// The letter h29 sets as its drop cap, and the size it is set at.
+pub const DROP_CAP: &str = "W";
+/// Thirty-six point against a 12 pt body: `dropcap.min_height_lines` is 2.0 and the bar is
+/// two *line heights*, which include the leading, so a cap set at exactly twice the body size
+/// falls just under it. Measured on this fixture: 30 pt gives a 21.5 pt line against a 22.4 pt
+/// bar, and 36 pt gives 25.8 pt.
+pub const DROP_CAP_SIZE_PT: f32 = 36.0;
+/// The first words of the paragraph the drop cap opens, without the cap itself.
+pub const DROP_CAP_PARAGRAPH: &str = "hen the survey party reached the delta the water";
+
+/// h29 - a drop cap drawn clear of the text grid, with the paragraph it opens set beside it.
+///
+/// The cap's baseline sits ten points off every body baseline, which is what a producer that
+/// draws the cap as a box of its own produces and is what makes it a *line* of one character.
+/// That line is the stray one-character paragraph defect in waiting: a converter that treats
+/// it as a block of its own emits `<p>W</p>` and then a paragraph beginning "hen the survey".
+/// The cap belongs to the paragraph it opens (test 4.21, PIPELINE §6 step 6).
+pub fn h29_drop_cap() -> Vec<u8> {
+    // 30 pt leading, so the cap's baseline halfway between two lines is 15 pt from each.
+    // `text.line_baseline_tolerance_ratio` is 0.3 of the *size*, and the size here is the
+    // cap's 36 pt, so the clearance has to beat 10.8 pt: at 20 pt leading the cap's line
+    // swallowed two body lines and came back as interleaved letters.
+    const LEADING: f32 = 30.0;
+    const FIRST_BASELINE: f32 = 720.0;
+    const INDENT_X: f32 = 105.0;
+
+    let mut page = Page::default()
+        .media_box(STRUCTURE_PAGE)
+        // The cap: one glyph, 30 pt, its baseline between the first and second body lines.
+        .text_at(
+            (WIDE_MARGIN_PT, FIRST_BASELINE - LEADING / 2.0),
+            DROP_CAP,
+            DROP_CAP_SIZE_PT,
+        )
+        // The first two lines run beside it, indented past its width.
+        .text((INDENT_X, FIRST_BASELINE), DROP_CAP_PARAGRAPH)
+        .text(
+            (INDENT_X, FIRST_BASELINE - LEADING),
+            "had already fallen and",
+        );
+    // The rest of the paragraph returns to the margin, below the cap.
+    for (index, line) in [
+        "the channel was a chain of pools between banks of",
+        "grey silt, each one lower than the last.",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let row = f32::from(u8::try_from(index).unwrap_or(0));
+        page = page.text(
+            (WIDE_MARGIN_PT, FIRST_BASELINE - LEADING * (2.0 + row)),
+            line,
+        );
+    }
+    build_pages(vec![page])
+}
+
 /// A page under construction: text runs, plus the two boxes and the rotation.
 #[derive(Default)]
 struct Page {
@@ -672,6 +936,20 @@ struct Page {
     /// A page box of this page's own. `None` is [`PAGE`], the tall narrow box everything
     /// that is not about geometry uses.
     media_box: Option<[f32; 4]>,
+    /// Filled rectangles, in PDF user space, drawn before the text. A rule in a real book is
+    /// a filled rectangle rather than a stroked line about as often as not, and a filled one
+    /// is the honest shape to build: it has a thickness the extractor can measure.
+    rules: Vec<[f32; 4]>,
+    /// The Info dictionary's `/Title`, and the XMP packet, for the metadata fixtures.
+    info_title: Option<&'static str>,
+    info_author: Option<&'static str>,
+    xmp: Option<String>,
+    /// Images placed at a box of their own, as `(which shared image, [x0, y0, x1, y1])`.
+    ///
+    /// Two shared images rather than one per placement, and that is what makes the ornament
+    /// fixture honest: the same XObject drawn on every page is byte-identical by
+    /// construction, rather than by the encoder happening to be deterministic.
+    placed: Vec<(usize, [f32; 4])>,
 }
 
 /// One `BT … ET` block: where it starts, what it says, and at what size.
@@ -694,6 +972,31 @@ impl Page {
             text: text.to_owned(),
             size_pt,
         });
+        self
+    }
+
+    /// Fill a rectangle: `[x0, y0, x1, y1]` in PDF user space, y up.
+    fn rule(mut self, box_: [f32; 4]) -> Self {
+        self.rules.push(box_);
+        self
+    }
+
+    /// Give the document an Info dictionary with these values.
+    fn doc_info(mut self, title: &'static str, author: &'static str) -> Self {
+        self.info_title = Some(title);
+        self.info_author = Some(author);
+        self
+    }
+
+    /// Give the document an XMP packet naming this title and author.
+    fn xmp(mut self, title: &str, author: &str) -> Self {
+        self.xmp = Some(xmp_packet(title, author));
+        self
+    }
+
+    /// Place shared image `which` (0 or 1) at `[x0, y0, x1, y1]` in PDF user space.
+    fn place_image(mut self, which: usize, box_: [f32; 4]) -> Self {
+        self.placed.push((which, box_));
         self
     }
 
@@ -786,18 +1089,51 @@ impl Page {
     }
 }
 
-/// A text-only document of several pages: one shared font, no images, no outline.
+/// A well-formed XMP packet naming one title and one author, as a producer writes it.
+fn xmp_packet(title: &str, author: &str) -> String {
+    format!(
+        r#"<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
+   <dc:title><rdf:Alt><rdf:li xml:lang="x-default">{title}</rdf:li></rdf:Alt></dc:title>
+   <dc:creator><rdf:Seq><rdf:li>{author}</rdf:li></rdf:Seq></dc:creator>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>"#
+    )
+}
+
+/// The two shared 8 x 8 DeviceGray images [`build_pages`] can place, as grey levels.
+///
+/// Two distinct levels so that a page with two figures on it has two figures and not one
+/// drawn twice, and so that a perceptual hash can tell them apart.
+const PLACED_IMAGE_GREYS: [u8; 2] = [96, 200];
+
+/// The resource name of shared image `which`: `/Im1` or `/Im2`.
+fn placed_image_name(which: usize) -> &'static [u8] {
+    match which {
+        0 => b"Im1",
+        _ => b"Im2",
+    }
+}
+
+/// A document of several pages: one shared font, filled rules, two shared images, no outline.
 ///
 /// Separate from [`build`] rather than a generalisation of it because `build` writes one page
 /// and six optional features into a fixed object layout, and threading a page count through it
 /// would complicate the fourteen fixtures that need exactly one page in order to serve the
-/// three that need several. Cross-page furniture detection needs nothing but text on pages.
+/// ones that need several.
 fn build_pages(pages: Vec<Page>) -> Vec<u8> {
     let catalog = Ref::new(1);
     let tree = Ref::new(2);
     let font_id = Ref::new(3);
+    let image_ids = [Ref::new(4), Ref::new(5)];
+    let info_id = Ref::new(6);
+    let xmp_id = Ref::new(7);
     // Then a page object and a content object for each page, interleaved.
-    let first_page = 4;
+    let first_page = 8;
 
     let ids: Vec<(Ref, Ref)> = (0..pages.len())
         .map(|index| {
@@ -811,13 +1147,38 @@ fn build_pages(pages: Vec<Page>) -> Vec<u8> {
         b"openconvert-fixture".to_vec(),
         b"openconvert-fixture".to_vec(),
     ));
-    pdf.catalog(catalog).pages(tree);
+    {
+        let mut written = pdf.catalog(catalog);
+        written.pages(tree);
+        if pages.iter().any(|page| page.xmp.is_some()) {
+            written.metadata(xmp_id);
+        }
+        written.finish();
+    }
     pdf.pages(tree)
         .kids(ids.iter().map(|(page, _)| *page))
         .count(i32::try_from(pages.len()).unwrap_or(i32::MAX));
 
     for (page, (page_id, content_id)) in pages.iter().zip(&ids) {
         let mut content = Content::new();
+        // Rules and images first, so text drawn over them is text over them, as in a book.
+        for box_ in &page.rules {
+            content.rect(box_[0], box_[1], box_[2] - box_[0], box_[3] - box_[1]);
+            content.fill_nonzero();
+        }
+        for (which, box_) in &page.placed {
+            content.save_state();
+            content.transform([
+                box_[2] - box_[0],
+                0.0,
+                0.0,
+                box_[3] - box_[1],
+                box_[0],
+                box_[1],
+            ]);
+            content.x_object(Name(placed_image_name(*which)));
+            content.restore_state();
+        }
         for run in &page.runs {
             content.begin_text();
             if let Some(spacing) = page.char_spacing {
@@ -835,7 +1196,20 @@ fn build_pages(pages: Vec<Page>) -> Vec<u8> {
                 .parent(tree)
                 .media_box(Rect::new(box_[0], box_[1], box_[2], box_[3]))
                 .contents(*content_id);
-            written.resources().fonts().pair(Name(b"F1"), font_id);
+            {
+                let mut resources = written.resources();
+                resources.fonts().pair(Name(b"F1"), font_id);
+                if !page.placed.is_empty() {
+                    let mut objects = resources.x_objects();
+                    for (which, _) in &page.placed {
+                        if let Some(id) = image_ids.get(*which) {
+                            objects.pair(Name(placed_image_name(*which)), *id);
+                        }
+                    }
+                    objects.finish();
+                }
+                resources.finish();
+            }
             written.finish();
         }
         pdf.stream(*content_id, &content.finish());
@@ -844,6 +1218,38 @@ fn build_pages(pages: Vec<Page>) -> Vec<u8> {
     pdf.type1_font(font_id)
         .base_font(Name(BASE_FONT.as_bytes()))
         .encoding_predefined(Name(b"WinAnsiEncoding"));
+
+    if let Some(page) = pages.iter().find(|page| page.info_title.is_some()) {
+        let mut info = pdf.document_info(info_id);
+        if let Some(title) = page.info_title {
+            info.title(TextStr(title));
+        }
+        if let Some(author) = page.info_author {
+            info.author(TextStr(author));
+        }
+        info.finish();
+    }
+    if let Some(packet) = pages.iter().find_map(|page| page.xmp.as_deref()) {
+        let mut stream = pdf.stream(xmp_id, packet.as_bytes());
+        stream.pair(Name(b"Type"), Name(b"Metadata"));
+        stream.pair(Name(b"Subtype"), Name(b"XML"));
+        stream.finish();
+    }
+
+    // Both shared images are written whether or not any page places one: an unreferenced
+    // XObject is legal, costs sixty-four bytes, and keeps the object numbering identical
+    // across every fixture this builder writes.
+    for (which, id) in image_ids.iter().enumerate() {
+        let grey = PLACED_IMAGE_GREYS.get(which).copied().unwrap_or(GREY_LEVEL);
+        let samples = vec![grey; IMAGE_SIDE_PX * IMAGE_SIDE_PX];
+        let mut image = pdf.image_xobject(*id, &samples);
+        image
+            .width(IMAGE_SIDE_PX as i32)
+            .height(IMAGE_SIDE_PX as i32)
+            .bits_per_component(BITS_PER_COMPONENT);
+        image.color_space().device_gray();
+        image.finish();
+    }
 
     pdf.finish()
 }

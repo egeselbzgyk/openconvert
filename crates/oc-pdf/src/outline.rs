@@ -14,9 +14,17 @@ use pdfium_render::prelude::{PdfBookmark, PdfDocument};
 
 /// Read the whole outline in depth-first prefix order.
 ///
-/// Bounded twice, because a `/First`/`/Next` chain is a linked structure in a file anyone can
-/// write: a cycle would otherwise walk forever, and neither bound can be hit by an outline a
-/// human wrote.
+/// Each node is pushed exactly once, by the node before it: a bookmark's `next_sibling` and
+/// its `first_child`, with the child on top so the walk descends before it moves along. The
+/// earlier version expanded the *whole* sibling chain at every node, so every sibling was
+/// pushed once by the parent and again by each sibling ahead of it — a five-entry chain came
+/// back with thirty-two entries, and `f09` with seven headings reported thirty-four. Two
+/// fixtures hid it: `h13`, whose chains are two long, and `f01`, which has one bookmark.
+///
+/// Bounded on nodes *visited* rather than on entries emitted, because a cycle in a
+/// `/First`/`/Next` chain — which any file may contain, this being a linked structure anyone
+/// can write — need not produce a titled entry on each turn, and a bound that only counts
+/// output would not stop it.
 pub fn read_outline(
     document: &PdfDocument<'_>,
     limits: &oc_core::limits::Limits,
@@ -24,13 +32,16 @@ pub fn read_outline(
     let Some(root) = document.bookmarks().root() else {
         return Vec::new();
     };
+    let max = usize::try_from(limits.max_outline_entries).unwrap_or(usize::MAX);
 
     let mut entries = Vec::new();
-    // The stack holds siblings still to visit, deepest last, so popping gives prefix order.
+    let mut visited = 0usize;
+    // Siblings still to visit, deepest last: popping gives prefix order.
     let mut stack: Vec<(PdfBookmark<'_>, u16)> = vec![(root, 0)];
 
     while let Some((bookmark, level)) = stack.pop() {
-        if entries.len() >= usize::try_from(limits.max_outline_entries).unwrap_or(usize::MAX) {
+        visited += 1;
+        if visited > max || entries.len() >= max {
             break;
         }
         if let Some(title) = bookmark.title() {
@@ -44,22 +55,12 @@ pub fn read_outline(
             });
         }
 
-        // Siblings first, so that they sit *under* this node's children on the stack and are
-        // therefore visited after them: that is what makes the walk prefix rather than level
-        // order. Pushed in reverse so the first sibling comes off first.
-        let mut siblings: Vec<PdfBookmark<'_>> = Vec::new();
-        let mut next = bookmark.next_sibling();
-        while let Some(sibling) = next {
-            if siblings.len() >= usize::try_from(limits.max_outline_entries).unwrap_or(usize::MAX) {
-                break;
-            }
-            next = sibling.next_sibling();
-            siblings.push(sibling);
-        }
-        for sibling in siblings.into_iter().rev() {
+        // The sibling first, so that it sits *under* this node's child on the stack and is
+        // therefore visited after the whole subtree: that is what makes the walk prefix
+        // rather than level order.
+        if let Some(sibling) = bookmark.next_sibling() {
             stack.push((sibling, level));
         }
-
         if let Some(child) = bookmark.first_child() {
             stack.push((child, level.saturating_add(1)));
         }
@@ -147,4 +148,46 @@ fn no_outline_is_an_empty_outline() {
     let backend = PdfiumBackend::bind().expect("PDFium is vendored");
     let document = backend.open(&bytes, None).expect("the fixture opens");
     assert!(document.outline().is_empty());
+}
+
+/// The walk visits each node once. A sibling chain used to be expanded by its parent *and*
+/// by every sibling ahead of it, which is exponential in the chain length and is why `f09`,
+/// a five-page book with seven headings, reported thirty-four outline entries.
+///
+/// `f09` is the regression: three of its headings are consecutive siblings under two more,
+/// which is the shape that multiplies.
+#[test]
+fn every_outline_entry_is_read_exactly_once() {
+    use crate::inspect::PdfOpen;
+    use crate::pdfium::PdfiumBackend;
+
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../target/fixtures/f09_novel_structure.pdf");
+    let bytes = std::fs::read(&path).unwrap_or_else(|error| {
+        panic!(
+            "missing fixture {}: {error}; run `cargo run -p xtask -- fixtures`",
+            path.display()
+        )
+    });
+
+    let backend = PdfiumBackend::bind().expect("PDFium is vendored");
+    let document = backend.open(&bytes, None).expect("the fixture opens");
+    let outline = document.outline();
+
+    let titles: Vec<(&str, u16)> = outline
+        .iter()
+        .map(|entry| (entry.title.as_str(), entry.level))
+        .collect();
+    assert_eq!(
+        titles,
+        vec![
+            ("Preface", 0),
+            ("Contents", 0),
+            ("Chapter One", 0),
+            ("A Section Within", 1),
+            ("Chapter Two", 0),
+            ("Appendix A", 0),
+            ("Index", 0),
+        ]
+    );
 }
