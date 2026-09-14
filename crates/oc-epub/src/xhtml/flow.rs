@@ -223,30 +223,48 @@ impl<C: FlowContext> El<C> {
         self
     }
 
-    /// `<details><summary>…</summary>…</details>`: the text of a table that had to be emitted
-    /// as an image.
+    /// `<details>`: the text of a table that had to be emitted as an image.
     ///
     /// An image of a table takes the content away from anyone who cannot see it, which DAISY
     /// names as a failure in its own right (R10 §6.12). The image goes in and the extracted
     /// text goes in beside it.
+    ///
+    /// The label is an `aria-label` and there is no `<summary>`, which looks like a
+    /// compromise and is not. `epub` is Conserving with an empty ledger, so a `<summary>`
+    /// reading "Table 2 as text" would be the stage *adding* twelve characters the book never
+    /// contained — an invariant violation, and a real one: the same mechanism is what stops a
+    /// converter inventing "Image" alt text on every figure. An attribute value is outside `C`
+    /// (ARCHITECTURE §5.2), so the label can be said where it is not content, and a reading
+    /// system supplies its own disclosure wording.
     pub fn details(
         self,
-        summary: &str,
+        label: &str,
         class: CssClass,
         f: impl FnOnce(El<Flow>) -> El<Flow>,
     ) -> Self {
-        let summary = match escape::check(summary) {
-            Ok(()) => escape::text(summary),
-            Err(illegal) => return self.poison(illegal),
-        };
+        if let Err(illegal) = escape::check(label) {
+            return self.poison(illegal);
+        }
         self.child(
             &format!(
-                "<details class=\"{}\"><summary>{summary}</summary>",
-                class.as_str()
+                "<details class=\"{}\" aria-label=\"{}\">",
+                class.as_str(),
+                escape::attribute(label)
             ),
             "</details>",
             f,
         )
+    }
+
+    /// `<aside>` with no `epub:type`: tangential content that is not a footnote.
+    ///
+    /// What a note nothing referred to is emitted as. Its text has to reach the book — `epub`
+    /// is Conserving, and dropping it would be the stage losing a paragraph — but it must not
+    /// claim to be a footnote, because the Tier-1 bijection counts `epub:type="footnote"`
+    /// asides against note references and one without a reference would fail it. `structure`
+    /// has already warned; this is what the text does in the meantime.
+    pub fn aside(self, f: impl FnOnce(El<Flow>) -> El<Flow>) -> Self {
+        self.child("<aside>", "</aside>", f)
     }
 
     /// The footnote half of the pop-up pattern: `<aside epub:type="footnote" id="fnN">`.
@@ -374,7 +392,15 @@ fn a_fallback_table_carries_its_text_beside_its_image() {
         .markup
         .contains("<img src=\"images/t1.png\" alt=\"Table 2: rainfall by month\"/>"));
     assert!(markup.markup.contains("<figcaption>Table 2</figcaption>"));
-    assert!(markup
-        .markup
-        .contains("<details class=\"table-fallback\"><summary>Table 2 as text</summary>"));
+    assert!(
+        markup
+            .markup
+            .contains("<details class=\"table-fallback\" aria-label=\"Table 2 as text\">"),
+        "{}",
+        markup.markup
+    );
+    assert!(
+        !markup.markup.contains("<summary>"),
+        "a summary would be the stage adding text it cannot account for"
+    );
 }

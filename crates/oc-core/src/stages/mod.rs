@@ -7,6 +7,7 @@
 use oc_model::ledger::{Reason, StageKind};
 
 pub mod document;
+pub mod epub;
 pub mod furniture;
 pub mod layout;
 pub mod paragraphs;
@@ -14,6 +15,7 @@ pub mod structure;
 pub mod text;
 
 pub use document::DOCUMENT;
+pub use epub::EPUB;
 pub use furniture::FURNITURE;
 pub use layout::LAYOUT;
 pub use paragraphs::PARAGRAPHS;

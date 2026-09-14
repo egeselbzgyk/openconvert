@@ -34,6 +34,81 @@ pub struct Converted {
     pub text: TextStage,
     pub layout: LayoutStage,
     pub structure: StructureStage,
+    /// The images, decoded, ready for the emitter.
+    pub images: Vec<oc_epub::images::SourceImage>,
+    pub totals: ReasonTotals,
+}
+
+/// A fixture converted all the way to a container.
+pub struct Built {
+    pub converted: Converted,
+    pub built: oc_epub::BuiltEpub,
+    /// The container read back: every file by its path inside the archive.
+    pub entries: std::collections::BTreeMap<String, Vec<u8>>,
+}
+
+impl Built {
+    /// One file of the container, as text.
+    pub fn text_file(&self, path: &str) -> String {
+        self.entries
+            .get(path)
+            .map(|bytes| String::from_utf8_lossy(bytes).into_owned())
+            .unwrap_or_else(|| panic!("the container has no {path}: {:?}", self.paths()))
+    }
+
+    pub fn paths(&self) -> Vec<&str> {
+        self.entries.keys().map(String::as_str).collect()
+    }
+
+    /// Every content document, in spine order.
+    pub fn content_documents(&self) -> Vec<(String, String)> {
+        self.built
+            .emitted
+            .files
+            .iter()
+            .map(|file| (file.path.clone(), self.text_file(&file.path)))
+            .collect()
+    }
+}
+
+/// `dcterms:modified` held still, so that two builds of one book differ in nothing.
+pub const FIXED_MODIFIED: &str = "2026-01-01T00:00:00Z";
+
+/// The emitter options, from `thresholds.toml`, with the timestamp pinned.
+pub fn epub_options() -> oc_epub::EpubOptions {
+    oc_epub::EpubOptions {
+        split_bytes: usize::try_from(T.xhtml.split_bytes).unwrap_or(usize::MAX),
+        max_longest_side_px: u32::try_from(T.images.max_longest_side_px).unwrap_or(u32::MAX),
+        jpeg_quality: u8::try_from(T.images.jpeg_quality).unwrap_or(85),
+        warn_total_bytes: u64::try_from(T.epub.warn_total_bytes).unwrap_or(u64::MAX),
+        modified: FIXED_MODIFIED.to_owned(),
+    }
+}
+
+/// Convert a fixture and emit its container.
+pub fn build(stem: &str) -> Built {
+    build_with(stem, epub_options())
+}
+
+/// The same, with the emitter configured differently — a smaller split bound, say.
+pub fn build_with(stem: &str, options: oc_epub::EpubOptions) -> Built {
+    let mut converted = convert(stem);
+    let mut totals = converted.totals.clone();
+    let stage = openconvert::pipeline::epub_stage(
+        &converted.document,
+        &converted.images,
+        &options,
+        &mut totals,
+    )
+    .expect("the container is emitted and conserves");
+    converted.totals = totals;
+
+    let entries = oc_epub::read_entries(&stage.built.bytes).expect("the container reads back");
+    Built {
+        converted,
+        built: stage.built,
+        entries,
+    }
 }
 
 /// The path of a built Typst fixture, by its stem.
@@ -96,7 +171,7 @@ pub fn convert_as(stem: &str, lang: LangTag) -> Converted {
         blocks: block_views(&text, &layout),
         runs: body_runs(&text, &furniture),
         fonts: text.fonts.clone(),
-        images,
+        images: images.clone(),
         image_hashes: hashes,
         vectors,
         outline: pdf.outline(),
@@ -171,11 +246,40 @@ pub fn convert_as(stem: &str, lang: LangTag) -> Converted {
     )
     .expect("document conserves and closes");
 
+    let sources = images
+        .iter()
+        .map(|image| {
+            let local = images
+                .iter()
+                .filter(|other| other.page.index == image.page.index)
+                .position(|other| other.id == image.id)
+                .unwrap_or_default();
+            let decoded = pdf
+                .image_bytes(
+                    image.page.index,
+                    oc_model::extract::ImageId(u32::try_from(local).unwrap_or_default()),
+                )
+                .unwrap_or(oc_pdf::images::DecodedImage {
+                    width: 1,
+                    height: 1,
+                    rgba: vec![0, 0, 0, 255],
+                });
+            oc_epub::images::SourceImage {
+                id: image.id,
+                width: decoded.width,
+                height: decoded.height,
+                rgba: decoded.rgba,
+            }
+        })
+        .collect();
+
     Converted {
         document: document.document,
         text,
         layout,
         structure,
+        images: sources,
+        totals,
     }
 }
 

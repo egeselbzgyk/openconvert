@@ -542,6 +542,13 @@ evidence = "D13.11 image policy"
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[images.jpeg_quality]
+value = 85
+source = "provisional"
+evidence = "D13.8 requires `--no-ai` output to be byte-identical across operating systems, which means the JPEG encoder's quality is a fixed number rather than a per-image decision. 85 is the long-standing default of libjpeg's cjpeg and of every image pipeline that copied it: visually lossless on photographic content at roughly a third of the bytes of 95. Revisit against the Phase 7 corpus, where the trade is measurable rather than asserted"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [images.ornament_page_share]
 value = 0.30
 source = "provisional"

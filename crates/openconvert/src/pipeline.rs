@@ -560,6 +560,63 @@ pub enum DocumentError {
     Dangling(Vec<String>),
 }
 
+/// What `epub` produced: the container, and the check that says the book came through it.
+pub struct EpubStage {
+    pub built: oc_epub::BuiltEpub,
+    pub delta: LedgerDelta,
+    pub check: StageCheck,
+}
+
+/// Run `epub`: serialise the container (PIPELINE §10).
+///
+/// Conserving, and checked by **reading the output back**. The check parses the `<body>` of
+/// every content document it emitted and compares that multiset against the document's own —
+/// not against what the emitter believes it wrote, because an emitter checked against its own
+/// intentions is checked against nothing (D6). Metadata, `alt` and page-list labels are
+/// outside `C` by definition (ARCHITECTURE §5.2) and the parse leaves them out; `nav.xhtml` is
+/// nav text and is left out for the same reason.
+pub fn epub_stage(
+    document: &oc_model::document::Document,
+    images: &[oc_epub::images::SourceImage],
+    options: &oc_epub::EpubOptions,
+    totals: &mut ReasonTotals,
+) -> Result<EpubStage, EpubStageError> {
+    let mut before = CharHistogram::new();
+    for text in document.text_pieces() {
+        before = before.union(&c_of(&text));
+    }
+
+    let built = oc_epub::build_epub(document, images, options)?;
+
+    let mut after = CharHistogram::new();
+    for file in &built.emitted.files {
+        after = after.union(&c_of(&oc_epub::textcontent::body_text(&file.markup)?));
+    }
+
+    let delta = LedgerDelta::default();
+    let check = check_invariants(&before, &after, &delta, stages::EPUB, totals)?;
+
+    Ok(EpubStage {
+        built,
+        delta,
+        check,
+    })
+}
+
+/// Why the container could not be emitted.
+#[derive(Debug, thiserror::Error)]
+pub enum EpubStageError {
+    #[error(transparent)]
+    Conservation(#[from] ConservationError),
+    #[error(transparent)]
+    Emit(#[from] oc_epub::EpubError),
+    /// The emitter produced a document it cannot read back. There is no fallback path here:
+    /// "an emitter failure is a bug, and the correct response is to fix the emitter"
+    /// (PIPELINE §10).
+    #[error("the emitted XHTML could not be read back: {0}")]
+    Reparse(#[from] oc_epub::textcontent::TextError),
+}
+
 /// The runs that survive into the body flow: those of the lines `furniture` kept.
 ///
 /// What `structure`'s style clustering is fed. Clustering before furniture removal would put

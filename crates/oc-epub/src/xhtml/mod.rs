@@ -37,6 +37,7 @@ use std::marker::PhantomData;
 pub use escape::IllegalChar;
 pub use flow::{flow, FlowContext, FlowFrag, ImgRef, ListKind, TableCell};
 pub use phrasing::{frag, PhrasingContext, PhrasingFrag};
+pub use sectioning::{sectioning, SectionLabel, SectioningFrag};
 
 /// Accepts sections and headings as well as flow content: `<body>` and `<section>`.
 pub struct Sectioning;
@@ -140,6 +141,7 @@ pub enum EpubType {
     Backmatter,
     Part,
     Chapter,
+    Epigraph,
     Toc,
     Landmarks,
     PageList,
@@ -158,6 +160,7 @@ impl EpubType {
             EpubType::Backmatter => "backmatter",
             EpubType::Part => "part",
             EpubType::Chapter => "chapter",
+            EpubType::Epigraph => "epigraph",
             EpubType::Toc => "toc",
             EpubType::Landmarks => "landmarks",
             EpubType::PageList => "page-list",
@@ -225,11 +228,13 @@ impl CssClass {
 pub fn content_document(
     title: &str,
     lang: &oc_model::lang::LangTag,
+    style_href: &str,
     body: impl FnOnce(El<Sectioning>) -> El<Sectioning>,
 ) -> Result<String, IllegalChar> {
     escape::check(title)?;
     let inner = body(El::<Sectioning>::new()).finish()?;
     let lang = escape::attribute(lang.as_str());
+    let style = escape::attribute(style_href);
     Ok(format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
          <!DOCTYPE html>\n\
@@ -239,7 +244,7 @@ pub fn content_document(
          <head>\n\
          <meta charset=\"utf-8\"/>\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" type=\"text/css\" href=\"../style.css\"/>\n\
+         <link rel=\"stylesheet\" type=\"text/css\" href=\"{style}\"/>\n\
          </head>\n\
          <body>\n{inner}</body>\n\
          </html>\n",
@@ -258,12 +263,17 @@ pub fn content_document(
 fn a_page_serialises_as_the_markup_it_was_built_from() {
     use oc_model::lang::LangTag;
 
-    let html = content_document("Chapter One", &LangTag::EN, |body| {
-        body.section(Some(EpubType::Chapter), "sec1", Some("sec1-h"), |section| {
-            section
-                .heading(1, "sec1-h", |h| h.text("Chapter One"))
-                .p(|t| t.text("It was a dark and stormy night."))
-        })
+    let html = content_document("Chapter One", &LangTag::EN, "../style.css", |body| {
+        body.section(
+            Some(EpubType::Chapter),
+            "sec1",
+            &SectionLabel::By("sec1-h".to_owned()),
+            |section| {
+                section
+                    .heading(1, "sec1-h", |h| h.text("Chapter One"))
+                    .p(|t| t.text("It was a dark and stormy night."))
+            },
+        )
     })
     .expect("ordinary text serialises");
 
@@ -282,15 +292,17 @@ fn a_page_serialises_as_the_markup_it_was_built_from() {
 fn an_illegal_character_propagates_out_of_every_nesting_it_was_written_into() {
     use oc_model::lang::LangTag;
 
-    let refused = content_document("Fine", &LangTag::EN, |body| {
+    let refused = content_document("Fine", &LangTag::EN, "../style.css", |body| {
         body.blockquote(|quote| quote.p(|t| t.text("deep\u{1}inside")))
     })
     .expect_err("U+0001 cannot be serialised");
     assert_eq!(refused.ch, '\u{1}');
 
     // And the same text without it goes through, so the check is not simply always failing.
-    assert!(content_document("Fine", &LangTag::EN, |body| {
-        body.blockquote(|quote| quote.p(|t| t.text("deep inside")))
-    })
-    .is_ok());
+    assert!(
+        content_document("Fine", &LangTag::EN, "../style.css", |body| {
+            body.blockquote(|quote| quote.p(|t| t.text("deep inside")))
+        })
+        .is_ok()
+    );
 }
