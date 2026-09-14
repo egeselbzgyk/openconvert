@@ -9,5 +9,6 @@ pub mod freq;
 pub mod lang;
 pub mod lines;
 pub mod normalize;
+pub mod similarity;
 pub mod stats;
 pub mod words;

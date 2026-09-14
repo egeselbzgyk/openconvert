@@ -870,3 +870,67 @@ source = "provisional"
 evidence = "IMPLEMENTATION_PLAN Phase 4 architecture: StyleCluster.examples is SmallVec<[_; 5]>. Exemplars shown to a model in ARCHITECTURE §9.6 task 2; five is what the struct reserves"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+# ---------- outline / TOC fast paths (PIPELINE 8.1) ----------
+[headings.outline_match_ned_max]
+value = 0.25
+source = "provisional"
+evidence = "An outline entry and the heading it names differ by the numbering a producer wrote into one and not the other ('3' vs 'Chapter 3'), by a trailing folio, or by a dehyphenation. A quarter of the longer string absorbs those and rejects a different chapter title; measured 0.0 on every f09/f10 binding"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.runin_max_words]
+value = 8
+source = "published"
+evidence = "R10 §6.7 / IMPLEMENTATION_PLAN Phase 4 detail 4: a run-in heading is a bold or italic run at paragraph start of at most eight words, terminated by '.', '—' or ':'"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[toc.min_entries]
+value = 3
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 4 test 4.2 asserts >= 3 entries parsed. Two lines with a leader and a number is a price list; three is a table of contents"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[toc.min_line_share]
+value = 0.6
+source = "provisional"
+evidence = "PIPELINE §8.1: a front-matter page 'dominated by' leader lines. Three fifths leaves room for the page's own heading, a blank and a stray without admitting a body page that happens to end two sentences in a number"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[toc.max_front_pages]
+value = 20
+source = "provisional"
+evidence = "PIPELINE §8.1 says front matter. Twenty pages is past the longest front matter in any book measured and far short of a chapter, so a mid-book list of tables cannot be mistaken for the contents"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[toc.min_leader_chars]
+value = 2
+source = "provisional"
+evidence = "A leader is a run of drawn fill between title and folio, spaces not counted. One dot is a sentence end; two is a leader. A contents page whose folios are set flush right with no fill at all reaches the parser as 'Preface i', indistinguishable from a two-word title, and is a known gap rather than a case this number can reach"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.space_above_min_em]
+value = 1.2
+source = "provisional"
+evidence = "PIPELINE §8.2: 'vertical whitespace above greater than the body leading'. Leading is body size x ~1.2 in every book measured, so one leading is 1.2 em; a block at the top of its column satisfies the condition trivially and is treated as satisfying it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.cluster_char_share_min]
+value = 0.6
+source = "provisional"
+evidence = "A block belongs to the cluster holding most of its characters. Three fifths keeps a heading with an italic word in it in its own cluster, and refuses a body paragraph that happens to open with a large drop cap"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[layout.block.size_barrier_ratio]
+value = 0.15
+source = "provisional"
+evidence = "PIPELINE §6: a block is 'one paragraph, one heading'. Docstrum is purely geometric and merges a heading into the paragraph under it whenever the producer sets the two a leading apart, which Typst and InDesign both do. 15% of the larger size is below the smallest heading step a designer uses (a 1.2 em h3 over 10 pt body is 17%) and above the size jitter a substituted face introduces"
+owner = "maintainer"
+review_by = "2027-06-30"

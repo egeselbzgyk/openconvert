@@ -278,6 +278,7 @@ pub fn layout_stage(
                             run: run.id,
                             bbox: run.bbox,
                             text: run.text.trim().to_owned(),
+                            size_pt: run.size_pt,
                         })
                         .filter(|segment| !segment.text.is_empty())
                         .collect(),

@@ -108,6 +108,35 @@ impl StyleInventory {
         self.body_cluster().map_or(0.0, |cluster| cluster.size_pt)
     }
 
+    /// Which cluster a run belongs to, by the same key the histogram was built on.
+    ///
+    /// A linear scan rather than a stored map: a book has a handful of clusters — the
+    /// validity gate refuses more than 24 — and a map would have to be kept in step with the
+    /// vector through every later edit for no measurable gain.
+    pub fn cluster_of(
+        &self,
+        run: &oc_model::text::Run,
+        fonts: &[FontInfo],
+        t: &Thresholds,
+    ) -> Option<ClusterId> {
+        let quantum = t.headings.size_quantum_pt as f32;
+        let size = quantise(run.size_pt, quantum);
+        let bold = i64::from(run.weight) >= t.headings.bold_weight_min;
+        let family = fonts
+            .get(usize::from(run.font.0))
+            .map(|font| font.family_key.as_str())
+            .unwrap_or_default();
+        self.clusters
+            .iter()
+            .find(|cluster| {
+                cluster.size_pt == size
+                    && cluster.is_bold(t) == bold
+                    && cluster.italic == run.italic
+                    && cluster.family_key == family
+            })
+            .map(|cluster| cluster.id)
+    }
+
     /// The clusters that could be headings (PIPELINE §8.2, detail 2).
     ///
     /// Set larger than body, or bold at body's size; and holding less than

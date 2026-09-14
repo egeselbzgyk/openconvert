@@ -15,3 +15,4 @@ pub mod dump_layout;
 pub mod dump_text;
 pub mod input;
 pub mod pipeline;
+pub mod structure_input;

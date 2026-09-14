@@ -56,6 +56,7 @@ use oc_model::lang::LangTag;
 use oc_model::ledger::{LedgerDelta, LedgerEntry, Reason};
 use oc_model::text::{FurnitureKind, Line, Run};
 use oc_text::fold::fold_key;
+use oc_text::similarity::normalised_edit_distance;
 
 /// The stage name every ledger entry from this module carries.
 pub const STAGE: &str = "furniture";
@@ -685,33 +686,6 @@ fn is_terminal_punctuation(ch: char) -> bool {
         ch,
         '.' | '!' | '?' | '…' | '"' | '\u{201D}' | '\u{00BB}' | ':' | ';'
     )
-}
-
-/// Levenshtein distance over the longer string's length, so a one-character difference in a
-/// four-character head is not the same as one in a forty-character head.
-fn normalised_edit_distance(a: &str, b: &str) -> f32 {
-    if a == b {
-        return 0.0;
-    }
-    let left: Vec<char> = a.chars().collect();
-    let right: Vec<char> = b.chars().collect();
-    let longest = left.len().max(right.len());
-    if longest == 0 {
-        return 0.0;
-    }
-    let mut previous: Vec<usize> = (0..=right.len()).collect();
-    let mut current = vec![0usize; right.len() + 1];
-    for (i, lc) in left.iter().enumerate() {
-        current[0] = i + 1;
-        for (j, rc) in right.iter().enumerate() {
-            let cost = usize::from(lc != rc);
-            current[j + 1] = (previous[j] + cost)
-                .min(previous[j + 1] + 1)
-                .min(current[j] + 1);
-        }
-        std::mem::swap(&mut previous, &mut current);
-    }
-    previous[right.len()] as f32 / longest as f32
 }
 
 /// The document's body size: the size the most characters are set in.
