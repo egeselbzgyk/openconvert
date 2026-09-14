@@ -14,6 +14,7 @@ pub const IR_VERSION: u32 = 1;
 
 pub mod canonical;
 pub mod confidence;
+pub mod doc;
 pub mod extract;
 pub mod geom;
 pub mod ids;

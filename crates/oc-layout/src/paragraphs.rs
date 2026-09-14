@@ -333,6 +333,12 @@ impl Open {
                 text,
                 first_line_indent: self.first_line_indent,
                 pages: self.pages,
+                // `structure`'s half of the type, empty until it has run (IR_SKETCH).
+                spans: Vec::new(),
+                drop_cap: false,
+                align: oc_model::doc::Align::Left,
+                lang: None,
+                confidence: None,
             },
             self.texts,
             self.line_pages,
