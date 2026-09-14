@@ -12,6 +12,7 @@
 //! number. It is: `xtask epubcheck-parity` runs Tier 1 over EPUBCheck's own public test corpus
 //! and records per-message-id parity in `docs/TIER1_PARITY.md`, which CI holds non-decreasing.
 
+pub mod epubcheck;
 pub mod tier1;
 
 pub use tier1::{validate_tier1, Expectations, Finding, Severity, Tier1Report};

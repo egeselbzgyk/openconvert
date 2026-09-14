@@ -6,8 +6,10 @@
 //! happened.
 
 mod cli;
+mod cmd_convert;
 mod cmd_dump_stage;
 mod cmd_inspect;
+mod cmd_validate;
 mod control;
 
 use std::io::Write;
@@ -38,6 +40,22 @@ fn run() -> ExitCode {
         Ok(Command::Print(text)) => {
             print!("{text}");
             ExitCode::Ok
+        }
+        Ok(Command::Convert(convert)) => {
+            let mut events =
+                EventSink::new(std::io::stderr().lock(), convert.progress == Progress::Json);
+            cmd_convert::run(&convert, &mut events)
+        }
+        Ok(Command::Validate(validate)) => {
+            let mut events = EventSink::new(
+                std::io::stderr().lock(),
+                validate.progress == Progress::Json,
+            );
+            let stdout = std::io::stdout();
+            let mut stdout = stdout.lock();
+            let code = cmd_validate::run(&validate, &mut events, &mut stdout);
+            let _ = stdout.flush();
+            code
         }
         Ok(Command::Inspect(inspect)) => {
             let mut events =

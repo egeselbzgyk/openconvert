@@ -286,3 +286,166 @@ fn dump_stage_rejects_an_unimplemented_stage() {
     assert!(stderr.contains("E_UNKNOWN_STAGE"), "stderr: {stderr}");
     assert!(output.stdout.is_empty());
 }
+
+/// `convert` writes an EPUB beside the input by default, and the file it writes is a valid
+/// container. The atomic-rename path is what this exercises that a library test cannot: the
+/// temporary is written in the destination directory and renamed, so nothing is left behind
+/// under any outcome (D13.2).
+#[test]
+fn convert_writes_a_valid_container_and_leaves_no_temporary() {
+    let fixture = fixture("f09_novel_structure");
+    let directory =
+        std::env::temp_dir().join(format!("openconvert-convert-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).expect("the scratch directory is made");
+    let output = directory.join("f09.epub");
+
+    let run = Command::new(binary())
+        .arg("convert")
+        .arg(&fixture)
+        .arg("-o")
+        .arg(&output)
+        .arg("--lang")
+        .arg("en")
+        .arg("--modified")
+        .arg("2026-01-01T00:00:00Z")
+        .arg("--progress")
+        .arg("json")
+        .output()
+        .expect("the binary runs");
+
+    assert_eq!(
+        run.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert!(output.is_file(), "the EPUB was written");
+
+    // stderr is NDJSON and the last line is `done` naming the output (D13.2).
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    let last = stderr.lines().rfind(|line| !line.is_empty());
+    let done: serde_json::Value =
+        serde_json::from_str(last.expect("at least one event")).expect("the last event is JSON");
+    assert_eq!(done["t"], "done");
+    assert_eq!(done["status"], "ok");
+
+    let leftovers: Vec<String> = std::fs::read_dir(&directory)
+        .expect("the directory reads")
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.contains(".oc-tmp-"))
+        .collect();
+    assert!(leftovers.is_empty(), "left behind: {leftovers:?}");
+
+    // And the same run twice is the same bytes, which is the determinism contract (D13.8).
+    let first = std::fs::read(&output).expect("the EPUB reads");
+    let again = Command::new(binary())
+        .arg("convert")
+        .arg(&fixture)
+        .arg("-o")
+        .arg(&output)
+        .arg("--lang")
+        .arg("en")
+        .arg("--modified")
+        .arg("2026-01-01T00:00:00Z")
+        .output()
+        .expect("the binary runs");
+    assert_eq!(again.status.code(), Some(0));
+    assert_eq!(first, std::fs::read(&output).expect("the EPUB reads"));
+
+    let _ = std::fs::remove_dir_all(&directory);
+}
+
+/// `validate` reports Tier 1 and says how many errors there were, and its exit code is the
+/// verdict — a supervisor never has to parse the text to find out (D13.2).
+#[test]
+fn validate_reports_tier_one_and_exits_on_the_verdict() {
+    let fixture = fixture("f01_prose_single_column");
+    let directory =
+        std::env::temp_dir().join(format!("openconvert-validate-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).expect("the scratch directory is made");
+    let output = directory.join("f01.epub");
+
+    let converted = Command::new(binary())
+        .arg("convert")
+        .arg(&fixture)
+        .arg("-o")
+        .arg(&output)
+        .arg("--lang")
+        .arg("en")
+        .output()
+        .expect("the binary runs");
+    assert_eq!(converted.status.code(), Some(0));
+
+    let validated = Command::new(binary())
+        .arg("validate")
+        .arg(&output)
+        .arg("--json")
+        .output()
+        .expect("the binary runs");
+    assert_eq!(
+        validated.status.code(),
+        Some(0),
+        "stdout: {}",
+        String::from_utf8_lossy(&validated.stdout)
+    );
+
+    let report: serde_json::Value =
+        serde_json::from_slice(&validated.stdout).expect("the report is JSON");
+    assert_eq!(report["schema"], "openconvert.validate/1");
+    assert!(
+        report["tier1"]["findings"]
+            .as_array()
+            .is_some_and(|findings| findings.is_empty()),
+        "{}",
+        report["tier1"]
+    );
+    assert!(report["tier2"].is_null(), "tier 2 was not asked for");
+
+    // A container that is not one at all fails, and fails with exit 1 rather than a panic.
+    let broken = directory.join("broken.epub");
+    std::fs::write(&broken, b"not a zip").expect("the file writes");
+    let refused = Command::new(binary())
+        .arg("validate")
+        .arg(&broken)
+        .output()
+        .expect("the binary runs");
+    assert_eq!(refused.status.code(), Some(1));
+
+    let _ = std::fs::remove_dir_all(&directory);
+}
+
+/// Tier 2 without a jar is a usage problem stated plainly, not a silent tier-1-only run
+/// reported as the whole answer.
+#[test]
+fn validate_tier_two_without_a_jar_says_so() {
+    let fixture = fixture("f01_prose_single_column");
+    let directory = std::env::temp_dir().join(format!("openconvert-tier2-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).expect("the scratch directory is made");
+    let output = directory.join("f01.epub");
+
+    let converted = Command::new(binary())
+        .arg("convert")
+        .arg(&fixture)
+        .arg("-o")
+        .arg(&output)
+        .output()
+        .expect("the binary runs");
+    assert_eq!(converted.status.code(), Some(0));
+
+    let run = Command::new(binary())
+        .arg("validate")
+        .arg(&output)
+        .arg("--tier")
+        .arg("2")
+        .output()
+        .expect("the binary runs");
+    assert_eq!(run.status.code(), Some(1));
+    assert!(
+        String::from_utf8_lossy(&run.stderr).contains("fetch-epubcheck"),
+        "the error says how to get one: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+
+    let _ = std::fs::remove_dir_all(&directory);
+}

@@ -295,7 +295,7 @@ fn golden_epub_bytes_f01() {
     let built = common::build("f01_prose_single_column");
     insta::assert_snapshot!(format!(
         "sha256={}\nentries={:?}\nbytes={}",
-        common::sha256_hex(built.built.bytes.as_slice()),
+        common::sha256_hex_of(built.built.bytes.as_slice()),
         built.paths(),
         built.built.bytes.len()
     ));

@@ -63,6 +63,27 @@ impl<W: Write> EventSink<W> {
         self.emit("done", serde_json::json!({ "status": status }));
     }
 
+    /// The `done` event of a run that produced a file (D13.2).
+    pub fn done_with(&mut self, status: &str, output_path: Option<&str>) {
+        self.emit(
+            "done",
+            serde_json::json!({ "status": status, "output_path": output_path }),
+        );
+    }
+
+    /// A `stage` event. `phase` is `begin` or `end`.
+    pub fn stage(&mut self, name: &str, phase: &str) {
+        self.emit("stage", serde_json::json!({ "name": name, "phase": phase }));
+    }
+
+    /// A `warning` event: a code and its arguments, never a sentence — the GUI localises.
+    pub fn warning(&mut self, code: &str, severity: &str, args: serde_json::Value) {
+        self.emit(
+            "warning",
+            serde_json::json!({ "code": code, "severity": severity, "args": args }),
+        );
+    }
+
     /// The `fatal` event: the run stops here.
     pub fn fatal(&mut self, code: &str, message: &str) {
         self.emit(

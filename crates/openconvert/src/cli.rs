@@ -19,10 +19,43 @@ pub enum Progress {
 /// A parsed command line.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
+    Convert(ConvertArgs),
+    Validate(ValidateArgs),
     Inspect(InspectArgs),
     DumpStage(DumpStageArgs),
     /// `--help` or `--version`: print and exit successfully.
     Print(String),
+}
+
+/// `convert <INPUT.pdf>`: the whole pipeline, PDF to EPUB.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConvertArgs {
+    pub input: PathBuf,
+    /// `<input>.epub` next to the input when absent.
+    pub output: Option<PathBuf>,
+    pub preset: oc_model::document::PresetName,
+    /// Force `dc:language` and skip detection.
+    pub language: Option<oc_model::lang::LangTag>,
+    pub password: Option<String>,
+    pub progress: Progress,
+    /// `dcterms:modified`, forced.
+    ///
+    /// Not in the plan's flag list, and it earns its place: it is the one field that differs
+    /// between two builds of the same book, so the cross-OS byte-identity gate (D13.8, test
+    /// 5.5) has to be able to hold it still from the command line. Without it the gate would
+    /// have to redact bytes out of a zip, which is not a thing a CI job should be doing.
+    pub modified: Option<String>,
+}
+
+/// `validate <INPUT.epub>`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ValidateArgs {
+    pub input: PathBuf,
+    /// 1 = Tier 1 only, 2 = plus EPUBCheck.
+    pub tier: u8,
+    pub json: bool,
+    pub epubcheck_jar: Option<PathBuf>,
+    pub progress: Progress,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -69,12 +102,20 @@ pub enum CliError {
     InputCount,
     #[error("dump-stage needs a stage name and exactly one input file")]
     DumpStageArgs,
+    #[error("convert needs exactly one input file")]
+    ConvertArgs,
+    #[error("validate needs exactly one input file")]
+    ValidateArgs,
 }
 
 pub const USAGE: &str = "\
 openconvert — PDF to reflowable EPUB
 
 usage:
+  openconvert convert <INPUT.pdf> [-o <OUT.epub>] [--preset <NAME>] [--lang <TAG>]
+                                  [--password <STRING>] [--progress none|json]
+                                  [--modified <YYYY-MM-DDThh:mm:ssZ>]
+  openconvert validate <INPUT.epub> [--tier 1|2] [--json] [--epubcheck-jar <PATH>]
   openconvert inspect <INPUT.pdf> [--json] [--pages <RANGE>] [--password <STRING>]
                                   [--progress none|json] [--max-pages <N>]
   openconvert dump-stage <STAGE> <INPUT.pdf> [--password <STRING>]
@@ -87,6 +128,12 @@ usage:
   --password <STRING>  or the OC_PDF_PASSWORD environment variable
   --progress json      NDJSON events on stderr; stdout stays data only
   --max-pages <N>      refuse a document with more pages than this
+
+  -o, --output <PATH>  where the EPUB goes; default <input>.epub beside the input
+  --preset <NAME>      auto|novel|academic|textbook|poetry|scanned (default auto)
+  --lang <TAG>         force dc:language and skip detection
+  --modified <STAMP>   force dcterms:modified, for byte-identical output
+  --tier <1|2>         1 = the internal validator (default), 2 = plus EPUBCheck
 
   dump-stage writes one canonical-JSON object per line: a header, then one per page.
   <STAGE> is one of the twelve stage names; `ingest` and `text` are implemented so far.
@@ -106,6 +153,8 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, CliErro
             )))
         }
         "inspect" => {}
+        "convert" => return parse_convert(args),
+        "validate" => return parse_validate(args),
         "dump-stage" => return parse_dump_stage(args),
         other => return Err(CliError::UnknownSubcommand(other.to_owned())),
     }
@@ -164,6 +213,146 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, CliErro
             Ok(Command::Inspect(parsed))
         }
         _ => Err(CliError::InputCount),
+    }
+}
+
+/// Parse `convert <INPUT.pdf>`, having already consumed the subcommand.
+fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, CliError> {
+    let mut inputs = Vec::new();
+    let mut parsed = ConvertArgs {
+        input: PathBuf::new(),
+        output: None,
+        preset: oc_model::document::PresetName::Auto,
+        language: None,
+        password: std::env::var("OC_PDF_PASSWORD").ok(),
+        progress: Progress::None,
+        modified: None,
+    };
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "-o" | "--output" => {
+                parsed.output = Some(PathBuf::from(
+                    args.next().ok_or(CliError::MissingValue("--output"))?,
+                ));
+            }
+            "--preset" => {
+                let value = args.next().ok_or(CliError::MissingValue("--preset"))?;
+                parsed.preset = parse_preset(&value)?;
+            }
+            "--lang" => {
+                let value = args.next().ok_or(CliError::MissingValue("--lang"))?;
+                parsed.language = Some(oc_model::lang::LangTag::new(&value));
+            }
+            "--modified" => {
+                parsed.modified = Some(args.next().ok_or(CliError::MissingValue("--modified"))?);
+            }
+            "--password" => {
+                parsed.password = Some(args.next().ok_or(CliError::MissingValue("--password"))?);
+            }
+            "--progress" => {
+                let value = args.next().ok_or(CliError::MissingValue("--progress"))?;
+                parsed.progress = parse_progress(&value)?;
+            }
+            // v1 ships with the LLM off, so `--no-ai` is the default spelled out. It is
+            // accepted from day one because every script that wants determinism will write it.
+            "--no-ai" => {}
+            "--help" | "-h" => return Ok(Command::Print(USAGE.to_owned())),
+            other if other.starts_with('-') => {
+                return Err(CliError::UnknownOption(other.to_owned()))
+            }
+            other => inputs.push(PathBuf::from(other)),
+        }
+    }
+
+    match inputs.len() {
+        1 => {
+            parsed.input = inputs.remove(0);
+            Ok(Command::Convert(parsed))
+        }
+        _ => Err(CliError::ConvertArgs),
+    }
+}
+
+/// Parse `validate <INPUT.epub>`, having already consumed the subcommand.
+fn parse_validate<I: Iterator<Item = String>>(mut args: I) -> Result<Command, CliError> {
+    let mut inputs = Vec::new();
+    let mut parsed = ValidateArgs {
+        input: PathBuf::new(),
+        tier: 1,
+        json: false,
+        epubcheck_jar: None,
+        progress: Progress::None,
+    };
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--tier" => {
+                let value = args.next().ok_or(CliError::MissingValue("--tier"))?;
+                parsed.tier = match value.as_str() {
+                    "1" => 1,
+                    "2" => 2,
+                    _ => {
+                        return Err(CliError::BadValue {
+                            what: "--tier value",
+                            value,
+                        })
+                    }
+                };
+            }
+            "--json" => parsed.json = true,
+            "--epubcheck-jar" => {
+                parsed.epubcheck_jar = Some(PathBuf::from(
+                    args.next()
+                        .ok_or(CliError::MissingValue("--epubcheck-jar"))?,
+                ));
+            }
+            "--progress" => {
+                let value = args.next().ok_or(CliError::MissingValue("--progress"))?;
+                parsed.progress = parse_progress(&value)?;
+            }
+            "--help" | "-h" => return Ok(Command::Print(USAGE.to_owned())),
+            other if other.starts_with('-') => {
+                return Err(CliError::UnknownOption(other.to_owned()))
+            }
+            other => inputs.push(PathBuf::from(other)),
+        }
+    }
+
+    match inputs.len() {
+        1 => {
+            parsed.input = inputs.remove(0);
+            Ok(Command::Validate(parsed))
+        }
+        _ => Err(CliError::ValidateArgs),
+    }
+}
+
+/// A document preset by name (D13.11).
+fn parse_preset(value: &str) -> Result<oc_model::document::PresetName, CliError> {
+    use oc_model::document::PresetName;
+    match value {
+        "auto" => Ok(PresetName::Auto),
+        "novel" => Ok(PresetName::Novel),
+        "academic" => Ok(PresetName::Academic),
+        "textbook" => Ok(PresetName::Textbook),
+        "poetry" => Ok(PresetName::Poetry),
+        "scanned" => Ok(PresetName::Scanned),
+        _ => Err(CliError::BadValue {
+            what: "--preset value",
+            value: value.to_owned(),
+        }),
+    }
+}
+
+fn parse_progress(value: &str) -> Result<Progress, CliError> {
+    match value {
+        "none" => Ok(Progress::None),
+        "json" => Ok(Progress::Json),
+        _ => Err(CliError::BadValue {
+            what: "--progress value",
+            value: value.to_owned(),
+        }),
     }
 }
 

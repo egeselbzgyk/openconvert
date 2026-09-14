@@ -35,11 +35,15 @@ const FIXTURES: [&str; 10] = [
 #[test]
 fn the_document_closes_every_reference_it_makes() {
     for stem in FIXTURES {
-        let converted = common::convert(stem);
+        let converted = common::build(stem);
         assert!(
-            converted.document.dangling_references().is_empty(),
+            converted
+                .conversion
+                .document
+                .dangling_references()
+                .is_empty(),
             "{stem}: {:?}",
-            converted.document.dangling_references()
+            converted.conversion.document.dangling_references()
         );
     }
 }
@@ -51,8 +55,8 @@ fn the_document_closes_every_reference_it_makes() {
 #[test]
 fn page_breaks_open_every_page_the_flow_reaches() {
     for stem in FIXTURES {
-        let converted = common::convert(stem);
-        let document = &converted.document;
+        let converted = common::build(stem);
+        let document = &converted.conversion.document;
 
         let in_flow: Vec<_> = document
             .walk()
@@ -90,7 +94,7 @@ fn page_breaks_open_every_page_the_flow_reaches() {
 /// asserting the document stage against it would be asserting the wrong stage.
 #[test]
 fn page_breaks_carry_the_printed_labels_furniture_recovered() {
-    let converted = common::convert("f01_prose_single_column");
+    let converted = common::build("f01_prose_single_column");
     let labels: Vec<Option<&str>> = converted
         .document
         .page_breaks
@@ -112,8 +116,8 @@ fn page_breaks_carry_the_printed_labels_furniture_recovered() {
 /// heading.
 #[test]
 fn a_section_that_opens_a_page_breaks_before_its_heading() {
-    let converted = common::convert("f09_novel_structure");
-    let document = &converted.document;
+    let converted = common::build("f09_novel_structure");
+    let document = &converted.conversion.document;
 
     let mut checked = 0;
     for section in document.walk() {
@@ -147,8 +151,8 @@ fn a_section_that_opens_a_page_breaks_before_its_heading() {
 #[test]
 fn every_page_break_anchors_on_a_block_the_flow_still_carries() {
     for stem in FIXTURES {
-        let converted = common::convert(stem);
-        let document = &converted.document;
+        let converted = common::build(stem);
+        let document = &converted.conversion.document;
 
         let mut anchors: Vec<_> = document
             .walk()
@@ -178,11 +182,11 @@ fn every_page_break_anchors_on_a_block_the_flow_still_carries() {
 /// one column of prose and `f02` is two columns of the same.
 #[test]
 fn a_book_is_classified_by_what_the_pipeline_measured() {
-    let prose = common::convert("f01_prose_single_column");
+    let prose = common::build("f01_prose_single_column");
     assert_eq!(prose.document.classification, DocClass::BookProse);
     assert_eq!(prose.document.presets, PresetName::Novel);
 
-    let two_column = common::convert("f02_two_column");
+    let two_column = common::build("f02_two_column");
     assert_eq!(
         two_column.document.classification,
         DocClass::AcademicMulticolumn
@@ -191,9 +195,9 @@ fn a_book_is_classified_by_what_the_pipeline_measured() {
 
     // `auto` is an instruction and never survives into a document.
     for stem in FIXTURES {
-        let converted = common::convert(stem);
+        let converted = common::build(stem);
         assert_ne!(
-            converted.document.presets,
+            converted.conversion.document.presets,
             PresetName::Auto,
             "{stem} was converted with \"pick one\""
         );
@@ -205,8 +209,8 @@ fn a_book_is_classified_by_what_the_pipeline_measured() {
 /// a stage whose result never reached the ledger would satisfy the law silently.
 #[test]
 fn document_records_a_conserving_check_in_the_ledger() {
-    let converted = common::convert("f09_novel_structure");
-    let checks = &converted.document.ledger.per_stage_checks;
+    let converted = common::build("f09_novel_structure");
+    let checks = &converted.conversion.document.ledger.per_stage_checks;
 
     assert!(
         checks.iter().any(|check| check.stage == "structure"
@@ -215,7 +219,7 @@ fn document_records_a_conserving_check_in_the_ledger() {
         "the document carries every earlier stage's check: {checks:?}"
     );
     assert!(
-        !converted.document.ledger.c_0.is_empty(),
+        !converted.conversion.document.ledger.c_0.is_empty(),
         "the retention denominator is opened before the document is assembled"
     );
 }
