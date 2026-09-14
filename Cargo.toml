@@ -79,6 +79,7 @@ insta     = { version = "1.48", features = ["json", "redactions", "filters"] }
 proptest  = "1.11"
 criterion = { version = "0.8", features = ["html_reports"] }
 pdf-writer = "0.13"
+trybuild  = "1.0"
 
 [profile.release]
 lto = "thin"

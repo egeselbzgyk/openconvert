@@ -19,3 +19,5 @@ thiserror.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
+proptest.workspace = true
+trybuild.workspace = true

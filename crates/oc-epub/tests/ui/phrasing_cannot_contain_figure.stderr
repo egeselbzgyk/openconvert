@@ -1,0 +1,13 @@
+error[E0599]: the method `figure` exists for struct `El<Phrasing>`, but its trait bounds were not satisfied
+  --> tests/ui/phrasing_cannot_contain_figure.rs:10:30
+   |
+10 |     let _ = frag(|text| text.figure(&image, None));
+   |                              ^^^^^^ method cannot be called on `El<Phrasing>` due to unsatisfied trait bounds
+   |
+  ::: src/xhtml/mod.rs
+   |
+   | pub struct Phrasing;
+   | ------------------- doesn't satisfy `Phrasing: FlowContext`
+   |
+   = note: the following trait bounds were not satisfied:
+           `Phrasing: FlowContext`

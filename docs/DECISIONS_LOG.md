@@ -2212,3 +2212,60 @@ Not fixed here: it is a `furniture` rule, the fix is a change to how a folio gro
 corpus rather than one fixture. Phase 5's label test therefore runs against `f01`, where the
 folios are recovered, and asserts what the `document` stage owns: that a label `furniture`
 found reaches the page break that opens its page.
+
+## 2026-09-14 — `noteref` returns `Phrasing`, and `anchor_cannot_nest` tests nesting
+
+The plan's builder sketch has `noteref` return "Phrasing sans anchors", and test 5.2's
+assertion column reads `noteref(...).noteref(...)` fails to compile. Implemented that way, a
+paragraph with two footnotes would be unrepresentable — which is not a rare shape, it is most
+of academic prose — and, worse, the natural emitter becomes unwritable: the emitter folds a
+paragraph's spans into one phrasing element in a loop, and a loop cannot change the type of its
+accumulator halfway through.
+
+So the type that forbids `<a>` inside `<a>` is the *content* of an anchor, not its successor:
+`link` hands its closure an `El<NoAnchor>`, and `El<NoAnchor>` has neither `link` nor
+`noteref`. `noteref` itself takes the marker as plain text and has no closure at all, so
+nothing can be placed inside one by construction.
+
+`anchor_cannot_nest` keeps its name and tests what the name says — an anchor inside an anchor,
+both spellings — rather than two anchors in sequence, which is legal XHTML and legal in books.
+
+## 2026-09-14 — an XML-illegal character is refused, not dropped
+
+XML 1.0 has no spelling for a C0 control other than tab, line feed and carriage return:
+`&#1;` is as ill-formed as the raw byte, so escaping cannot rescue one. `epub` is Conserving
+with an empty ledger and `Reason` has no variant that covers "a character XML could not
+carry", so dropping one would be removing text the stage cannot account for.
+
+The emitter therefore refuses, and that is the honest signal rather than a cop-out: a control
+character in the body flow means a page that decoded to garbage took the text path, and
+PIPELINE §2 routes those pages — `broken-text` — to OCR or to a page image precisely so that
+they do not. "There is no fallback path. An emitter failure is a bug" (PIPELINE §10).
+
+Open, and for the ADR rather than for this phase: if a real book turns out to reach `epub`
+with a control character in it, the fix is a `Reason` for it in `ingest`, not a silent drop in
+the serialiser.
+
+## 2026-09-14 — an `<img>` with no alt text cannot be built
+
+`Figure.alt` is empty when nothing could be derived, and `alt=""` is EPUB's way of marking an
+image *decorative*. Tier 1 requires every `<img>` to carry at least one non-space character
+(the ACC-001 class, D6), so emitting `alt=""` for every unlabelled figure would be both a
+validation failure and a false claim about the book's illustrations.
+
+`ImgRef::new` therefore returns `None` on empty alt text, which moves the decision to the one
+place that has the context to make it and makes "an `<img>` with no alt" unrepresentable in the
+same way an illegal nesting is.
+
+## 2026-09-14 — a list keeps the markers the book printed, and says so in CSS
+
+`structure` leaves `1.` inside the item's text, because `Reason` has no variant for a list
+marker (entry of 2026-09-14 above). `epub` is Conserving too — D13.4 names "chapter splitting,
+XHTML serialization" among the Conserving operations and I-3 gives them empty ledgers — so
+`epub` may not elide the prefix either. The plan's Phase 4 note left *how it declares that* to
+this phase, on the assumption the elision would happen here; under D13.4 it cannot.
+
+So the list is emitted as `<ol class="list-printed-markers">` with the printed marker still in
+the item text, and `style.css` sets `list-style-type: none` on that class. The semantics a
+screen reader needs are on the `<ol>`; the markers a sighted reader sees are the ones the book
+printed; and not one character moved.
