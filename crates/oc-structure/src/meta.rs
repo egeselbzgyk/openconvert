@@ -99,6 +99,12 @@ pub fn metadata(
     sources: &MetaSources,
     blocks: &[BlockView],
     body_size_pt: f32,
+    // Taken and not read. Every number this function would need — the boilerplate list, the
+    // three pages the heuristic may look at, the namespace the identifier is minted under —
+    // is a *closed set* rather than a threshold: a blocklist entry is not a value anyone
+    // tunes, and changing the UUID namespace would change every book's identity. The
+    // parameter is here because every other rule in the stage takes it and a caller should
+    // not have to remember which one does not.
     _t: &Thresholds,
 ) -> (Metadata, Confidence) {
     let MetaSources {

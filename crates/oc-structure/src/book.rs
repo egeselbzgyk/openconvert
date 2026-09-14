@@ -94,6 +94,8 @@ pub fn book_structure(
     flow: &[FlowItem],
     labels: &[Option<String>],
     lang: &LangTag,
+    // Taken and not read, for the same reason `meta::metadata` takes it: the keyword lists
+    // and the zone ordering are closed sets rather than tunable numbers.
     _t: &Thresholds,
 ) -> (Vec<Section>, Vec<Warning>, Confidence) {
     let body_starts = arabic_reset_page(labels);
@@ -132,10 +134,9 @@ pub fn book_structure(
             (Zone::Body, _) if back.is_some() => Zone::Back,
             (current, _) => current,
         };
-        if zone == Zone::Back && back.is_none() {
-            // Once in the back matter a heading without a keyword stays there: a book does not
-            // return to its body after its index.
-        }
+        // Once in the back matter a heading without a keyword stays there — `zone` is
+        // carried between iterations, and the match above has no transition out of `Back`.
+        // A book does not return to its body after its index.
 
         let role = match zone {
             Zone::Front => SectionRole::FrontMatter(front.unwrap_or(FrontMatterKind::Other)),
