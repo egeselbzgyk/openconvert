@@ -12,6 +12,7 @@ use oc_model::lang::LangTag;
 use oc_model::text::Run;
 use oc_pdf::inspect::PdfOpen;
 use oc_pdf::pdfium::PdfiumBackend;
+use oc_structure::figures::{associate_captions, W_CAPTION_AMBIGUOUS};
 use oc_structure::headings::candidate::heading_candidates;
 use oc_structure::headings::cluster::{cluster_styles, StyleInventory};
 use oc_structure::headings::levels::{assign_levels, HeadingAssignment, LevelSource};
@@ -30,6 +31,7 @@ struct Read {
     layout: LayoutStage,
     outline: Vec<OutlineEntry>,
     vectors: Vec<oc_model::extract::VectorRegion>,
+    images: Vec<oc_model::extract::ImageRef>,
 }
 
 impl Read {
@@ -64,10 +66,12 @@ fn read(relative: &str) -> Read {
         .filter_map(|page| document.page_vectors(page).ok())
         .flatten()
         .collect();
+    let images = openconvert::structure_input::document_images(&text);
     Read {
         runs: body_runs(&text, &furniture),
         outline: document.outline(),
         vectors,
+        images,
         text,
         layout,
     }
@@ -412,4 +416,98 @@ fn footnote_symbol_cycle_resets_per_page() {
     );
     assert_eq!(notes[0].page.index, 0);
     assert_eq!(notes[1].page.index, 1);
+}
+
+/// Row 4.9. `f10` sets one captioned figure on its last page and an uncaptioned image on the
+/// page before it. The caption binds to the figure above it, not to the one on the facing
+/// page — which a rule that searched the whole document for the nearest picture would get
+/// wrong on any book whose figures cluster.
+#[test]
+fn caption_associated_to_nearest_figure() {
+    let read = read("../../target/fixtures/f10_lists_and_table.pdf");
+    let views = read.views();
+    let body_size = read.inventory().body_size_pt();
+    let (figures, captions, warnings) =
+        associate_captions(&read.images, &views, body_size, &LangTag::EN, &T);
+
+    assert_eq!(read.images.len(), 2, "f10 draws two images");
+    assert_eq!(
+        figures.len(),
+        2,
+        "every image becomes a figure, captioned or not"
+    );
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert!(
+        captions.iter().any(|caption| caption.has_prefix),
+        "the captioned figure's caption carries the localized prefix: {captions:?}"
+    );
+
+    let captioned: Vec<&oc_model::doc::Figure> = figures
+        .iter()
+        .filter(|figure| figure.caption.is_some())
+        .collect();
+    assert_eq!(captioned.len(), 1, "exactly one of the two is captioned");
+
+    // And it is the one on the caption's own page.
+    let captioned_image = captioned[0].image;
+    let page_of = |id: oc_model::extract::ImageId| {
+        read.images
+            .iter()
+            .find(|image| image.id == id)
+            .map(|image| image.page.index)
+    };
+    assert_eq!(
+        page_of(captioned_image),
+        Some(2),
+        "the caption is on page 2 and so is its figure"
+    );
+
+    let text = captioned[0]
+        .caption
+        .as_ref()
+        .map(|spans| oc_model::doc::spans_text(spans))
+        .unwrap_or_default();
+    // Typst sets a no-break space between the word and the number, and `N` is NFC only —
+    // NFKC is banned (D13.4) — so it survives into the text, as it should.
+    assert!(
+        text.replace('\u{a0}', " ").starts_with("Figure 1"),
+        "caption was {text:?}"
+    );
+
+    // Alt text is empty rather than invented: an empty `alt` marks an image decorative in
+    // EPUB, and 95 % of the alt text in real PDFs is the literal word "Image" (R1 §A.10).
+    assert!(figures.iter().all(|figure| figure.alt.is_empty()));
+}
+
+/// Row 4.10. `h25` puts two figures side by side with one caption symmetrically beneath the
+/// gap between them. The second-best distance equals the best, so no association is made.
+///
+/// DocLayNet's `Caption` class has inter-annotator agreement of 84-89 (R10 §6.10): this is
+/// ambiguous for people too. A caption attached to the wrong picture is worse than no
+/// caption, because a reader believes it.
+#[test]
+fn ambiguous_caption_left_unassociated() {
+    let read = read("../../corpus/fixtures/handmade/h25_two_figures_one_caption.pdf");
+    let views = read.views();
+    let body_size = read.inventory().body_size_pt();
+    let (figures, captions, warnings) =
+        associate_captions(&read.images, &views, body_size, &LangTag::EN, &T);
+
+    assert_eq!(read.images.len(), 2, "h25 draws two figures");
+    assert_eq!(
+        captions.len(),
+        1,
+        "and one caption: {:?}",
+        captions.iter().map(|c| c.text.as_str()).collect::<Vec<_>>()
+    );
+    assert!(
+        figures.iter().all(|figure| figure.caption.is_none()),
+        "neither figure may take the caption"
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|warning| warning.code == W_CAPTION_AMBIGUOUS),
+        "the abstention has to be visible: {warnings:?}"
+    );
 }

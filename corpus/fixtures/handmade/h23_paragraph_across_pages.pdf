@@ -11,17 +11,17 @@ endobj
 2 0 obj
 <<
   /Type /Pages
-  /Kids [4 0 R 6 0 R]
+  /Kids [6 0 R 8 0 R]
   /Count 2
 >>
 endobj
 
-4 0 obj
+6 0 obj
 <<
   /Type /Page
   /Parent 2 0 R
   /MediaBox [0 0 400 300]
-  /Contents 5 0 R
+  /Contents 7 0 R
   /Resources <<
     /Font <<
       /F1 3 0 R
@@ -30,7 +30,7 @@ endobj
 >>
 endobj
 
-5 0 obj
+7 0 obj
 <<
   /Length 424
 >>
@@ -78,12 +78,12 @@ ET
 endstream
 endobj
 
-6 0 obj
+8 0 obj
 <<
   /Type /Page
   /Parent 2 0 R
   /MediaBox [0 0 400 300]
-  /Contents 7 0 R
+  /Contents 9 0 R
   /Resources <<
     /Font <<
       /F1 3 0 R
@@ -92,7 +92,7 @@ endobj
 >>
 endobj
 
-7 0 obj
+9 0 obj
 <<
   /Length 247
 >>
@@ -134,22 +134,54 @@ endobj
 >>
 endobj
 
+4 0 obj
+<<
+  /Length 64
+  /Type /XObject
+  /Subtype /Image
+  /Width 8
+  /Height 8
+  /BitsPerComponent 8
+  /ColorSpace /DeviceGray
+>>
+stream
+````````````````````````````````````````````````````````````````
+endstream
+endobj
+
+5 0 obj
+<<
+  /Length 64
+  /Type /XObject
+  /Subtype /Image
+  /Width 8
+  /Height 8
+  /BitsPerComponent 8
+  /ColorSpace /DeviceGray
+>>
+stream
+热热热热热热热热热热热热热热热热热热热热热热热热热热热热热热热热
+endstream
+endobj
+
 xref
-0 8
+0 10
 0000000000 65535 f
 0000000016 00000 n
 0000000070 00000 n
 0000001225 00000 n
+0000001331 00000 n
+0000001554 00000 n
 0000000140 00000 n
 0000000293 00000 n
 0000000771 00000 n
 0000000924 00000 n
 trailer
 <<
-  /Size 8
+  /Size 10
   /Root 1 0 R
   /ID [(openconvert-fixture) (openconvert-fixture)]
 >>
 startxref
-1331
+1777
 %%EOF

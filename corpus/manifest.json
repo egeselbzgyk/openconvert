@@ -405,8 +405,8 @@
         "verified_by": "maintainer",
         "verified_date": "2026-09-09"
       },
-      "sha256": "12f72802e0100ef18b32cc88007e3412ed0762bbc6084027d3b2e5320fd79950",
-      "file_size_bytes": 77840,
+      "sha256": "c0ac7f70a9ca966ce13e3e3ec6a6d889a96ba2306a6196a9b3940fe08b107572",
+      "file_size_bytes": 78260,
       "category": "simple",
       "producer_stratum": "ours(Typst)",
       "producer_raw": "Typst 0.15.1",

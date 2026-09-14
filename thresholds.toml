@@ -956,3 +956,18 @@ source = "provisional"
 evidence = "PIPELINE §8.3: the rule sits 'immediately above' the small-font block. Three body ems is the largest gap a separator and the note under it are set apart by in any book measured; beyond it the rule belongs to something else"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+# ---------- captions and figures (PIPELINE 8.4) ----------
+[caption.max_gap_em]
+value = 4.0
+source = "provisional"
+evidence = "PIPELINE §8.4 associates a caption to a figure 'immediately above/below' it without a distance. Four body ems is wider than any figure-to-caption gap measured and narrower than the gap to the next figure on a normally set page; beyond it the caption is a paragraph that happens to start with the word Figure"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[caption.max_width_ratio]
+value = 1.0
+source = "provisional"
+evidence = "A caption may run the full width of its column — a long one does. The width test is therefore not what identifies a caption; the localized prefix and the smaller-or-italic setting are. Kept at 1.0 so the rule is present and inert, and a corpus can narrow it"
+owner = "maintainer"
+review_by = "2027-06-30"

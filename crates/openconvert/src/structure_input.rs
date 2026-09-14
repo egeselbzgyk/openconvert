@@ -6,6 +6,7 @@
 //! same three questions, and answering them once at the boundary is both cheaper and far
 //! easier to check than answering them nine times.
 
+use oc_model::extract::{ImageId, ImageRef};
 use oc_structure::view::{BlockView, LineView};
 
 use crate::pipeline::{text_of, LayoutStage, TextStage};
@@ -86,4 +87,26 @@ pub fn block_views(text: &TextStage, layout: &LayoutStage) -> Vec<BlockView> {
         }
     }
     views
+}
+
+/// Every image in the document, in page order, with ids that are unique across the book.
+///
+/// The backend numbers images **per page** — `ImageId(0)` is the first image of whichever
+/// page you asked for — because `PdfDoc::image_bytes(page, id)` uses the id as an index into
+/// that page's draw order. That is right for extraction and wrong for a `Figure`, which lives
+/// in a document and whose `image` field has to name one picture in the whole book.
+///
+/// So the renumbering happens here, at the document boundary, and the page-local index stays
+/// recoverable: it is the image's position among the images sharing its page, which page
+/// order preserves.
+pub fn document_images(text: &TextStage) -> Vec<ImageRef> {
+    text.pages
+        .iter()
+        .flat_map(|page| page.images.iter().cloned())
+        .enumerate()
+        .map(|(index, image)| ImageRef {
+            id: ImageId(u32::try_from(index).unwrap_or(u32::MAX)),
+            ..image
+        })
+        .collect()
 }

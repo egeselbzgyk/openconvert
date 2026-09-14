@@ -57,6 +57,12 @@ string, so the cell-text multiset equals the source text multiset exactly. That
 equality is the conservation check PIPELINE §8.7 requires, and it is what would
 catch a hallucinated cell if a vision model were ever added.
 
+#image("../assets/scan_page_01.png", width: 30%)
+
+The image above carries no caption of its own. It is on the page facing the
+captioned figure, which is what test 4.9 needs: the caption on the next page has
+to bind to the figure directly above it and not to this one.
+
 #pagebreak()
 
 == A Captioned Figure

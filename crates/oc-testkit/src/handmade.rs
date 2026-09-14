@@ -81,6 +81,7 @@ pub fn all() -> Vec<(&'static str, Vec<u8>)> {
         ("h22_false_gutter", h22_false_gutter()),
         ("h23_paragraph_across_pages", h23_paragraph_across_pages()),
         ("h24_footnote_symbol_cycle", h24_footnote_symbol_cycle()),
+        ("h25_two_figures_one_caption", h25_two_figures_one_caption()),
     ]
 }
 
@@ -730,6 +731,31 @@ pub fn filled_boxes(boxes: &[[f32; 4]]) -> Vec<u8> {
     build_pages(vec![page])
 }
 
+/// What h25's one caption says. It carries the localized prefix, so the *caption* is not in
+/// doubt — only which figure it belongs to is.
+pub const AMBIGUOUS_CAPTION: &str = "Figure 1: a caption between two figures.";
+
+/// h25 - one page, two figures side by side, and one caption placed symmetrically beneath
+/// the gap between them.
+///
+/// Caption association is ambiguous even for humans: DocLayNet's `Caption` class has
+/// inter-annotator agreement of 84-89 (R10 §6.10). The rule is to associate only when the
+/// second-best distance is at least `caption.distance_ratio_min` times the best, and to
+/// abstain otherwise. This fixture makes the ratio exactly one, which is the case the rule
+/// exists for: geometry cannot answer, so the answer is not guessed (test 4.10).
+pub fn h25_two_figures_one_caption() -> Vec<u8> {
+    // Both images the same height and the same vertical distance from the caption, their
+    // inner edges the same distance from its centre. Two distinct images, so that a
+    // perceptual hash cannot collapse them into one figure and make the question go away.
+    build_pages(vec![Page::default()
+        .media_box(STRUCTURE_PAGE)
+        .text((WIDE_MARGIN_PT, 740.0), "Body text above the figures.")
+        .place_image(0, [60.0, 600.0, 160.0, 700.0])
+        .place_image(1, [240.0, 600.0, 340.0, 700.0])
+        .text_at((120.0, 570.0), AMBIGUOUS_CAPTION, NOTE_SIZE_PT)
+        .text((WIDE_MARGIN_PT, 500.0), "Body text below the figures.")])
+}
+
 /// A page under construction: text runs, plus the two boxes and the rotation.
 #[derive(Default)]
 struct Page {
@@ -758,6 +784,12 @@ struct Page {
     /// a filled rectangle rather than a stroked line about as often as not, and a filled one
     /// is the honest shape to build: it has a thickness the extractor can measure.
     rules: Vec<[f32; 4]>,
+    /// Images placed at a box of their own, as `(which shared image, [x0, y0, x1, y1])`.
+    ///
+    /// Two shared images rather than one per placement, and that is what makes the ornament
+    /// fixture honest: the same XObject drawn on every page is byte-identical by
+    /// construction, rather than by the encoder happening to be deterministic.
+    placed: Vec<(usize, [f32; 4])>,
 }
 
 /// One `BT … ET` block: where it starts, what it says, and at what size.
@@ -786,6 +818,12 @@ impl Page {
     /// Fill a rectangle: `[x0, y0, x1, y1]` in PDF user space, y up.
     fn rule(mut self, box_: [f32; 4]) -> Self {
         self.rules.push(box_);
+        self
+    }
+
+    /// Place shared image `which` (0 or 1) at `[x0, y0, x1, y1]` in PDF user space.
+    fn place_image(mut self, which: usize, box_: [f32; 4]) -> Self {
+        self.placed.push((which, box_));
         self
     }
 
@@ -878,7 +916,21 @@ impl Page {
     }
 }
 
-/// A document of several pages: one shared font, filled rules, no images, no outline.
+/// The two shared 8 x 8 DeviceGray images [`build_pages`] can place, as grey levels.
+///
+/// Two distinct levels so that a page with two figures on it has two figures and not one
+/// drawn twice, and so that a perceptual hash can tell them apart.
+const PLACED_IMAGE_GREYS: [u8; 2] = [96, 200];
+
+/// The resource name of shared image `which`: `/Im1` or `/Im2`.
+fn placed_image_name(which: usize) -> &'static [u8] {
+    match which {
+        0 => b"Im1",
+        _ => b"Im2",
+    }
+}
+
+/// A document of several pages: one shared font, filled rules, two shared images, no outline.
 ///
 /// Separate from [`build`] rather than a generalisation of it because `build` writes one page
 /// and six optional features into a fixed object layout, and threading a page count through it
@@ -888,8 +940,9 @@ fn build_pages(pages: Vec<Page>) -> Vec<u8> {
     let catalog = Ref::new(1);
     let tree = Ref::new(2);
     let font_id = Ref::new(3);
+    let image_ids = [Ref::new(4), Ref::new(5)];
     // Then a page object and a content object for each page, interleaved.
-    let first_page = 4;
+    let first_page = 6;
 
     let ids: Vec<(Ref, Ref)> = (0..pages.len())
         .map(|index| {
@@ -915,6 +968,19 @@ fn build_pages(pages: Vec<Page>) -> Vec<u8> {
             content.rect(box_[0], box_[1], box_[2] - box_[0], box_[3] - box_[1]);
             content.fill_nonzero();
         }
+        for (which, box_) in &page.placed {
+            content.save_state();
+            content.transform([
+                box_[2] - box_[0],
+                0.0,
+                0.0,
+                box_[3] - box_[1],
+                box_[0],
+                box_[1],
+            ]);
+            content.x_object(Name(placed_image_name(*which)));
+            content.restore_state();
+        }
         for run in &page.runs {
             content.begin_text();
             if let Some(spacing) = page.char_spacing {
@@ -932,7 +998,20 @@ fn build_pages(pages: Vec<Page>) -> Vec<u8> {
                 .parent(tree)
                 .media_box(Rect::new(box_[0], box_[1], box_[2], box_[3]))
                 .contents(*content_id);
-            written.resources().fonts().pair(Name(b"F1"), font_id);
+            {
+                let mut resources = written.resources();
+                resources.fonts().pair(Name(b"F1"), font_id);
+                if !page.placed.is_empty() {
+                    let mut objects = resources.x_objects();
+                    for (which, _) in &page.placed {
+                        if let Some(id) = image_ids.get(*which) {
+                            objects.pair(Name(placed_image_name(*which)), *id);
+                        }
+                    }
+                    objects.finish();
+                }
+                resources.finish();
+            }
             written.finish();
         }
         pdf.stream(*content_id, &content.finish());
@@ -941,6 +1020,21 @@ fn build_pages(pages: Vec<Page>) -> Vec<u8> {
     pdf.type1_font(font_id)
         .base_font(Name(BASE_FONT.as_bytes()))
         .encoding_predefined(Name(b"WinAnsiEncoding"));
+
+    // Both shared images are written whether or not any page places one: an unreferenced
+    // XObject is legal, costs sixty-four bytes, and keeps the object numbering identical
+    // across every fixture this builder writes.
+    for (which, id) in image_ids.iter().enumerate() {
+        let grey = PLACED_IMAGE_GREYS.get(which).copied().unwrap_or(GREY_LEVEL);
+        let samples = vec![grey; IMAGE_SIDE_PX * IMAGE_SIDE_PX];
+        let mut image = pdf.image_xobject(*id, &samples);
+        image
+            .width(IMAGE_SIDE_PX as i32)
+            .height(IMAGE_SIDE_PX as i32)
+            .bits_per_component(BITS_PER_COMPONENT);
+        image.color_space().device_gray();
+        image.finish();
+    }
 
     pdf.finish()
 }
