@@ -118,6 +118,13 @@ pub trait PdfDoc {
         image: oc_model::extract::ImageId,
     ) -> Result<crate::images::DecodedImage, PdfError>;
 
+    /// The vector regions one page draws (PIPELINE §3).
+    ///
+    /// Only `is_rule` regions are consumed in v1 — the footnote separator and the table
+    /// lattice — but the unfiltered set is returned, because deciding what is a rule is a
+    /// threshold and a caller has to be able to see what was rejected.
+    fn page_vectors(&self, index: u32) -> Result<Vec<oc_model::extract::VectorRegion>, PdfError>;
+
     /// The document outline, depth-first (Phase 1 detail 6).
     ///
     /// Infallible: a document with no outline has an empty one, and an outline PDFium cannot

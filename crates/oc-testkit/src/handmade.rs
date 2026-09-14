@@ -80,6 +80,7 @@ pub fn all() -> Vec<(&'static str, Vec<u8>)> {
         ("h21_band_is_sole_content", h21_band_is_sole_content()),
         ("h22_false_gutter", h22_false_gutter()),
         ("h23_paragraph_across_pages", h23_paragraph_across_pages()),
+        ("h24_footnote_symbol_cycle", h24_footnote_symbol_cycle()),
     ]
 }
 
@@ -648,6 +649,79 @@ pub fn overlap_pair_at(offset_pt: f32, first: &str, second: &str) -> Vec<u8> {
     )
 }
 
+/// The page box the Phase-4 fixtures use: wide enough that a column has a width worth
+/// measuring a rule against, and the same 800 pt tall as everything else so the furniture
+/// bands fall where the earlier fixtures put them.
+pub const STRUCTURE_PAGE: [f32; 4] = [0.0, 0.0, 400.0, 800.0];
+
+/// The symbol h24 cycles: the first of `* † ‡ §`, used once on each of its two pages.
+pub const CYCLED_MARKER: &str = "*";
+/// What h24's two notes say. Different text, because the test is that the same *symbol*
+/// resolves to different notes — if the notes said the same thing the assertion would pass
+/// for the wrong reason.
+pub const FIRST_NOTE: &str = "* First note text.";
+pub const SECOND_NOTE: &str = "* Second note text.";
+/// The size h24 sets its notes at: 0.75 x body, inside `footnote.font_size_ratio_max`.
+pub const NOTE_SIZE_PT: f32 = 9.0;
+/// Where h24 puts its separator rule and its notes, in PDF user space.
+const NOTE_RULE_Y: f32 = 120.0;
+const NOTE_RULE_THICKNESS_PT: f32 = 0.5;
+const NOTE_BASELINE_Y: f32 = 100.0;
+/// The left margin every Phase-4 fixture sets its text at.
+pub const WIDE_MARGIN_PT: f32 = 60.0;
+
+/// h24 - two pages, each carrying a `*` in its body and a `*` note at its foot, separated
+/// from the body by a short rule.
+///
+/// The symbol cycle `* † ‡ §` **resets on every page** (PIPELINE §8.3), so the two `*`
+/// markers are not one marker referred to twice: they are two, and a matcher that keys on
+/// symbol equality across the book links both bodies to the first note and leaves the second
+/// note orphaned. That is exactly the EPUBCheck RSC-007 class the bijection exists to stop
+/// (test 4.8).
+pub fn h24_footnote_symbol_cycle() -> Vec<u8> {
+    let pages: Vec<Page> = [
+        ("Alpha beta gamma delta.", FIRST_NOTE),
+        ("Epsilon zeta eta theta.", SECOND_NOTE),
+    ]
+    .into_iter()
+    .map(|(body, note)| {
+        Page::default()
+            .media_box(WIDE_PAGE)
+            .text((WIDE_MARGIN_PT, 700.0), body)
+            // The marker rides on the body line: three points up and set at 7 pt, which is
+            // what `superscript_flags` reads as raised-and-small (test 2.9).
+            .text_at(
+                (WIDE_MARGIN_PT + 132.0, 700.0 + SUPERSCRIPT_RISE_PT),
+                CYCLED_MARKER,
+                SUPERSCRIPT_SIZE_PT,
+            )
+            .text((WIDE_MARGIN_PT, 684.0), "Body continues on a second line.")
+            .rule([
+                WIDE_MARGIN_PT,
+                NOTE_RULE_Y,
+                WIDE_MARGIN_PT + 60.0,
+                NOTE_RULE_Y + NOTE_RULE_THICKNESS_PT,
+            ])
+            .text_at((WIDE_MARGIN_PT, NOTE_BASELINE_Y), note, NOTE_SIZE_PT)
+    })
+    .collect();
+    build_pages(pages)
+}
+
+/// A one-page document that draws the given filled rectangles and no text.
+///
+/// Not a committed fixture: it is parameterised, and a builder whose output depends on its
+/// argument cannot be one file on disk. It exists so that the rule predicate is exercised
+/// against boxes a producer actually drew rather than against the arithmetic alone.
+pub fn filled_boxes(boxes: &[[f32; 4]]) -> Vec<u8> {
+    let page = boxes
+        .iter()
+        .fold(Page::default().media_box(STRUCTURE_PAGE), |page, box_| {
+            page.rule(*box_)
+        });
+    build_pages(vec![page])
+}
+
 /// A page under construction: text runs, plus the two boxes and the rotation.
 #[derive(Default)]
 struct Page {
@@ -672,6 +746,10 @@ struct Page {
     /// A page box of this page's own. `None` is [`PAGE`], the tall narrow box everything
     /// that is not about geometry uses.
     media_box: Option<[f32; 4]>,
+    /// Filled rectangles, in PDF user space, drawn before the text. A rule in a real book is
+    /// a filled rectangle rather than a stroked line about as often as not, and a filled one
+    /// is the honest shape to build: it has a thickness the extractor can measure.
+    rules: Vec<[f32; 4]>,
 }
 
 /// One `BT … ET` block: where it starts, what it says, and at what size.
@@ -694,6 +772,12 @@ impl Page {
             text: text.to_owned(),
             size_pt,
         });
+        self
+    }
+
+    /// Fill a rectangle: `[x0, y0, x1, y1]` in PDF user space, y up.
+    fn rule(mut self, box_: [f32; 4]) -> Self {
+        self.rules.push(box_);
         self
     }
 
@@ -786,12 +870,12 @@ impl Page {
     }
 }
 
-/// A text-only document of several pages: one shared font, no images, no outline.
+/// A document of several pages: one shared font, filled rules, no images, no outline.
 ///
 /// Separate from [`build`] rather than a generalisation of it because `build` writes one page
 /// and six optional features into a fixed object layout, and threading a page count through it
 /// would complicate the fourteen fixtures that need exactly one page in order to serve the
-/// three that need several. Cross-page furniture detection needs nothing but text on pages.
+/// ones that need several.
 fn build_pages(pages: Vec<Page>) -> Vec<u8> {
     let catalog = Ref::new(1);
     let tree = Ref::new(2);
@@ -818,6 +902,11 @@ fn build_pages(pages: Vec<Page>) -> Vec<u8> {
 
     for (page, (page_id, content_id)) in pages.iter().zip(&ids) {
         let mut content = Content::new();
+        // Rules and images first, so text drawn over them is text over them, as in a book.
+        for box_ in &page.rules {
+            content.rect(box_[0], box_[1], box_[2] - box_[0], box_[3] - box_[1]);
+            content.fill_nonzero();
+        }
         for run in &page.runs {
             content.begin_text();
             if let Some(spacing) = page.char_spacing {

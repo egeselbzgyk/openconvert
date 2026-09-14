@@ -826,3 +826,18 @@ source = "published"
 evidence = "RT A9 / R1 §A.10: real world measured at 12.6% tagged"
 owner = "maintainer"
 review_by = "2028-01-01"
+
+# ---------- vector regions (PIPELINE 8.3, 8.7) ----------
+[vector.rule_max_thickness_pt]
+value = 3.0
+source = "provisional"
+evidence = "PIPELINE §8.3/§8.7 say 'thin' without a number. A footnote separator and a table ruling are hairlines to 2 pt in every book measured; 3 pt admits a heavy rule and still excludes the thinnest filled bar a designer would call a block"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[vector.rule_min_aspect]
+value = 10.0
+source = "provisional"
+evidence = "PIPELINE §8.3/§8.7: 'long, thin, axis-aligned'. Ten to one is the ratio at which a filled rectangle stops reading as a box and starts reading as a line; a 60 pt separator at 0.5 pt is 120:1, a table cell's border likewise"
+owner = "maintainer"
+review_by = "2027-06-30"

@@ -254,6 +254,45 @@ pub struct ImageRef {
     pub kind: ImageKind,
 }
 
+/// A vector region's identifier, interned per document in draw order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct VecId(pub u32);
+
+/// A vector drawing on a page: one path object's bounding box, and whether it is a rule.
+///
+/// Two consumers, and both of them only want `is_rule`: the footnote separator (PIPELINE
+/// §8.3 — a short rule immediately above a small-font block at the foot of a page) and the
+/// table lattice (§8.7 — long thin axis-aligned paths snapped into a grid). Everything else
+/// vector is rasterised at 2× in v1 (D16), so the IR carries the box and the count rather
+/// than the path data.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct VectorRegion {
+    pub id: VecId,
+    pub page: PageRef,
+    pub bbox: Rect,
+    /// How many path objects were merged into this region. One, in v1: PDFium reports path
+    /// objects individually and nothing merges them yet.
+    pub path_count: u32,
+    /// A thin, axis-aligned line: long in one dimension and near-zero in the other.
+    pub is_rule: bool,
+}
+
+impl VectorRegion {
+    /// The rule's length along its own axis, or zero if it is not a rule.
+    pub fn rule_length(&self) -> f32 {
+        if !self.is_rule {
+            return 0.0;
+        }
+        (self.bbox.x1 - self.bbox.x0).max(self.bbox.y1 - self.bbox.y0)
+    }
+
+    /// Whether the rule runs left-to-right rather than top-to-bottom. Meaningless for a
+    /// region that is not a rule, and the callers that ask are all rule-only.
+    pub fn is_horizontal(&self) -> bool {
+        (self.bbox.x1 - self.bbox.x0) >= (self.bbox.y1 - self.bbox.y0)
+    }
+}
+
 /// One entry in a document's outline — a PDF bookmark.
 ///
 /// The outline is the strongest structural signal a PDF carries, and the only one a producer

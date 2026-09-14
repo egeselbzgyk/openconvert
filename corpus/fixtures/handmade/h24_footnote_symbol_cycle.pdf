@@ -1,0 +1,134 @@
+%PDF-1.7
+%€€€€
+
+1 0 obj
+<<
+  /Type /Catalog
+  /Pages 2 0 R
+>>
+endobj
+
+2 0 obj
+<<
+  /Type /Pages
+  /Kids [4 0 R 6 0 R]
+  /Count 2
+>>
+endobj
+
+4 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 400 300]
+  /Contents 5 0 R
+  /Resources <<
+    /Font <<
+      /F1 3 0 R
+    >>
+  >>
+>>
+endobj
+
+5 0 obj
+<<
+  /Length 219
+>>
+stream
+60 120 60 0.5 re
+f
+BT
+/F1 12 Tf
+60 700 Td
+(Alpha beta gamma delta.) Tj
+ET
+BT
+/F1 7 Tf
+192 703 Td
+(*) Tj
+ET
+BT
+/F1 12 Tf
+60 684 Td
+(Body continues on a second line.) Tj
+ET
+BT
+/F1 9 Tf
+60 100 Td
+(* First note text.) Tj
+ET
+endstream
+endobj
+
+6 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 400 300]
+  /Contents 7 0 R
+  /Resources <<
+    /Font <<
+      /F1 3 0 R
+    >>
+  >>
+>>
+endobj
+
+7 0 obj
+<<
+  /Length 220
+>>
+stream
+60 120 60 0.5 re
+f
+BT
+/F1 12 Tf
+60 700 Td
+(Epsilon zeta eta theta.) Tj
+ET
+BT
+/F1 7 Tf
+192 703 Td
+(*) Tj
+ET
+BT
+/F1 12 Tf
+60 684 Td
+(Body continues on a second line.) Tj
+ET
+BT
+/F1 9 Tf
+60 100 Td
+(* Second note text.) Tj
+ET
+endstream
+endobj
+
+3 0 obj
+<<
+  /Type /Font
+  /Subtype /Type1
+  /BaseFont /Helvetica
+  /Encoding /WinAnsiEncoding
+>>
+endobj
+
+xref
+0 8
+0000000000 65535 f
+0000000016 00000 n
+0000000070 00000 n
+0000000993 00000 n
+0000000140 00000 n
+0000000293 00000 n
+0000000566 00000 n
+0000000719 00000 n
+trailer
+<<
+  /Size 8
+  /Root 1 0 R
+  /ID [(openconvert-fixture) (openconvert-fixture)]
+>>
+startxref
+1099
+%%EOF
