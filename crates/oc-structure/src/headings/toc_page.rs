@@ -72,7 +72,7 @@ fn parse_one_page(blocks: &[BlockView], page: u32, t: &Thresholds) -> Option<Toc
         .iter()
         .filter(|block| block.page == page)
         .flat_map(|block| block.lines.iter())
-        .map(|line| (line.text.trim(), line.bbox.x0))
+        .map(|line| (line.text.trim(), line.bbox().x0))
         .filter(|(text, _)| !text.is_empty())
         .collect();
     if lines.is_empty() {

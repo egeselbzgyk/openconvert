@@ -12,24 +12,36 @@
 use oc_model::geom::Rect;
 use oc_model::ids::BlockId;
 use oc_model::layout::BlockKindHint;
-use oc_model::text::Run;
+use oc_model::text::{Line, Run};
 use serde::Serialize;
 
 /// One line of a block, with its runs resolved.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct LineView {
+    /// The line itself, as `layout` left it — indent and right gap measured against the
+    /// block. Carried whole rather than unpacked because `structure` builds `Para`s out of
+    /// these, and a `Para` is made of `Line`s.
+    pub line: Line,
     pub text: String,
-    pub bbox: Rect,
-    /// Measured against the *block*, as `layout` leaves it.
-    pub indent_pt: f32,
-    pub right_gap_pt: f32,
     pub runs: Vec<Run>,
 }
 
 impl LineView {
+    pub fn bbox(&self) -> Rect {
+        self.line.bbox
+    }
+
+    pub fn indent_pt(&self) -> f32 {
+        self.line.indent_pt
+    }
+
+    pub fn right_gap_pt(&self) -> f32 {
+        self.line.right_gap_pt
+    }
+
     /// The width of the line's own ink.
     pub fn width_pt(&self) -> f32 {
-        self.bbox.x1 - self.bbox.x0
+        self.line.bbox.x1 - self.line.bbox.x0
     }
 
     /// Whether every run of the line is set bold, by `headings.bold_weight_min`.

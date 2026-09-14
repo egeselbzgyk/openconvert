@@ -680,13 +680,21 @@ pub const WIDE_MARGIN_PT: f32 = 60.0;
 /// (test 4.8).
 pub fn h24_footnote_symbol_cycle() -> Vec<u8> {
     let pages: Vec<Page> = [
-        ("Alpha beta gamma delta.", FIRST_NOTE),
-        ("Epsilon zeta eta theta.", SECOND_NOTE),
+        (
+            "Alpha beta gamma delta.",
+            "The first page runs on below.",
+            FIRST_NOTE,
+        ),
+        (
+            "Epsilon zeta eta theta.",
+            "The second page does the same.",
+            SECOND_NOTE,
+        ),
     ]
     .into_iter()
-    .map(|(body, note)| {
+    .map(|(body, second, note)| {
         Page::default()
-            .media_box(WIDE_PAGE)
+            .media_box(STRUCTURE_PAGE)
             .text((WIDE_MARGIN_PT, 700.0), body)
             // The marker rides on the body line: three points up and set at 7 pt, which is
             // what `superscript_flags` reads as raised-and-small (test 2.9).
@@ -695,7 +703,7 @@ pub fn h24_footnote_symbol_cycle() -> Vec<u8> {
                 CYCLED_MARKER,
                 SUPERSCRIPT_SIZE_PT,
             )
-            .text((WIDE_MARGIN_PT, 684.0), "Body continues on a second line.")
+            .text((WIDE_MARGIN_PT, 684.0), second)
             .rule([
                 WIDE_MARGIN_PT,
                 NOTE_RULE_Y,

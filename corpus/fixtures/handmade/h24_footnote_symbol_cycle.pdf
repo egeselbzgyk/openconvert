@@ -20,7 +20,7 @@ endobj
 <<
   /Type /Page
   /Parent 2 0 R
-  /MediaBox [0 0 400 300]
+  /MediaBox [0 0 400 800]
   /Contents 5 0 R
   /Resources <<
     /Font <<
@@ -32,7 +32,7 @@ endobj
 
 5 0 obj
 <<
-  /Length 219
+  /Length 216
 >>
 stream
 60 120 60 0.5 re
@@ -50,7 +50,7 @@ ET
 BT
 /F1 12 Tf
 60 684 Td
-(Body continues on a second line.) Tj
+(The first page runs on below.) Tj
 ET
 BT
 /F1 9 Tf
@@ -64,7 +64,7 @@ endobj
 <<
   /Type /Page
   /Parent 2 0 R
-  /MediaBox [0 0 400 300]
+  /MediaBox [0 0 400 800]
   /Contents 7 0 R
   /Resources <<
     /Font <<
@@ -76,7 +76,7 @@ endobj
 
 7 0 obj
 <<
-  /Length 220
+  /Length 218
 >>
 stream
 60 120 60 0.5 re
@@ -94,7 +94,7 @@ ET
 BT
 /F1 12 Tf
 60 684 Td
-(Body continues on a second line.) Tj
+(The second page does the same.) Tj
 ET
 BT
 /F1 9 Tf
@@ -118,11 +118,11 @@ xref
 0000000000 65535 f
 0000000016 00000 n
 0000000070 00000 n
-0000000993 00000 n
+0000000988 00000 n
 0000000140 00000 n
 0000000293 00000 n
-0000000566 00000 n
-0000000719 00000 n
+0000000563 00000 n
+0000000716 00000 n
 trailer
 <<
   /Size 8
@@ -130,5 +130,5 @@ trailer
   /ID [(openconvert-fixture) (openconvert-fixture)]
 >>
 startxref
-1099
+1094
 %%EOF

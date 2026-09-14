@@ -3,4 +3,5 @@
 //! footnotes, captions, quotes/verse, tables and metadata.
 
 pub mod headings;
+pub mod notes;
 pub mod view;

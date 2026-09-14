@@ -45,10 +45,8 @@ pub fn block_views(text: &TextStage, layout: &LayoutStage) -> Vec<BlockView> {
                 .lines
                 .iter()
                 .map(|line| LineView {
+                    line: line.clone(),
                     text: text_of(page, line).to_owned(),
-                    bbox: line.bbox,
-                    indent_pt: line.indent_pt,
-                    right_gap_pt: line.right_gap_pt,
                     runs: text
                         .pages
                         .get(index)

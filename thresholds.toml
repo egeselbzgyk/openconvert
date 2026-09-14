@@ -934,3 +934,25 @@ source = "provisional"
 evidence = "PIPELINE §6: a block is 'one paragraph, one heading'. Docstrum is purely geometric and merges a heading into the paragraph under it whenever the producer sets the two a leading apart, which Typst and InDesign both do. 15% of the larger size is below the smallest heading step a designer uses (a 1.2 em h3 over 10 pt body is 17%) and above the size jitter a substituted face introduces"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+# ---------- footnotes (PIPELINE 8.3) ----------
+[footnote.zone_band_min]
+value = 0.55
+source = "provisional"
+evidence = "PIPELINE §8.3: the note zone is 'the bottom band'. A note block's top sitting below the middle of the page is the loosest reading that still excludes body text; measured 0.87 on f08 and h24, so the margin is wide"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[footnote.rule_max_width_ratio]
+value = 0.40
+source = "published"
+evidence = "IMPLEMENTATION_PLAN Phase 4 detail 6 / PIPELINE §8.3: the separator is a rule spanning < 40% of the column width"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[footnote.rule_gap_max_em]
+value = 3.0
+source = "provisional"
+evidence = "PIPELINE §8.3: the rule sits 'immediately above' the small-font block. Three body ems is the largest gap a separator and the note under it are set apart by in any book measured; beyond it the rule belongs to something else"
+owner = "maintainer"
+review_by = "2027-06-30"

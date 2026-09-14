@@ -16,6 +16,7 @@ use oc_structure::headings::candidate::heading_candidates;
 use oc_structure::headings::cluster::{cluster_styles, StyleInventory};
 use oc_structure::headings::levels::{assign_levels, HeadingAssignment, LevelSource};
 use oc_structure::headings::toc_page::{parse_toc_page, TocPage};
+use oc_structure::notes::link_notes;
 use oc_structure::view::BlockView;
 use openconvert::pipeline::{
     body_runs, furniture_stage, layout_stage, text_stage, LayoutStage, TextStage,
@@ -28,6 +29,7 @@ struct Read {
     text: TextStage,
     layout: LayoutStage,
     outline: Vec<OutlineEntry>,
+    vectors: Vec<oc_model::extract::VectorRegion>,
 }
 
 impl Read {
@@ -58,9 +60,14 @@ fn read(relative: &str) -> Read {
     let furniture =
         furniture_stage(&text, LangTag::EN, &mut totals, &T).expect("furniture stays in budget");
     let layout = layout_stage(&text, &furniture, &mut totals, &T).expect("layout conserves");
+    let vectors = (0..document.page_count())
+        .filter_map(|page| document.page_vectors(page).ok())
+        .flatten()
+        .collect();
     Read {
         runs: body_runs(&text, &furniture),
         outline: document.outline(),
+        vectors,
         text,
         layout,
     }
@@ -323,4 +330,86 @@ fn heading_tree_has_no_level_skips() {
             }
         }
     }
+}
+
+/// Row 4.7. `f08` sets three footnotes over two pages, and every one of them pairs with
+/// exactly one marker in the body.
+///
+/// The bijection is the assertion, in both directions, because both failures are real and
+/// named: a marker with no note is EPUBCheck `RSC-007`, and a note with no marker is content
+/// a reader never reaches (R2 §B.6, R10 §6.9, R5 §B6).
+#[test]
+fn footnote_marker_body_bijection() {
+    let read = read("../../target/fixtures/f08_footnotes.pdf");
+    let views = read.views();
+    let body_size = read.inventory().body_size_pt();
+    let (notes, refs, stats) = link_notes(&views, &read.vectors, body_size, &T);
+
+    assert_eq!(stats.notes, 3, "f08 sets three notes");
+    assert_eq!(stats.markers, 3, "and three markers refer to them");
+    assert_eq!(stats.match_rate, 1.0, "{stats:?}");
+    assert!(stats.warnings.is_empty(), "{:?}", stats.warnings);
+
+    // Every note has an anchor, and no two notes share one.
+    let anchors: Vec<_> = notes.iter().map(|note| note.anchor).collect();
+    assert!(anchors.iter().all(Option::is_some), "{anchors:?}");
+    let mut distinct = anchors.clone();
+    distinct.sort_by_key(|anchor| anchor.map(|id| id.as_str().to_owned()));
+    distinct.dedup();
+    assert_eq!(distinct.len(), anchors.len(), "two notes share one anchor");
+
+    // And in the other direction: one reference per note, no reference twice.
+    assert_eq!(refs.len(), notes.len());
+    let mut note_ids: Vec<_> = refs.iter().map(|r| r.note).collect();
+    note_ids.sort();
+    note_ids.dedup();
+    assert_eq!(note_ids.len(), refs.len());
+
+    assert_eq!(
+        notes
+            .iter()
+            .map(|note| note.marker.as_str())
+            .collect::<Vec<_>>(),
+        vec!["1", "2", "3"]
+    );
+    assert_eq!(
+        stats.separator_rules, 3,
+        "each note sits under the short rule Typst draws"
+    );
+}
+
+/// Row 4.8. `h24` puts a `*` on each of two pages. The symbol cycle resets per page
+/// (PIPELINE §8.3), so those are two notes and not one referred to twice.
+///
+/// A matcher that keys on symbol equality across the book binds both bodies to the first note
+/// and orphans the second — which is exactly the broken-reference class the bijection exists
+/// to prevent.
+#[test]
+fn footnote_symbol_cycle_resets_per_page() {
+    let read = read("../../corpus/fixtures/handmade/h24_footnote_symbol_cycle.pdf");
+    let views = read.views();
+    let body_size = read.inventory().body_size_pt();
+    let (notes, refs, stats) = link_notes(&views, &read.vectors, body_size, &T);
+
+    assert_eq!(stats.notes, 2, "one note per page");
+    assert_eq!(stats.match_rate, 1.0, "{stats:?}");
+    assert_eq!(
+        notes
+            .iter()
+            .map(|note| note.marker.as_str())
+            .collect::<Vec<_>>(),
+        vec!["*", "*"]
+    );
+
+    // The two markers are on different pages and resolve to different notes.
+    assert_eq!(refs.len(), 2);
+    assert_eq!(refs[0].page, 0);
+    assert_eq!(refs[1].page, 1);
+    assert_ne!(refs[0].note, refs[1].note);
+    assert_ne!(
+        notes[0].anchor, notes[1].anchor,
+        "the two `*` markers must anchor in different blocks"
+    );
+    assert_eq!(notes[0].page.index, 0);
+    assert_eq!(notes[1].page.index, 1);
 }
