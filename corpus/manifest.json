@@ -312,6 +312,110 @@
       "generator": "typst-0.15.1",
       "defect_injection": [],
       "source_path": "corpus/fixtures/typst/f06_hyphenation_de.typ"
+    },
+    {
+      "id": "f07_verse_and_quote",
+      "title": "f07_verse_and_quote",
+      "source": {
+        "name": "synthetic-generator",
+        "url": "https://github.com/openconvert/openconvert",
+        "retrieved_date": "2026-09-09"
+      },
+      "license": {
+        "name": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "verified_by": "maintainer",
+        "verified_date": "2026-09-09"
+      },
+      "sha256": "faac0d6c13181cc8b627745b6244f17628e9581f3175f75ea4c7a2b9326ef1b5",
+      "file_size_bytes": 16063,
+      "category": "simple",
+      "producer_stratum": "ours(Typst)",
+      "producer_raw": "Typst 0.15.1",
+      "tagged": false,
+      "holdout": false,
+      "ground_truth_type": "none",
+      "generator": "typst-0.15.1",
+      "defect_injection": [],
+      "source_path": "corpus/fixtures/typst/f07_verse_and_quote.typ"
+    },
+    {
+      "id": "f08_footnotes",
+      "title": "f08_footnotes",
+      "source": {
+        "name": "synthetic-generator",
+        "url": "https://github.com/openconvert/openconvert",
+        "retrieved_date": "2026-09-09"
+      },
+      "license": {
+        "name": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "verified_by": "maintainer",
+        "verified_date": "2026-09-09"
+      },
+      "sha256": "c1e30d32339e93054184382ef800e37b10e19711ba1ea4b6bcd1e8de8c0b46f8",
+      "file_size_bytes": 16426,
+      "category": "simple",
+      "producer_stratum": "ours(Typst)",
+      "producer_raw": "Typst 0.15.1",
+      "tagged": false,
+      "holdout": false,
+      "ground_truth_type": "none",
+      "generator": "typst-0.15.1",
+      "defect_injection": [],
+      "source_path": "corpus/fixtures/typst/f08_footnotes.typ"
+    },
+    {
+      "id": "f09_novel_structure",
+      "title": "f09_novel_structure",
+      "source": {
+        "name": "synthetic-generator",
+        "url": "https://github.com/openconvert/openconvert",
+        "retrieved_date": "2026-09-09"
+      },
+      "license": {
+        "name": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "verified_by": "maintainer",
+        "verified_date": "2026-09-09"
+      },
+      "sha256": "c4ff0780679e13043f1b997e47f356965f353504434729b263ba8be3b22701cc",
+      "file_size_bytes": 25858,
+      "category": "simple",
+      "producer_stratum": "ours(Typst)",
+      "producer_raw": "Typst 0.15.1",
+      "tagged": false,
+      "holdout": false,
+      "ground_truth_type": "none",
+      "generator": "typst-0.15.1",
+      "defect_injection": [],
+      "source_path": "corpus/fixtures/typst/f09_novel_structure.typ"
+    },
+    {
+      "id": "f10_lists_and_table",
+      "title": "f10_lists_and_table",
+      "source": {
+        "name": "synthetic-generator",
+        "url": "https://github.com/openconvert/openconvert",
+        "retrieved_date": "2026-09-09"
+      },
+      "license": {
+        "name": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "verified_by": "maintainer",
+        "verified_date": "2026-09-09"
+      },
+      "sha256": "12f72802e0100ef18b32cc88007e3412ed0762bbc6084027d3b2e5320fd79950",
+      "file_size_bytes": 77840,
+      "category": "simple",
+      "producer_stratum": "ours(Typst)",
+      "producer_raw": "Typst 0.15.1",
+      "tagged": false,
+      "holdout": false,
+      "ground_truth_type": "none",
+      "generator": "typst-0.15.1",
+      "defect_injection": [],
+      "source_path": "corpus/fixtures/typst/f10_lists_and_table.typ"
     }
   ]
 }
