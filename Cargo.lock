@@ -3515,9 +3515,11 @@ dependencies = [
  "oc-core",
  "oc-layout",
  "oc-model",
+ "oc-pdf",
  "oc-text",
  "serde",
  "thiserror 2.0.20",
+ "uuid",
 ]
 
 [[package]]

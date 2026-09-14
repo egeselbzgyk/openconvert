@@ -118,6 +118,14 @@ pub trait PdfDoc {
         image: oc_model::extract::ImageId,
     ) -> Result<crate::images::DecodedImage, PdfError>;
 
+    /// The XMP packet's Dublin Core fields, if the document carries one (PIPELINE §8.8).
+    ///
+    /// Separate from [`DocMetadata`], which is the *Info dictionary*: XMP is where a modern
+    /// producer writes what the author said and the Info dictionary is where the application
+    /// writes what it knows, which is why a Word export carries `"Microsoft Word - draft.docx"`
+    /// there and the real title nowhere else.
+    fn xmp(&self) -> crate::meta::XmpMeta;
+
     /// The vector regions one page draws (PIPELINE §3).
     ///
     /// Only `is_rule` regions are consumed in v1 — the footnote separator and the table

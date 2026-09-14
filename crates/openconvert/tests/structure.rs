@@ -18,7 +18,9 @@ use oc_structure::headings::cluster::{cluster_styles, StyleInventory};
 use oc_structure::headings::levels::{assign_levels, HeadingAssignment, LevelSource};
 use oc_structure::headings::toc_page::{parse_toc_page, TocPage};
 use oc_structure::lists::detect_lists;
+use oc_structure::meta::{metadata, InfoDict, MetaSources};
 use oc_structure::notes::link_notes;
+use oc_structure::quotes::{classify_indented, IndentedKind, TASK_VERSE_QUOTE};
 use oc_structure::tables::{extract_tables, W_TABLE_AS_IMAGE};
 use oc_structure::view::BlockView;
 use openconvert::pipeline::{
@@ -34,6 +36,8 @@ struct Read {
     outline: Vec<OutlineEntry>,
     vectors: Vec<oc_model::extract::VectorRegion>,
     images: Vec<oc_model::extract::ImageRef>,
+    xmp: oc_pdf::meta::XmpMeta,
+    info: InfoDict,
 }
 
 impl Read {
@@ -69,7 +73,13 @@ fn read(relative: &str) -> Read {
         .flatten()
         .collect();
     let images = openconvert::structure_input::document_images(&text);
+    let doc_info = document.doc_info();
     Read {
+        xmp: document.xmp(),
+        info: InfoDict {
+            title: doc_info.title.clone(),
+            author: doc_info.author.clone(),
+        },
         runs: body_runs(&text, &furniture),
         outline: document.outline(),
         vectors,
@@ -670,4 +680,156 @@ fn borderless_table_falls_back_to_image_with_details() {
             assert!(text.contains(cell), "{cell:?} is missing from {text:?}");
         }
     }
+}
+
+/// Row 4.18. `f07` sets a block quotation, a stanza and a block that is deliberately neither.
+///
+/// The first two geometry settles. The third it cannot, and the whole point of the row is
+/// what happens then: PIPELINE §8.6's deterministic default is taken — blockquote, because
+/// the block is indented — **and the block is recorded as an escalation candidate with its
+/// signals**. Those records are Phase 10's input and the calibration corpus (RT A7.2), and
+/// they are the difference between a pipeline that guessed and one that knows it guessed.
+///
+/// These four categories are geometrically indistinguishable and no public layout dataset
+/// even has the classes: DocLayNet's eleven contain none of `quote`, `verse`, `epigraph`
+/// (R10 §6.13). There is nothing to measure against, which is exactly why the abstention is
+/// recorded rather than resolved quietly.
+#[test]
+fn verse_and_quote_ambiguity_recorded_not_guessed() {
+    let read = read("../../target/fixtures/f07_verse_and_quote.pdf");
+    let views = read.views();
+    let body_size = read.inventory().body_size_pt();
+    let (classified, escalations) = classify_indented(&views, body_size, &T);
+
+    let kind_of = |needle: &str| {
+        let block = views
+            .iter()
+            .find(|block| block.text.starts_with(needle))
+            .unwrap_or_else(|| panic!("no block starts with {needle:?}"));
+        classified
+            .iter()
+            .find(|entry| entry.block == block.id)
+            .unwrap_or_else(|| panic!("{needle:?} was not classified"))
+    };
+
+    // Geometry settles these two.
+    let quotation = kind_of("It is a truth universally");
+    assert_eq!(quotation.kind, IndentedKind::BlockQuote);
+    assert!(!quotation.confidence.fallback_used);
+
+    let stanza = kind_of("Tyger Tyger");
+    assert_eq!(stanza.kind, IndentedKind::Verse);
+
+    // And it cannot settle this one.
+    let middle = kind_of("A middle case");
+    assert_eq!(middle.kind, IndentedKind::Ambiguous);
+    assert_eq!(
+        middle.resolved,
+        IndentedKind::BlockQuote,
+        "the deterministic default is blockquote when the block is indented"
+    );
+    assert!(
+        middle.confidence.fallback_used,
+        "a report that cannot tell 'decided' from 'gave up safely' cannot be audited (D13.5)"
+    );
+
+    // The record exists, names the task, and carries the signals rather than a conclusion.
+    let candidate = escalations
+        .iter()
+        .find(|candidate| candidate.block == middle.block)
+        .expect("the ambiguous block is an escalation candidate");
+    assert_eq!(candidate.task, TASK_VERSE_QUOTE);
+    assert_eq!(candidate.chosen, IndentedKind::BlockQuote);
+    assert!(candidate.alternatives.contains(&IndentedKind::Verse));
+
+    let signal = |name: &str| {
+        candidate
+            .signals
+            .iter()
+            .find(|signal| signal.name == name)
+            .map(|signal| signal.value)
+    };
+    let ratio = signal("short_line_ratio").expect("the short-line ratio is recorded");
+    assert!(
+        f64::from(ratio) >= T.verse.short_line_ratio_min
+            && f64::from(ratio) <= T.verse.short_line_ratio_max,
+        "the ratio that made it ambiguous was {ratio}"
+    );
+    assert!(signal("indent_pt").is_some_and(|indent| indent > 0.0));
+    assert!(signal("lines").is_some());
+
+    // Nothing is emitted as ambiguous: ambiguity is recorded, not shipped.
+    assert!(classified
+        .iter()
+        .all(|entry| entry.resolved != IndentedKind::Ambiguous));
+}
+
+/// Row 4.16. `h28` carries `"Microsoft Word - draft.docx"` in its Info dictionary and the
+/// book's real title in its XMP packet.
+///
+/// Boilerplate is **worse than nothing because it looks valid** (PIPELINE §8.8): a converter
+/// that trusts `/Title` ships a library whose every second book is called `Microsoft Word -
+/// draft`, and nothing downstream can tell that apart from a title somebody meant.
+#[test]
+fn metadata_prefers_xmp_over_boilerplate_docinfo() {
+    let read = read("../../corpus/fixtures/handmade/h28_xmp_over_boilerplate.pdf");
+    let views = read.views();
+    let sources = MetaSources {
+        xmp: read.xmp.clone(),
+        info: read.info.clone(),
+        filename: "h28_xmp_over_boilerplate.pdf".to_owned(),
+        source_sha256: "0f0f0f".to_owned(),
+        language: LangTag::EN,
+    };
+    let (meta, confidence) = metadata(&sources, &views, read.inventory().body_size_pt(), &T);
+
+    // The Info dictionary really does carry the boilerplate — otherwise the test would pass
+    // for the wrong reason.
+    assert_eq!(
+        read.info.title.as_deref(),
+        Some(oc_testkit::handmade::BOILERPLATE_TITLE)
+    );
+    assert_eq!(
+        meta.title.as_deref(),
+        Some(oc_testkit::handmade::XMP_TITLE),
+        "the XMP title wins"
+    );
+    assert_eq!(meta.source, oc_model::doc::MetaSource::Xmp);
+    assert_eq!(meta.authors, vec![oc_testkit::handmade::XMP_AUTHOR]);
+    assert!(!confidence.fallback_used);
+    assert!(confidence
+        .signals
+        .iter()
+        .any(|signal| signal.name == "info_title_boilerplate" && signal.value == 1.0));
+}
+
+/// Row 4.17, end to end: the same bytes converted twice mint the same `dc:identifier`.
+///
+/// The unit test in `oc-structure` pins the function; this pins the whole path from a file on
+/// disk to the identifier, because that is where a stray timestamp or a path would creep in.
+#[test]
+fn identifier_is_stable_across_reconversions() {
+    let read = read("../../corpus/fixtures/handmade/h28_xmp_over_boilerplate.pdf");
+    let views = read.views();
+    let body = read.inventory().body_size_pt();
+    let sha = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+    let sources = |filename: &str, hash: &str| MetaSources {
+        xmp: read.xmp.clone(),
+        info: read.info.clone(),
+        filename: filename.to_owned(),
+        source_sha256: hash.to_owned(),
+        language: LangTag::EN,
+    };
+
+    let once = metadata(&sources("book.pdf", sha), &views, body, &T).0;
+    let twice = metadata(&sources("book.pdf", sha), &views, body, &T).0;
+    assert_eq!(once.identifier, twice.identifier);
+    assert!(once.identifier.starts_with("urn:uuid:"));
+
+    // And it depends on the source bytes and nothing else: a different filename is the same
+    // book, a different hash is not.
+    let renamed = metadata(&sources("a different name.pdf", sha), &views, body, &T).0;
+    assert_eq!(once.identifier, renamed.identifier);
+    let other = metadata(&sources("book.pdf", "0000"), &views, body, &T).0;
+    assert_ne!(once.identifier, other.identifier);
 }

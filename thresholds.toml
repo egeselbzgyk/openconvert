@@ -1022,3 +1022,25 @@ source = "provisional"
 evidence = "Two horizontal rules belong to one table when their x-extents overlap. Half the shorter rule keeps a table whose last row is narrower together and separates two tables set side by side"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+# ---------- quotes, verse and preformatted (PIPELINE 8.6) ----------
+[verse.short_line_fill_max]
+value = 0.85
+source = "provisional"
+evidence = "PIPELINE §8.6 uses a short-line ratio without saying what makes a line short. A justified body line fills its measure to within the last word; 85% of the block's widest line is below the raggedest justified line measured and above every line of verse in f07"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[verse.min_lines]
+value = 3
+source = "published"
+evidence = "PIPELINE §8's end-of-stage validation: 'verse blocks have >= 3 lines and a short-line ratio > 0.6'. Two short lines are a heading that wrapped"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[quote.indent_min_em]
+value = 1.0
+source = "provisional"
+evidence = "PIPELINE §8.6 measures an indent delta against the body left margin without a floor. One em is the same bar `paragraph.indent_min_em` sets for a first-line indent, and a block indent is never smaller than a first-line one"
+owner = "maintainer"
+review_by = "2027-06-30"

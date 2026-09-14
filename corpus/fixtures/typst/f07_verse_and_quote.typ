@@ -46,11 +46,15 @@ two apart when the ratio falls between them, and that is the case this fixture i
 built to leave ambiguous.
 
 #block(inset: (left: 2em))[
-  #set par(justify: false, first-line-indent: 0em)
-  A middle case, indented, whose lines \
-  are neither full nor consistently short, \
-  so that the short-line ratio lands between \
-  the two bounds and nothing decides it.
+  #set par(justify: true, first-line-indent: 0em)
+  A middle case, indented, whose opening sentence is long enough to run the
+  full measure of the block that contains it, and which therefore contributes
+  lines that fill their measure rather than lines that fall short of it, so
+  that the ratio has something on both sides of it.
+  #linebreak()
+  Then a short line, \
+  and another short one, \
+  and the last.
 ]
 
 The block above is the ambiguous one. It is indented and its short-line ratio sits

@@ -11,17 +11,17 @@ endobj
 2 0 obj
 <<
   /Type /Pages
-  /Kids [6 0 R]
+  /Kids [8 0 R]
   /Count 1
 >>
 endobj
 
-6 0 obj
+8 0 obj
 <<
   /Type /Page
   /Parent 2 0 R
   /MediaBox [0 0 400 800]
-  /Contents 7 0 R
+  /Contents 9 0 R
   /Resources <<
     /Font <<
       /F1 3 0 R
@@ -30,7 +30,7 @@ endobj
 >>
 endobj
 
-7 0 obj
+9 0 obj
 <<
   /Length 466
 >>
@@ -134,18 +134,20 @@ endstream
 endobj
 
 xref
-0 8
-0000000000 65535 f
+0 10
+0000000006 65535 f
 0000000016 00000 n
 0000000070 00000 n
 0000000807 00000 n
 0000000913 00000 n
 0000001136 00000 n
+0000000007 00000 f
+0000000000 00000 f
 0000000134 00000 n
 0000000287 00000 n
 trailer
 <<
-  /Size 8
+  /Size 10
   /Root 1 0 R
   /ID [(openconvert-fixture) (openconvert-fixture)]
 >>

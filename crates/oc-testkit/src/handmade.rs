@@ -83,6 +83,8 @@ pub fn all() -> Vec<(&'static str, Vec<u8>)> {
         ("h24_footnote_symbol_cycle", h24_footnote_symbol_cycle()),
         ("h25_two_figures_one_caption", h25_two_figures_one_caption()),
         ("h26_borderless_table", h26_borderless_table()),
+        ("h27_repeated_ornament", h27_repeated_ornament()),
+        ("h28_xmp_over_boilerplate", h28_xmp_over_boilerplate()),
     ]
 }
 
@@ -793,6 +795,65 @@ pub fn h26_borderless_table() -> Vec<u8> {
     ])
 }
 
+/// The ornament h27 repeats: a small image, the same XObject on every page, drawn in the
+/// same place. Byte-identical by construction rather than by the encoder happening to be
+/// deterministic, which is what makes the perceptual-hash test honest.
+const ORNAMENT_BOX: [f32; 4] = [180.0, 60.0, 220.0, 100.0];
+/// The one figure h27 draws, on one page only, so that a rule which dropped *every* small
+/// image would be caught.
+const H27_FIGURE_BOX: [f32; 4] = [60.0, 400.0, 260.0, 600.0];
+/// How many pages h27 has, and on how many of them the ornament appears.
+pub const H27_PAGES: usize = 5;
+pub const H27_ORNAMENT_PAGES: usize = 5;
+
+/// h27 - five pages, each carrying the same small image in the same place at the foot, and
+/// one page carrying a figure as well.
+///
+/// An ornament is dropped when a small identical image repeats on at least
+/// `images.ornament_page_share` of the pages (D13.11). The figure is there so that a rule
+/// which simply dropped every small image would fail: one image must survive (test 4.15).
+pub fn h27_repeated_ornament() -> Vec<u8> {
+    let pages: Vec<Page> = (0..H27_PAGES)
+        .map(|index| {
+            let page = Page::default()
+                .media_box(STRUCTURE_PAGE)
+                .text(
+                    (WIDE_MARGIN_PT, 700.0),
+                    &format!("Body text on page {index} of the ornamented book."),
+                )
+                .place_image(0, ORNAMENT_BOX);
+            if index == 2 {
+                page.place_image(1, H27_FIGURE_BOX)
+            } else {
+                page
+            }
+        })
+        .collect();
+    build_pages(pages)
+}
+
+/// What h28's Info dictionary claims, and what its XMP packet actually says.
+pub const BOILERPLATE_TITLE: &str = "Microsoft Word - draft.docx";
+pub const BOILERPLATE_AUTHOR: &str = "user";
+pub const XMP_TITLE: &str = "The Weather in the Delta";
+pub const XMP_AUTHOR: &str = "A. Writer";
+
+/// h28 - an Info dictionary carrying a Word export's filename as its title, and an XMP packet
+/// carrying the book's real one.
+///
+/// Boilerplate is **worse than nothing because it looks valid** (PIPELINE §8.8): a reader
+/// that trusts `/Title` ships a library full of `Microsoft Word - draft`. XMP first, then the
+/// Info dictionary, then the blocklist, then the heuristic (test 4.16).
+pub fn h28_xmp_over_boilerplate() -> Vec<u8> {
+    build_pages(vec![Page::default()
+        .media_box(STRUCTURE_PAGE)
+        .doc_info(BOILERPLATE_TITLE, BOILERPLATE_AUTHOR)
+        .xmp(XMP_TITLE, XMP_AUTHOR)
+        .text_at((WIDE_MARGIN_PT, 700.0), XMP_TITLE, HEADING_SIZE_PT)
+        .text((WIDE_MARGIN_PT, 660.0), "by A. Writer")
+        .text((WIDE_MARGIN_PT, 600.0), "The first paragraph of the book.")])
+}
+
 /// A page under construction: text runs, plus the two boxes and the rotation.
 #[derive(Default)]
 struct Page {
@@ -821,6 +882,10 @@ struct Page {
     /// a filled rectangle rather than a stroked line about as often as not, and a filled one
     /// is the honest shape to build: it has a thickness the extractor can measure.
     rules: Vec<[f32; 4]>,
+    /// The Info dictionary's `/Title`, and the XMP packet, for the metadata fixtures.
+    info_title: Option<&'static str>,
+    info_author: Option<&'static str>,
+    xmp: Option<String>,
     /// Images placed at a box of their own, as `(which shared image, [x0, y0, x1, y1])`.
     ///
     /// Two shared images rather than one per placement, and that is what makes the ornament
@@ -855,6 +920,19 @@ impl Page {
     /// Fill a rectangle: `[x0, y0, x1, y1]` in PDF user space, y up.
     fn rule(mut self, box_: [f32; 4]) -> Self {
         self.rules.push(box_);
+        self
+    }
+
+    /// Give the document an Info dictionary with these values.
+    fn doc_info(mut self, title: &'static str, author: &'static str) -> Self {
+        self.info_title = Some(title);
+        self.info_author = Some(author);
+        self
+    }
+
+    /// Give the document an XMP packet naming this title and author.
+    fn xmp(mut self, title: &str, author: &str) -> Self {
+        self.xmp = Some(xmp_packet(title, author));
         self
     }
 
@@ -953,6 +1031,22 @@ impl Page {
     }
 }
 
+/// A well-formed XMP packet naming one title and one author, as a producer writes it.
+fn xmp_packet(title: &str, author: &str) -> String {
+    format!(
+        r#"<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
+   <dc:title><rdf:Alt><rdf:li xml:lang="x-default">{title}</rdf:li></rdf:Alt></dc:title>
+   <dc:creator><rdf:Seq><rdf:li>{author}</rdf:li></rdf:Seq></dc:creator>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>"#
+    )
+}
+
 /// The two shared 8 x 8 DeviceGray images [`build_pages`] can place, as grey levels.
 ///
 /// Two distinct levels so that a page with two figures on it has two figures and not one
@@ -978,8 +1072,10 @@ fn build_pages(pages: Vec<Page>) -> Vec<u8> {
     let tree = Ref::new(2);
     let font_id = Ref::new(3);
     let image_ids = [Ref::new(4), Ref::new(5)];
+    let info_id = Ref::new(6);
+    let xmp_id = Ref::new(7);
     // Then a page object and a content object for each page, interleaved.
-    let first_page = 6;
+    let first_page = 8;
 
     let ids: Vec<(Ref, Ref)> = (0..pages.len())
         .map(|index| {
@@ -993,7 +1089,14 @@ fn build_pages(pages: Vec<Page>) -> Vec<u8> {
         b"openconvert-fixture".to_vec(),
         b"openconvert-fixture".to_vec(),
     ));
-    pdf.catalog(catalog).pages(tree);
+    {
+        let mut written = pdf.catalog(catalog);
+        written.pages(tree);
+        if pages.iter().any(|page| page.xmp.is_some()) {
+            written.metadata(xmp_id);
+        }
+        written.finish();
+    }
     pdf.pages(tree)
         .kids(ids.iter().map(|(page, _)| *page))
         .count(i32::try_from(pages.len()).unwrap_or(i32::MAX));
@@ -1057,6 +1160,23 @@ fn build_pages(pages: Vec<Page>) -> Vec<u8> {
     pdf.type1_font(font_id)
         .base_font(Name(BASE_FONT.as_bytes()))
         .encoding_predefined(Name(b"WinAnsiEncoding"));
+
+    if let Some(page) = pages.iter().find(|page| page.info_title.is_some()) {
+        let mut info = pdf.document_info(info_id);
+        if let Some(title) = page.info_title {
+            info.title(TextStr(title));
+        }
+        if let Some(author) = page.info_author {
+            info.author(TextStr(author));
+        }
+        info.finish();
+    }
+    if let Some(packet) = pages.iter().find_map(|page| page.xmp.as_deref()) {
+        let mut stream = pdf.stream(xmp_id, packet.as_bytes());
+        stream.pair(Name(b"Type"), Name(b"Metadata"));
+        stream.pair(Name(b"Subtype"), Name(b"XML"));
+        stream.finish();
+    }
 
     // Both shared images are written whether or not any page places one: an unreferenced
     // XObject is legal, costs sixty-four bytes, and keeps the object numbering identical

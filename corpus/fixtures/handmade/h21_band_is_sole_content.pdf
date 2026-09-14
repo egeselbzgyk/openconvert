@@ -11,41 +11,9 @@ endobj
 2 0 obj
 <<
   /Type /Pages
-  /Kids [6 0 R 8 0 R 10 0 R 12 0 R]
+  /Kids [8 0 R 10 0 R 12 0 R 14 0 R]
   /Count 4
 >>
-endobj
-
-6 0 obj
-<<
-  /Type /Page
-  /Parent 2 0 R
-  /MediaBox [0 0 200 800]
-  /Contents 7 0 R
-  /Resources <<
-    /Font <<
-      /F1 3 0 R
-    >>
-  >>
->>
-endobj
-
-7 0 obj
-<<
-  /Length 86
->>
-stream
-BT
-/F1 8 Tf
-20 760 Td
-(The Book) Tj
-ET
-BT
-/F1 12 Tf
-20 400 Td
-(Body text page 0) Tj
-ET
-endstream
 endobj
 
 8 0 obj
@@ -75,7 +43,7 @@ ET
 BT
 /F1 12 Tf
 20 400 Td
-(Body text page 1) Tj
+(Body text page 0) Tj
 ET
 endstream
 endobj
@@ -107,7 +75,7 @@ ET
 BT
 /F1 12 Tf
 20 400 Td
-(Body text page 2) Tj
+(Body text page 1) Tj
 ET
 endstream
 endobj
@@ -127,6 +95,38 @@ endobj
 endobj
 
 13 0 obj
+<<
+  /Length 86
+>>
+stream
+BT
+/F1 8 Tf
+20 760 Td
+(The Book) Tj
+ET
+BT
+/F1 12 Tf
+20 400 Td
+(Body text page 2) Tj
+ET
+endstream
+endobj
+
+14 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 200 800]
+  /Contents 15 0 R
+  /Resources <<
+    /Font <<
+      /F1 3 0 R
+    >>
+  >>
+>>
+endobj
+
+15 0 obj
 <<
   /Length 38
 >>
@@ -179,27 +179,29 @@ endstream
 endobj
 
 xref
-0 14
-0000000000 65535 f
+0 16
+0000000006 65535 f
 0000000016 00000 n
 0000000070 00000 n
-0000001280 00000 n
-0000001386 00000 n
-0000001609 00000 n
-0000000154 00000 n
-0000000307 00000 n
-0000000446 00000 n
-0000000599 00000 n
-0000000738 00000 n
-0000000893 00000 n
-0000001033 00000 n
-0000001188 00000 n
+0000001284 00000 n
+0000001390 00000 n
+0000001613 00000 n
+0000000007 00000 f
+0000000000 00000 f
+0000000155 00000 n
+0000000308 00000 n
+0000000447 00000 n
+0000000602 00000 n
+0000000742 00000 n
+0000000897 00000 n
+0000001037 00000 n
+0000001192 00000 n
 trailer
 <<
-  /Size 14
+  /Size 16
   /Root 1 0 R
   /ID [(openconvert-fixture) (openconvert-fixture)]
 >>
 startxref
-1832
+1836
 %%EOF

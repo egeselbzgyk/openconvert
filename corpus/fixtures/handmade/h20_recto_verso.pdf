@@ -11,41 +11,9 @@ endobj
 2 0 obj
 <<
   /Type /Pages
-  /Kids [6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R]
+  /Kids [8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R]
   /Count 6
 >>
-endobj
-
-6 0 obj
-<<
-  /Type /Page
-  /Parent 2 0 R
-  /MediaBox [0 0 200 800]
-  /Contents 7 0 R
-  /Resources <<
-    /Font <<
-      /F1 3 0 R
-    >>
-  >>
->>
-endobj
-
-7 0 obj
-<<
-  /Length 86
->>
-stream
-BT
-/F1 8 Tf
-20 760 Td
-(The Book) Tj
-ET
-BT
-/F1 12 Tf
-20 400 Td
-(Body text page 0) Tj
-ET
-endstream
 endobj
 
 8 0 obj
@@ -64,18 +32,18 @@ endobj
 
 9 0 obj
 <<
-  /Length 89
+  /Length 86
 >>
 stream
 BT
 /F1 8 Tf
 20 760 Td
-(Chapter One) Tj
+(The Book) Tj
 ET
 BT
 /F1 12 Tf
 20 400 Td
-(Body text page 1) Tj
+(Body text page 0) Tj
 ET
 endstream
 endobj
@@ -96,18 +64,18 @@ endobj
 
 11 0 obj
 <<
-  /Length 86
+  /Length 89
 >>
 stream
 BT
 /F1 8 Tf
 20 760 Td
-(The Book) Tj
+(Chapter One) Tj
 ET
 BT
 /F1 12 Tf
 20 400 Td
-(Body text page 2) Tj
+(Body text page 1) Tj
 ET
 endstream
 endobj
@@ -127,6 +95,38 @@ endobj
 endobj
 
 13 0 obj
+<<
+  /Length 86
+>>
+stream
+BT
+/F1 8 Tf
+20 760 Td
+(The Book) Tj
+ET
+BT
+/F1 12 Tf
+20 400 Td
+(Body text page 2) Tj
+ET
+endstream
+endobj
+
+14 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 200 800]
+  /Contents 15 0 R
+  /Resources <<
+    /Font <<
+      /F1 3 0 R
+    >>
+  >>
+>>
+endobj
+
+15 0 obj
 <<
   /Length 125
 >>
@@ -149,12 +149,12 @@ ET
 endstream
 endobj
 
-14 0 obj
+16 0 obj
 <<
   /Type /Page
   /Parent 2 0 R
   /MediaBox [0 0 200 800]
-  /Contents 15 0 R
+  /Contents 17 0 R
   /Resources <<
     /Font <<
       /F1 3 0 R
@@ -163,7 +163,7 @@ endobj
 >>
 endobj
 
-15 0 obj
+17 0 obj
 <<
   /Length 86
 >>
@@ -181,12 +181,12 @@ ET
 endstream
 endobj
 
-16 0 obj
+18 0 obj
 <<
   /Type /Page
   /Parent 2 0 R
   /MediaBox [0 0 200 800]
-  /Contents 17 0 R
+  /Contents 19 0 R
   /Resources <<
     /Font <<
       /F1 3 0 R
@@ -195,7 +195,7 @@ endobj
 >>
 endobj
 
-17 0 obj
+19 0 obj
 <<
   /Length 89
 >>
@@ -253,31 +253,33 @@ endstream
 endobj
 
 xref
-0 18
-0000000000 65535 f
+0 20
+0000000006 65535 f
 0000000016 00000 n
 0000000070 00000 n
-0000001978 00000 n
-0000002084 00000 n
-0000002307 00000 n
-0000000168 00000 n
-0000000321 00000 n
-0000000460 00000 n
-0000000613 00000 n
-0000000755 00000 n
-0000000910 00000 n
-0000001050 00000 n
-0000001205 00000 n
-0000001385 00000 n
-0000001540 00000 n
-0000001680 00000 n
-0000001835 00000 n
+0000001982 00000 n
+0000002088 00000 n
+0000002311 00000 n
+0000000007 00000 f
+0000000000 00000 f
+0000000169 00000 n
+0000000322 00000 n
+0000000461 00000 n
+0000000616 00000 n
+0000000759 00000 n
+0000000914 00000 n
+0000001054 00000 n
+0000001209 00000 n
+0000001389 00000 n
+0000001544 00000 n
+0000001684 00000 n
+0000001839 00000 n
 trailer
 <<
-  /Size 18
+  /Size 20
   /Root 1 0 R
   /ID [(openconvert-fixture) (openconvert-fixture)]
 >>
 startxref
-2530
+2534
 %%EOF

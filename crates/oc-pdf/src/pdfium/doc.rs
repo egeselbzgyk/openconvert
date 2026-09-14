@@ -189,6 +189,14 @@ impl PdfDoc for PdfiumDoc {
         self.page_vectors_impl(index)
     }
 
+    fn xmp(&self) -> crate::meta::XmpMeta {
+        self.structure
+            .as_ref()
+            .and_then(|structure| crate::meta::xmp_packet(structure, &self.limits))
+            .map(|packet| crate::meta::read_xmp(&packet))
+            .unwrap_or_default()
+    }
+
     fn outline(&self) -> Vec<oc_model::extract::OutlineEntry> {
         crate::outline::read_outline(&self.document, &self.limits)
     }
