@@ -2083,3 +2083,30 @@ Evidence: run 34777494044, job `test (ubuntu-latest)`; `test (macos-latest)` and
 passed, which is what a one-host-in-three failure looks like when the cause is font substitution.
 
 Affects: `crates/openconvert/src/dump_layout.rs`, tests 3.16 and its `h22` companion, D13.8.
+
+## 2026-09-14 — a table cell gutter narrower than a run split
+
+**Measured on `f10`.** Typst's default table inset is 5 pt, so two 10 pt cells sit about
+9 pt apart — 0.9 em, under `text.line_split_gap_em` (1.2). `words` therefore keeps the two
+cells in one run, and `"layout"` and `"Conserving"` arrive as `"layoutConserving"` with one
+box spanning the vertical rule between them.
+
+A `Run` carries a box and its text, not its glyphs' positions, so `structure` cannot split it.
+Three options were considered:
+
+1. **Lower `text.line_split_gap_em`.** Rejected: the number is about word spacing in a line,
+   and lowering it would split justified prose whose word gaps stretch, which is a regression
+   in every book to fix a case in some tables.
+2. **Split runs at vertical rules in `layout`**, the way `split_lines_at_gutters` splits them
+   at page gutters. This is the right long-term answer and it is real work: the rules would
+   have to reach `layout`, which today receives none.
+3. **Detect the straddle and take the image fallback.** Taken. `extract_tables` checks whether
+   any run inside a table's region crosses a column rule and, if so, emits the table as the
+   image plus its text with `W_TABLE_AS_IMAGE` and `reason = "a run crosses a column rule"`.
+   It loses the grid and keeps every character, which is the direction PIPELINE §8.7
+   prescribes for everything it cannot read cleanly, and R2 §B.9's scope for v1: detect tables
+   well enough not to destroy them.
+
+`f10`'s table is set with `inset: 8pt` so that its gutters are 1.6 em and the *gridded* path
+is the one test 4.13 exercises. A tightly set ruled table is a known gap; option 2 closes it,
+and the corpus in Phase 7 is what says how often it matters.

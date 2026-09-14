@@ -42,8 +42,12 @@ block which is plainly not an item.
 == A Ruled Table
 
 #figure(
+  // `inset: 8pt` is not decoration. The gutter between two cells has to exceed
+  // `text.line_split_gap_em` (1.2 em) or `words` keeps the two cells in one run and the
+  // grid cannot be read from runs — see `docs/DECISIONS_LOG.md`, the tight-cell gap.
   table(
     columns: 4,
+    inset: 8pt,
     stroke: 0.5pt,
     [Stage], [Kind], [Budget], [Reason],
     [text], [Budgeted], [0.005], [SoftHyphen],

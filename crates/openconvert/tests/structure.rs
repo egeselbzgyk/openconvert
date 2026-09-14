@@ -17,7 +17,9 @@ use oc_structure::headings::candidate::heading_candidates;
 use oc_structure::headings::cluster::{cluster_styles, StyleInventory};
 use oc_structure::headings::levels::{assign_levels, HeadingAssignment, LevelSource};
 use oc_structure::headings::toc_page::{parse_toc_page, TocPage};
+use oc_structure::lists::detect_lists;
 use oc_structure::notes::link_notes;
+use oc_structure::tables::{extract_tables, W_TABLE_AS_IMAGE};
 use oc_structure::view::BlockView;
 use openconvert::pipeline::{
     body_runs, furniture_stage, layout_stage, text_stage, LayoutStage, TextStage,
@@ -510,4 +512,162 @@ fn ambiguous_caption_left_unassociated() {
             .any(|warning| warning.code == W_CAPTION_AMBIGUOUS),
         "the abstention has to be visible: {warnings:?}"
     );
+}
+
+/// Row 4.11. `f10` sets a five-step procedure with two sub-steps under the third: items 1..5,
+/// nesting depth two, and nothing outside a list.
+///
+/// `List-item` is the best-detected structural class in DocLayNet — 86.2 mAP against human
+/// agreement of 87-88 (R10 §6.11) — so a failure here is a failure of the implementation
+/// rather than of the approach.
+#[test]
+fn ordered_list_numbering_is_contiguous() {
+    let read = read("../../target/fixtures/f10_lists_and_table.pdf");
+    let (lists, warnings) = detect_lists(&read.views(), &T);
+
+    assert_eq!(lists.len(), 1, "f10 sets one list");
+    assert!(warnings.is_empty(), "{warnings:?}");
+    let list = &lists[0];
+    assert!(list.ordered);
+    assert_eq!(
+        list.start, None,
+        "it starts at one, so no `start` attribute"
+    );
+    assert_eq!(list.items.len(), 5, "items 1..5 at the top level");
+
+    // The third item carries the nested list, and it is two deep and no deeper.
+    let nested: Vec<usize> = list
+        .items
+        .iter()
+        .enumerate()
+        .filter(|(_, item)| item.nested.is_some())
+        .map(|(index, _)| index)
+        .collect();
+    assert_eq!(nested, vec![2], "only the third item nests");
+    let inner = list.items[2].nested.as_ref().expect("the third item nests");
+    assert_eq!(inner.items.len(), 2);
+    assert!(inner.ordered);
+    assert!(
+        inner.items.iter().all(|item| item.nested.is_none()),
+        "nesting stops at two"
+    );
+
+    // The marker is not part of the item's text: `<ol>` draws it.
+    let text_of = |item: &oc_model::doc::ListItem| match item.content.first() {
+        Some(oc_model::doc::Content::Paragraph(para)) => para.text.clone(),
+        other => panic!("a list item holds a paragraph, got {other:?}"),
+    };
+    assert_eq!(
+        text_of(&list.items[0]),
+        "Open the document and read its outline."
+    );
+    assert_eq!(
+        text_of(&inner.items[1]),
+        "Record which candidates were left unbound."
+    );
+}
+
+/// The other half of row 4.12, on a real document: `f01` is prose with no list in it, and a
+/// detector that reads any line opening with a number as an item would find several.
+#[test]
+fn prose_with_no_list_yields_no_list() {
+    let read = read("../../target/fixtures/f01_prose_single_column.pdf");
+    let (lists, warnings) = detect_lists(&read.views(), &T);
+    assert!(lists.is_empty(), "{lists:?}");
+    assert!(warnings.is_empty());
+}
+
+/// Row 4.13. `f10` draws a 4-column, 3-row lattice: five verticals and four horizontals.
+/// It becomes a real `<table>`, and the cell-text multiset equals the source text multiset.
+///
+/// That equality is the gate, and it is a conservation check in miniature: it catches a grid
+/// that dropped a cell, one that duplicated a cell, and — the reason PIPELINE §8.7 names it —
+/// a hallucinated cell, if a vision model is ever added.
+#[test]
+fn ruled_table_becomes_html_table() {
+    let read = read("../../target/fixtures/f10_lists_and_table.pdf");
+    let views = read.views();
+    let outcome = extract_tables(
+        &read.vectors,
+        &views,
+        u32::try_from(read.images.len()).unwrap_or_default(),
+        &T,
+    );
+
+    assert_eq!(outcome.tables.len(), 1, "f10 draws one lattice");
+    assert!(outcome.warnings.is_empty(), "{:?}", outcome.warnings);
+    let table = &outcome.tables[0];
+    assert!(
+        table.fallback_image.is_none(),
+        "a clean lattice takes the markup path"
+    );
+    assert_eq!(table.rows.len(), 3, "three rows");
+    assert!(
+        table.rows.iter().all(|row| row.len() == 4),
+        "four cells in every row: {:?}",
+        table.rows.iter().map(Vec::len).collect::<Vec<_>>()
+    );
+
+    // Every row has the same cell count after span expansion, which the grid guarantees, and
+    // the cell text is the table's text.
+    let cells = table.cell_texts();
+    assert!(cells.contains(&"Stage".to_owned()), "{cells:?}");
+    assert!(cells.contains(&"Conserving".to_owned()), "{cells:?}");
+    assert!(cells.contains(&"SoftHyphen".to_owned()), "{cells:?}");
+
+    // The multiset equality the extractor gated on, asserted again from the outside.
+    let mut from_cells: Vec<String> = cells.iter().map(|text| text.trim().to_owned()).collect();
+    // Runs, not lines: a table row is one baseline, so `text` assembles its four cells into
+    // one line and a comparison against lines would compare the row against its cells.
+    let mut from_page: Vec<String> = views
+        .iter()
+        .filter(|block| block.page == 1)
+        .flat_map(|block| block.runs())
+        .map(|run| run.text.trim().to_owned())
+        .filter(|text| !text.is_empty())
+        .collect();
+    from_cells.retain(|text| !text.is_empty());
+    from_cells.sort();
+    from_page.retain(|text| from_cells.contains(text));
+    from_page.sort();
+    assert_eq!(from_cells, from_page);
+}
+
+/// Row 4.14. `h26` rules its table above, below and under its header and draws no vertical
+/// rules at all — which is how a book actually sets a table.
+///
+/// Two horizontals bound a region, so the table is found; with no verticals there is no grid
+/// to read. PIPELINE §8.7 says what happens then, and accessibility settles the shape rather
+/// than engineering taste: an image of a table takes the content away from anyone who cannot
+/// see it (DAISY, R10 §6.12), so the fallback still carries every printed line.
+#[test]
+fn borderless_table_falls_back_to_image_with_details() {
+    let read = read("../../corpus/fixtures/handmade/h26_borderless_table.pdf");
+    let outcome = extract_tables(&read.vectors, &read.views(), 0, &T);
+
+    assert_eq!(outcome.tables.len(), 1, "the rules bound one region");
+    assert!(
+        outcome
+            .warnings
+            .iter()
+            .any(|warning| warning.code == W_TABLE_AS_IMAGE),
+        "{:?}",
+        outcome.warnings
+    );
+
+    let table = &outcome.tables[0];
+    assert!(
+        table.fallback_image.is_some(),
+        "the fallback is an image plus the text, not text alone"
+    );
+    assert!(table.confidence.fallback_used);
+
+    // And the data is still there: every cell the fixture printed survives into the
+    // `<details>` fallback.
+    let text = table.cell_texts().join(" ");
+    for row in oc_testkit::handmade::BORDERLESS_ROWS {
+        for cell in row {
+            assert!(text.contains(cell), "{cell:?} is missing from {text:?}");
+        }
+    }
 }

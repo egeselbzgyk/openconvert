@@ -82,6 +82,7 @@ pub fn all() -> Vec<(&'static str, Vec<u8>)> {
         ("h23_paragraph_across_pages", h23_paragraph_across_pages()),
         ("h24_footnote_symbol_cycle", h24_footnote_symbol_cycle()),
         ("h25_two_figures_one_caption", h25_two_figures_one_caption()),
+        ("h26_borderless_table", h26_borderless_table()),
     ]
 }
 
@@ -754,6 +755,42 @@ pub fn h25_two_figures_one_caption() -> Vec<u8> {
         .place_image(1, [240.0, 600.0, 340.0, 700.0])
         .text_at((120.0, 570.0), AMBIGUOUS_CAPTION, NOTE_SIZE_PT)
         .text((WIDE_MARGIN_PT, 500.0), "Body text below the figures.")])
+}
+
+/// The cells h26 prints, row by row. Three columns, three rows, and no vertical rules
+/// anywhere — the arrangement a book actually uses for a table, and the one Camelot's lattice
+/// parser cannot read (R2 §B.9).
+pub const BORDERLESS_ROWS: [[&str; 3]; 3] = [
+    ["Stage", "Kind", "Budget"],
+    ["text", "Budgeted", "0.005"],
+    ["layout", "Conserving", "0.000"],
+];
+
+/// h26 - a table ruled above, below and under its header, with no vertical rules at all.
+///
+/// Two horizontal rules bound a region, so the table *is* found; with no verticals there is
+/// no grid to read, and PIPELINE §8.7 says what happens then — the image plus the extracted
+/// text in a `<details>` fallback, with `W_TABLE_AS_IMAGE`. Accessibility settles that shape
+/// rather than engineering taste: an image of a table takes the content away from anyone who
+/// cannot see it, so even the fallback carries the data (DAISY, R10 §6.12). Test 4.14.
+pub fn h26_borderless_table() -> Vec<u8> {
+    // Three column origins and three row baselines, with the rules between them.
+    const COLUMNS: [f32; 3] = [60.0, 160.0, 260.0];
+    const ROWS: [f32; 3] = [700.0, 670.0, 640.0];
+    const RULE_THICKNESS: f32 = 0.5;
+    let mut page = Page::default()
+        .media_box(STRUCTURE_PAGE)
+        .rule([55.0, 715.0, 345.0, 715.0 + RULE_THICKNESS])
+        .rule([55.0, 688.0, 345.0, 688.0 + RULE_THICKNESS])
+        .rule([55.0, 628.0, 345.0, 628.0 + RULE_THICKNESS]);
+    for (row, cells) in BORDERLESS_ROWS.iter().enumerate() {
+        for (column, cell) in cells.iter().enumerate() {
+            page = page.text((COLUMNS[column], ROWS[row]), cell);
+        }
+    }
+    build_pages(vec![
+        page.text((WIDE_MARGIN_PT, 560.0), "Body text beneath the table.")
+    ])
 }
 
 /// A page under construction: text runs, plus the two boxes and the rotation.

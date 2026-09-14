@@ -971,3 +971,54 @@ source = "provisional"
 evidence = "A caption may run the full width of its column — a long one does. The width test is therefore not what identifies a caption; the localized prefix and the smaller-or-italic setting are. Kept at 1.0 so the rule is present and inert, and a corpus can narrow it"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+# ---------- lists (PIPELINE 8.5) ----------
+[list.min_siblings]
+value = 2
+source = "published"
+evidence = "PIPELINE §8.5: 'a run of >= 2 siblings sharing marker type and indentation'. This is the guard that stops '1984 was a strange year' becoming an ordered item"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[list.max_depth]
+value = 5
+source = "published"
+evidence = "PIPELINE §8.5: 'depth is capped at 5'"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[list.indent_step_tolerance_pt]
+value = 3.0
+source = "provisional"
+evidence = "Two list items at the same level are set to the same left edge by the layout engine, so their indents differ only by the sub-point jitter of a substituted face and the first glyph's side bearing. Three points is far above that and far below the smallest indent step measured (12.3 pt on f10)"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# ---------- tables (PIPELINE 8.7) ----------
+[table.min_row_rules]
+value = 2
+source = "provisional"
+evidence = "PIPELINE §8.7 detects a lattice from ruling lines without naming a minimum. Two horizontal rules is the fewest that bound one row; below that there is no region, only a rule"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[table.min_column_rules]
+value = 2
+source = "provisional"
+evidence = "Two vertical rules are the fewest that bound one column. A region with fewer has no grid to read and falls back to the image plus its text, which is the branch PIPELINE §8.7 requires for everything that is not cleanly ruled"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[table.grid_snap_pt]
+value = 3.0
+source = "provisional"
+evidence = "Rules drawn as filled rectangles have a thickness, so a cell edge is a band rather than a line. Three points absorbs a 2 pt rule and its rounding without merging two columns of a table set at any measure a book uses"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[table.rule_overlap_min]
+value = 0.5
+source = "provisional"
+evidence = "Two horizontal rules belong to one table when their x-extents overlap. Half the shorter rule keeps a table whose last row is narrower together and separates two tables set side by side"
+owner = "maintainer"
+review_by = "2027-06-30"
