@@ -296,3 +296,76 @@ indicative (PROGRESS.md).
 | 3.19b | `anchor::a_body_sized_single_glyph_is_not_a_drop_cap` | `oc-layout` | unit | `test` | green |
 | 3.13 | `layout::layout_stage_is_conserving` | `openconvert` | fixture (f01) | `test` | green |
 | 3.13a | `layout::layout_stage_conservation_violation_errors` | `openconvert` | unit | `test` | green |
+
+## Phase 4
+
+| # | Test | Crate | Kind | CI job | Status |
+|---|---|---|---|---|---|
+| 4.1 | `structure::outline_is_used_as_heading_ground_truth` | `openconvert` | fixture (f09) | `test` | green |
+| 4.2 | `structure::toc_page_parsed_when_no_outline` | `openconvert` | fixture (f09) | `test` | green |
+| 4.2a | `toc_page::a_dotted_leader_line_parses_into_title_and_folio` | `oc-structure` | unit | `test` | green |
+| 4.2b | `toc_page::prose_that_ends_in_a_number_is_not_a_contents_line` | `oc-structure` | unit | `test` | green |
+| 4.3 | `structure::style_clusters_identify_body_mode` | `openconvert` | fixture (f01) | `test` | green |
+| 4.3a | `cluster::the_mode_is_body_and_the_larger_short_style_is_the_candidate` | `oc-structure` | unit | `test` | green |
+| 4.3b | `cluster::sizes_within_one_quantum_cluster_together` | `oc-structure` | unit | `test` | green |
+| 4.3c | `cluster::an_empty_document_has_no_body_cluster` | `oc-structure` | unit | `test` | green |
+| 4.4 | `structure::heading_level_from_size_rank` | `openconvert` | fixture (f10) | `test` | green |
+| 4.4a | `numbering::keywords_are_read_in_all_three_languages` | `oc-structure` | unit | `test` | green |
+| 4.4b | `numbering::turkish_keywords_fold_under_turkish_rules` | `oc-structure` | unit | `test` | green |
+| 4.4c | `numbering::a_dotted_number_gives_its_own_depth` | `oc-structure` | unit | `test` | green |
+| 4.4d | `numbering::a_keyword_without_a_number_is_not_numbering` | `oc-structure` | unit | `test` | green |
+| 4.4e | `numbering::roman_numerals_are_read_and_valued` | `oc-structure` | unit | `test` | green |
+| 4.5 | `structure::heading_tree_has_no_level_skips` | `openconvert` | property (8 fixtures × 3 sources) | `test` | green |
+| 4.5a | `levels::a_skipped_level_is_closed_and_a_descent_is_not` | `oc-structure` | unit | `test` | green |
+| 4.5b | `levels::the_first_heading_is_always_level_one` | `oc-structure` | unit | `test` | green |
+| 4.6 | `cluster::style_inventory_invalid_above_24_clusters` | `oc-structure` | unit | `test` | green |
+| 4.6a | `cluster::style_inventory_invalid_when_no_cluster_is_the_body` | `oc-structure` | unit | `test` | green |
+| 4.7 | `structure::footnote_marker_body_bijection` | `openconvert` | fixture (f08) | `test` | green |
+| 4.8 | `structure::footnote_symbol_cycle_resets_per_page` | `openconvert` | fixture (h24) | `test` | green |
+| 4.9 | `structure::caption_associated_to_nearest_figure` | `openconvert` | fixture (f10) | `test` | green |
+| 4.9a | `figures::localized_prefixes_are_recognised_with_their_number` | `oc-structure` | unit | `test` | green |
+| 4.9b | `figures::a_prefix_word_without_a_number_is_not_a_caption` | `oc-structure` | unit | `test` | green |
+| 4.9c | `figures::edge_distance_is_zero_for_overlapping_boxes_and_grows_with_the_gap` | `oc-structure` | unit | `test` | green |
+| 4.10 | `structure::ambiguous_caption_left_unassociated` | `openconvert` | fixture (h25) | `test` | green |
+| 4.11 | `structure::ordered_list_numbering_is_contiguous` | `openconvert` | fixture (f10) | `test` | green |
+| 4.11a | `lists::markers_of_every_kind_are_read_with_their_ordinal` | `oc-structure` | unit | `test` | green |
+| 4.11b | `structure::prose_with_no_list_yields_no_list` | `openconvert` | fixture (f01) | `test` | green |
+| 4.12 | `lists::year_paragraph_is_not_a_list_item` | `oc-structure` | unit | `test` | green |
+| 4.13 | `structure::ruled_table_becomes_html_table` | `openconvert` | fixture (f10) | `test` | green |
+| 4.13a | `tables::a_ladder_places_a_value_in_its_band` | `oc-structure` | unit | `test` | green |
+| 4.13b | `tables::coordinates_within_the_snap_collapse_to_one` | `oc-structure` | unit | `test` | green |
+| 4.13c | `tables::the_cell_multiset_check_counts_repeats` | `oc-structure` | unit | `test` | green |
+| 4.14 | `structure::borderless_table_falls_back_to_image_with_details` | `openconvert` | fixture (h26) | `test` | green |
+| 4.15 | `structure::ornament_repeated_on_most_pages_is_dropped` | `openconvert` | fixture (h27) | `test` | green |
+| 4.15a | `images::a_large_repeated_image_is_never_an_ornament` | `oc-structure` | unit | `test` | green |
+| 4.15b | `images::a_short_document_has_no_ornaments` | `oc-structure` | unit | `test` | green |
+| 4.15c | `images::two_different_images_do_not_add_up_to_one_ornament` | `oc-structure` | unit | `test` | green |
+| 4.15d | `images::the_perceptual_hash_separates_two_greys_and_joins_two_copies` | `oc-pdf` | unit | `test` | green |
+| 4.16 | `structure::metadata_prefers_xmp_over_boilerplate_docinfo` | `openconvert` | fixture (h28) | `test` | green |
+| 4.16a | `meta::the_boilerplate_blocklist_catches_what_producers_emit` | `oc-structure` | unit | `test` | green |
+| 4.16b | `meta::a_filename_becomes_a_title_only_when_it_is_not_boilerplate` | `oc-structure` | unit | `test` | green |
+| 4.16c | `meta::dublin_core_fields_are_read_out_of_a_packet` | `oc-pdf` | unit | `test` | green |
+| 4.17 | `meta::identifier_is_stable_across_reconversions` | `oc-structure` | unit | `test` | green |
+| 4.17a | `structure::identifier_is_stable_across_reconversions` | `openconvert` | fixture (h28) | `test` | green |
+| 4.18 | `structure::verse_and_quote_ambiguity_recorded_not_guessed` | `openconvert` | fixture (f07) | `test` | green |
+| 4.18a | `quotes::an_attribution_is_a_short_capitalised_tail_after_a_dash` | `oc-structure` | unit | `test` | green |
+| 4.18b | `quotes::ambiguity_is_resolved_and_never_emitted` | `oc-structure` | unit | `test` | green |
+| 4.19 | `structure::structure_stage_is_conserving` | `openconvert` | fixture (9 documents) | `test` | green |
+| 4.20 | `structure::digest_f09_structure` | `openconvert` | digest snapshot | `test` | green |
+| 4.20a | `structure::digest_f10_structure` | `openconvert` | digest snapshot | `test` | green |
+| 4.20b | `structure::dump_stage_structure_header_f09` | `openconvert` | snapshot | `test` | green |
+| 4.21 | `structure::drop_cap_is_not_a_one_char_paragraph` | `openconvert` | fixture (h29) | `test` | green |
+| 4.22 | `structure::book_structure_runs_front_body_back` | `openconvert` | fixture (f09) | `test` | green |
+| 4.22a | `book::a_roman_run_followed_by_arabic_one_is_the_body_boundary` | `oc-structure` | unit | `test` | green |
+| 4.22b | `book::back_matter_keywords_are_read_in_all_three_languages` | `oc-structure` | unit | `test` | green |
+| 4.22c | `book::front_matter_keywords_are_read_in_all_three_languages` | `oc-structure` | unit | `test` | green |
+| 4.23 | `outline::every_outline_entry_is_read_exactly_once` | `oc-pdf` | fixture (f09) | `test` | green |
+| 4.24 | `vectors::a_filled_hairline_is_read_as_a_horizontal_rule` | `oc-pdf` | fixture (h24) | `test` | green |
+| 4.24a | `vectors::a_page_with_no_paths_has_no_vector_regions` | `oc-pdf` | fixture (h01) | `test` | green |
+| 4.24b | `vectors::a_block_is_not_a_rule_however_it_is_proportioned` | `oc-pdf` | unit | `test` | green |
+| 4.25 | `blocks::a_size_change_splits_a_block_where_distance_alone_cannot` | `oc-layout` | unit | `test` | green |
+| 4.25a | `blocks::a_drop_cap_does_not_split_its_own_line_off` | `oc-layout` | unit | `test` | green |
+| 4.26 | `doc::every_content_variant_is_listed_and_named_once` | `oc-model` | unit | `test` | green |
+| 4.26a | `doc::heading_levels_are_clamped_into_the_xhtml_range` | `oc-model` | unit | `test` | green |
+| 4.26b | `doc::the_three_zones_are_ordered_front_body_back` | `oc-model` | unit | `test` | green |
+| 4.27 | `similarity::distance_is_zero_for_equal_strings_and_scaled_by_the_longer` | `oc-text` | unit | `test` | green |

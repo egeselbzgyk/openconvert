@@ -150,3 +150,142 @@ fn clip(text: &str) -> String {
 pub fn walk(roots: &[Section]) -> Vec<&Section> {
     roots.iter().flat_map(Section::walk).collect()
 }
+
+/// The stage name, as `--dump-stage` spells it.
+pub const STAGE: &str = "structure";
+
+/// The dump's header: what the stage decided about the document as a whole.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Header {
+    pub ir_version: u32,
+    pub schema: &'static str,
+    pub stage: &'static str,
+    pub check: oc_model::ledger::StageCheck,
+    pub digest: Digest,
+    pub metadata: oc_model::doc::Metadata,
+    pub note_match_rate: f32,
+    pub escalation_candidates: u32,
+    /// Whether an LLM escalation may ever be attempted for this book's heading roles
+    /// (IMPLEMENTATION_PLAN Phase 4 detail 3).
+    pub escalation_allowed: bool,
+}
+
+/// One top-level section, as a line of the dump.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct SectionLine {
+    pub id: String,
+    pub role: oc_model::doc::SectionRole,
+    pub level: u8,
+    pub heading: Option<String>,
+    pub source_pages: (u32, u32),
+    pub children: u32,
+    pub content: u32,
+}
+
+/// Run every stage up to and including `structure`, and reduce the result to a dump.
+///
+/// Like the `text` dump and unlike `ingest`'s, this cannot start writing at page one: the
+/// style histogram is over the whole book, the outline binds across it, and the section tree
+/// is not a section tree until the last heading has been seen.
+pub fn dump(
+    document: &dyn oc_pdf::inspect::PdfDoc,
+    filename: &str,
+    source_sha256: &str,
+    lang: oc_model::lang::LangTag,
+    t: &oc_core::thresholds::Thresholds,
+) -> Result<(Header, Vec<SectionLine>), String> {
+    use oc_core::ledger_check::ReasonTotals;
+    use oc_structure::meta::{InfoDict, MetaSources};
+    use oc_structure::stage::StructureInput;
+
+    let input = crate::input::page_inputs(document).map_err(|error| error.to_string())?;
+    let mut totals = ReasonTotals::default();
+    let text = crate::pipeline::text_stage(&input, &mut totals, t).map_err(fail)?;
+    let furniture =
+        crate::pipeline::furniture_stage(&text, lang.clone(), &mut totals, t).map_err(fail)?;
+    let layout = crate::pipeline::layout_stage(&text, &furniture, &mut totals, t).map_err(fail)?;
+
+    let images = crate::structure_input::document_images(&text);
+    let image_hashes = images
+        .iter()
+        .map(|image| {
+            let local = images
+                .iter()
+                .filter(|other| other.page.index == image.page.index)
+                .position(|other| other.id == image.id)
+                .unwrap_or_default();
+            document
+                .image_bytes(
+                    image.page.index,
+                    oc_model::extract::ImageId(u32::try_from(local).unwrap_or_default()),
+                )
+                .map(|decoded| oc_pdf::images::perceptual_hash(&decoded))
+                .unwrap_or_default()
+        })
+        .collect();
+    let doc_info = document.doc_info();
+
+    let stage_input = StructureInput {
+        blocks: crate::structure_input::block_views(&text, &layout),
+        runs: crate::pipeline::body_runs(&text, &furniture),
+        fonts: text.fonts.clone(),
+        images,
+        image_hashes,
+        vectors: (0..document.page_count())
+            .filter_map(|page| document.page_vectors(page).ok())
+            .flatten()
+            .collect(),
+        outline: document.outline(),
+        labels: furniture.labels.clone(),
+        drop_caps: layout.drop_caps.iter().flatten().cloned().collect(),
+        page_count: document.page_count(),
+        meta: MetaSources {
+            xmp: document.xmp(),
+            info: InfoDict {
+                title: doc_info.title.clone(),
+                author: doc_info.author.clone(),
+            },
+            filename: filename.to_owned(),
+            source_sha256: source_sha256.to_owned(),
+            language: lang.clone(),
+        },
+        lang,
+    };
+    let stage =
+        crate::pipeline::structure_stage(&layout, &stage_input, &mut totals, t).map_err(fail)?;
+
+    let sections = stage
+        .output
+        .sections
+        .iter()
+        .map(|section| SectionLine {
+            id: section.id.to_string(),
+            role: section.role,
+            level: section.level,
+            heading: section.heading.as_ref().map(oc_model::doc::Heading::text),
+            source_pages: section.source_pages,
+            children: u32::try_from(section.children.len()).unwrap_or(u32::MAX),
+            content: u32::try_from(section.content.len()).unwrap_or(u32::MAX),
+        })
+        .collect();
+
+    Ok((
+        Header {
+            ir_version: oc_model::IR_VERSION,
+            schema: "openconvert.dump.structure/1",
+            stage: STAGE,
+            check: stage.check.clone(),
+            digest: digest(&stage.output),
+            metadata: stage.output.metadata.clone(),
+            note_match_rate: stage.output.note_stats.match_rate,
+            escalation_candidates: u32::try_from(stage.output.escalations.len())
+                .unwrap_or(u32::MAX),
+            escalation_allowed: stage.output.inventory.escalation_allowed,
+        },
+        sections,
+    ))
+}
+
+fn fail(error: oc_core::ledger_check::ConservationError) -> String {
+    error.to_string()
+}

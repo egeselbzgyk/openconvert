@@ -2110,3 +2110,66 @@ Three options were considered:
 `f10`'s table is set with `inset: 8pt` so that its gutters are 1.6 em and the *gridded* path
 is the one test 4.13 exercises. A tightly set ruled table is a known gap; option 2 closes it,
 and the corpus in Phase 7 is what says how often it matters.
+
+## 2026-09-14 — Phase 4 fixture numbering
+
+The plan's Phase 4 Files list names `f06_footnotes`, `f07_novel_structure` and
+`f08_lists_and_table`, and `h15`–`h20` for the hand-made ones. All of those numbers were spent
+in Phases 2 and 3. Phase 4 therefore uses **`f08`, `f09`, `f10`** and **`h24`–`h29`**, and
+`f07` is `f07_verse_and_quote` — the fixture the plan listed under Phase 3 and Phase 3
+deliberately did not write, because no Phase 3 test named it and verse is PIPELINE §8.6.
+`PROGRESS.md` predicted `h24` for test 4.10; it went to test 4.8 instead, the hand-made
+fixtures being assigned in test order.
+
+## 2026-09-14 — a heading is its own block, and the size barrier that makes it one
+
+Docstrum reads geometry and nothing else. On `f09` the gap between a 14 pt heading and the
+10 pt line under it is 14.1 pt against a body leading of 13.1 pt — 7 % — which no distance
+multiplier can catch without splitting every paragraph in the book. The size difference is
+29 %.
+
+PIPELINE §6 defines a block as "one paragraph, one heading", so `layout.block.size_barrier_ratio`
+is that definition being enforced rather than a heuristic added on top of it. Three properties
+were load-bearing:
+
+- It applies to **both** segmenters. The barrier is a fact about the page, not a property of
+  either algorithm; applied to Docstrum alone it would make the two disagree at every heading
+  and flag the whole book low-confidence.
+- It reads the line's **dominant** size — the size of its longest segment — which keeps a drop
+  cap, the largest glyph on a body line, inside its line rather than in a block of its own.
+- `paragraphs` needed the same barrier. Typst, like most book designers, does not indent the
+  first line after a heading, so with the heading in a block of its own the indent convention
+  had nothing to break on and reconstruction merged them straight back.
+
+Cost: `f01`'s digest goes from 4 blocks to 5 and `f02`'s from 15 to 16 — the headings — and
+`f02`'s low-confidence count falls from 2 to 1, the barrier being a place the two segmenters
+now agree.
+
+## 2026-09-14 — superscripts that are neither raised nor small
+
+PIPELINE §4 step 4 reads a superscript as an origin moved off the baseline **and** a smaller
+size. Typst, through Libertinus, sets footnote markers with an OpenType `sups` glyph: drawn on
+the baseline at the body size, with only the outline raised. Measured on `f08`: the marker's
+origin y is identical to the letter before it, `size_pt` is identical, and the ink box sits
+3.6 pt clear of the baseline at 10 pt.
+
+The old rule read that as ordinary text, so the marker was swallowed into the middle of a body
+run — `"a reference1 in the"` — where nothing downstream could find it. A second rule was added:
+a glyph whose whole inked box sits at least `footnote.superscript_rise_ratio × size_pt` clear
+of the baseline is a superscript.
+
+It is restricted to the digits and the symbol cycle, and that restriction is the only thing
+that separates the two cases: a `sups` digit and a right single quotation mark are
+geometrically identical. The costs are not symmetric — a mis-flagged apostrophe splits `don't`
+into three runs and emits `don<sup>'</sup>t`, a visible corruption, while a missed marker loses
+a link the bijection check then reports.
+
+## 2026-09-14 — the list marker stays in the item's text
+
+`structure` is Conserving and `Reason` is a closed set of fifteen variants (IR_SKETCH). None of
+them is "a list marker", so a stage that stripped `1.` from an item would be removing text it
+cannot account for, and the conservation check would fail — correctly.
+
+So the marker stays in `Para.text` and `ListItem.marker` records it. `epub` knows that `<ol>`
+draws its own numbers and is the stage that may elide exactly that prefix; deciding how it
+declares that is Phase 5's.

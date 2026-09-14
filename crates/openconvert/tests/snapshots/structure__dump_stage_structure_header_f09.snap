@@ -1,0 +1,5 @@
+---
+source: crates/openconvert/tests/structure.rs
+expression: "format!(\"sections={} headings={} paragraphs={} clusters={} identifier_prefix={} roles={:?}\",\nsections.len(), header.digest.headings.len(),\nheader.digest.content.get(\"paragraph\").copied().unwrap_or(0),\nheader.digest.style_clusters, &header.metadata.identifier[..9],\nsections.iter().map(|section|\nformat!(\"{:?}\", section.role)).collect::<Vec<_>>(),)"
+---
+sections=6 headings=7 paragraphs=15 clusters=4 identifier_prefix=urn:uuid: roles=["FrontMatter(Preface)", "FrontMatter(TableOfContents)", "Chapter", "Chapter", "BackMatter(Appendix)", "BackMatter(Index)"]

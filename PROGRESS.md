@@ -3,9 +3,9 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 4
-CURRENT_ITEM: 4.1 — read PHASE 4 of the plan, then its first work item
-LAST_UPDATED: 2026-09-13
+CURRENT_PHASE: 5
+CURRENT_ITEM: 5.1 — read PHASE 5 of the plan, then its first work item
+LAST_UPDATED: 2026-09-14
 
 ---
 
@@ -27,7 +27,70 @@ LAST_UPDATED: 2026-09-13
 - [x] **Phase 1** — PDF inspection and ingestion  *(VD-d closed: PDFium composites masks, palettes and colour spaces correctly)*
 - [x] **Phase 2** — Text assembly and normalization  *(all 22 named tests green; EN frequency list ships, DE/TR blocked on a D15 licence decision)*
 - [x] **Phase 3** — Layout  *(all 17 named tests green; VD-b closed. A3.2 partial — no corpus to reproduce a gold order from, Phase 7; A3.3 partial — the holdout is English, because D15 has no German source)*
-- [ ] **Phase 4** — Structure  *(headings, outline/TOC, book structure, lists, footnotes, captions, quotes/verse, tables, images, metadata)*
+- [x] **Phase 4** — Structure  *(all 21 named tests green, plus about fifty additions; A4.3 partial — heading F1 needs the Phase 7 corpus)*
+- [ ] **Phase 5** — EPUB generation, Tier-1 validator, EPUBCheck CI gate
+- [ ] **Phase 6** — Structural validation, repair loop, report, CI DOM checks  *(VD-f if the validation pack ships)*
+- [ ] **Phase 7** — Corpus v1, eval harness, benchmarks, real-world holdout
+- [ ] **Phase 8** — AI abstraction (no real model yet)
+- [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
+- [ ] **Phase 10** — AI-assisted decisions (the four tasks)
+- [ ] **Phase 11** — BYO providers
+- [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
+- [ ] **Phase 13** — OCR  *(VD-g must close)*
+- [ ] **Phase 14** — Security hardening
+- [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
+
+## Current work item
+
+**Phase 4 is complete.** Its Definition of Done is checked below, with the one partial row named
+as partial.
+
+First step for Phase 5: read `docs/IMPLEMENTATION_PLAN.md` PHASE 5 and `docs/PIPELINE.md` §9–§10,
+then take the first work item with the TDD loop.
+
+Phase 5 is EPUB generation, the Tier-1 validator and the EPUBCheck CI gate. It is the first phase
+whose output a person can open.
+
+**What Phase 4 hands it**, in the order it will be wanted:
+
+1. **`oc_structure::stage::structure` produces everything but the `Document`.** `Section` trees,
+   `Note`s with their bodies, `Figure`s, `Table`s, `List`s, `Metadata`, the escalation candidates
+   and the warnings. `Document` itself is the `document` stage's (PIPELINE §9) and is deliberately
+   not built yet: it needs `page_breaks`, `DocClass` and `PresetName`, none of which exists.
+2. **The list marker is still in the item's text**, with `ListItem.marker` beside it. `structure`
+   may not remove it — `Reason` has no variant for a list marker and the stage is Conserving — so
+   `epub` is the stage that elides the prefix when it emits `<ol>`, and how it *declares* that is
+   Phase 5's question. `docs/DECISIONS_LOG.md` (2026-09-14) has the reasoning.
+3. **A fallback table carries its data.** `Table.fallback_image` is `Some` and `rows` holds one
+   cell per printed line, because an image of a table takes the content away from anyone who
+   cannot see it (DAISY, R10 §6.12). `epub` emits the image *and* the `<details>`; the
+   rasterising itself is Phase 5's, from `TableRegion.bbox` at `images.vector_raster_scale`.
+4. **`ImageId` means two things and the boundary is `document_images`.** The backend numbers
+   images per *page*, because `image_bytes(page, id)` indexes that page's draw order;
+   `openconvert::structure_input::document_images` renumbers them across the book for `Figure`.
+   The page-local index is recoverable as the image's position among those sharing its page.
+5. **A fallback table's `ImageId`s continue past the document's**, so they name images the file
+   did not contain. `extract_tables` takes the first free id as an argument.
+6. **Fixture numbers.** Taken: **f01–f10**, **h01–h29**. Next free: **f11**, **h30**.
+
+Still open, and cheap: CI's `test` job runs `xtask fixtures` but never `handmade-fixtures` or
+`mutations`, so a builder change that no longer reproduces the committed fixtures is not caught.
+A `--check` mode on those two tasks would close it. Phase 4 changed the builder again (rules,
+placed images, the Info dictionary and the XMP packet).
+
+## Notes` short: what a fresh session needs in order to resume, nothing else.
+
+---
+
+## Phases
+
+- [x] **Phase 0** — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
+      *(First Milestone: `cargo nextest` green on 3 OSes · `cargo deny` clean · `cargo xtask fixtures` builds f01/f02/f03 · `openconvert inspect <fixture>.pdf --json` matches committed insta snapshots · Tauri window shows `hello` engine version · `docs/TEST_MATRIX.md` written)*
+      *(Also opens the Verification-debt table VD-a…VD-g; VD-a must close before `zip` is pinned.)*
+- [x] **Phase 1** — PDF inspection and ingestion  *(VD-d closed: PDFium composites masks, palettes and colour spaces correctly)*
+- [x] **Phase 2** — Text assembly and normalization  *(all 22 named tests green; EN frequency list ships, DE/TR blocked on a D15 licence decision)*
+- [x] **Phase 3** — Layout  *(all 17 named tests green; VD-b closed. A3.2 partial — no corpus to reproduce a gold order from, Phase 7; A3.3 partial — the holdout is English, because D15 has no German source)*
+- [x] **Phase 4** — Structure  *(all 21 named tests green, plus about fifty additions; A4.3 partial — heading F1 needs the Phase 7 corpus)*
 - [ ] **Phase 5** — EPUB generation, Tier-1 validator, EPUBCheck CI gate
 - [ ] **Phase 6** — Structural validation, repair loop, report, CI DOM checks  *(VD-f if the validation pack ships)*
 - [ ] **Phase 7** — Corpus v1, eval harness, benchmarks, real-world holdout
@@ -78,6 +141,22 @@ h22 and h23 themselves).
 ## Notes
 
 Carried forward, in the order a fresh session needs them:
+
+- **Phase 4's own carry-forwards are in the "Current work item" section above.** Three more that
+  belong with the standing notes:
+  - **A tightly set ruled table falls back to an image.** When a cell gutter is narrower than
+    `text.line_split_gap_em`, `words` keeps two cells in one run and a `Run` carries a box and its
+    text but not its glyphs' positions, so nothing in `structure` can split it. The table takes
+    the image-plus-text fallback with `reason = "a run crosses a column rule"`. The long-term fix
+    is to split runs at vertical rules in `layout`, the way `split_lines_at_gutters` splits them
+    at page gutters, which needs the rules to reach `layout` — they do not today.
+  - **A contents page with no drawn leader is not parsed.** `"Preface    i"` reaches the parser as
+    `"Preface i"` — the gap is geometry and a line's text is not — so it is indistinguishable from
+    a two-word title. Recovering it means measuring the gap between a line's last two runs, which
+    is a second detector and belongs with the corpus that would say how often it is needed.
+  - **`Note.body` is one paragraph.** A note that runs to several paragraphs is one paragraph
+    here. Nothing is lost — the text is all there — but the structure inside a long endnote is
+    not recovered.
 
 - **`docs/DECISIONS_LOG.md` is the record of every decision made while implementing.** Read it before
   changing anything that looks arbitrary; most of it is measured rather than chosen.
@@ -173,6 +252,60 @@ Carried forward, in the order a fresh session needs them:
 ## Blocked
 
 _(empty — Q1 resolved 2026-09-09; see `docs/DECISIONS_LOG.md`)_
+
+## Phase 4 — Definition of Done
+
+Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-14. **One row is partial** and it is
+blocked on the corpus, which is Phase 7's; it is marked as such rather than counted as a pass.
+
+1. **Every named test exists and passes** — all twenty-one rows of the Phase 4 table (4.1–4.21),
+   plus about fifty additions. `docs/TEST_MATRIX.md` lists every one and the CI job that runs it.
+   The plan's fixture numbers were all spent in Phases 2 and 3, so `f06`–`f08` there are
+   `f08`–`f10` here and `h15`–`h20` are `h24`–`h29`; the test *names* are unchanged.
+2. **`cargo nextest run --workspace`** — 307 passed, 0 skipped, 0 ignored, locally. The three-OS
+   claim is CI's and is made when this branch merges, as Phases 2 and 3 cashed theirs.
+3. **clippy** `--workspace --all-targets --all-features --locked -- -D warnings` — clean.
+4. **`cargo fmt --all --check`** — clean.
+5. **`cargo deny check`** — advisories, bans, licenses, sources ok; `deny.tools.toml` ok. `uuid`
+   (MIT OR Apache-2.0) is the only new shipped dependency, and the plan names it.
+6. **`cargo run -p xtask -- thresholds-lint`** — clean. **`ci-lint`** — clean.
+7. **Acceptance criteria A4.1–A4.6.**
+   - **A4.1** (outline → headings 1:1) — `outline_is_used_as_heading_ground_truth` on `f09`, in
+     both directions: every outline entry binds and no heading is emitted that the outline did
+     not name.
+   - **A4.2** (noteref↔footnote bijection total) — `footnote_marker_body_bijection` on `f08`
+     (`match_rate == 1.0`, no anchor shared) and `footnote_symbol_cycle_resets_per_page` on `h24`.
+   - **A4.3** (heading F1 ≥ 0.75 against ground truth on the corpus) — **PARTIAL.** There is no
+     corpus and no heading ground truth to score against; both arrive in Phase 7. What exists is
+     the *exactness* of the two fast paths on `f09` (outline and contents page, 7/7 each), size
+     rank on `f10` (4/4), and `heading_tree_has_no_level_skips` over eight fixtures under all
+     three sources. The same shape of partial as Phase 2's A2.3 and Phase 3's A3.2, and the same
+     cause.
+   - **A4.4** (cell multiset equals source, or the table becomes an image) — enforced as the gate
+     itself in `tables::build_table`, demonstrated by `ruled_table_becomes_html_table` on `f10`
+     for the markup path and `borderless_table_falls_back_to_image_with_details` on `h26` for the
+     other one.
+   - **A4.5** (ledger empty) — `structure_stage_is_conserving` over nine documents, through the
+     real `check_invariants` with `StageKind::Conserving`.
+   - **A4.6** (identical `dc:identifier` across reconversions) —
+     `identifier_is_stable_across_reconversions`, as a unit test on the function and end to end on
+     `h28`, including that the filename does not enter it and the hash does.
+8. **`docs/CHANGELOG.md`** — Phase 4 entry written.
+9. **No unnumbered TODO/FIXME** — `xtask ci-lint` clean.
+
+**Three defects in earlier phases were found and fixed here**, each recorded in
+`docs/DECISIONS_LOG.md`:
+
+- `read_outline` expanded every `/Next` chain at every node, so a five-entry chain came back with
+  thirty-two entries and `f09`'s seven headings with thirty-four. The outline is heading ground
+  truth, so every duplicate would have become a heading. `h13` hid it (its chains are two long)
+  and `f01` hid it (one bookmark).
+- Docstrum merged every heading into the paragraph beneath it, and `paragraphs` merged them back
+  when the barrier was added to `layout` alone.
+- A superscript set with an OpenType `sups` glyph was read as ordinary text, so footnote markers
+  were swallowed into the middle of body runs.
+
+**Known gaps carried out of the phase**, each with a named cause, are in the Notes below.
 
 ## Phase 3 — Definition of Done
 
@@ -382,3 +515,13 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-13  P3.8      oc-text classifier + hyphen_clf.py + holdout; keep-recall 0.912 (3.12 + 6)   650a3e6
 2026-09-13  P3.9      openconvert dump_layout + anchor + drop caps; the cover fixed (3.14-3.16 + 12) 0dfd45c
 2026-09-13  PHASE 3   COMPLETE - Definition of Done checked; A3.2 and A3.3 partial, both named
+2026-09-14  P4.1      oc-model doc: the semantic layer + 5 id types; Para grows its half (3)     ac2218b
+2026-09-14  P4.2      oc-pdf VectorRegion + is_rule + h24; the rule predicate (3)                316611f
+2026-09-14  P4.3      oc-structure cluster + validity gate; text gets a font table (4.3/4.6 + 4) 5b047af
+2026-09-14  P4.4      oc-pdf: an outline entry is read once; f07-f10 land (1)                    697099b
+2026-09-14  P4.5      oc-structure headings: outline/TOC/size-rank + the style barrier (4.1-4.5) 6340775
+2026-09-14  P4.6      oc-structure notes + the raised-ink superscript rule (4.7, 4.8)            d00443d
+2026-09-14  P4.7      oc-structure figures: captions, and the abstention (4.9, 4.10)             a434a4c
+2026-09-14  P4.8      oc-structure lists + tables, and the honest fallback (4.11-4.14 + 5)       9b2b2ad
+2026-09-14  P4.9      oc-structure quotes + meta; XMP over boilerplate (4.16-4.18 + 4)           4076f40
+2026-09-14  P4.10     openconvert structure stage under the conservation law (4.15, 4.19-4.21)   70439b6

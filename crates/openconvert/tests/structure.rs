@@ -1063,3 +1063,125 @@ fn digest_f10_structure() {
     let stage = read.structure("f10_lists_and_table.pdf");
     insta::assert_json_snapshot!(digest(&stage.output));
 }
+
+/// The book's three zones, on a book that has all of them.
+///
+/// `f09` numbers its front matter in roman and restarts at arabic one, which is the hard
+/// boundary signal detail 5 names — a book that restarts its numbering has told the reader
+/// where its body begins. The back matter is found by keyword, and only *after* the body has
+/// begun: `Notes on the Text` is an ordinary chapter title when it opens a book.
+#[test]
+fn book_structure_runs_front_body_back() {
+    let read = read("../../target/fixtures/f09_novel_structure.pdf");
+    let stage = read.structure("f09_novel_structure.pdf");
+
+    let roles: Vec<(String, Option<String>)> = stage
+        .output
+        .sections
+        .iter()
+        .map(|section| {
+            (
+                format!("{:?}", section.role),
+                section.heading.as_ref().map(oc_model::doc::Heading::text),
+            )
+        })
+        .collect();
+    assert_eq!(
+        roles,
+        vec![
+            (
+                "FrontMatter(Preface)".to_owned(),
+                Some("Preface".to_owned())
+            ),
+            (
+                "FrontMatter(TableOfContents)".to_owned(),
+                Some("Contents".to_owned())
+            ),
+            ("Chapter".to_owned(), Some("Chapter One".to_owned())),
+            ("Chapter".to_owned(), Some("Chapter Two".to_owned())),
+            (
+                "BackMatter(Appendix)".to_owned(),
+                Some("Appendix A".to_owned())
+            ),
+            ("BackMatter(Index)".to_owned(), Some("Index".to_owned())),
+        ]
+    );
+
+    // Front ≺ body ≺ back, and the section inside a chapter is a child rather than a sibling.
+    let zones: Vec<oc_model::doc::Zone> = stage
+        .output
+        .sections
+        .iter()
+        .map(|section| section.role.zone())
+        .collect();
+    assert!(zones.windows(2).all(|pair| pair[0] <= pair[1]), "{zones:?}");
+    assert_eq!(stage.output.sections[2].children.len(), 1);
+    assert_eq!(
+        stage.output.sections[2].children[0]
+            .heading
+            .as_ref()
+            .map(oc_model::doc::Heading::text),
+        Some("A Section Within".to_owned())
+    );
+
+    // And the pages run forwards.
+    let starts: Vec<u32> = stage
+        .output
+        .sections
+        .iter()
+        .map(|section| section.source_pages.0)
+        .collect();
+    assert!(
+        starts.windows(2).all(|pair| pair[0] <= pair[1]),
+        "{starts:?}"
+    );
+    assert!(stage
+        .output
+        .warnings
+        .iter()
+        .all(|warning| warning.code != oc_structure::book::W_ZONES_OUT_OF_ORDER));
+}
+
+/// `--dump-stage structure` produces what the CLI spec promises: a header about the book,
+/// then one line per top-level section.
+///
+/// The snapshot is of the *shape* rather than of the whole dump, for the reason Phase 3's
+/// digest split was made: a dump carries geometry, and geometry from a substituted face
+/// differs between hosts (`docs/DECISIONS_LOG.md`, 2026-09-13).
+#[test]
+fn dump_stage_structure_header_f09() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../target/fixtures/f09_novel_structure.pdf");
+    let bytes = std::fs::read(&path).expect("f09 is built");
+    let backend = PdfiumBackend::bind().expect("PDFium is vendored");
+    let document = backend.open(&bytes, None).expect("the fixture opens");
+
+    let (header, sections) = openconvert::dump_structure::dump(
+        document.as_ref(),
+        "f09_novel_structure.pdf",
+        "0f0f0f",
+        LangTag::EN,
+        &T,
+    )
+    .expect("the dump runs");
+
+    assert_eq!(header.schema, "openconvert.dump.structure/1");
+    assert_eq!(header.stage, "structure");
+    assert_eq!(header.check.removed_chars, 0);
+    assert_eq!(header.check.added_chars, 0);
+    assert!(header.escalation_allowed, "f09's inventory is valid");
+    assert_eq!(header.note_match_rate, 1.0, "no notes is a total bijection");
+
+    insta::assert_snapshot!(format!(
+        "sections={} headings={} paragraphs={} clusters={} identifier_prefix={} roles={:?}",
+        sections.len(),
+        header.digest.headings.len(),
+        header.digest.content.get("paragraph").copied().unwrap_or(0),
+        header.digest.style_clusters,
+        &header.metadata.identifier[..9],
+        sections
+            .iter()
+            .map(|section| format!("{:?}", section.role))
+            .collect::<Vec<_>>(),
+    ));
+}
