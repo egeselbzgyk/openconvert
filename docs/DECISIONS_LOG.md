@@ -2173,3 +2173,42 @@ cannot account for, and the conservation check would fail — correctly.
 So the marker stays in `Para.text` and `ListItem.marker` records it. `epub` knows that `<ol>`
 draws its own numbers and is the stage that may elide exactly that prefix; deciding how it
 declares that is Phase 5's.
+
+## 2026-09-14 — `Decision.subject` is optional, because two of the first decisions are not about a block
+
+IR_SKETCH gives `Decision { subject: BlockId, … }`. The first two decisions the pipeline
+actually records are the document class and the preset, and both are choices about the *book*:
+there is no block to name. Filling the field with a block id chosen for the purpose would make
+a document-level decision indistinguishable from a decision about whichever block that id
+belongs to, which is exactly the confusion the decisions log exists to prevent.
+
+So `subject: Option<BlockId>`. IR_SKETCH says documents may elaborate but must not contradict;
+this is the smallest elaboration that keeps the record honest, and a per-block decision still
+carries its block.
+
+## 2026-09-14 — a page break before a heading, and where it is recorded
+
+`book_structure` moves a section's opening heading out of the content list and into
+`Section.heading`. A page-break walk that looked only at content would therefore attach the
+break for a page that begins with a chapter title to the first *paragraph* of that chapter, and
+"go to page 57" would land past the title of the chapter that starts on page 57.
+
+The break is recorded as the first item of the section's content list, and `epub` lifts a
+leading run of `Content::PageBreak` above the heading. The alternative — a second place for
+`epub` to look, keyed on `before_block == heading.id` — puts the same rule in two places and
+makes the flow no longer the authority on order.
+
+## 2026-09-14 — `furniture` recovers no folio from a book that changes numbering system
+
+`f09` paginates its front matter `i, ii` and its body `1, 2, 3`. Digit masking puts the three
+arabic folios in one group and the two roman ones in groups of one, so the largest folio group
+covers 3 of 5 pages: a repetition ratio of 0.6, inside the grey zone `[0.30, 0.70)`, where the
+detector abstains. The folios stay in the flow as one-character paragraphs and every
+`PageRef.label` is `None` — which also removes the arabic-1 reset that PIPELINE §9 step 1 calls
+a hard boundary signal.
+
+Not fixed here: it is a `furniture` rule, the fix is a change to how a folio group is scoped
+(per numbering system, or per pagination run), and choosing between those wants the Phase 7
+corpus rather than one fixture. Phase 5's label test therefore runs against `f01`, where the
+folios are recovered, and asserts what the `document` stage owns: that a label `furniture`
+found reaches the page break that opens its page.

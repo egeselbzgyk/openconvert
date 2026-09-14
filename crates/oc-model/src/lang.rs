@@ -23,6 +23,13 @@ impl LangTag {
     pub const EN: LangTag = LangTag(Cow::Borrowed("en"));
     pub const DE: LangTag = LangTag(Cow::Borrowed("de"));
     pub const TR: LangTag = LangTag(Cow::Borrowed("tr"));
+    /// BCP-47 `und`: the language is undetermined.
+    ///
+    /// `dc:language` is required by EPUB 3.3 and must not be empty, so a book whose language
+    /// detection abstained still needs a tag. `und` is the tag that says so; guessing `en`
+    /// would tell a screen reader to pronounce a German book in English, which is a worse
+    /// failure than admitting to not knowing.
+    pub const UND: LangTag = LangTag(Cow::Borrowed("und"));
 
     /// Build a tag from text. Trimmed and lower-cased, because BCP-47 is case-insensitive
     /// and two spellings of one language must not be two languages.
@@ -61,6 +68,15 @@ fn a_tag_is_case_insensitive_and_keeps_its_region() {
     assert_eq!(LangTag::new("DE-ch").as_str(), "de-ch");
     assert_eq!(LangTag::new(" TR ").primary(), "tr");
     assert_eq!(LangTag::new("TR"), LangTag::TR);
+}
+
+/// `und` is a real tag and has to behave like one, because it is the value a book gets when
+/// detection abstains and it is emitted into `dc:language` unchanged.
+#[test]
+fn the_undetermined_tag_is_a_tag() {
+    assert_eq!(LangTag::UND.as_str(), "und");
+    assert!(!LangTag::UND.is_empty());
+    assert_eq!(LangTag::new("UND"), LangTag::UND);
 }
 
 #[test]

@@ -491,6 +491,28 @@ evidence = "R10 §6.10: associate if best/second-best distance ratio > 1.5"
 owner = "maintainer"
 review_by = "2028-01-01"
 
+# ---------- document classification (D13.10) ----------
+[docclass.scanned_page_share]
+value = 0.50
+source = "provisional"
+evidence = "D13.10: the share of pages that must carry no extractable text of their own - image-only, ocr-sandwich or broken-text - before the book is `scanned` rather than a born-digital book with plates. A majority, because the classification picks a preset for the whole book and a facsimile appendix in an otherwise typeset volume must not retune it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[docclass.landscape_page_share]
+value = 0.50
+source = "provisional"
+evidence = "D13.10: the share of pages wider than they are tall before the book is `slides/other`. A majority, for the same reason: one fold-out plate in a portrait book is not a deck"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[docclass.multicolumn_page_share]
+value = 0.50
+source = "provisional"
+evidence = "D13.10: the share of pages `layout` laid out in two or more columns before the book is `academic-multicolumn`. A majority, because a journal article sets its abstract and its references full width and its body in two columns, so a bar much above half would misclassify the shape it is meant to catch"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 # ---------- images / epub ----------
 [images.full_page_area_ratio]
 value = 0.95
