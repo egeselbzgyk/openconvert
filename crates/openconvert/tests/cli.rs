@@ -449,3 +449,120 @@ fn validate_tier_two_without_a_jar_says_so() {
 
     let _ = std::fs::remove_dir_all(&directory);
 }
+
+/// The conversion report is written beside the EPUB, and `--report` puts it somewhere else.
+///
+/// Its default name is `<output>.report.json` (§2.1), and it is written **before** the atomic
+/// rename, so a report exists even for a conversion whose output could not be placed
+/// (PIPELINE §13).
+#[test]
+fn convert_writes_a_report_beside_the_epub_and_where_asked() {
+    let fixture = fixture("f01_prose_single_column");
+    let directory = std::env::temp_dir().join(format!("openconvert-report-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).expect("the scratch directory is made");
+    let output = directory.join("f01.epub");
+
+    let run = Command::new(binary())
+        .arg("convert")
+        .arg(&fixture)
+        .arg("-o")
+        .arg(&output)
+        .arg("--lang")
+        .arg("en")
+        .arg("--modified")
+        .arg("2026-01-01T00:00:00Z")
+        .output()
+        .expect("the binary runs");
+    assert_eq!(
+        run.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+
+    let default_path = directory.join("f01.epub.report.json");
+    let text = std::fs::read_to_string(&default_path).expect("the report is beside the EPUB");
+    let report: serde_json::Value = serde_json::from_str(&text).expect("it is JSON");
+    assert_eq!(report["schema"], "openconvert.report/1");
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["repair"]["status"], "clean");
+    assert!(
+        report["conservation"]["i7"]["holds"]
+            .as_bool()
+            .unwrap_or(false),
+        "I-7 holds and the report says so"
+    );
+    // The warning a user acts on carries its measured value, not prose (R10 §6.20).
+    let warnings = report["warnings"].as_array().cloned().unwrap_or_default();
+    assert!(
+        warnings
+            .iter()
+            .any(|warning| warning["code"] == "W_LOW_RETENTION"
+                && warning["args"]["retention"].is_string()),
+        "{warnings:?}"
+    );
+
+    // And `--report` moves it.
+    let asked = directory.join("elsewhere.json");
+    let run = Command::new(binary())
+        .arg("convert")
+        .arg(&fixture)
+        .arg("-o")
+        .arg(directory.join("f01b.epub"))
+        .arg("--lang")
+        .arg("en")
+        .arg("--report")
+        .arg(&asked)
+        .output()
+        .expect("the binary runs");
+    assert_eq!(run.status.code(), Some(0));
+    assert!(asked.is_file(), "the report went where it was asked");
+    assert!(
+        !directory.join("f01b.epub.report.json").exists(),
+        "and not also to the default place"
+    );
+
+    let _ = std::fs::remove_dir_all(&directory);
+}
+
+/// The NDJSON `warning` event carries the code and its arguments, so the GUI can localise it
+/// (§2.3, R10 §6.20). Phase 5 emitted the code with an empty argument object.
+#[test]
+fn convert_emits_warning_events_with_their_arguments() {
+    let fixture = fixture("f01_prose_single_column");
+    let directory =
+        std::env::temp_dir().join(format!("openconvert-warnings-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).expect("the scratch directory is made");
+
+    let run = Command::new(binary())
+        .arg("convert")
+        .arg(&fixture)
+        .arg("-o")
+        .arg(directory.join("f01.epub"))
+        .arg("--lang")
+        .arg("en")
+        .arg("--progress")
+        .arg("json")
+        .output()
+        .expect("the binary runs");
+    assert_eq!(run.status.code(), Some(0));
+
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    let warnings: Vec<serde_json::Value> = stderr
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|event| event["t"] == "warning")
+        .collect();
+
+    let retention = warnings
+        .iter()
+        .find(|event| event["code"] == "W_LOW_RETENTION")
+        .unwrap_or_else(|| panic!("f01 is flagged for retention: {warnings:?}"));
+    assert_eq!(retention["severity"], "warn");
+    assert!(
+        retention["args"]["retention"].is_string(),
+        "the measured value travels with the event: {retention}"
+    );
+
+    let _ = std::fs::remove_dir_all(&directory);
+}

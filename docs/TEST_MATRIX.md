@@ -509,3 +509,9 @@ indicative (PROGRESS.md).
 | 6.22a | `repair::the_documents_warnings_carry_what_validation_found` | `openconvert` | fixture (f01) | `test` | green |
 | 6.23 | `host::the_modified_timestamp_is_not_part_of_the_content_hash` | `oc-validate` | unit | `test` | green |
 | 6.23a | `host::everything_but_the_timestamp_is_still_hashed` | `oc-validate` | unit | `test` | green |
+| 6.8 | `report::repair_cap_writes_epub_and_marks_invalid` | `openconvert` | integration | `test` | green |
+| 6.12 | `report::report_schema_is_valid_and_snapshotted` | `openconvert` | snapshot (f07) | `test` | green |
+| 6.12a | `report::the_report_carries_every_part_the_plan_names` | `openconvert` | fixture (f01) | `test` | green |
+| 6.12b | `report::the_report_carries_every_thresholds_provenance` | `openconvert` | unit | `test` | green |
+| 6.12c | `cli::convert_writes_a_report_beside_the_epub_and_where_asked` | `openconvert` | binary | `test` | green |
+| 6.12d | `cli::convert_emits_warning_events_with_their_arguments` | `openconvert` | binary | `test` | green |

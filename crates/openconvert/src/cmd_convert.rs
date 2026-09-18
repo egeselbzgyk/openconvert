@@ -12,6 +12,7 @@ use oc_core::events::EventSink;
 use oc_core::exit::ExitCode;
 use oc_core::thresholds::T;
 use oc_epub::EpubOptions;
+use oc_pdf::backend::PdfBackend;
 use oc_pdf::pdfium::PdfiumBackend;
 
 use crate::cli::ConvertArgs;
@@ -22,6 +23,7 @@ const E_INPUT: &str = "E_INPUT";
 const E_PDF: &str = "E_PDF";
 const E_OUTPUT: &str = "E_OUTPUT";
 const E_CONVERT: &str = "E_CONVERT";
+const E_REPORT: &str = "E_REPORT";
 
 /// Run the subcommand, returning the process exit code.
 pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode {
@@ -78,8 +80,44 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
     };
     events.stage("convert", "end");
 
-    for warning in &conversion.built.warnings {
-        events.warning(warning, "warn", serde_json::json!({}));
+    // Every warning the conversion collected, as `code` + `args`. Phase 5 emitted the emitter's
+    // codes with an empty argument object; the document now carries the arguments too, and a
+    // warning that says "retention 0.950 against a floor of 0.980" is the one a user can act on
+    // (PIPELINE §13, R10 §6.20).
+    for warning in &conversion.document.warnings {
+        let args = serde_json::to_value(&warning.args).unwrap_or_else(|_| serde_json::json!({}));
+        events.warning(warning.code, severity_name(warning.severity), args);
+    }
+
+    // The report is written **before** the atomic rename, so a report exists even for a conversion
+    // that then fails to place its output (PIPELINE §13).
+    let report_path = args
+        .report
+        .clone()
+        .unwrap_or_else(|| default_report(&output));
+    let report = openconvert::report::report(
+        &conversion,
+        openconvert::report::ReportInput {
+            filename: &options.filename,
+            pdfium_version: &backend.version().version,
+            producer_family: conversion.producer_family,
+            pages: page_count(&conversion),
+            page_classes: conversion.page_classes.clone(),
+        },
+    );
+    match openconvert::report::to_json(&report) {
+        Ok(json) => {
+            if let Err(error) = std::fs::write(&report_path, json) {
+                events.fatal(E_REPORT, &format!("{}: {error}", report_path.display()));
+                eprintln!("error: {}: {error}", report_path.display());
+                return ExitCode::Failed;
+            }
+        }
+        Err(error) => {
+            events.fatal(E_REPORT, &error.to_string());
+            eprintln!("error: the report could not be serialised: {error}");
+            return ExitCode::Failed;
+        }
     }
 
     if let Err(error) = write_atomically(&output, conversion.built.bytes.as_slice()) {
@@ -88,8 +126,40 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
         return ExitCode::Failed;
     }
 
+    // After the repair cap the EPUB is still written and the report says `invalid`; the CLI says so
+    // too rather than reporting success (D13.7). Still exit 0: the book exists and the report is
+    // where the verdict lives, and a script that treated "slightly invalid" as "no output" would
+    // throw away a usable book.
+    if report.status == openconvert::report::Status::Invalid {
+        eprintln!(
+            "warning: the container is not valid: see {}",
+            report_path.display()
+        );
+    }
+
     events.done_with("ok", Some(&output.to_string_lossy()));
     ExitCode::Ok
+}
+
+/// `<output>.report.json` (§2.1).
+fn default_report(output: &Path) -> PathBuf {
+    let mut name = output.as_os_str().to_os_string();
+    name.push(".report.json");
+    PathBuf::from(name)
+}
+
+/// The NDJSON event schema's severity names (§2.3).
+fn severity_name(severity: oc_model::doc::Severity) -> &'static str {
+    match severity {
+        oc_model::doc::Severity::Info => "info",
+        oc_model::doc::Severity::Warn => "warn",
+        oc_model::doc::Severity::Error => "error",
+    }
+}
+
+/// How many pages the book has, counted from the page breaks the document carries.
+fn page_count(conversion: &openconvert::convert::Conversion) -> u32 {
+    u32::try_from(conversion.document.page_breaks.len()).unwrap_or(u32::MAX)
 }
 
 /// `<input>.epub` next to the input.

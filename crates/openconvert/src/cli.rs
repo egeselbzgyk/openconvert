@@ -45,6 +45,8 @@ pub struct ConvertArgs {
     /// 5.5) has to be able to hold it still from the command line. Without it the gate would
     /// have to redact bytes out of a zip, which is not a thing a CI job should be doing.
     pub modified: Option<String>,
+    /// Where `report.json` goes. `<output>.report.json` when absent (§2.1).
+    pub report: Option<PathBuf>,
 }
 
 /// `validate <INPUT.epub>`.
@@ -114,7 +116,7 @@ openconvert — PDF to reflowable EPUB
 usage:
   openconvert convert <INPUT.pdf> [-o <OUT.epub>] [--preset <NAME>] [--lang <TAG>]
                                   [--password <STRING>] [--progress none|json]
-                                  [--modified <YYYY-MM-DDThh:mm:ssZ>]
+                                  [--modified <YYYY-MM-DDThh:mm:ssZ>] [--report <PATH.json>]
   openconvert validate <INPUT.epub> [--tier 1|2] [--json] [--epubcheck-jar <PATH>]
   openconvert inspect <INPUT.pdf> [--json] [--pages <RANGE>] [--password <STRING>]
                                   [--progress none|json] [--max-pages <N>]
@@ -133,6 +135,7 @@ usage:
   --preset <NAME>      auto|novel|academic|textbook|poetry|scanned (default auto)
   --lang <TAG>         force dc:language and skip detection
   --modified <STAMP>   force dcterms:modified, for byte-identical output
+  --report <PATH>      where report.json goes; default <output>.report.json
   --tier <1|2>         1 = the internal validator (default), 2 = plus EPUBCheck
 
   dump-stage writes one canonical-JSON object per line: a header, then one per page.
@@ -227,6 +230,7 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
         password: std::env::var("OC_PDF_PASSWORD").ok(),
         progress: Progress::None,
         modified: None,
+        report: None,
     };
 
     while let Some(arg) = args.next() {
@@ -246,6 +250,11 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
             }
             "--modified" => {
                 parsed.modified = Some(args.next().ok_or(CliError::MissingValue("--modified"))?);
+            }
+            "--report" => {
+                parsed.report = Some(PathBuf::from(
+                    args.next().ok_or(CliError::MissingValue("--report"))?,
+                ));
             }
             "--password" => {
                 parsed.password = Some(args.next().ok_or(CliError::MissingValue("--password"))?);

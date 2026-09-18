@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 6
-CURRENT_ITEM: 6.5 — `report.json`: the versioned report, `--report` on the CLI, and the
-              post-cap policy end to end (rows 6.8, 6.12)
+CURRENT_ITEM: 6.6 — the warning-code registry and its en/de/tr templates, with the CI check
+              that every code has one in every locale (row 6.11)
 LAST_UPDATED: 2026-09-18
 
 ---
@@ -56,7 +56,7 @@ Work items, in order, with the plan's test rows against each:
       sanity, duplicate and quality statistics (row 6.16 + additions)
 - [x] **6.3** the repair loop: measure, static table, plan, loop (rows 6.4, 6.5, 6.6, 6.7, 6.9)
 - [x] **6.4** the loop wired into the pipeline, fire rate zero on the fixtures (row 6.10)
-- [ ] **6.5** `report.json`, `--report`, and the post-cap policy (rows 6.8, 6.12)
+- [x] **6.5** `report.json`, `--report`, and the post-cap policy (rows 6.8, 6.12)
 - [ ] **6.6** warning codes and the en/de/tr templates (row 6.11)
 - [ ] **6.7** Playwright DOM checks (rows 6.13, 6.14, 6.15)
 
@@ -114,6 +114,26 @@ The stage becomes `Budgeted` when the review UI arrives in Phase 12.
 seven stages where the pipeline had checked eight, and every phase's "checked after every stage"
 claim was one stage short in its evidence. Fixed, and `repair::the_ledger_records_validate_and_repair_as_conserving_stages`
 asserts the whole list in order.
+
+**`report.json` is written on every conversion**, versioned `openconvert.report/1`, to
+`<output>.report.json` or wherever `--report` says, and **before** the atomic rename so a report
+exists even for a conversion whose output could not be placed. It lives in `openconvert::report`
+rather than in `oc-core` as the plan's file list has it: assembling it needs `Tier1Report`,
+`StructuralReport` and `RepairOutcome`, which are `oc-validate`'s, and `oc-validate` depends on
+`oc-core`.
+
+`PROVENANCE` now carries `owner` and `review_by` as well as `source` and `evidence` — "this number
+is provisional" is only actionable with "owned by whom, revisit by when" beside it — so
+`build.rs` emits a `Provenance` struct instead of a 3-tuple. `convert` times each stage and carries
+the producer family and the page-class histogram. The NDJSON `warning` event carries `args` now;
+Phase 5 emitted the code with an empty object.
+
+**Row 6.8's cap is demonstrated at two levels and neither is a whole-pipeline run**, because it
+cannot be: the emitter passes EPUBCheck clean on all ten fixtures, so a real conversion reports
+`Clean` before any repair runs. `repair_loop::the_cap_stops_a_loop_that_would_otherwise_keep_going`
+exercises the cap against a scripted emitter, and `report::repair_cap_writes_epub_and_marks_invalid`
+asserts the policy — report `invalid`, remaining ids verbatim, the EPUB still there. Forcing three
+failing iterations out of a correct emitter would make the assertion about the break.
 
 **What Phase 5 hands it**, in the order it will be wanted:
 
@@ -526,4 +546,5 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-18  P6.1      oc-validate: I-7 over the archive, and retention as a flag (6.1-6.3 + 4)     c5a5627
 2026-09-18  P6.2      oc-validate: the structural report - headings, duplicates, quality (6.16 + 15)  3bca6fd
 2026-09-18  P6.3      oc-validate: the repair loop, its measure and its table (6.4-6.7, 6.9 + 12)  7b35583
-2026-09-18  P6.4      openconvert: the loop on the real path, fire rate zero (6.10 + 5)              PENDING
+2026-09-18  P6.4      openconvert: the loop on the real path, fire rate zero (6.10 + 5)              9889827
+2026-09-18  P6.5      openconvert: report.json, --report, the post-cap policy (6.8, 6.12 + 4)        PENDING

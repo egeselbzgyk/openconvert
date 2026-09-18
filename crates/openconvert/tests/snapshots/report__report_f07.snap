@@ -1,0 +1,201 @@
+---
+source: crates/openconvert/tests/report.rs
+expression: value
+---
+{
+  "schema": "openconvert.report/1",
+  "status": "ok",
+  "engine": {
+    "version": "0.1.0",
+    "ir_version": 1,
+    "pdfium_version": "pinned-for-the-snapshot",
+    "prompt_version": null
+  },
+  "input": {
+    "sha256": "bd23f3de3f8c4b9028bb6a821e533264a75df4e15205a48169caa7743b74e175",
+    "filename": "f07_verse_and_quote.pdf",
+    "pages": 1,
+    "producer_family": "Typst"
+  },
+  "document": {
+    "classification": "book-prose",
+    "preset": "novel",
+    "language": "en",
+    "title": "Verse and Quotation",
+    "sections": 2,
+    "figures": 0,
+    "tables": 0,
+    "notes": 0
+  },
+  "timings_ms": "[redacted]",
+  "conservation": {
+    "c_raw_chars": 1458,
+    "c0_chars": 1458,
+    "epub_chars": 1458,
+    "retention": 1.0,
+    "per_stage": [
+      {
+        "stage": "text",
+        "kind": "budgeted",
+        "removed_chars": 0,
+        "added_chars": 0,
+        "retention": 1.0
+      },
+      {
+        "stage": "furniture",
+        "kind": "budgeted",
+        "removed_chars": 0,
+        "added_chars": 0,
+        "retention": 1.0
+      },
+      {
+        "stage": "layout",
+        "kind": "conserving",
+        "removed_chars": 0,
+        "added_chars": 0,
+        "retention": 1.0
+      },
+      {
+        "stage": "structure",
+        "kind": "conserving",
+        "removed_chars": 0,
+        "added_chars": 0,
+        "retention": 1.0
+      },
+      {
+        "stage": "document",
+        "kind": "conserving",
+        "removed_chars": 0,
+        "added_chars": 0,
+        "retention": 1.0
+      },
+      {
+        "stage": "epub",
+        "kind": "conserving",
+        "removed_chars": 0,
+        "added_chars": 0,
+        "retention": 1.0
+      },
+      {
+        "stage": "validate",
+        "kind": "conserving",
+        "removed_chars": 0,
+        "added_chars": 0,
+        "retention": 1.0
+      },
+      {
+        "stage": "repair",
+        "kind": "conserving",
+        "removed_chars": 0,
+        "added_chars": 0,
+        "retention": 1.0
+      }
+    ],
+    "per_reason": [],
+    "i7": {
+      "holds": true,
+      "missing_chars": 0,
+      "added_chars": 0,
+      "missing_sample": []
+    }
+  },
+  "page_classes": {
+    "text": 1
+  },
+  "validation": {
+    "tier1": {
+      "valid": true,
+      "checked": [
+        "ocf.mimetype",
+        "ocf.container",
+        "ocf.case_collisions",
+        "opf.parse",
+        "opf.metadata",
+        "opf.integrity",
+        "xhtml.well_formed",
+        "xhtml.properties",
+        "xhtml.no_script_no_remote",
+        "xhtml.no_entities",
+        "book.note_bijection",
+        "book.fragments",
+        "book.resources",
+        "book.alt_text",
+        "book.image_parity"
+      ],
+      "findings": []
+    },
+    "tier2_ran": false,
+    "tier3_ran": false,
+    "structural": {
+      "i7": {
+        "missing": {},
+        "extra": {},
+        "epub_chars": 1458,
+        "c0_chars": 1458
+      },
+      "retention": 1.0,
+      "image_parity": true,
+      "note_bijection": true,
+      "hrefs_resolve": true,
+      "heading_sanity": {
+        "h1_count": 1,
+        "level_skips": [],
+        "monotone_with_pages": true,
+        "h1_count_plausible": null
+      },
+      "duplicates": {
+        "blocks": 10,
+        "duplicates": 0,
+        "worst": []
+      },
+      "quality": {
+        "region": "document",
+        "dup_line_frac": 0.0,
+        "dup_para_frac": 0.0,
+        "top_2gram": 0.030864198,
+        "top_3gram": 0.024691358,
+        "top_4gram": 0.0,
+        "non_alpha_word_ratio": 0.0064102565,
+        "mean_word_len": 4.673077,
+        "replacement_share": 0.0,
+        "dict_hit_rate": null
+      },
+      "warnings": []
+    }
+  },
+  "repair": {
+    "status": "clean",
+    "iterations": 0,
+    "fires": {},
+    "log": [],
+    "remaining": []
+  },
+  "warnings": [],
+  "decisions": [
+    {
+      "stage": "document",
+      "subject": null,
+      "kind": "document_class",
+      "chosen": "book-prose",
+      "alternatives": [
+        "academic-multicolumn",
+        "scanned",
+        "slides/other"
+      ],
+      "method": "deterministic",
+      "llm": null
+    },
+    {
+      "stage": "document",
+      "subject": null,
+      "kind": "preset",
+      "chosen": "novel",
+      "alternatives": [
+        "auto"
+      ],
+      "method": "deterministic",
+      "llm": null
+    }
+  ],
+  "thresholds": "[155 entries, redacted]"
+}

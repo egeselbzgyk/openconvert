@@ -56,11 +56,11 @@ fn main() {
     }
 
     let mut namespaces = Vec::new();
-    let mut provenance = Vec::new();
+    let mut provenance: Vec<Recorded> = Vec::new();
     let root_type = collect(table, &[], &mut namespaces, &mut provenance);
     // Depth-first order already matches dotted order for the current key set, but sorting
     // says so rather than relying on it.
-    provenance.sort_by(|a, b| a.0.cmp(&b.0));
+    provenance.sort_by(|a, b| a.key.cmp(&b.key));
 
     let mut out = String::new();
     out.push_str(
@@ -81,17 +81,33 @@ fn main() {
             .render_value()
     );
     out.push_str(
-        "/// `(dotted key, source, evidence)` for every entry, sorted by key. Emitted into\n\
-         /// the conversion report so a reader can see which numbers were provisional.\n\
-         pub static PROVENANCE: &[(&str, &str, &str)] = &[\n",
+        "/// One threshold's provenance, as the conversion report prints it (D17).\n\
+         ///\n\
+         /// `owner` and `review_by` are carried as well as `source` and `evidence`, because\n\
+         /// \"this number is provisional\" is only actionable with \"owned by whom, revisit by\n\
+         /// when\" beside it.\n\
+         #[derive(Debug, Clone, Copy, PartialEq, Eq)]\n\
+         pub struct Provenance {\n\
+         \x20   /// The dotted key, e.g. `layout.furniture.band_ratio`.\n\
+         \x20   pub key: &'static str,\n\
+         \x20   pub source: &'static str,\n\
+         \x20   pub evidence: &'static str,\n\
+         \x20   pub owner: &'static str,\n\
+         \x20   pub review_by: &'static str,\n\
+         }\n\n\
+         /// Every entry's provenance, sorted by key. Emitted into the conversion report so a\n\
+         /// reader can see which numbers were provisional at conversion time.\n\
+         pub static PROVENANCE: &[Provenance] = &[\n",
     );
-    for (key, source, evidence) in &provenance {
+    for entry in &provenance {
         let _ = writeln!(
             out,
-            "    ({}, {}, {}),",
-            quote(key),
-            quote(source),
-            quote(evidence)
+            "    Provenance {{ key: {}, source: {}, evidence: {}, owner: {}, review_by: {} }},",
+            quote(&entry.key),
+            quote(&entry.source),
+            quote(&entry.evidence),
+            quote(&entry.owner),
+            quote(&entry.review_by)
         );
     }
     out.push_str("];\n");
@@ -140,7 +156,7 @@ fn collect(
     table: &toml::Table,
     path: &[String],
     namespaces: &mut Vec<Namespace>,
-    provenance: &mut Vec<(String, String, String)>,
+    provenance: &mut Vec<Recorded>,
 ) -> String {
     let mut fields = BTreeMap::new();
 
@@ -164,7 +180,13 @@ fn collect(
         if child.contains_key(VALUE_KEY) {
             let entry = read_entry(child, &child_path);
             fields.insert(key.clone(), (entry.rust_type, entry.rust_value));
-            provenance.push((dotted(path, key), entry.source, entry.evidence));
+            provenance.push(Recorded {
+                key: dotted(path, key),
+                source: entry.source,
+                evidence: entry.evidence,
+                owner: entry.owner,
+                review_by: entry.review_by,
+            });
         } else {
             let type_name = collect(child, &child_path, namespaces, provenance);
             fields.insert(
@@ -201,6 +223,17 @@ struct Entry {
     rust_value: String,
     source: String,
     evidence: String,
+    owner: String,
+    review_by: String,
+}
+
+/// One entry's provenance as the generator collects it, before it is rendered.
+struct Recorded {
+    key: String,
+    source: String,
+    evidence: String,
+    owner: String,
+    review_by: String,
 }
 
 fn read_entry(table: &toml::Table, path: &[String]) -> Entry {
@@ -223,8 +256,15 @@ fn read_entry(table: &toml::Table, path: &[String]) -> Entry {
         ));
     }
     let evidence = string_field("evidence");
-    // `owner` must be present on every entry; whether it may be empty is the lint's business.
-    let _ = string_field("owner");
+    // `owner` must be present on every entry; whether it may be *empty* is the lint's business,
+    // not the build's — a build that failed on a date nobody touched is a bad way to learn it.
+    let owner = string_field("owner");
+    // `review_by` is optional in the schema: only a `provisional` entry owes one (§0.7).
+    let review_by = table
+        .get("review_by")
+        .and_then(toml::Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
 
     let (rust_type, rust_value) = match table.get(VALUE_KEY) {
         Some(toml::Value::Float(f)) => ("f64".to_owned(), format!("{f:?}f64")),
@@ -242,6 +282,8 @@ fn read_entry(table: &toml::Table, path: &[String]) -> Entry {
         rust_value,
         source,
         evidence,
+        owner,
+        review_by,
     }
 }
 

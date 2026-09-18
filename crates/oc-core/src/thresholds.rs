@@ -243,10 +243,20 @@ fn generated_constants_match_toml() {
     assert_eq!(PROVENANCE.len(), file_entries);
     let band = PROVENANCE
         .iter()
-        .find(|(key, _, _)| *key == "layout.furniture.band_ratio")
+        .find(|entry| entry.key == "layout.furniture.band_ratio")
         .expect("band_ratio is in PROVENANCE");
-    assert_eq!(band.1, "published");
-    assert!(band.2.contains("R2 §B.4"), "{}", band.2);
+    assert_eq!(band.source, "published");
+    assert!(band.evidence.contains("R2 §B.4"), "{}", band.evidence);
+
+    // Owner and `review_by` travel too, because the report's promise is that a user can see which
+    // numbers were provisional *and who owes a better one* (D17).
+    let provisional = PROVENANCE
+        .iter()
+        .find(|entry| entry.key == "validate.min_char_retention")
+        .expect("min_char_retention is in PROVENANCE");
+    assert_eq!(provisional.source, "provisional");
+    assert_eq!(provisional.owner, "maintainer");
+    assert_eq!(provisional.review_by, "2027-06-30");
 }
 
 #[cfg(test)]

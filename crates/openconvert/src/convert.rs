@@ -39,6 +39,33 @@ pub struct ConvertOptions {
     pub epub: EpubOptions,
 }
 
+/// Per-stage wall-clock, in milliseconds, in stage order.
+///
+/// An `IndexMap` would do as well; a `Vec` of pairs is used because the report prints them in stage
+/// order and a map would invite someone to sort them by name, which is not the order anybody wants
+/// to read a pipeline in.
+#[derive(Clone, Debug, Default)]
+pub struct Timings(Vec<(&'static str, u64)>);
+
+impl Timings {
+    /// Time one stage.
+    fn stage<T, E>(
+        &mut self,
+        name: &'static str,
+        run: impl FnOnce() -> Result<T, E>,
+    ) -> Result<T, E> {
+        let started = std::time::Instant::now();
+        let out = run();
+        let elapsed = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        self.0.push((name, elapsed));
+        out
+    }
+
+    pub fn as_slice(&self) -> &[(&'static str, u64)] {
+        &self.0
+    }
+}
+
 /// What one conversion produced.
 pub struct Conversion {
     pub document: Document,
@@ -51,6 +78,15 @@ pub struct Conversion {
     pub structural: oc_validate::structural::StructuralReport,
     /// How the validate→repair loop ended, what fired, and what remains.
     pub repair: oc_validate::repair::RepairOutcome,
+    /// Per-stage wall-clock, for the report.
+    pub timings: Timings,
+    /// The producer family, which is also the stratum the corpus is reported by (D18).
+    ///
+    /// Read from the file's own `/Producer` and `/Creator` rather than from `inspect`'s report:
+    /// `convert` does not run `inspect`, and the family is a pure function of two strings.
+    pub producer_family: oc_pdf::producer::ProducerFamily,
+    /// How many pages of each class the document has (D13.10), by the class's report name.
+    pub page_classes: BTreeMap<String, u32>,
 }
 
 /// Why a conversion failed.
@@ -79,17 +115,20 @@ pub fn convert(
     options: &ConvertOptions,
     t: &Thresholds,
 ) -> Result<Conversion, ConvertError> {
-    let input = crate::input::page_inputs(pdf)?;
+    let mut timings = Timings::default();
+    let input = timings.stage("ingest", || crate::input::page_inputs(pdf))?;
     let mut totals = ReasonTotals::default();
 
-    let text = text_stage(&input, &mut totals, t)?;
+    let text = timings.stage("text", || text_stage(&input, &mut totals, t))?;
     // Language detection is Phase 2's and is not wired into the stage driver yet, so the
     // configured tag is the one that is used; `LangTag::UND` is what a book gets when nobody
     // said. Guessing English would tell a screen reader to pronounce a German book in English.
     let language = options.language.clone().unwrap_or(LangTag::UND);
 
-    let furniture = furniture_stage(&text, language.clone(), &mut totals, t)?;
-    let layout = layout_stage(&text, &furniture, &mut totals, t)?;
+    let furniture = timings.stage("furniture", || {
+        furniture_stage(&text, language.clone(), &mut totals, t)
+    })?;
+    let layout = timings.stage("layout", || layout_stage(&text, &furniture, &mut totals, t))?;
 
     let images = document_images(&text);
     let extracted_images = u32::try_from(images.len()).unwrap_or(u32::MAX);
@@ -123,7 +162,14 @@ pub fn convert(
         },
         lang: language.clone(),
     };
-    let structure = structure_stage(&layout, &structure_input, &mut totals, t)?;
+    let structure = timings.stage("structure", || {
+        structure_stage(&layout, &structure_input, &mut totals, t)
+    })?;
+
+    let producer_family = oc_pdf::producer::producer_family(
+        doc_info.producer.as_deref(),
+        doc_info.creator.as_deref(),
+    );
 
     let classes: Vec<PageClass> = (0..pdf.page_count())
         .map(|page| {
@@ -159,41 +205,45 @@ pub fn convert(
     ledger.push_stage(&layout.delta, layout.check.clone());
     ledger.push_stage(&structure.delta, structure.check.clone());
 
-    let document = document_stage(
-        &structure,
-        DocumentInput {
-            source_sha256,
-            structure: &structure.output,
-            labels: &furniture.labels,
-            classes: &classes,
-            landscape: &landscape,
-            column_counts: &column_counts,
-            block_pages: &block_pages,
-            images: &images,
-            language,
-            preset: options.preset,
-            ledger,
-        },
-        &mut totals,
-        t,
-    )?;
+    let document = timings.stage("document", || {
+        document_stage(
+            &structure,
+            DocumentInput {
+                source_sha256,
+                structure: &structure.output,
+                labels: &furniture.labels,
+                classes: &classes,
+                landscape: &landscape,
+                column_counts: &column_counts,
+                block_pages: &block_pages,
+                images: &images,
+                language,
+                preset: options.preset,
+                ledger,
+            },
+            &mut totals,
+            t,
+        )
+    })?;
 
     let sources = decode_images(pdf, &images);
 
     // `epub`, `validate` and `repair` are one call, because the loop owns the emission: each of its
     // iterations is one regeneration plus one validation pass, and a caller that emitted once for
     // the conservation check and again for the loop would encode every image in the book twice.
-    let loop_result = validate_repair_stage(
-        &document.document,
-        &sources,
-        &options.epub,
-        oc_validate::Expectations {
-            images: Some(extracted_images),
-        },
-        pdf.page_count(),
-        &mut totals,
-        t,
-    )?;
+    let loop_result = timings.stage("epub+validate+repair", || {
+        validate_repair_stage(
+            &document.document,
+            &sources,
+            &options.epub,
+            oc_validate::Expectations {
+                images: Some(extracted_images),
+            },
+            pdf.page_count(),
+            &mut totals,
+            t,
+        )
+    })?;
 
     let epub = epub_check(&loop_result.document, loop_result.built, &mut totals)?;
 
@@ -231,6 +281,9 @@ pub fn convert(
         tier1: loop_result.tier1,
         structural: loop_result.structural,
         repair: loop_result.outcome,
+        timings,
+        producer_family,
+        page_classes: class_histogram(&classes),
     })
 }
 
@@ -244,6 +297,19 @@ pub fn convert_bytes(
 ) -> Result<Conversion, ConvertError> {
     let pdf = backend.open(bytes, password)?;
     convert(pdf.as_ref(), &sha256_hex(bytes), options, t)
+}
+
+/// How many pages fall into each class, by the name the report prints (D13.10).
+fn class_histogram(classes: &[PageClass]) -> BTreeMap<String, u32> {
+    let mut histogram: BTreeMap<String, u32> = BTreeMap::new();
+    for class in classes {
+        let name = serde_json::to_value(class)
+            .ok()
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .unwrap_or_else(|| "unknown".to_owned());
+        *histogram.entry(name).or_default() += 1;
+    }
+    histogram
 }
 
 /// The lowercase hex SHA-256 of the input bytes.
