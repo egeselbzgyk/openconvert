@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 6
-CURRENT_ITEM: 6.3 — the repair loop: the lexicographic measure, the static message-to-repair
-              table, `plan_repairs` and `repair_loop` (rows 6.4, 6.5, 6.6, 6.7, 6.9)
+CURRENT_ITEM: 6.4 — the loop wired into the pipeline: the real `Emit` over build_epub +
+              validate_tier1, the cap's behaviour, the corpus fire rate (rows 6.8, 6.10)
 LAST_UPDATED: 2026-09-18
 
 ---
@@ -54,7 +54,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **6.1** I-7 and retention — `oc-validate::structural` (rows 6.1, 6.2, 6.3 + 6.1a/6.1b/6.2a/6.3a)
 - [x] **6.2** the rest of the structural checks: image parity, note bijection, heading-tree
       sanity, duplicate and quality statistics (row 6.16 + additions)
-- [ ] **6.3** the repair loop: measure, static table, plan, loop (rows 6.4, 6.5, 6.6, 6.7, 6.9)
+- [x] **6.3** the repair loop: measure, static table, plan, loop (rows 6.4, 6.5, 6.6, 6.7, 6.9)
 - [ ] **6.4** the loop wired into the pipeline, cap behaviour, fire rate (rows 6.8, 6.10)
 - [ ] **6.5** warning codes and the en/de/tr templates (row 6.11)
 - [ ] **6.6** `report.json` (row 6.12)
@@ -77,6 +77,22 @@ measurement; three findings are carried out of it, all three in `docs/DECISIONS_
 
 **`oc-validate` gained `oc-text` and `oc-core` as dependencies**, which ARCHITECTURE §3.1's table
 does not list; the argument is in the same log entry and in `crates/oc-validate/Cargo.toml`.
+
+**`oc_validate::repair` is the loop.** A repair edits the `Document` and the book is re-emitted; it
+never patches the zip. All four control rules are in place and each was mutation-tested — deleting
+any one of strict decrease, the new-id rule or the hash rule turns exactly one of rows 6.4/6.5/6.6
+red. The loop takes an `Emit` trait rather than a concrete emitter, because the emitter passes
+EPUBCheck clean on every fixture and therefore cannot be made to oscillate: the cases that matter
+only exist against a double. `Emit::apply` is provided (it calls `apply_fix`) so that the control
+flow and the table's edits are testable apart.
+
+**The repair table has three `AutoFix` entries, not thirty.** `ACC-001` describes a figure whose
+`alt` is empty; `RSC-012` demotes a note reference whose target does not exist to plain text;
+`OPF-003` drops a figure nothing references and that carries no caption. All three are Conserving:
+`alt` is an attribute, a `noteref` is a link, and an uncaptioned figure carries no characters. Six
+more ids are `WarnUser` — understood, and with no fix that would not change the book. Everything
+else is unmapped and reported verbatim. The plan's "~30 ids" would have been thirty untested paths
+for defects this emitter has never produced.
 
 **What Phase 5 hands it**, in the order it will be wanted:
 
@@ -487,4 +503,5 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-14  P5.7      oc-validate: Tier 1, against real and crafted output (5.15, 5.16 + 6)       a4b8e7b
 2026-09-14  P5.8      openconvert: convert + validate; the pipeline moved into the library (5.19 + 5)  19c31b1
 2026-09-18  P6.1      oc-validate: I-7 over the archive, and retention as a flag (6.1-6.3 + 4)     c5a5627
-2026-09-18  P6.2      oc-validate: the structural report - headings, duplicates, quality (6.16 + 15)  PENDING
+2026-09-18  P6.2      oc-validate: the structural report - headings, duplicates, quality (6.16 + 15)  3bca6fd
+2026-09-18  P6.3      oc-validate: the repair loop, its measure and its table (6.4-6.7, 6.9 + 12)  PENDING

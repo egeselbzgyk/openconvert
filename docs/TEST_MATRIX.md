@@ -486,3 +486,20 @@ indicative (PROGRESS.md).
 | 6.18e | `blocks::an_empty_block_is_not_reported` | `oc-validate` | unit | `test` | green |
 | 6.19 | `structural::the_structural_report_holds_on_every_fixture` | `openconvert` | fixture (10) | `test` | green |
 | 6.19a | `structural::the_structural_report_on_every_fixture_is_recorded` | `openconvert` | snapshot (10) | `test` | green |
+| 6.4 | `repair_loop::repair_requires_strict_decrease` | `oc-validate` | unit | `test` | green |
+| 6.5 | `repair_loop::repair_rejects_new_message_id` | `oc-validate` | unit | `test` | green |
+| 6.6 | `repair_loop::repair_detects_oscillation_by_hash` | `oc-validate` | unit | `test` | green |
+| 6.7 | `table::repair_at_most_one_per_file_node` | `oc-validate` | unit | `test` | green |
+| 6.7a | `table::the_plan_is_in_severity_then_id_then_location_order` | `oc-validate` | unit | `test` | green |
+| 6.7b | `table::the_table_is_sorted_and_names_each_id_once` | `oc-validate` | unit | `test` | green |
+| 6.7c | `table::every_fix_has_its_own_id` | `oc-validate` | unit | `test` | green |
+| 6.9 | `repair_loop::unmapped_epubcheck_id_is_logged_not_guessed` | `oc-validate` | unit | `test` | green |
+| 6.9a | `table::an_unmapped_id_produces_no_action_and_is_collected` | `oc-validate` | unit | `test` | green |
+| 6.9b | `table::a_warn_only_id_is_not_an_unmapped_one` | `oc-validate` | unit | `test` | green |
+| 6.9c | `repair_loop::a_covered_id_with_no_safe_fix_says_so_rather_than_saying_nothing` | `oc-validate` | unit | `test` | green |
+| 6.20 | `measure::the_measure_is_lexicographic_in_severity_order` | `oc-validate` | unit | `test` | green |
+| 6.20a | `measure::the_measure_counts_a_finding_list_by_severity` | `oc-validate` | unit | `test` | green |
+| 6.20b | `measure::a_new_message_id_is_the_difference_of_two_id_sets` | `oc-validate` | unit | `test` | green |
+| 6.21 | `repair_loop::a_clean_container_is_not_repaired` | `oc-validate` | unit | `test` | green |
+| 6.21a | `repair_loop::an_accepted_repair_is_counted_under_its_own_id` | `oc-validate` | unit | `test` | green |
+| 6.21b | `repair_loop::the_cap_stops_a_loop_that_would_otherwise_keep_going` | `oc-validate` | unit | `test` | green |

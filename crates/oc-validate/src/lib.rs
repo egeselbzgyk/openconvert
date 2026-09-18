@@ -14,6 +14,7 @@
 
 pub mod blocks;
 pub mod epubcheck;
+pub mod repair;
 pub mod structural;
 pub mod tier1;
 
