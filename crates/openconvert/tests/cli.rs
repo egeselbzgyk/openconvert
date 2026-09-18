@@ -566,3 +566,63 @@ fn convert_emits_warning_events_with_their_arguments() {
 
     let _ = std::fs::remove_dir_all(&directory);
 }
+
+/// The warnings reach a terminal as sentences, in the locale asked for, and never onto the NDJSON
+/// channel (§2.3, R10 §6.20).
+#[test]
+fn convert_prints_localised_warnings_and_never_into_the_event_stream() {
+    let fixture = fixture("f01_prose_single_column");
+    let directory = std::env::temp_dir().join(format!("openconvert-locale-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).expect("the scratch directory is made");
+
+    let run_with = |locale: Option<&str>, progress: &str, name: &str| {
+        let mut command = Command::new(binary());
+        command
+            .arg("convert")
+            .arg(&fixture)
+            .arg("-o")
+            .arg(directory.join(name))
+            .arg("--lang")
+            .arg("en")
+            .arg("--progress")
+            .arg(progress);
+        if let Some(locale) = locale {
+            command.arg("--locale").arg(locale);
+        }
+        let run = command.output().expect("the binary runs");
+        assert_eq!(
+            run.status.code(),
+            Some(0),
+            "stderr: {}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        String::from_utf8_lossy(&run.stderr).into_owned()
+    };
+
+    // English by default: the sentence, with the measured value in it, and not the bare code.
+    let english = run_with(None, "none", "en.epub");
+    assert!(
+        english.contains("of the source text reached the book"),
+        "the English template was rendered: {english}"
+    );
+    assert!(
+        !english.contains("W_LOW_RETENTION"),
+        "the code did not leak into the prose: {english}"
+    );
+
+    // German on request, and it is a different sentence rather than the same one relabelled.
+    let german = run_with(Some("de"), "none", "de.epub");
+    assert!(
+        german.contains("des Quelltextes sind im Buch angekommen"),
+        "the German template was rendered: {german}"
+    );
+
+    // And with `--progress json` every line of stderr is JSON: prose there would break the GUI.
+    let events = run_with(None, "json", "json.epub");
+    for line in events.lines().filter(|line| !line.trim().is_empty()) {
+        serde_json::from_str::<serde_json::Value>(line)
+            .unwrap_or_else(|error| panic!("not JSON: {line:?} ({error})"));
+    }
+
+    let _ = std::fs::remove_dir_all(&directory);
+}

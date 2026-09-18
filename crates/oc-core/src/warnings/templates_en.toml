@@ -1,0 +1,36 @@
+# Warning templates, English (R10 §6.20).
+#
+# One entry per code in `codes.rs`, checked by `every_warning_code_has_all_locale_templates`.
+# Slots are `{name}` and must be names the code declares; a slot the code does not carry, or a
+# declared argument no template mentions, fails a test rather than reaching a user.
+#
+# Every line states **what the software did**, not how the reader should feel about it. A warning is
+# a factual claim, and "3 tables were rendered as images because their structure could not be
+# recovered" is one; "some tables may not look right" is not.
+
+W_BROKEN_TEXT_PAGES = "{count} pages contain text that could not be decoded into characters. The fonts on those pages carry no usable character map, so OCR is the only way to read them."
+W_CAPTION_AMBIGUOUS = "The caption \"{caption}\" could belong to more than one figure, so it was left where it was printed. Nearest candidate {best}, next {second}; {reason}."
+W_DUPLICATE_BLOCKS = "{blocks} blocks appear more than once in the book — {fraction} of all blocks, against a bound of {bound}. The most repeated is {worst}. A block emitted twice is a fault in this converter, not a property of your book."
+W_EPUB_INVALID = "The EPUB was written but is not valid: {fatal} fatal and {error} remaining problems ({ids}); the repair loop stopped with status {status}. The file will still open in most reading systems."
+W_EPUB_LARGE = "The EPUB is larger than the size at which some reading systems begin to struggle. Its images are the usual cause."
+W_HEADINGS_OUT_OF_PAGE_ORDER = "The headings do not run in the order their pages do. The chapter structure may be wrong."
+W_HEADING_COUNT_IMPLAUSIBLE = "The book has {count} top-level headings, outside the {min}–{max} a book of this length usually has. Chapter detection may have split too much or too little."
+W_HEADING_LEVEL_SKIP = "The heading structure skips a level in {count} places, first at {first}. Screen readers announce a skipped level as a missing section."
+W_IMAGE_ONLY_PAGES = "{count} pages are images with no text layer at all. They are carried as pictures; OCR would be needed to read them."
+W_LANG_FALLBACK = "No language could be detected, so the one configured for this job was used for dc:language. EPUB requires the field, so the alternative was an invalid book."
+W_LANG_UNSTABLE = "Too much of the book disagreed with its detected language for per-paragraph language tags to be trustworthy, so none was applied."
+W_LIST_NUMBERING_GAP = "A numbered list skips numbers: {numbers}. The printed numbering is kept as it was."
+W_LOW_RETENTION = "{retention} of the source text reached the book, below the {floor} this converter flags at. Removed running heads and page numbers are counted here and are not losses."
+W_NOTE_UNMATCHED = "{markers} footnote markers and {notes} footnote bodies were found, of which {matched} could be paired. The unpaired ones were left inline where they were printed."
+W_NO_TEXT_EXTRACTED = "No text could be extracted from this document. Its pages are carried as images so that nothing is lost, but the book is not searchable or reflowable."
+W_ORNAMENT_DROPPED = "An image repeated on {pages} of {page_count} pages was treated as a decorative ornament and left out."
+W_PAGE_BREAK_UNPLACED = "A page boundary could not be anchored anywhere in the reading order, so this page has no entry in the page list."
+W_REPAIR_FIRED = "A structural repair ({repair}) was applied at {location} in answer to {message_id}. Every repair that fires is a fault in this converter; please report it."
+W_REPAIR_OSCILLATION = "Two repairs undid each other, so repair was stopped and the last good version kept."
+W_SECTION_PAGES_NOT_MONOTONE = "Section {section} covers pages that run backwards or overlap another section ({starts}). The chapter boundaries may be wrong."
+W_STYLE_INVENTORY_INVALID = "Heading detection by text style was not usable here — {clusters} style groups covering {body_char_share} of the text — so headings were found by size alone."
+W_TABLE_AS_IMAGE = "A {rows}×{columns} table was rendered as a picture with its text below it, because its structure could not be recovered ({reason})."
+W_UNMAPPED_VALIDATION_ID = "The validator reported {message_id}, which this converter has no repair for. It is recorded exactly as reported rather than guessed at; please report it."
+W_VALIDATION_UNREPAIRABLE = "The validator reported {message_id}. It is a real problem, and no automatic fix exists that would not change the text of your book."
+W_XHTML_OVERSIZE = "One chapter file is larger than the size at which some reading systems become slow, and could not be split at a paragraph boundary."
+W_ZONES_OUT_OF_ORDER = "The front matter, body and back matter do not run in that order ({zones}). The book structure may be wrong."

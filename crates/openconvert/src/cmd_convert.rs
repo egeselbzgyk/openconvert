@@ -126,6 +126,21 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
         return ExitCode::Failed;
     }
 
+    // The warnings, as sentences, for a person reading a terminal. Only when stderr is *not* the
+    // NDJSON channel: with `--progress json` stderr is one JSON object per line and a line of prose
+    // in it would break every reader (§2.3). The GUI localises the codes itself (R10 §6.20); this
+    // is the same templates serving the other front end.
+    if !matches!(args.progress, crate::cli::Progress::Json) {
+        for warning in &conversion.document.warnings {
+            match oc_core::warnings::render(args.locale, warning.code, &warning.args) {
+                Some(text) => eprintln!("{}: {text}", severity_name(warning.severity)),
+                // A code with no template cannot happen — `xtask ci-lint` holds the registry and the
+                // tree in agreement — and if it ever does, the code itself is more use than silence.
+                None => eprintln!("{}: {}", severity_name(warning.severity), warning.code),
+            }
+        }
+    }
+
     // After the repair cap the EPUB is still written and the report says `invalid`; the CLI says so
     // too rather than reporting success (D13.7). Still exit 0: the book exists and the report is
     // where the verdict lives, and a script that treated "slightly invalid" as "no output" would

@@ -1,0 +1,33 @@
+# Uyarı şablonları, Türkçe (R10 §6.20).
+#
+# `codes.rs` içindeki her kod için bir girdi; `every_warning_code_has_all_locale_templates` denetler.
+# Yer tutucular `{ad}` biçimindedir ve kodun taşıdığı adlar olmak zorundadır.
+#
+# Her satır **yazılımın ne yaptığını** söyler, okurun bu konuda ne düşünmesi gerektiğini değil.
+
+W_BROKEN_TEXT_PAGES = "{count} sayfada karaktere çevrilemeyen metin var. Bu sayfaların yazı tipleri kullanılabilir bir karakter eşlemi taşımıyor; okumanın tek yolu OCR."
+W_CAPTION_AMBIGUOUS = "\"{caption}\" resim yazısı birden fazla şekle ait olabilirdi, bu yüzden basıldığı yerde bırakıldı. En yakın aday {best}, sonraki {second}; {reason}."
+W_DUPLICATE_BLOCKS = "{blocks} blok kitapta birden fazla kez geçiyor — tüm blokların {fraction} kadarı, {bound} sınırına karşı. En çok yinelenen: {worst}. İki kez yazılan bir blok kitabınızın değil, bu dönüştürücünün hatasıdır."
+W_EPUB_INVALID = "EPUB yazıldı ama geçerli değil: {fatal} ölümcül ve {error} kalan sorun ({ids}); onarım döngüsü {status} durumuyla durdu. Dosya çoğu okuma sisteminde yine de açılır."
+W_EPUB_LARGE = "EPUB, bazı okuma sistemlerinin zorlanmaya başladığı boyutun üzerinde. Genellikle nedeni görsellerdir."
+W_HEADINGS_OUT_OF_PAGE_ORDER = "Başlıklar, sayfalarının sırasını izlemiyor. Bölüm yapısı yanlış olabilir."
+W_HEADING_COUNT_IMPLAUSIBLE = "Kitapta {count} birinci düzey başlık var; bu uzunlukta bir kitabın olağan {min}–{max} aralığının dışında. Bölüm saptama fazla ya da eksik ayırmış olabilir."
+W_HEADING_LEVEL_SKIP = "Başlık düzeni {count} yerde bir düzey atlıyor, ilki {first} konumunda. Ekran okuyucular atlanan düzeyi eksik bir bölüm olarak duyurur."
+W_IMAGE_ONLY_PAGES = "{count} sayfa, hiç metin katmanı olmayan görsellerden oluşuyor. Görsel olarak taşınıyorlar; okunabilmeleri için OCR gerekir."
+W_LANG_FALLBACK = "Dil saptanamadı, bu yüzden dc:language için bu iş için ayarlanan dil kullanıldı. EPUB bu alanı zorunlu tutar; başka seçenek geçersiz bir kitaptı."
+W_LANG_UNSTABLE = "Kitabın saptanan dille çelişen bölümü, paragraf başına dil etiketlerinin güvenilir olabileceğinden fazlaydı; hiçbiri uygulanmadı."
+W_LIST_NUMBERING_GAP = "Numaralı bir liste numara atlıyor: {numbers}. Basılı numaralandırma olduğu gibi korundu."
+W_LOW_RETENTION = "Kaynak metnin {retention} kadarı kitaba ulaştı; bu dönüştürücünün uyardığı {floor} eşiğinin altında. Kaldırılan sayfa başlıkları ve sayfa numaraları da bu hesaba dâhildir ve bir kayıp değildir."
+W_NOTE_UNMATCHED = "{markers} dipnot işareti ve {notes} dipnot gövdesi bulundu; bunlardan {matched} tanesi eşleştirilebildi. Eşleşmeyenler basıldıkları yerde metin içinde bırakıldı."
+W_NO_TEXT_EXTRACTED = "Bu belgeden hiç metin çıkarılamadı. Hiçbir şey yitmesin diye sayfaları görsel olarak taşınıyor; ama kitap ne aranabilir ne de yeniden akar."
+W_ORNAMENT_DROPPED = "{page_count} sayfanın {pages} tanesinde yinelenen bir görsel süsleme sayıldı ve dışarıda bırakıldı."
+W_PAGE_BREAK_UNPLACED = "Bir sayfa sınırı okuma sırasında hiçbir yere bağlanamadı; bu sayfanın sayfa listesinde bir girdisi yok."
+W_REPAIR_FIRED = "{message_id} üzerine {location} konumunda yapısal bir onarım ({repair}) uygulandı. Çalışan her onarım bu dönüştürücünün bir hatasıdır; lütfen bildirin."
+W_REPAIR_OSCILLATION = "İki onarım birbirini geri aldı; onarım durduruldu ve son sağlam sürüm korundu."
+W_SECTION_PAGES_NOT_MONOTONE = "{section} bölümü geriye doğru giden ya da başka bir bölümle çakışan sayfaları kapsıyor ({starts}). Bölüm sınırları yanlış olabilir."
+W_STYLE_INVENTORY_INVALID = "Metin biçemine dayalı başlık saptama burada kullanılabilir değildi — metnin {body_char_share} kadarını kapsayan {clusters} biçem öbeği — bu yüzden başlıklar yalnızca punto ile bulundu."
+W_TABLE_AS_IMAGE = "{rows}×{columns} boyutunda bir tablo, yapısı geri getirilemediği için metni altında yer alan bir görsel olarak yazıldı ({reason})."
+W_UNMAPPED_VALIDATION_ID = "Doğrulayıcı {message_id} bildirdi; bu dönüştürücünün buna karşılık bir onarımı yok. Tahmin edilmek yerine bildirildiği gibi kaydedildi; lütfen bildirin."
+W_VALIDATION_UNREPAIRABLE = "Doğrulayıcı {message_id} bildirdi. Sorun gerçek ve kitabınızın metnini değiştirmeyecek kendiliğinden bir çözümü yok."
+W_XHTML_OVERSIZE = "Bir bölüm dosyası, bazı okuma sistemlerinin yavaşladığı boyutun üzerinde ve hiçbir paragraf sınırında bölünemedi."
+W_ZONES_OUT_OF_ORDER = "Ön bölüm, ana bölüm ve arka bölüm bu sırayı izlemiyor ({zones}). Kitap yapısı yanlış olabilir."

@@ -1,0 +1,33 @@
+# Warnungsvorlagen, Deutsch (R10 §6.20).
+#
+# Ein Eintrag pro Code aus `codes.rs`, geprüft von `every_warning_code_has_all_locale_templates`.
+# Platzhalter heißen `{name}` und müssen Namen sein, die der Code mitführt.
+#
+# Jede Zeile sagt, **was die Software getan hat**, nicht wie die Leserin darüber denken soll.
+
+W_BROKEN_TEXT_PAGES = "Auf {count} Seiten steht Text, der nicht in Zeichen übersetzt werden konnte. Die Schriften dieser Seiten führen keine brauchbare Zeichentabelle; nur OCR könnte sie lesen."
+W_CAPTION_AMBIGUOUS = "Die Bildunterschrift \"{caption}\" könnte zu mehreren Abbildungen gehören und blieb daher an der gedruckten Stelle. Nächstgelegene Kandidatin {best}, nächste {second}; {reason}."
+W_DUPLICATE_BLOCKS = "{blocks} Blöcke kommen im Buch mehrfach vor — {fraction} aller Blöcke, gegen eine Grenze von {bound}. Am häufigsten: {worst}. Ein doppelt ausgegebener Block ist ein Fehler dieses Konverters, keine Eigenschaft Ihres Buches."
+W_EPUB_LARGE = "Das EPUB ist größer als die Grenze, ab der manche Leseprogramme ins Stocken geraten. Meist sind die Bilder die Ursache."
+W_EPUB_INVALID = "Das EPUB wurde geschrieben, ist aber nicht valide: {fatal} fatale und {error} verbleibende Probleme ({ids}); die Reparaturschleife endete mit Status {status}. Die Datei lässt sich in den meisten Leseprogrammen dennoch öffnen."
+W_HEADINGS_OUT_OF_PAGE_ORDER = "Die Überschriften folgen nicht der Reihenfolge ihrer Seiten. Die Kapitelstruktur kann falsch sein."
+W_HEADING_COUNT_IMPLAUSIBLE = "Das Buch hat {count} Überschriften erster Ebene, außerhalb der {min}–{max}, die ein Buch dieser Länge üblicherweise hat. Die Kapitelerkennung hat zu viel oder zu wenig getrennt."
+W_HEADING_LEVEL_SKIP = "Die Überschriftenhierarchie überspringt an {count} Stellen eine Ebene, zuerst bei {first}. Screenreader lesen eine übersprungene Ebene als fehlenden Abschnitt."
+W_IMAGE_ONLY_PAGES = "{count} Seiten sind Bilder ohne jede Textebene. Sie werden als Bilder übernommen; zum Lesen wäre OCR nötig."
+W_LANG_FALLBACK = "Es ließ sich keine Sprache erkennen, daher wurde die für diesen Auftrag konfigurierte für dc:language verwendet. EPUB verlangt das Feld; die Alternative wäre ein invalides Buch gewesen."
+W_LANG_UNSTABLE = "Zu große Teile des Buches widersprachen der erkannten Sprache, als dass Sprachauszeichnungen pro Absatz verlässlich wären; es wurde keine gesetzt."
+W_LIST_NUMBERING_GAP = "Eine numerierte Liste überspringt Nummern: {numbers}. Die gedruckte Zählung bleibt unverändert."
+W_LOW_RETENTION = "{retention} des Quelltextes sind im Buch angekommen, unter den {floor}, ab denen dieser Konverter warnt. Entfernte Kolumnentitel und Seitenzahlen sind hier mitgezählt und sind kein Verlust."
+W_NOTE_UNMATCHED = "{markers} Fußnotenzeichen und {notes} Fußnotentexte wurden gefunden, davon {matched} einander zugeordnet. Die übrigen blieben im Fließtext an ihrer gedruckten Stelle."
+W_NO_TEXT_EXTRACTED = "Aus diesem Dokument ließ sich kein Text gewinnen. Seine Seiten werden als Bilder übernommen, damit nichts verloren geht; durchsuchbar oder umfließbar ist das Buch damit nicht."
+W_ORNAMENT_DROPPED = "Ein Bild, das auf {pages} von {page_count} Seiten wiederkehrt, wurde als Zierelement behandelt und weggelassen."
+W_PAGE_BREAK_UNPLACED = "Ein Seitenwechsel ließ sich in der Leserichtung nicht verankern; diese Seite hat daher keinen Eintrag in der Seitenliste."
+W_REPAIR_FIRED = "Eine strukturelle Reparatur ({repair}) wurde bei {location} auf {message_id} hin angewandt. Jede ausgelöste Reparatur ist ein Fehler dieses Konverters; bitte melden Sie sie."
+W_REPAIR_OSCILLATION = "Zwei Reparaturen haben sich gegenseitig aufgehoben; die Reparatur wurde abgebrochen und der letzte gute Stand behalten."
+W_SECTION_PAGES_NOT_MONOTONE = "Abschnitt {section} umfasst Seiten, die rückwärts laufen oder einen anderen Abschnitt überlappen ({starts}). Die Kapitelgrenzen können falsch sein."
+W_STYLE_INVENTORY_INVALID = "Die Überschriftenerkennung über Textstile war hier nicht brauchbar — {clusters} Stilgruppen, die {body_char_share} des Textes abdecken — daher wurden Überschriften allein über die Schriftgröße gefunden."
+W_TABLE_AS_IMAGE = "Eine Tabelle mit {rows}×{columns} Zellen wurde als Bild mit ihrem Text darunter ausgegeben, weil ihre Struktur nicht rekonstruierbar war ({reason})."
+W_UNMAPPED_VALIDATION_ID = "Der Validator meldete {message_id}, wofür dieser Konverter keine Reparatur kennt. Die Meldung wird wörtlich aufgezeichnet statt geraten; bitte melden Sie sie."
+W_VALIDATION_UNREPAIRABLE = "Der Validator meldete {message_id}. Das Problem ist echt, und es gibt keine automatische Behebung, die nicht den Text Ihres Buches verändern würde."
+W_XHTML_OVERSIZE = "Eine Kapiteldatei ist größer als die Grenze, ab der manche Leseprogramme langsam werden, und ließ sich an keiner Absatzgrenze teilen."
+W_ZONES_OUT_OF_ORDER = "Vorspann, Hauptteil und Nachspann folgen nicht in dieser Reihenfolge ({zones}). Die Buchstruktur kann falsch sein."

@@ -29,6 +29,9 @@ const IGNORE_ATTRIBUTE: &str = "#[ignore";
 /// A `TODO` or `FIXME` must carry an issue number, as `TODO(#123):` (§0.3 item 9).
 const TODO_MARKERS: [&str; 2] = ["TODO", "FIXME"];
 
+/// The registry every warning code has to be listed in (R10 §6.20, Phase 6 detail 6).
+const REGISTRY: &str = "crates/oc-core/src/warnings/codes.rs";
+
 /// `models.toml` may not ship with placeholder values on a release branch (§1.6).
 ///
 /// This prefix is also exempt from the marker rule above: `TODO_SHA256` is a named slot
@@ -67,6 +70,8 @@ pub fn run(workspace_root: &Path, release_branch: bool) -> Result<()> {
             check_line(&path, number + 1, line, &mut findings);
         }
     }
+
+    check_warning_registry(workspace_root, &mut findings)?;
 
     if release_branch {
         let models = workspace_root.join("models.toml");
@@ -116,6 +121,92 @@ fn check_line(path: &Path, line_number: usize, line: &str, findings: &mut Vec<Fi
             });
         }
     }
+}
+
+/// Every warning code defined in the tree is in `oc-core`'s registry, and every code in the
+/// registry is defined somewhere (R10 §6.20).
+///
+/// This is the rule that makes the localisation gate total. `oc-core` owns the templates and cannot
+/// depend on the crates that raise the warnings — `oc-structure` owns `W_TABLE_AS_IMAGE` because it
+/// is what decides a table cannot be recovered — so the registry is written by hand, and a list
+/// written by hand drifts. Both directions are checked: a code with no registry entry is a user who
+/// gets a bare identifier instead of a sentence, and a registry entry nothing defines is three
+/// translations of a claim the software no longer makes.
+fn check_warning_registry(workspace_root: &Path, findings: &mut Vec<Finding>) -> Result<()> {
+    let registry_path = workspace_root.join(REGISTRY);
+    let registry_text = std::fs::read_to_string(&registry_path)
+        .with_context(|| format!("cannot read {}", registry_path.display()))?;
+    let registered = registry_codes(&registry_text);
+
+    let mut defined: Vec<(String, PathBuf, usize)> = Vec::new();
+    for path in source_files(workspace_root)? {
+        if path == registry_path || is_self_referential(workspace_root, &path) {
+            continue;
+        }
+        if path.extension().is_none_or(|extension| extension != "rs") {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        for (number, line) in text.lines().enumerate() {
+            if let Some(code) = defined_code(line) {
+                defined.push((code, path.clone(), number + 1));
+            }
+        }
+    }
+
+    for (code, path, line) in &defined {
+        if !registered.contains(code) {
+            findings.push(Finding {
+                path: path.clone(),
+                line: *line,
+                rule:
+                    "this warning code is not in crates/oc-core/src/warnings/codes.rs, so it has \
+                       no localised template",
+                text: code.clone(),
+            });
+        }
+    }
+    for code in &registered {
+        if !defined.iter().any(|(defined, _, _)| defined == code) {
+            findings.push(Finding {
+                path: registry_path.clone(),
+                line: 0,
+                rule: "the registry lists a warning code nothing in the tree defines",
+                text: code.clone(),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// `code: "W_…"` entries of the registry.
+fn registry_codes(text: &str) -> Vec<String> {
+    const PREFIX: &str = "code: \"";
+    text.lines()
+        .filter_map(|line| {
+            let rest = line.trim().strip_prefix(PREFIX)?;
+            let end = rest.find('"')?;
+            Some(rest[..end].to_owned())
+        })
+        .collect()
+}
+
+/// The code a `const … : &str = "W_…";` line declares, if it declares one.
+///
+/// Matched on the *value* rather than on the constant's name, because two of them are named
+/// `WARN_IMAGE_ONLY` and `WARN_BROKEN_TEXT` while their values are `W_…` like every other. What the
+/// report carries is the value.
+fn defined_code(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with("const ") && !trimmed.starts_with("pub const ") {
+        return None;
+    }
+    let rest = trimmed.split_once("= \"")?.1;
+    let end = rest.find('"')?;
+    let value = &rest[..end];
+    value.starts_with("W_").then(|| value.to_owned())
 }
 
 /// Whether this file is one of the two that define and test the rules.

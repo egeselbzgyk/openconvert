@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 6
-CURRENT_ITEM: 6.6 — the warning-code registry and its en/de/tr templates, with the CI check
-              that every code has one in every locale (row 6.11)
+CURRENT_ITEM: 6.7 — the Playwright DOM checks at three viewports, and turning the
+              `dom-checks` CI job on (rows 6.13, 6.14, 6.15)
 LAST_UPDATED: 2026-09-18
 
 ---
@@ -57,7 +57,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **6.3** the repair loop: measure, static table, plan, loop (rows 6.4, 6.5, 6.6, 6.7, 6.9)
 - [x] **6.4** the loop wired into the pipeline, fire rate zero on the fixtures (row 6.10)
 - [x] **6.5** `report.json`, `--report`, and the post-cap policy (rows 6.8, 6.12)
-- [ ] **6.6** warning codes and the en/de/tr templates (row 6.11)
+- [x] **6.6** warning codes and the en/de/tr templates (row 6.11)
 - [ ] **6.7** Playwright DOM checks (rows 6.13, 6.14, 6.15)
 
 **`oc_validate::structural::validate_structural` is the structural validator**, and its report
@@ -134,6 +134,23 @@ cannot be: the emitter passes EPUBCheck clean on all ten fixtures, so a real con
 exercises the cap against a scripted emitter, and `report::repair_cap_writes_epub_and_marks_invalid`
 asserts the policy — report `invalid`, remaining ids verbatim, the EPUB still there. Forcing three
 failing iterations out of a correct emitter would make the assertion about the break.
+
+**Twenty-six warning codes, three locales, and a lint that keeps them total.** `oc-core::warnings`
+holds the registry (`codes.rs`: the code and the argument names it carries) and the three template
+files; `render` fills `{slot}`s and leaves an unfilled one *visible*, because a warning missing its
+number has stopped being a factual claim and a brace is a bug report where a blank is a mystery.
+
+The gate has four parts and each was mutation-tested: every code has a template in every locale, no
+locale has a template for a code the registry does not know, every `{slot}` is an argument the code
+declares, and the English text uses every argument its code carries. The registry cannot be derived
+— `oc-structure` owns `W_TABLE_AS_IMAGE` and `oc-core` cannot depend on it — so
+**`xtask ci-lint` holds the registry and the tree in agreement in both directions**: a `W_…`
+constant anywhere with no entry fails, and an entry nothing defines fails.
+
+`--locale en|de|tr` is new and is not in §2.1's flag list; §2.2's job spec has the field. Without it
+the engine's own localisation would be unreachable from the command line and the three template files
+would be readable only by a GUI that arrives in Phase 12. The CLI prints the rendered sentences to
+stderr only when stderr is *not* the NDJSON channel.
 
 **What Phase 5 hands it**, in the order it will be wanted:
 
@@ -547,4 +564,5 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-18  P6.2      oc-validate: the structural report - headings, duplicates, quality (6.16 + 15)  3bca6fd
 2026-09-18  P6.3      oc-validate: the repair loop, its measure and its table (6.4-6.7, 6.9 + 12)  7b35583
 2026-09-18  P6.4      openconvert: the loop on the real path, fire rate zero (6.10 + 5)              9889827
-2026-09-18  P6.5      openconvert: report.json, --report, the post-cap policy (6.8, 6.12 + 4)        PENDING
+2026-09-18  P6.5      openconvert: report.json, --report, the post-cap policy (6.8, 6.12 + 4)        e445783
+2026-09-18  P6.6      oc-core: the warning registry, en/de/tr templates, the registry lint (6.11 + 7)   PENDING

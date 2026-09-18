@@ -47,6 +47,13 @@ pub struct ConvertArgs {
     pub modified: Option<String>,
     /// Where `report.json` goes. `<output>.report.json` when absent (§2.1).
     pub report: Option<PathBuf>,
+    /// Which locale the warnings are printed in.
+    ///
+    /// §2.1's flag list does not have it and §2.2's job spec does (`"locale"`, default `"en"`).
+    /// Without a flag the engine's own localisation would be unreachable from the command line,
+    /// which would make three template files that only a GUI could read — and the GUI is Phase 12.
+    /// Precedence is CLI > job-spec either way (D13.11), so the flag is the spec's field named.
+    pub locale: oc_core::warnings::Locale,
 }
 
 /// `validate <INPUT.epub>`.
@@ -117,6 +124,7 @@ usage:
   openconvert convert <INPUT.pdf> [-o <OUT.epub>] [--preset <NAME>] [--lang <TAG>]
                                   [--password <STRING>] [--progress none|json]
                                   [--modified <YYYY-MM-DDThh:mm:ssZ>] [--report <PATH.json>]
+                                  [--locale en|de|tr]
   openconvert validate <INPUT.epub> [--tier 1|2] [--json] [--epubcheck-jar <PATH>]
   openconvert inspect <INPUT.pdf> [--json] [--pages <RANGE>] [--password <STRING>]
                                   [--progress none|json] [--max-pages <N>]
@@ -136,6 +144,7 @@ usage:
   --lang <TAG>         force dc:language and skip detection
   --modified <STAMP>   force dcterms:modified, for byte-identical output
   --report <PATH>      where report.json goes; default <output>.report.json
+  --locale <TAG>       en|de|tr; which language the warnings are printed in (default en)
   --tier <1|2>         1 = the internal validator (default), 2 = plus EPUBCheck
 
   dump-stage writes one canonical-JSON object per line: a header, then one per page.
@@ -231,6 +240,7 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
         progress: Progress::None,
         modified: None,
         report: None,
+        locale: oc_core::warnings::Locale::En,
     };
 
     while let Some(arg) = args.next() {
@@ -255,6 +265,10 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
                 parsed.report = Some(PathBuf::from(
                     args.next().ok_or(CliError::MissingValue("--report"))?,
                 ));
+            }
+            "--locale" => {
+                let value = args.next().ok_or(CliError::MissingValue("--locale"))?;
+                parsed.locale = oc_core::warnings::Locale::from_tag(&value);
             }
             "--password" => {
                 parsed.password = Some(args.next().ok_or(CliError::MissingValue("--password"))?);

@@ -515,3 +515,11 @@ indicative (PROGRESS.md).
 | 6.12b | `report::the_report_carries_every_thresholds_provenance` | `openconvert` | unit | `test` | green |
 | 6.12c | `cli::convert_writes_a_report_beside_the_epub_and_where_asked` | `openconvert` | binary | `test` | green |
 | 6.12d | `cli::convert_emits_warning_events_with_their_arguments` | `openconvert` | binary | `test` | green |
+| 6.11 | `warnings::every_warning_code_has_all_locale_templates` plus `xtask ci-lint`'s registry rule | `oc-core`, `xtask` | gate | `test`, `lint` | green |
+| 6.11a | `warnings::every_template_slot_is_an_argument_the_code_declares` | `oc-core` | unit | `test` | green |
+| 6.11b | `warnings::the_english_template_uses_every_argument_its_code_carries` | `oc-core` | unit | `test` | green |
+| 6.11c | `warnings::the_registry_is_sorted_and_names_each_code_once` | `oc-core` | unit | `test` | green |
+| 6.11d | `warnings::a_slot_with_no_argument_stays_visible` | `oc-core` | unit | `test` | green |
+| 6.11e | `warnings::every_locale_renders_a_warning_rather_than_its_code` | `oc-core` | unit | `test` | green |
+| 6.11f | `warnings::an_unknown_locale_tag_falls_back_to_english` | `oc-core` | unit | `test` | green |
+| 6.11g | `cli::convert_prints_localised_warnings_and_never_into_the_event_stream` | `openconvert` | binary | `test` | green |

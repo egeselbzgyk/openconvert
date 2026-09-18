@@ -12,3 +12,4 @@ pub mod limits;
 pub mod progress;
 pub mod stages;
 pub mod thresholds;
+pub mod warnings;
