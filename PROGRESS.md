@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 6
-CURRENT_ITEM: 6.2 — the rest of the structural validator: image parity, note bijection,
-              heading-tree sanity, duplicate and quality statistics (rows 6.16 and additions)
+CURRENT_ITEM: 6.3 — the repair loop: the lexicographic measure, the static message-to-repair
+              table, `plan_repairs` and `repair_loop` (rows 6.4, 6.5, 6.6, 6.7, 6.9)
 LAST_UPDATED: 2026-09-18
 
 ---
@@ -52,7 +52,7 @@ do when the output is wrong*.
 Work items, in order, with the plan's test rows against each:
 
 - [x] **6.1** I-7 and retention — `oc-validate::structural` (rows 6.1, 6.2, 6.3 + 6.1a/6.1b/6.2a/6.3a)
-- [ ] **6.2** the rest of the structural checks: image parity, note bijection, heading-tree
+- [x] **6.2** the rest of the structural checks: image parity, note bijection, heading-tree
       sanity, duplicate and quality statistics (row 6.16 + additions)
 - [ ] **6.3** the repair loop: measure, static table, plan, loop (rows 6.4, 6.5, 6.6, 6.7, 6.9)
 - [ ] **6.4** the loop wired into the pipeline, cap behaviour, fire rate (rows 6.8, 6.10)
@@ -60,11 +60,23 @@ Work items, in order, with the plan's test rows against each:
 - [ ] **6.6** `report.json` (row 6.12)
 - [ ] **6.7** Playwright DOM checks (rows 6.13, 6.14, 6.15)
 
-**I-7 holds on all ten fixtures**, measured over the archive through the package document's spine
-rather than over the emitter's own account. The retention ratio it carries is a **flag**, not a
-gate: four fixtures land at 0.968–0.973 because furniture removal is part of `C_0`, and
-`validate.min_char_retention = 0.98` is jointly unsatisfiable with the 0.04 furniture budget. The
-argument, and what Phase 7 has to decide, is in `docs/DECISIONS_LOG.md`, 2026-09-18.
+**`oc_validate::structural::validate_structural` is the structural validator**, and its report
+holds on all ten fixtures: I-7, image parity, the note bijection, resolving hrefs, a sane heading
+tree. `crates/openconvert/tests/snapshots/structural__structural_report_per_fixture.snap` is the
+measurement; three findings are carried out of it, all three in `docs/DECISIONS_LOG.md`, 2026-09-18:
+
+- **Retention is a flag, not a gate.** Four fixtures land at 0.968–0.973 because furniture removal
+  is part of `C_0`, and `validate.min_char_retention = 0.98` is jointly unsatisfiable with the 0.04
+  furniture budget. Appendix D's v1.0 retention gate needs Phase 7's strata to be stated at all.
+- **The Gopher n-gram statistics cannot gate output text.** `f09` scores `top_3gram` 0.8008 against
+  a 0.18 bound, and is correct: its printed contents page is hundreds of `. . .` leaders. The nine
+  statistics are recorded; what warns is `DuplicateStats` over emitted **blocks**, at
+  `validate.dup_block_frac = 0.02`.
+- **The h1-count range is scoped by page count** (`validate.h1_count_min_pages = 20`), so every
+  fixture answers `None` and the check is first exercised on the Phase 7 corpus.
+
+**`oc-validate` gained `oc-text` and `oc-core` as dependencies**, which ARCHITECTURE §3.1's table
+does not list; the argument is in the same log entry and in `crates/oc-validate/Cargo.toml`.
 
 **What Phase 5 hands it**, in the order it will be wanted:
 
@@ -474,4 +486,5 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-14  P5.6      oc-epub: content documents, package, nav, ncx, images, container (5.4-5.14, 5.20 + 14)  24087ae
 2026-09-14  P5.7      oc-validate: Tier 1, against real and crafted output (5.15, 5.16 + 6)       a4b8e7b
 2026-09-14  P5.8      openconvert: convert + validate; the pipeline moved into the library (5.19 + 5)  19c31b1
-2026-09-18  P6.1      oc-validate: I-7 over the archive, and retention as a flag (6.1-6.3 + 4)     d80bb89
+2026-09-18  P6.1      oc-validate: I-7 over the archive, and retention as a flag (6.1-6.3 + 4)     c5a5627
+2026-09-18  P6.2      oc-validate: the structural report - headings, duplicates, quality (6.16 + 15)  PENDING

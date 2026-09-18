@@ -103,3 +103,97 @@ fn retention_per_fixture_is_recorded() {
 
     insta::assert_snapshot!("retention_per_fixture", lines.join("\n"));
 }
+
+/// The whole structural report over every fixture, recorded. This is the measurement the phase
+/// exists to make: it is the first time the project has said, in one place and for every fixture,
+/// how much of the book arrived, whether the heading tree is sane, and whether anything is in the
+/// container twice.
+#[test]
+fn the_structural_report_on_every_fixture_is_recorded() {
+    use oc_core::thresholds::T;
+
+    let mut lines = Vec::new();
+    for stem in FIXTURES {
+        let built = common::build(stem);
+        let tier1 = oc_validate::validate_tier1(
+            &built.built.bytes,
+            &oc_validate::Expectations {
+                images: Some(built.extracted_images),
+            },
+        );
+        let pages = u32::try_from(built.document.page_breaks.len()).unwrap_or(u32::MAX);
+        let report = oc_validate::structural::validate_structural(
+            &built.document,
+            &built.built.bytes,
+            &tier1,
+            pages,
+            &T,
+        )
+        .unwrap_or_else(|error| panic!("{stem}: {error}"));
+
+        lines.push(format!(
+            "{stem}\n  i7 {}  retention {:.4}  parity {}  bijection {}  hrefs {}\n  \
+             h1 {}  skips {}  monotone {:?}  plausible {:?}\n  \
+             blocks {}  duplicates {}  dup_para_frac {:.4}  top_3gram {:.4}\n  warnings {:?}",
+            report.i7.holds(),
+            report.retention,
+            report.image_parity,
+            report.note_bijection,
+            report.hrefs_resolve,
+            report.heading_sanity.h1_count,
+            report.heading_sanity.level_skips.len(),
+            report.heading_sanity.monotone_with_pages,
+            report.heading_sanity.h1_count_plausible,
+            report.duplicates.blocks,
+            report.duplicates.duplicates,
+            report.quality.dup_para_frac,
+            report.quality.top_3gram,
+            report
+                .warnings
+                .iter()
+                .map(|warning| warning.code)
+                .collect::<Vec<_>>()
+        ));
+    }
+
+    insta::assert_snapshot!("structural_report_per_fixture", lines.join("\n"));
+}
+
+/// Acceptance criterion A6.1's other half, and the one the repair loop depends on: every fixture's
+/// structural report holds. I-7, image parity, the note bijection, resolving hrefs and a sane
+/// heading tree are the five the report calls a conjunction, and a fixture that fails one of them
+/// is an emitter bug — which is the premise of the zero-fire-rate gate.
+#[test]
+fn the_structural_report_holds_on_every_fixture() {
+    use oc_core::thresholds::T;
+
+    for stem in FIXTURES {
+        let built = common::build(stem);
+        let tier1 = oc_validate::validate_tier1(
+            &built.built.bytes,
+            &oc_validate::Expectations {
+                images: Some(built.extracted_images),
+            },
+        );
+        let pages = u32::try_from(built.document.page_breaks.len()).unwrap_or(u32::MAX);
+        let report = oc_validate::structural::validate_structural(
+            &built.document,
+            &built.built.bytes,
+            &tier1,
+            pages,
+            &T,
+        )
+        .unwrap_or_else(|error| panic!("{stem}: {error}"));
+
+        assert!(
+            report.holds(),
+            "{stem}: the structural report does not hold — i7 {}, parity {}, bijection {}, \
+             hrefs {}, heading sanity {:?}",
+            report.i7.holds(),
+            report.image_parity,
+            report.note_bijection,
+            report.hrefs_resolve,
+            report.heading_sanity
+        );
+    }
+}

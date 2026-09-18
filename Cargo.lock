@@ -3559,8 +3559,11 @@ name = "oc-validate"
 version = "0.1.0"
 dependencies = [
  "insta",
+ "oc-core",
  "oc-epub",
  "oc-model",
+ "oc-text",
+ "proptest",
  "quick-xml 0.42.0",
  "serde",
  "serde_json",

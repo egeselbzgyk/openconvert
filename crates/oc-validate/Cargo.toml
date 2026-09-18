@@ -16,6 +16,14 @@ ace = []
 [dependencies]
 oc-model = { path = "../oc-model", version = "0.1.0" }
 oc-epub = { path = "../oc-epub", version = "0.1.0" }
+# The structural validator's duplicate detection is the Gopher/MassiveText repetition family
+# (PIPELINE §11, R10 §6.18), which lives in `oc-text` and reads its bounds from `oc-core`.
+# ARCHITECTURE §3.1's table lists only `oc-model` and `oc-epub` against this crate, while §7.2
+# puts duplicate detection inside the structural validator; the alternative to this edge is a
+# second implementation of nine statistics. Neither `oc-text` nor `oc-core` reaches `oc-ai` or
+# `oc-net`, so the bans the table is there to enforce are untouched. See docs/DECISIONS_LOG.md.
+oc-core = { path = "../oc-core", version = "0.1.0" }
+oc-text = { path = "../oc-text", version = "0.1.0" }
 quick-xml.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -23,3 +31,4 @@ thiserror.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
+proptest.workspace = true

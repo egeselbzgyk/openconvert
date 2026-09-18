@@ -677,6 +677,34 @@ evidence = "R6 §11 Layer 1: flag character retention < 98% vs the pdfium text l
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[validate.h1_count_min]
+value = 2
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 6 detail 2 / PIPELINE §14 heading-detection row: a plausible h1 count for a book is 2-60. A book with one h1 is a book whose chapter detection collapsed into a single section"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[validate.h1_count_max]
+value = 60
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN Phase 6 detail 2 / PIPELINE §14: the upper end of the same range. Above it, a size-rank heading detector has promoted body paragraphs"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[validate.h1_count_min_pages]
+value = 20
+source = "provisional"
+evidence = "The h1-count range is stated 'for a book' and says nothing about a five-page document: the lower bound of two chapters is only a claim once a document is long enough to plausibly have two. Twenty pages is the shortest length at which a missing second chapter is evidence rather than arithmetic; derived from the bound, not measured, and the Phase 7 corpus has the page-count distribution to replace it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[validate.dup_block_frac]
+value = 0.02
+source = "provisional"
+evidence = "The share of emitted blocks that may repeat before the container is flagged. Far tighter than quality.dup_para_frac (0.30), which routes a *source* page to review: a block emitted twice in the *output* is a pipeline bug, not a property of the book, and the observed case - AI Engineering, 21526 characters emitted twice - is a table detector claiming text that stayed in the flow. Non-zero at all only because a running head that furniture kept, a repeated 'Notes' heading and a boilerplate copyright line are legitimately identical blocks"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 # ---------- AI (RT C4) ----------
 [ai.enabled]
 value = false

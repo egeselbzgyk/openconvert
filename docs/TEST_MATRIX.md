@@ -470,3 +470,19 @@ indicative (PROGRESS.md).
 | 6.2a | `structural::i7_accepts_a_ledgered_removal` | `oc-validate` | unit | `test` | green |
 | 6.3 | `structural::retention_below_threshold_warns` | `oc-validate` | unit | `test` | green |
 | 6.3a | `structural::a_book_with_no_source_text_has_no_retention_to_report` | `oc-validate` | unit | `test` | green |
+| 6.16 | `duplicates::prop_duplicate_paragraph_detected` | `oc-validate` | property (`proptest`) | `test` | green |
+| 6.16a | `duplicates::one_duplicated_paragraph_in_a_short_document_crosses_the_gopher_bound` | `oc-validate` | unit | `test` | green |
+| 6.16b | `duplicates::one_duplicated_block_in_a_long_book_is_invisible_to_gopher_and_not_to_the_block_bound` | `oc-validate` | unit | `test` | green |
+| 6.16c | `structural::a_repeated_block_is_counted_and_named` | `oc-validate` | unit | `test` | green |
+| 6.17 | `structural::a_heading_level_skip_is_found_and_located` | `oc-validate` | unit | `test` | green |
+| 6.17a | `structural::a_document_that_starts_below_h1_has_skipped_a_level` | `oc-validate` | unit | `test` | green |
+| 6.17b | `structural::headings_out_of_page_order_are_reported` | `oc-validate` | unit | `test` | green |
+| 6.17c | `structural::the_h1_count_range_says_nothing_about_a_document_too_short_to_be_a_book` | `oc-validate` | unit | `test` | green |
+| 6.18 | `blocks::the_head_is_not_a_block` | `oc-validate` | unit | `test` | green |
+| 6.18a | `blocks::a_nested_block_is_counted_once_at_its_innermost_level` | `oc-validate` | unit | `test` | green |
+| 6.18b | `blocks::phrasing_and_entities_are_part_of_the_block` | `oc-validate` | unit | `test` | green |
+| 6.18c | `blocks::whitespace_is_collapsed_so_wrapping_does_not_make_a_new_block` | `oc-validate` | unit | `test` | green |
+| 6.18d | `blocks::a_heading_carries_its_level` | `oc-validate` | unit | `test` | green |
+| 6.18e | `blocks::an_empty_block_is_not_reported` | `oc-validate` | unit | `test` | green |
+| 6.19 | `structural::the_structural_report_holds_on_every_fixture` | `openconvert` | fixture (10) | `test` | green |
+| 6.19a | `structural::the_structural_report_on_every_fixture_is_recorded` | `openconvert` | snapshot (10) | `test` | green |

@@ -2388,3 +2388,41 @@ strata to choose; guessing now would put a number in `thresholds.toml` with no e
 A book whose source carried no text — `f03`, and every scanned book until Phase 13 — has no
 retention ratio at all, and `retention_warnings` returns nothing for it rather than 0.0. Appendix D
 says "non-scanned stratum" for the same reason.
+
+## 2026-09-18 — the structural validator, and one dependency edge the crate map does not list
+
+`oc-validate` now depends on `oc-text` (and through it on `oc-core`). ARCHITECTURE §3.1's table
+lists only `oc-model` and `oc-epub` against this crate, while §7.2 puts duplicate detection inside
+the structural validator and PIPELINE §11 says that detection is the Gopher/MassiveText repetition
+family — which lives in `oc-text` and reads its bounds from `oc-core`. The alternative to the edge
+is a second implementation of nine statistics, one measured over source pages and one over output
+text, free to drift. Neither `oc-text` nor `oc-core` reaches `oc-ai` or `oc-net`, so the three rules
+§3.1 calls load-bearing (`oc-pdf` and `oc-ai` never meet; `oc-ai` has no network crate; `oc-epub`
+depends only on `oc-model`) are untouched, and there is no cycle: `oc-core` depends on `oc-model`
+alone, as every other crate that reads thresholds already assumes.
+
+**Three fields of `StructuralReport` are projections of the Tier-1 report, not second checks.**
+`image_parity`, `note_bijection` and `hrefs_resolve` are things Tier 1 already measures over the
+archive; PIPELINE §11 lists them under Tier 1 and ARCHITECTURE §7.2 lists them again under the
+structural validator, because the structural report is what the user is shown. Two implementations
+of one bijection would be two chances to get it wrong.
+
+**The Gopher n-gram statistics cannot be a gate over output text, and `f09` is why.** Its
+`top_3gram` share is **0.8008**, against a `quality.top_3gram_frac` bound of 0.18 — and the book is
+correct. The cause is its printed contents page: the dotted leader is hundreds of repetitions of
+`. . .`, and the statistic is character-weighted, so three quarters of that page's characters are
+one 3-gram. So the structural report *records* the nine statistics and warns on none of them; what
+it warns on is `DuplicateStats`, over emitted **blocks**, at `validate.dup_block_frac = 0.02`.
+
+That split is the substantive one. `quality.dup_para_frac = 0.30` is datatrove's, and it routes a
+*source* page to review — a threshold about how repetitive human writing gets. A block emitted
+twice in the *output* is a pipeline bug: the motivating case, *AI Engineering*, duplicated 21 526
+characters because a table detector claimed text that stayed in the flow, and at ~100 blocks per
+50 pages that is nowhere near 0.30. Two orders of magnitude tighter is the resolution the finding
+needs. It is not zero because a kept running head, a repeated `Notes` heading and a boilerplate
+copyright line are legitimately identical blocks.
+
+**The h1-count range is scoped by page count.** "A plausible h1 count for a book is 2–60" says
+nothing about a two-page fixture, where "at least two chapters" is arithmetic rather than evidence.
+Below `validate.h1_count_min_pages = 20` the answer is `None`, and every fixture is below it — so
+the check is written and tested and is first exercised for real on the Phase 7 corpus.
