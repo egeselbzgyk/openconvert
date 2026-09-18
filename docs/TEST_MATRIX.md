@@ -530,3 +530,8 @@ indicative (PROGRESS.md).
 | 6.15 | `notes.spec.ts::dom_every_noteref_resolves` | `tests/dom` | gate (Playwright) | `dom-checks`, nightly `webkit-dom` | green |
 | 6.15a | `notes.spec.ts::dom_every_footnote_is_reachable` | `tests/dom` | gate (Playwright) | `dom-checks`, nightly `webkit-dom` | green |
 | 6.24 | `dom_fixtures::a_note_reference_is_resolved_against_the_document_it_is_in` | `xtask` | unit | `test` | green |
+| 6.25 | `ace::ace_zero_serious_violations_on_all_fixtures` | `openconvert` (feature `ace`) | gate | nightly `ace-a11y` | green |
+| 6.25a | `ace::every_fixture_carries_the_accessibility_metadata_ace_requires` | `openconvert` | fixture (10) | `test` | green |
+| 6.25b | `ace::a_critical_violation_counts_as_a_serious_one` | `oc-validate` | unit | `test` | green |
+| 6.25c | `ace::missing_accessibility_metadata_fails_the_gate_on_its_own` | `oc-validate` | unit | `test` | green |
+| 6.25d | `ace::an_unreadable_report_is_an_error_and_not_an_empty_one` | `oc-validate` | unit | `test` | green |

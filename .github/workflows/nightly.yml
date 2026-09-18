@@ -49,6 +49,21 @@ jobs:
     runs-on: ubuntu-latest
     steps: [{ run: 'echo "not yet implemented (Phase 9)"' }]
 
+  # Tier 3 (D6, PIPELINE §11): zero serious violations, and every required accessibility metadata
+  # field present. Ace is a Node application, so the gate is behind the `ace` cargo feature — a
+  # feature is something a job turns on and a developer can too, while an ignored test is one nobody
+  # ever runs again. Nightly rather than per-PR because installing Ace pulls a browser of its own.
   ace-a11y:               # Phase 6
     runs-on: ubuntu-latest
-    steps: [{ run: 'echo "not yet implemented (Phase 6)"' }]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm install --global @daisy/ace
+      - run: cargo run -p xtask -- vendor-pdfium
+      - run: cargo run -p xtask -- fixtures
+      - run: cargo nextest run -p openconvert --features ace --locked -E 'test(ace_zero_serious_violations)'

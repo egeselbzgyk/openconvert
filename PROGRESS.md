@@ -4,8 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 6
-CURRENT_ITEM: 6.8 — `oc-validate::ace`, the Tier-3 Ace-by-DAISY runner, and the nightly
-              `ace-a11y` job (Phase 6's Files list and Dependencies line)
+CURRENT_ITEM: — Phase 6's Definition of Done, then the CHANGELOG entry and the merge to main
 LAST_UPDATED: 2026-09-18
 
 ---
@@ -59,7 +58,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **6.5** `report.json`, `--report`, and the post-cap policy (rows 6.8, 6.12)
 - [x] **6.6** warning codes and the en/de/tr templates (row 6.11)
 - [x] **6.7** Playwright DOM checks (rows 6.13, 6.14, 6.15)
-- [ ] **6.8** the Tier-3 Ace runner and the nightly `ace-a11y` job
+- [x] **6.8** the Tier-3 Ace runner and the nightly `ace-a11y` job
 
 **`oc_validate::structural::validate_structural` is the structural validator**, and its report
 holds on all ten fixtures: I-7, image parity, the note bijection, resolving hrefs, a sane heading
@@ -174,6 +173,17 @@ Two emitter properties the specs found already true, and worth knowing: `pre { w
 overflow-wrap: break-word }` means a 400-character unbroken line does not overflow a phone, and the
 table rules keep a wide table inside its column. The plan named both as the cases row 6.13 would
 fail on.
+
+**Tier 3 is wired.** `oc_validate::ace` runs Ace by DAISY and reads its report; the nightly
+`ace-a11y` job installs `@daisy/ace` and turns the `ace` cargo feature on. Both halves of
+PIPELINE §11's gate are asserted — zero serious violations, **and** every required accessibility
+metadata field present — because a book with no `schema:accessMode` passes every structural check
+and leaves a screen-reader user unable to decide about it before opening it. `critical` counts as
+serious: a gate written against the word alone would pass a book with a critical violation in it.
+
+The metadata half is also asserted **without Node**, on every fixture, by reading the package
+document: what the gate really claims about those properties is that the emitter writes them, and
+that claim should not be testable only in a nightly job.
 
 **What Phase 5 hands it**, in the order it will be wanted:
 
@@ -589,4 +599,5 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-18  P6.4      openconvert: the loop on the real path, fire rate zero (6.10 + 5)              9889827
 2026-09-18  P6.5      openconvert: report.json, --report, the post-cap policy (6.8, 6.12 + 4)        e445783
 2026-09-18  P6.6      oc-core: the warning registry, en/de/tr templates, the registry lint (6.11 + 7)   167227d
-2026-09-18  P6.7      tests/dom: the Playwright DOM checks, three viewports, CI on (6.13-6.15 + 4)    PENDING
+2026-09-18  P6.7      tests/dom: the Playwright DOM checks, three viewports, CI on (6.13-6.15 + 4)    4a71fc0
+2026-09-18  P6.8      oc-validate: the Tier-3 Ace runner and the nightly ace-a11y job (5 tests)      PENDING

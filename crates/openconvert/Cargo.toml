@@ -14,6 +14,9 @@ default = []
 # an ignore attribute — CI turns a feature on and a developer can too, while an ignored test
 # is one nobody ever runs again.
 epubcheck = []
+# Tier 3: Ace by DAISY is a Node application, gated for the same reason and turned on by the
+# nightly `ace-a11y` job.
+ace = []
 
 [lib]
 name = "openconvert"
