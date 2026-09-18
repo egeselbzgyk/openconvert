@@ -43,15 +43,30 @@ impl Package {
     }
 }
 
+/// Read the package document and nothing else — no checks, no findings.
+///
+/// The structural validator needs the spine in order to know which documents carry `C(EPUB)`,
+/// and it is not in the business of reporting OPF defects: that is Tier 1's, which runs first.
+/// `None` when there is no reachable package document.
+pub fn parse(entries: &BTreeMap<String, Vec<u8>>) -> Option<Package> {
+    let container = entries.get(CONTAINER_PATH)?;
+    let path = super::xhtml::attribute(&String::from_utf8_lossy(container), "full-path=\"")?;
+    let text = String::from_utf8_lossy(entries.get(&path)?).into_owned();
+    Some(Package {
+        manifest: manifest(&text),
+        spine: super::xhtml::attributes(&text, "<itemref idref=\""),
+        path,
+    })
+}
+
 /// Parse and check the package document. `None` when it could not be read at all, in which
 /// case every later check would be reporting the same failure again.
 pub fn check(entries: &BTreeMap<String, Vec<u8>>, report: &mut Tier1Report) -> Option<Package> {
     report.ran("opf.parse");
 
-    let container = entries.get(CONTAINER_PATH)?;
-    let path = super::xhtml::attribute(&String::from_utf8_lossy(container), "full-path=\"")?;
-    let bytes = entries.get(&path)?;
-    let text = String::from_utf8_lossy(bytes).into_owned();
+    let package = parse(entries)?;
+    let path = package.path.clone();
+    let text = String::from_utf8_lossy(entries.get(&path)?).into_owned();
 
     if let Err(error) = super::xhtml::well_formed(&text) {
         report.push(Finding::new(
@@ -62,12 +77,6 @@ pub fn check(entries: &BTreeMap<String, Vec<u8>>, report: &mut Tier1Report) -> O
         ));
         return None;
     }
-
-    let package = Package {
-        manifest: manifest(&text),
-        spine: super::xhtml::attributes(&text, "<itemref idref=\""),
-        path: path.clone(),
-    };
 
     report.ran("opf.metadata");
     metadata(&text, &path, report);

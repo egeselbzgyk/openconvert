@@ -2355,3 +2355,36 @@ Both are recorded here because they are the argument for D6's Tier 2 being a har
 than a nice-to-have: seventy tests written against this emitter, including a Tier-1 validator
 whose whole job is to find this class of defect, and neither of these surfaced until an outside
 implementation read the output.
+
+## 2026-09-18 — retention is a flag in Phase 6, and Appendix D wants a number it cannot have
+
+I-7 holds on all ten fixtures on the first run, measured over the archive. The retention ratio it
+carries does not clear `validate.min_char_retention`:
+
+```
+f01 0.9687   f02 0.9888   f03 —(no source text)   f04 1.0000   f05 1.0000
+f06 1.0000   f07 1.0000   f08 0.9677   f09 0.9704   f10 0.9727
+```
+
+Retention is `|C(EPUB)| / |C_0|`, and `C_0` is the pdfium text layer — a running head and a folio
+are part of it. Four fixtures remove furniture and land at 0.968–0.973, all of it ledgered and
+all of it inside the 0.04 furniture budget. So **`validate.min_char_retention = 0.98` and
+`conservation.budget.furniture = 0.04` are jointly unsatisfiable** for any book whose furniture is
+near its budget: 4 % of `|C_0|` legitimately removed puts retention at 0.96.
+
+Resolved for this phase by taking the two sources at their word. R6 §11 says "**flag** character
+retention < 98 %" and `IMPLEMENTATION_PLAN` Phase 6 row 6.3 says `retention_below_threshold_warns`
+— a `Warning`, carrying the measured value, which is what `oc_validate::structural` emits. The
+furniture budget is D13.4's and wins on authority (CLAUDE.md §1) over a threshold introduced in
+`IMPLEMENTATION_PLAN` §1.5.
+
+**Left open for Phase 7 and Appendix D**, where the corpus can answer it: Appendix D's v1.0 item
+"character retention ≥ `validate.min_char_retention` on every non-scanned stratum" reads as a hard
+gate, and as written no book with a running head on every page can pass it. Either the floor moves
+to `1 − global_non_ocr_removal` (0.92), or the metric becomes retention *of text no reason
+accounts for* — which is I-7 itself, and would make the second gate redundant. Phase 7 has the
+strata to choose; guessing now would put a number in `thresholds.toml` with no evidence behind it.
+
+A book whose source carried no text — `f03`, and every scanned book until Phase 13 — has no
+retention ratio at all, and `retention_warnings` returns nothing for it rather than 0.0. Appendix D
+says "non-scanned stratum" for the same reason.

@@ -13,6 +13,8 @@
 //! and records per-message-id parity in `docs/TIER1_PARITY.md`, which CI holds non-decreasing.
 
 pub mod epubcheck;
+pub mod structural;
 pub mod tier1;
 
+pub use structural::{check_i7, epub_chars, I7Result, StructuralError};
 pub use tier1::{validate_tier1, Expectations, Finding, Severity, Tier1Report};

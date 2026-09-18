@@ -458,3 +458,15 @@ indicative (PROGRESS.md).
 | 5.32 | `fetch_epubcheck::the_lock_pins_a_digest_and_a_size` | `xtask` | unit | `test` | green |
 | 5.32a | `epubcheck_parity::the_recorded_number_round_trips_through_the_report` | `xtask` | unit | `test` | green |
 | 5.32b | `epubcheck_parity::a_report_without_a_number_is_not_a_number` | `xtask` | unit | `test` | green |
+
+## Phase 6 — Structural validation, repair loop, report, CI DOM checks
+
+| # | Test | Crate | Kind | CI job | Status |
+|---|---|---|---|---|---|
+| 6.1 | `structural::i7_holds_end_to_end_on_all_fixtures` | `openconvert` | fixture (10) | `test` | green |
+| 6.1a | `structural::the_archive_and_the_emitter_agree_about_the_text` | `openconvert` | fixture (10) | `test` | green |
+| 6.1b | `structural::retention_per_fixture_is_recorded` | `openconvert` | snapshot (10) | `test` | green |
+| 6.2 | `structural::i7_detects_injected_text_loss` | `oc-validate` | unit (mutation) | `test` | green |
+| 6.2a | `structural::i7_accepts_a_ledgered_removal` | `oc-validate` | unit | `test` | green |
+| 6.3 | `structural::retention_below_threshold_warns` | `oc-validate` | unit | `test` | green |
+| 6.3a | `structural::a_book_with_no_source_text_has_no_retention_to_report` | `oc-validate` | unit | `test` | green |

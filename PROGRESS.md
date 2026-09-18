@@ -4,8 +4,9 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 6
-CURRENT_ITEM: 6.1 — read PHASE 6 of the plan, then its first work item
-LAST_UPDATED: 2026-09-14
+CURRENT_ITEM: 6.2 — the rest of the structural validator: image parity, note bijection,
+              heading-tree sanity, duplicate and quality statistics (rows 6.16 and additions)
+LAST_UPDATED: 2026-09-18
 
 ---
 
@@ -44,15 +45,26 @@ LAST_UPDATED: 2026-09-14
 
 ## Current work item
 
-**Phase 5 is complete.** Its Definition of Done is checked below, with the one row that cannot be
-verified on a single machine named as such.
+**Phase 6 in progress.** The structural validator (invariant I-7 end to end), the validate→repair
+loop, the conversion report, and the CI DOM checks. It is the first phase whose subject is *what to
+do when the output is wrong*.
 
-First step for Phase 6: read `docs/IMPLEMENTATION_PLAN.md` PHASE 6 and `docs/PIPELINE.md` §11–§13,
-then take the first work item with the TDD loop.
+Work items, in order, with the plan's test rows against each:
 
-Phase 6 is the structural validator (invariant I-7 end to end), the validate→repair loop, the
-conversion report, and the CI DOM checks. It is the first phase whose subject is *what to do when
-the output is wrong*.
+- [x] **6.1** I-7 and retention — `oc-validate::structural` (rows 6.1, 6.2, 6.3 + 6.1a/6.1b/6.2a/6.3a)
+- [ ] **6.2** the rest of the structural checks: image parity, note bijection, heading-tree
+      sanity, duplicate and quality statistics (row 6.16 + additions)
+- [ ] **6.3** the repair loop: measure, static table, plan, loop (rows 6.4, 6.5, 6.6, 6.7, 6.9)
+- [ ] **6.4** the loop wired into the pipeline, cap behaviour, fire rate (rows 6.8, 6.10)
+- [ ] **6.5** warning codes and the en/de/tr templates (row 6.11)
+- [ ] **6.6** `report.json` (row 6.12)
+- [ ] **6.7** Playwright DOM checks (rows 6.13, 6.14, 6.15)
+
+**I-7 holds on all ten fixtures**, measured over the archive through the package document's spine
+rather than over the emitter's own account. The retention ratio it carries is a **flag**, not a
+gate: four fixtures land at 0.968–0.973 because furniture removal is part of `C_0`, and
+`validate.min_char_retention = 0.98` is jointly unsatisfiable with the 0.04 furniture budget. The
+argument, and what Phase 7 has to decide, is in `docs/DECISIONS_LOG.md`, 2026-09-18.
 
 **What Phase 5 hands it**, in the order it will be wanted:
 
@@ -462,3 +474,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-14  P5.6      oc-epub: content documents, package, nav, ncx, images, container (5.4-5.14, 5.20 + 14)  24087ae
 2026-09-14  P5.7      oc-validate: Tier 1, against real and crafted output (5.15, 5.16 + 6)       a4b8e7b
 2026-09-14  P5.8      openconvert: convert + validate; the pipeline moved into the library (5.19 + 5)  19c31b1
+2026-09-18  P6.1      oc-validate: I-7 over the archive, and retention as a flag (6.1-6.3 + 4)     d80bb89

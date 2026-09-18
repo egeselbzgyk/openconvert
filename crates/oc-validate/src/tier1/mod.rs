@@ -17,7 +17,7 @@
 
 mod book;
 mod ocf;
-mod opf;
+pub(crate) mod opf;
 mod xhtml;
 
 use std::collections::BTreeMap;
