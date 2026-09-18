@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 6
-CURRENT_ITEM: 6.4 — the loop wired into the pipeline: the real `Emit` over build_epub +
-              validate_tier1, the cap's behaviour, the corpus fire rate (rows 6.8, 6.10)
+CURRENT_ITEM: 6.5 — `report.json`: the versioned report, `--report` on the CLI, and the
+              post-cap policy end to end (rows 6.8, 6.12)
 LAST_UPDATED: 2026-09-18
 
 ---
@@ -55,9 +55,9 @@ Work items, in order, with the plan's test rows against each:
 - [x] **6.2** the rest of the structural checks: image parity, note bijection, heading-tree
       sanity, duplicate and quality statistics (row 6.16 + additions)
 - [x] **6.3** the repair loop: measure, static table, plan, loop (rows 6.4, 6.5, 6.6, 6.7, 6.9)
-- [ ] **6.4** the loop wired into the pipeline, cap behaviour, fire rate (rows 6.8, 6.10)
-- [ ] **6.5** warning codes and the en/de/tr templates (row 6.11)
-- [ ] **6.6** `report.json` (row 6.12)
+- [x] **6.4** the loop wired into the pipeline, fire rate zero on the fixtures (row 6.10)
+- [ ] **6.5** `report.json`, `--report`, and the post-cap policy (rows 6.8, 6.12)
+- [ ] **6.6** warning codes and the en/de/tr templates (row 6.11)
 - [ ] **6.7** Playwright DOM checks (rows 6.13, 6.14, 6.15)
 
 **`oc_validate::structural::validate_structural` is the structural validator**, and its report
@@ -93,6 +93,27 @@ flow and the table's edits are testable apart.
 more ids are `WarnUser` — understood, and with no fix that would not change the book. Everything
 else is unmapped and reported verbatim. The plan's "~30 ids" would have been thirty untested paths
 for defects this emitter has never produced.
+
+**The loop is on the real path and fires zero times on all ten fixtures** (row 6.10, A6.2). The loop
+owns the emission: `epub_stage` is split into `build` and `epub_check`, because a `convert` that
+built the book once for the conservation check and again for the loop would re-encode every image
+twice, and PIPELINE §12 budgets one regeneration *per iteration*. `Conversion` now carries `tier1`,
+`structural` and `repair` alongside the document and the bytes.
+
+**`validate` and `repair` are declared stages and are in the ledger**, both Conserving. `repair`'s
+check is the one that earns its keep: it compares `C` of the document the loop was given against `C`
+of the document it settled on with an empty ledger, so a repair that changed one character of the
+book fails I-1 and the conversion stops — PIPELINE §12's "none of them may change the character
+content of the book", stated as an invariant instead of as a property of three functions. `repair`
+is Conserving with an *empty* reason set: PIPELINE §12 words it "except `UserOverride`", and
+declaring a reason a Conserving stage may never cite (I-3) would be a contract contradicting itself.
+The stage becomes `Budgeted` when the review UI arrives in Phase 12.
+
+**A defect found on the way: the `document` stage's conservation check was never recorded.** It ran
+— a violation returns `DocumentError` — but `convert` dropped the `StageCheck`, so the ledger named
+seven stages where the pipeline had checked eight, and every phase's "checked after every stage"
+claim was one stage short in its evidence. Fixed, and `repair::the_ledger_records_validate_and_repair_as_conserving_stages`
+asserts the whole list in order.
 
 **What Phase 5 hands it**, in the order it will be wanted:
 
@@ -504,4 +525,5 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-14  P5.8      openconvert: convert + validate; the pipeline moved into the library (5.19 + 5)  19c31b1
 2026-09-18  P6.1      oc-validate: I-7 over the archive, and retention as a flag (6.1-6.3 + 4)     c5a5627
 2026-09-18  P6.2      oc-validate: the structural report - headings, duplicates, quality (6.16 + 15)  3bca6fd
-2026-09-18  P6.3      oc-validate: the repair loop, its measure and its table (6.4-6.7, 6.9 + 12)  PENDING
+2026-09-18  P6.3      oc-validate: the repair loop, its measure and its table (6.4-6.7, 6.9 + 12)  7b35583
+2026-09-18  P6.4      openconvert: the loop on the real path, fire rate zero (6.10 + 5)              PENDING

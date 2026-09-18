@@ -581,12 +581,25 @@ pub fn epub_stage(
     options: &oc_epub::EpubOptions,
     totals: &mut ReasonTotals,
 ) -> Result<EpubStage, EpubStageError> {
+    let built = oc_epub::build_epub(document, images, options)?;
+    epub_check(document, built, totals)
+}
+
+/// The `epub` stage's conservation check, over a container that has already been built.
+///
+/// Split from the build because the validate→repair loop is the only thing that emits on the real
+/// path: the loop may re-emit up to `repair.max_iterations` times, and a `convert` that built the
+/// book once for the check and again for the loop would re-encode every image in the book twice for
+/// no reason (PIPELINE §12 budgets one regeneration *per iteration*, not two).
+pub fn epub_check(
+    document: &oc_model::document::Document,
+    built: oc_epub::BuiltEpub,
+    totals: &mut ReasonTotals,
+) -> Result<EpubStage, EpubStageError> {
     let mut before = CharHistogram::new();
     for text in document.text_pieces() {
         before = before.union(&c_of(&text));
     }
-
-    let built = oc_epub::build_epub(document, images, options)?;
 
     let mut after = CharHistogram::new();
     for file in &built.emitted.files {
@@ -601,6 +614,117 @@ pub fn epub_stage(
         delta,
         check,
     })
+}
+
+/// What `validate` and `repair` produced (PIPELINE §11, §12).
+pub struct ValidateRepairStage {
+    /// The container the loop settled on.
+    pub built: oc_epub::BuiltEpub,
+    /// The document that produced it: the original, unless a repair was accepted.
+    pub document: oc_model::document::Document,
+    pub outcome: oc_validate::repair::RepairOutcome,
+    pub tier1: oc_validate::Tier1Report,
+    pub structural: oc_validate::structural::StructuralReport,
+    /// `validate` then `repair`, both Conserving, in PIPELINE's order.
+    pub checks: Vec<StageCheck>,
+}
+
+/// Run `validate` and `repair`: the loop, then the final report over what it settled on.
+///
+/// The loop owns the emission, because each of its iterations is one `epub` regeneration plus one
+/// `validate` pass and the caller cannot know in advance how many there will be. What comes back is
+/// the container to write, the document that produced it, and the two stages' conservation checks.
+///
+/// **`repair`'s check is the one that earns its keep.** It compares `C` of the document the loop was
+/// given against `C` of the document it settled on, with an empty ledger — so a repair that changed
+/// one character of the book fails I-1 and the conversion stops. That is the whole of PIPELINE §12's
+/// "repairs are structural; none of them may change the character content of the book", stated as an
+/// invariant rather than as a property of three functions nobody re-reads.
+pub fn validate_repair_stage(
+    document: &oc_model::document::Document,
+    images: &[oc_epub::images::SourceImage],
+    options: &oc_epub::EpubOptions,
+    expectations: oc_validate::Expectations,
+    page_count: u32,
+    totals: &mut ReasonTotals,
+    t: &Thresholds,
+) -> Result<ValidateRepairStage, ValidateRepairError> {
+    let mut host = oc_validate::repair::EpubHost::new(images, options, expectations);
+    let opts = oc_validate::repair::RepairOpts {
+        max_iterations: u32::try_from(t.repair.max_iterations).unwrap_or(1),
+        require_strict_decrease: t.repair.require_strict_decrease,
+    };
+    let outcome = oc_validate::repair::repair_loop(document, &mut host, &opts)?;
+
+    let built = host
+        .take_built()
+        .ok_or(ValidateRepairError::NothingEmitted)?;
+
+    // The loop's last emission is the one it settled on only when nothing was reverted. A rejected
+    // repair leaves `outcome.document` as the original, and the container the host is holding is
+    // the candidate's — so the settled document is re-emitted in that case, and only in it.
+    let settled = outcome.document.clone();
+    let built = if settled == *document {
+        match &outcome.status {
+            oc_validate::repair::RepairStatus::NoProgress => {
+                oc_epub::build_epub(document, images, options)?
+            }
+            _ => built,
+        }
+    } else {
+        built
+    };
+
+    let tier1 = oc_validate::validate_tier1(&built.bytes, &expectations);
+    let structural = oc_validate::structural::validate_structural(
+        &settled,
+        &built.bytes,
+        &tier1,
+        page_count,
+        t,
+    )?;
+
+    // `validate` is read-only: `C` on either side is the container's own text.
+    let emitted = oc_validate::structural::epub_chars(&built.bytes)?;
+    let empty = LedgerDelta::default();
+    let validate_check = check_invariants(&emitted, &emitted, &empty, stages::VALIDATE, totals)?;
+
+    // `repair` compares the two documents. Equal by I-1 with an empty ledger, which is the claim.
+    let mut before = CharHistogram::new();
+    for text in document.text_pieces() {
+        before = before.union(&c_of(&text));
+    }
+    let mut after = CharHistogram::new();
+    for text in settled.text_pieces() {
+        after = after.union(&c_of(&text));
+    }
+    let repair_check = check_invariants(&before, &after, &empty, stages::REPAIR, totals)?;
+
+    Ok(ValidateRepairStage {
+        built,
+        document: settled,
+        outcome,
+        tier1,
+        structural,
+        checks: vec![validate_check, repair_check],
+    })
+}
+
+/// Why `validate` or `repair` could not finish.
+#[derive(Debug, thiserror::Error)]
+pub enum ValidateRepairError {
+    #[error(transparent)]
+    Conservation(#[from] ConservationError),
+    #[error(transparent)]
+    Host(#[from] oc_validate::repair::HostError),
+    #[error(transparent)]
+    Emit(#[from] oc_epub::EpubError),
+    #[error(transparent)]
+    Structural(#[from] oc_validate::StructuralError),
+    /// The loop returned without ever emitting, which cannot happen: it emits before it decides
+    /// anything. Stated rather than unwrapped, because `main()` is the only place that may panic.
+    #[error("the repair loop returned without emitting a container")]
+    NothingEmitted,
 }
 
 /// Why the container could not be emitted.

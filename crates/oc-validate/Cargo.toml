@@ -24,6 +24,7 @@ oc-epub = { path = "../oc-epub", version = "0.1.0" }
 # `oc-net`, so the bans the table is there to enforce are untouched. See docs/DECISIONS_LOG.md.
 oc-core = { path = "../oc-core", version = "0.1.0" }
 oc-text = { path = "../oc-text", version = "0.1.0" }
+blake3.workspace = true
 quick-xml.workspace = true
 serde.workspace = true
 serde_json.workspace = true

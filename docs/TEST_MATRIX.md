@@ -503,3 +503,9 @@ indicative (PROGRESS.md).
 | 6.21 | `repair_loop::a_clean_container_is_not_repaired` | `oc-validate` | unit | `test` | green |
 | 6.21a | `repair_loop::an_accepted_repair_is_counted_under_its_own_id` | `oc-validate` | unit | `test` | green |
 | 6.21b | `repair_loop::the_cap_stops_a_loop_that_would_otherwise_keep_going` | `oc-validate` | unit | `test` | green |
+| 6.10 | `repair::repair_fire_rate_is_zero_on_corpus` | `openconvert` | gate (10) | `test` | green |
+| 6.10a | `repair::a_clean_conversion_is_the_same_bytes_the_emitter_produced` | `openconvert` | fixture (10) | `test` | green |
+| 6.22 | `repair::the_ledger_records_validate_and_repair_as_conserving_stages` | `openconvert` | fixture (10) | `test` | green |
+| 6.22a | `repair::the_documents_warnings_carry_what_validation_found` | `openconvert` | fixture (f01) | `test` | green |
+| 6.23 | `host::the_modified_timestamp_is_not_part_of_the_content_hash` | `oc-validate` | unit | `test` | green |
+| 6.23a | `host::everything_but_the_timestamp_is_still_hashed` | `oc-validate` | unit | `test` | green |

@@ -10,10 +10,11 @@ use oc_core::ledger_check::{ConservationError, ReasonTotals};
 use oc_core::thresholds::Thresholds;
 use oc_epub::images::SourceImage;
 use oc_epub::{BuiltEpub, EpubOptions};
+use oc_model::doc::{Severity, Warning};
 use oc_model::document::{Document, PresetName};
 use oc_model::ids::BlockId;
 use oc_model::lang::LangTag;
-use oc_model::ledger::Ledger;
+use oc_model::ledger::{Ledger, LedgerDelta};
 use oc_pdf::classify::{classify_page, PageClass};
 use oc_pdf::error::PdfError;
 use oc_pdf::inspect::{PdfDoc, PdfOpen};
@@ -22,8 +23,8 @@ use oc_structure::stage::StructureInput;
 
 use crate::document::DocumentInput;
 use crate::pipeline::{
-    body_runs, document_stage, epub_stage, furniture_stage, layout_stage, structure_stage,
-    text_stage, DocumentError, EpubStageError,
+    body_runs, document_stage, epub_check, furniture_stage, layout_stage, structure_stage,
+    text_stage, validate_repair_stage, DocumentError, EpubStageError, ValidateRepairError,
 };
 use crate::structure_input::{block_views, document_images};
 
@@ -44,6 +45,12 @@ pub struct Conversion {
     pub built: BuiltEpub,
     /// How many images extraction produced, for the Tier-1 parity check.
     pub extracted_images: u32,
+    /// What Tier 1 found in the container that was written.
+    pub tier1: oc_validate::Tier1Report,
+    /// I-7, retention, heading sanity, duplicates, the Gopher statistics.
+    pub structural: oc_validate::structural::StructuralReport,
+    /// How the validate→repair loop ended, what fired, and what remains.
+    pub repair: oc_validate::repair::RepairOutcome,
 }
 
 /// Why a conversion failed.
@@ -57,6 +64,8 @@ pub enum ConvertError {
     Document(#[from] DocumentError),
     #[error(transparent)]
     Epub(#[from] EpubStageError),
+    #[error(transparent)]
+    ValidateRepair(#[from] ValidateRepairError),
 }
 
 /// Convert one open document.
@@ -170,15 +179,58 @@ pub fn convert(
     )?;
 
     let sources = decode_images(pdf, &images);
-    let epub = epub_stage(&document.document, &sources, &options.epub, &mut totals)?;
 
-    let mut document = document.document;
-    document.ledger.push_stage(&epub.delta, epub.check.clone());
+    // `epub`, `validate` and `repair` are one call, because the loop owns the emission: each of its
+    // iterations is one regeneration plus one validation pass, and a caller that emitted once for
+    // the conservation check and again for the loop would encode every image in the book twice.
+    let loop_result = validate_repair_stage(
+        &document.document,
+        &sources,
+        &options.epub,
+        oc_validate::Expectations {
+            images: Some(extracted_images),
+        },
+        pdf.page_count(),
+        &mut totals,
+        t,
+    )?;
+
+    let epub = epub_check(&loop_result.document, loop_result.built, &mut totals)?;
+
+    // The ledger the document was assembled with, plus every check made after it. `document`'s own
+    // check is one of them: it was computed by `document_stage` and never recorded, so the ledger
+    // named seven stages where the pipeline had checked eight. The check itself always ran — a
+    // violation returns `DocumentError` — but the record is the evidence, and a stage missing from
+    // it is a stage nobody can show was checked.
+    let mut settled = loop_result.document;
+    settled.ledger = document.document.ledger.clone();
+    settled
+        .ledger
+        .push_stage(&document.delta, document.check.clone());
+    settled.ledger.push_stage(&epub.delta, epub.check.clone());
+    for check in loop_result.checks {
+        settled.ledger.push_stage(&LedgerDelta::default(), check);
+    }
+    settled
+        .warnings
+        .extend(loop_result.structural.warnings.iter().cloned());
+    settled
+        .warnings
+        .extend(loop_result.outcome.warnings.clone());
+    settled.warnings.extend(
+        epub.built
+            .warnings
+            .iter()
+            .map(|code| Warning::new(code, Severity::Warn)),
+    );
 
     Ok(Conversion {
-        document,
+        document: settled,
         built: epub.built,
         extracted_images,
+        tier1: loop_result.tier1,
+        structural: loop_result.structural,
+        repair: loop_result.outcome,
     })
 }
 

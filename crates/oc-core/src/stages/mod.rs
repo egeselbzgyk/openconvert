@@ -11,16 +11,20 @@ pub mod epub;
 pub mod furniture;
 pub mod layout;
 pub mod paragraphs;
+pub mod repair;
 pub mod structure;
 pub mod text;
+pub mod validate;
 
 pub use document::DOCUMENT;
 pub use epub::EPUB;
 pub use furniture::FURNITURE;
 pub use layout::LAYOUT;
 pub use paragraphs::PARAGRAPHS;
+pub use repair::REPAIR;
 pub use structure::STRUCTURE;
 pub use text::TEXT;
+pub use validate::VALIDATE;
 
 /// One stage's static contract: its name, whether it may change the text, and the closed set
 /// of reasons it may cite.

@@ -20,6 +20,7 @@
 //! with target zero (RT A10.4), which is why [`RepairOutcome::fires`] is counted per repair id and
 //! reported rather than logged and forgotten.
 
+pub mod host;
 pub mod measure;
 pub mod table;
 
@@ -31,6 +32,7 @@ use oc_model::ids::NoteId;
 
 use crate::tier1::Finding;
 
+pub use host::{EpubHost, HostError};
 pub use measure::Measure;
 pub use table::{plan_repairs, Fix, Remedy, RepairAction, RepairPlan};
 
