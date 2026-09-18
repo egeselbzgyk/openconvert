@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 6
-CURRENT_ITEM: 6.7 — the Playwright DOM checks at three viewports, and turning the
-              `dom-checks` CI job on (rows 6.13, 6.14, 6.15)
+CURRENT_ITEM: 6.8 — `oc-validate::ace`, the Tier-3 Ace-by-DAISY runner, and the nightly
+              `ace-a11y` job (Phase 6's Files list and Dependencies line)
 LAST_UPDATED: 2026-09-18
 
 ---
@@ -58,7 +58,8 @@ Work items, in order, with the plan's test rows against each:
 - [x] **6.4** the loop wired into the pipeline, fire rate zero on the fixtures (row 6.10)
 - [x] **6.5** `report.json`, `--report`, and the post-cap policy (rows 6.8, 6.12)
 - [x] **6.6** warning codes and the en/de/tr templates (row 6.11)
-- [ ] **6.7** Playwright DOM checks (rows 6.13, 6.14, 6.15)
+- [x] **6.7** Playwright DOM checks (rows 6.13, 6.14, 6.15)
+- [ ] **6.8** the Tier-3 Ace runner and the nightly `ace-a11y` job
 
 **`oc_validate::structural::validate_structural` is the structural validator**, and its report
 holds on all ten fixtures: I-7, image parity, the note bijection, resolving hrefs, a sane heading
@@ -151,6 +152,28 @@ constant anywhere with no entry fails, and an entry nothing defines fails.
 the engine's own localisation would be unreachable from the command line and the three template files
 would be readable only by a GUI that arrives in Phase 12. The CLI prints the rendered sentences to
 stderr only when stderr is *not* the NDJSON channel.
+
+**The DOM checks run, and the `dom-checks` CI job is on.** 198 assertions across three Chromium
+viewports (600×800, 390×844, 1024×768), all green, no screenshots anywhere. WebKit fills the
+nightly `webkit-dom` job. Each of the three specs was mutation-tested: a 3000px block trips the
+overflow check, two swapped nav entries trip the order check, a `display: none` footnote trips the
+note check.
+
+`cargo run -p xtask -- dom-fixtures` converts every fixture through the one pipeline the CLI drives
+and unpacks the containers into `target/dom/<fixture>/`, with a manifest holding the **spine** and a
+**note-reference inventory** — the two things a browser cannot enumerate from inside one document.
+The nav order is read *in the browser*, deliberately: a spec that read one side of the heading-order
+comparison out of JSON our own Rust wrote could not fail when the nav itself was wrong.
+
+**A nav entry is not always a heading**, and the first draft of the order spec assumed it was. The
+unheaded preamble becomes a front-matter section so nothing is lost (PIPELINE §8), and the nav names
+that section, which has no heading in it — f02, f03 and f07 all failed until the claim was restated
+over nav *targets*.
+
+Two emitter properties the specs found already true, and worth knowing: `pre { white-space: pre-wrap;
+overflow-wrap: break-word }` means a 400-character unbroken line does not overflow a phone, and the
+table rules keep a wide table inside its column. The plan named both as the cases row 6.13 would
+fail on.
 
 **What Phase 5 hands it**, in the order it will be wanted:
 
@@ -565,4 +588,5 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-18  P6.3      oc-validate: the repair loop, its measure and its table (6.4-6.7, 6.9 + 12)  7b35583
 2026-09-18  P6.4      openconvert: the loop on the real path, fire rate zero (6.10 + 5)              9889827
 2026-09-18  P6.5      openconvert: report.json, --report, the post-cap policy (6.8, 6.12 + 4)        e445783
-2026-09-18  P6.6      oc-core: the warning registry, en/de/tr templates, the registry lint (6.11 + 7)   PENDING
+2026-09-18  P6.6      oc-core: the warning registry, en/de/tr templates, the registry lint (6.11 + 7)   167227d
+2026-09-18  P6.7      tests/dom: the Playwright DOM checks, three viewports, CI on (6.13-6.15 + 4)    PENDING

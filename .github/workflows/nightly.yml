@@ -12,9 +12,26 @@ jobs:
     runs-on: ubuntu-latest
     steps: [{ run: 'echo "not yet implemented (Phase 7)"' }]
 
+  # The same structural DOM assertions as the `dom-checks` job on every PR, in WebKit: the engine
+  # every Apple reading system renders with, and the one whose line breaking differs most from
+  # Chromium's. Nightly rather than per-PR because installing it costs minutes and because a book
+  # that overflows in WebKit and not in Chromium is a stylesheet finding, not a regression in the
+  # change under review.
   webkit-dom:             # Phase 6
     runs-on: ubuntu-latest
-    steps: [{ run: 'echo "not yet implemented (Phase 6)"' }]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo run -p xtask -- vendor-pdfium
+      - run: cargo run -p xtask -- fixtures
+      - run: cargo run -p xtask -- dom-fixtures
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci --prefix tests/dom
+      - run: npx --prefix tests/dom playwright install --with-deps webkit
+      - run: npm --prefix tests/dom run test:webkit
 
   mutation-testing:       # Phase 7 (cargo-mutants + mutmut)
     runs-on: ubuntu-latest

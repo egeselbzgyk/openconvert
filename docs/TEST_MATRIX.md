@@ -523,3 +523,10 @@ indicative (PROGRESS.md).
 | 6.11e | `warnings::every_locale_renders_a_warning_rather_than_its_code` | `oc-core` | unit | `test` | green |
 | 6.11f | `warnings::an_unknown_locale_tag_falls_back_to_english` | `oc-core` | unit | `test` | green |
 | 6.11g | `cli::convert_prints_localised_warnings_and_never_into_the_event_stream` | `openconvert` | binary | `test` | green |
+| 6.13 | `overflow.spec.ts::dom_no_horizontal_overflow` | `tests/dom` | gate (Playwright, 3 viewports) | `dom-checks`, nightly `webkit-dom` | green |
+| 6.13a | `overflow.spec.ts::dom_images_render_at_a_non_zero_size` | `tests/dom` | gate (Playwright) | `dom-checks`, nightly `webkit-dom` | green |
+| 6.14 | `order.spec.ts::dom_heading_order_matches_nav` | `tests/dom` | gate (Playwright) | `dom-checks`, nightly `webkit-dom` | green |
+| 6.14a | `order.spec.ts::dom_heading_levels_never_skip` | `tests/dom` | gate (Playwright) | `dom-checks`, nightly `webkit-dom` | green |
+| 6.15 | `notes.spec.ts::dom_every_noteref_resolves` | `tests/dom` | gate (Playwright) | `dom-checks`, nightly `webkit-dom` | green |
+| 6.15a | `notes.spec.ts::dom_every_footnote_is_reachable` | `tests/dom` | gate (Playwright) | `dom-checks`, nightly `webkit-dom` | green |
+| 6.24 | `dom_fixtures::a_note_reference_is_resolved_against_the_document_it_is_in` | `xtask` | unit | `test` | green |

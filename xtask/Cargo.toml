@@ -21,6 +21,12 @@ oc-core = { path = "../crates/oc-core", version = "0.1.0" }
 oc-testkit = { path = "../crates/oc-testkit", version = "0.1.0" }
 oc-epub = { path = "../crates/oc-epub", version = "0.1.0" }
 oc-validate = { path = "../crates/oc-validate", version = "0.1.0" }
+oc-model = { path = "../crates/oc-model", version = "0.1.0" }
+oc-pdf = { path = "../crates/oc-pdf", version = "0.1.0" }
+# `dom-fixtures` converts the fixtures through the one pipeline the CLI drives, rather than
+# shelling out to the binary or building a second driver — the DOM checks assert things about the
+# markup a user gets, so they have to be given exactly that markup (D13.1).
+openconvert = { path = "../crates/openconvert", version = "0.1.0" }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

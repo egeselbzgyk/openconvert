@@ -3,7 +3,7 @@
 //! Everything here is build- and test-time tooling. Nothing in `xtask` ships.
 
 use xtask::{
-    ci_lint, epubcheck_parity, fetch_epubcheck, fetch_epubcheck_corpus, fixtures,
+    ci_lint, dom_fixtures, epubcheck_parity, fetch_epubcheck, fetch_epubcheck_corpus, fixtures,
     handmade_fixtures, mutations, stage_sidecars, thresholds_lint, vendor_pdfium,
 };
 
@@ -31,6 +31,8 @@ tasks:
                       --release-branch    also reject TODO_ placeholders in models.toml
   thresholds-lint   D17 provenance: every provisional threshold has an owner and a
                     review_by that has not passed
+  dom-fixtures      convert every fixture and unpack its container to target/dom/ for the
+                    Playwright DOM checks, with a manifest of spine, nav order and noterefs
   stage-sidecars    copy the built engine to apps/desktop/src-tauri/bin/ with the
                     target-triple suffix Tauri expects, plus a build stamp
                       --release           stage the release build instead of debug
@@ -59,6 +61,7 @@ fn main() -> Result<()> {
             ci_lint::run(&root, release_branch)
         }
         Some("thresholds-lint") => thresholds_lint::run(&root),
+        Some("dom-fixtures") => dom_fixtures::run(&root),
         Some("stage-sidecars") => {
             let release = std::env::args().any(|a| a == "--release");
             stage_sidecars::run(&root, release)

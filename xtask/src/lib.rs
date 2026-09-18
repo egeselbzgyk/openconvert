@@ -4,6 +4,7 @@
 //! Nothing here ships. `deny.tools.toml` audits this crate's dependency tree.
 
 pub mod ci_lint;
+pub mod dom_fixtures;
 pub mod epubcheck_parity;
 pub mod fetch_epubcheck;
 pub mod fetch_epubcheck_corpus;

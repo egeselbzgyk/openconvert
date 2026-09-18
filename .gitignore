@@ -18,3 +18,9 @@ __pycache__/
 /apps/desktop/ui/dist
 /apps/desktop/ui/node_modules
 /example_pdfs
+# Playwright's own output. The specs and the config are committed; the browser download, the
+# installed modules and the per-run results are not. `target/dom` is under /target already.
+/tests/dom/node_modules
+/tests/dom/test-results
+/tests/dom/results
+/tests/dom/playwright-report
