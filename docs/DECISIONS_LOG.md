@@ -2426,3 +2426,25 @@ copyright line are legitimately identical blocks.
 nothing about a two-page fixture, where "at least two chapters" is arithmetic rather than evidence.
 Below `validate.h1_count_min_pages = 20` the answer is `None`, and every fixture is below it — so
 the check is written and tested and is first exercised for real on the Phase 7 corpus.
+
+## 2026-09-18 — VD-f is deferred to Phase 15, and why that is not a dodge
+
+The verification-debt table names Phase 6 as where **VD-f** blocks: "validation-pack JRE licence, per
+vendor — that a Temurin (or other OpenJDK-derived) minimal `jlink` image is redistributable under
+GPLv2 + Classpath Exception has to be read from that vendor's own licence text."
+
+Phase 6 ships no validation pack. The plan's own scope line says so: "**Not in this phase:** … the
+in-app validation pack (Phase 15)." Nothing this phase produced links, bundles or downloads a JRE —
+`oc_validate::epubcheck` and `oc_validate::ace` both *invoke* an executable the environment supplies,
+which is why they are behind cargo features and run in CI rather than on the conversion path. The
+question VD-f asks is about **redistribution**, and there is nothing to redistribute until the pack
+exists.
+
+So the row is **deferred to Phase 15**, with that reason, which is what the Phase 0 table's own rule
+asks for ("closed, or explicitly deferred … with the reason recorded in `docs/DECISIONS_LOG.md`"). It
+is recorded here rather than left to the reading of "or whenever the validation pack ships", because a
+row that is open at the phase it names and unexplained is indistinguishable from one that was
+forgotten.
+
+The sibling row **VD-e** stays open and unchanged: it blocks the optional dictionary pack, which is
+post-v1, and D15 already routes around it for core data.

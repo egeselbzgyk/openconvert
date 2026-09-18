@@ -663,3 +663,135 @@ multicolumn_page_share}`.
 - Parity is measured over EPUBCheck's corpus with expanded publications zipped by this
   project's own writer, so an OCF-level defect in one of those cases is repaired before Tier 1
   sees it. The 25 packaged `.epub` files are the ones whose container bytes are measured.
+
+## Phase 6 — Structural validation, repair loop, report, CI DOM checks
+
+The phase whose subject is *what to do when the output is wrong*. The headline numbers, all
+measured on the ten fixtures: **I-7 holds on every one of them**, **zero repairs fire**, and
+**198 browser assertions pass at three viewports**.
+
+### Structural validation (`oc-validate`)
+
+- New: `structural::check_i7` / `epub_chars` — invariant I-7, `C(EPUB) ⊎ Removed_all == C_0 ⊎
+  Added_all`, measured over the **archive** through the package document's spine rather than over
+  the emitter's own account of what it wrote. `I7Result` carries both differences, so a failure
+  names the characters that went rather than the fact that some did.
+- New: `structural::validate_structural` → `StructuralReport { i7, retention, image_parity,
+  note_bijection, hrefs_resolve, heading_sanity, duplicates, quality, warnings }`. `image_parity`,
+  `note_bijection` and `hrefs_resolve` are **projections of the Tier-1 report**, not second
+  implementations.
+- New: `structural::heading_sanity` → `HeadingSanity { h1_count, level_skips,
+  monotone_with_pages, h1_count_plausible }`, measured over the *markup*: the emitter clamps a
+  level and a split chapter borrows a heading, and what a screen reader trips over is what was
+  written.
+- New: `structural::duplicate_stats` → `DuplicateStats`, over emitted **blocks**.
+- New: `blocks::blocks_of` — block-level text parsed once, innermost element only, so the heading
+  walk and the duplicate count read the same elements in the same order.
+- New: `ace` — the Tier-3 Ace-by-DAISY runner, with `REQUIRED_METADATA` and a gate that is both
+  halves of PIPELINE §11: zero serious violations (`critical` counts) **and** every required
+  accessibility metadata field present.
+- New dependencies for `oc-validate`: `oc-text` and `oc-core`, which ARCHITECTURE §3.1's table does
+  not list. §7.2 puts duplicate detection in this crate and PIPELINE §11 says that detection is the
+  Gopher family, which lives in `oc-text`; the alternative is nine statistics implemented twice.
+  Neither reaches `oc-ai` or `oc-net`, so the bans the table exists to enforce are untouched.
+
+### The validate → repair loop (`oc-validate::repair`)
+
+- New: `Measure { fatal, error, warning }`, lexicographic, hand-written `Ord`.
+- New: `plan_repairs` and the static `message id → Remedy` table: **three** `AutoFix` entries
+  (`ACC-001` → describe an undescribed figure, `RSC-012` → demote a dangling note reference,
+  `OPF-003` → drop an uncaptioned figure nothing references), six `WarnUser`, everything else
+  unmapped and reported verbatim. Each fix is Conserving: `alt` is an attribute, a `noteref` is a
+  link, an uncaptioned figure carries no characters.
+- New: `repair_loop` with all four control rules — strict decrease, no new message id, oscillation
+  by content hash (`dcterms:modified` elided), one repair per `(file, node)` in a fixed total order
+  — and `repair.max_iterations` as a **safety bound, not the termination argument**.
+- New: the `Emit` trait, and `EpubHost` as its real implementation (build + Tier 1 + I-7 + hash).
+  The trait exists because the emitter passes EPUBCheck clean on every fixture and therefore cannot
+  be made to oscillate: the cases the loop exists for only exist against a double.
+- New: `RepairOutcome::fires`, per repair id — the release metric with target zero (RT A10.4).
+
+### Pipeline (`openconvert`, `oc-core`)
+
+- New stages: `validate` and `repair`, both `Conserving`, both in the ledger.  **`repair`'s check
+  compares `C` of the document the loop was given against `C` of the document it settled on**, so a
+  repair that changed one character of the book fails I-1 and the conversion stops.
+- New: `pipeline::epub_check` — the `epub` stage's conservation check over an already-built
+  container, because the loop owns the emission and a second build would re-encode every image.
+- `Conversion` now carries `tier1`, `structural`, `repair`, `timings`, `producer_family` and
+  `page_classes`.
+- **Fixed:** the `document` stage's conservation check was computed and never recorded, so the
+  ledger named seven stages where the pipeline had checked eight.
+
+### The report (`openconvert::report`)
+
+- New: `report.json`, schema **`openconvert.report/1`**, written on every conversion — input digest,
+  engine/IR versions, per-stage timings in stage order, ledger totals per `Reason` with each one's
+  budget and remaining headroom, the per-stage checks, I-7, the page-class histogram, the producer
+  stratum, all three validation tiers, the repair log, every `Decision`, every warning as code plus
+  args, and the provenance of every threshold.
+- `status` is `ok` or `invalid`; after the repair cap the EPUB is **still written** and the report
+  says `invalid` (D13.7).
+- `PROVENANCE` now carries `owner` and `review_by` as well as `source` and `evidence`, so
+  `build.rs` emits a `Provenance` struct rather than a 3-tuple.
+
+### Warnings (`oc-core::warnings`)
+
+- New: the registry — 26 codes with their argument names — and `templates_{en,de,tr}.toml`.
+- New: `Locale`, `render`, `template`, `slots`. An unfilled slot stays **visible**: a warning missing
+  its number has stopped being a factual claim.
+- New in `xtask ci-lint`: every `W_…` constant in the tree is in the registry and every registry
+  entry is defined somewhere. The registry cannot be derived — `oc-structure` owns
+  `W_TABLE_AS_IMAGE` and `oc-core` cannot depend on it — so the lint is what keeps it total.
+
+### New CLI flags
+
+- `--report <PATH.json>` — where `report.json` goes; default `<output>.report.json`.
+- `--locale en|de|tr` — which language the warnings are printed in. Not in §2.1's list; §2.2's job
+  spec has the field, and without a flag the engine's own localisation is unreachable from the
+  command line.
+
+### New warning codes
+
+`W_LOW_RETENTION`, `W_HEADING_LEVEL_SKIP`, `W_HEADING_COUNT_IMPLAUSIBLE`,
+`W_HEADINGS_OUT_OF_PAGE_ORDER`, `W_DUPLICATE_BLOCKS`, `W_UNMAPPED_VALIDATION_ID`,
+`W_VALIDATION_UNREPAIRABLE`, `W_EPUB_INVALID`, `W_REPAIR_OSCILLATION`, `W_REPAIR_FIRED`.
+
+### New `thresholds.toml` entries
+
+`validate.h1_count_min` (2), `validate.h1_count_max` (60), `validate.h1_count_min_pages` (20),
+`validate.dup_block_frac` (0.02) — all `provisional`, all with an owner and a `review_by`.
+
+### CI
+
+- `dom-checks` is **on**: Chromium at 600×800, 390×844 and 1024×768, with the Rust steps that
+  compile and convert the fixtures, because a job dependency shares no artefacts.
+- Nightly `webkit-dom` and `ace-a11y` are filled.
+- New: `cargo run -p xtask -- dom-fixtures`, and `tests/dom/` (Playwright config plus three specs).
+
+### Measured, and worth knowing
+
+- **Retention is a flag, not a gate.** Four fixtures land at 0.968–0.973 — all of it ledgered
+  furniture inside the 0.04 budget — so `validate.min_char_retention = 0.98` and
+  `conservation.budget.furniture = 0.04` are jointly unsatisfiable for a book with a running head.
+  R6 §11 says "flag"; Appendix D's v1.0 gate needs Phase 7's strata before it can be stated at all.
+- **The Gopher n-gram statistics cannot gate output text.** `f09` scores `top_3gram` 0.8008 against
+  a 0.18 bound and is correct: its printed contents page is hundreds of `. . .` leaders, and the
+  statistic is character-weighted.
+- **A nav entry is not always a heading**, so the DOM order check is stated over nav *targets*. The
+  unheaded preamble becomes a front-matter section the nav names, and it has no heading in it.
+- Two emitter properties the DOM checks found already true, both cases the plan named as ones row
+  6.13 would fail on: `pre { white-space: pre-wrap; overflow-wrap: break-word }` keeps a
+  400-character unbroken line inside a phone viewport, and the table rules keep a wide table inside
+  its column.
+
+### Known gaps, carried forward
+
+- `report.rs` is in `openconvert`, not in `oc-core` as the plan's Files list has it. Assembling the
+  report needs `Tier1Report`, `StructuralReport` and `RepairOutcome`, which are `oc-validate`'s, and
+  `oc-validate` depends on `oc-core`: the plan's placement is a cycle.
+- The repair table has three `AutoFix` entries where the plan asks for "~30 ids". Thirty speculative
+  repairs would be thirty untested paths for defects this emitter has never produced, against the one
+  gate that says every repair firing is an emitter bug.
+- The three-OS test claim and the `dom-checks` job are CI's, and are unverified until this branch
+  merges — the same shape of deferral Phases 0–5 made and cashed.
