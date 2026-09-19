@@ -6,7 +6,7 @@ STATUS: IN_PROGRESS
 CURRENT_PHASE: 7
 CURRENT_ITEM: 7.1 — read PHASE 7 of the plan and docs/TEST_CORPUS.md, then take its first
               work item
-LAST_UPDATED: 2026-09-18
+LAST_UPDATED: 2026-09-19
 
 ---
 
@@ -34,9 +34,11 @@ LAST_UPDATED: 2026-09-18
       unverified until the first CI run.)*
 - [x] **Phase 6** — Structural validation, repair loop, report, CI DOM checks
       *(all 16 named tests green, plus about sixty additions. **I-7 holds on all ten fixtures, zero
-      repairs fire, and 198 Chromium assertions pass at three viewports.** Two rows cannot be
-      verified on one machine — the three-OS test claim and the `dom-checks` job — and are named as
-      such. VD-f deferred to Phase 15 with its reason.)*
+      repairs fire, and 198 Chromium assertions pass at three viewports.** The two rows that could
+      not be verified on one machine are **cashed**: CI run 35462059355 is green on
+      ubuntu/macos/windows and `dom-checks` passes. Both of them failed first, along with five other
+      real defects the first CI run found — `docs/DECISIONS_LOG.md`, 2026-09-19. VD-f deferred to
+      Phase 15 with its reason.)*
 - [ ] **Phase 7** — Corpus v1, eval harness, benchmarks, real-world holdout
 - [ ] **Phase 8** — AI abstraction (no real model yet)
 - [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
@@ -306,8 +308,10 @@ cannot be verified on a single machine** and are named as such rather than count
    the CI job that runs it. Rows 6.13–6.15 are the Playwright specs (44 + 20 + 2 assertions at one
    viewport, 198 across three); row 6.25 is behind the `ace` cargo feature; neither is `#[ignore]`d,
    which `xtask ci-lint` enforces.
-2. **`cargo nextest run --workspace` green on three OSes** — `455 tests run: 455 passed, 0 skipped`
-   on Windows. The Linux and macOS legs are the `test` matrix job and are unverified until CI runs.
+2. **`cargo nextest run --workspace` green on three OSes** — **cashed.** CI run 35462059355 on `main`:
+   `test (ubuntu-latest)`, `test (macos-latest)` and `test (windows-latest)` all green, alongside
+   every other job. 456 locally. It was **not** green on the first attempt: macOS failed
+   `golden_epub_bytes_f01` and Ubuntu ran out of disk, both for real reasons, both fixed.
 3. **`cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`** — clean.
 4. **`cargo fmt --all --check`** — clean.
 5. **`cargo deny --all-features check`** — advisories, bans, licences, sources ok.
@@ -326,10 +330,10 @@ cannot be verified on a single machine** and are named as such rather than count
    - **A6.4** (the report's contents) — `the_report_carries_every_part_the_plan_names` asserts each
      part the plan's detail 6 names, by name; `report_schema_is_valid_and_snapshotted` snapshots
      `f07` with the timings redacted.
-   - **A6.5** (3 viewports, no overflow, nav/DOM agreement, noterefs resolve) — **partial, and
-     unverifiable here**: 198 Chromium assertions pass locally and each spec was mutation-tested (a
-     3000px block, two swapped nav entries, a `display: none` footnote), and the `dom-checks` job is
-     written and no longer `if: false`. It has never run.
+   - **A6.5** (3 viewports, no overflow, nav/DOM agreement, noterefs resolve) — **cashed.** The
+     `dom-checks` job passed on its first real run in CI 35462059355, and nightly `webkit-dom` passed
+     too, so the assertions hold in both engines. 198 Chromium assertions, each spec
+     mutation-tested (a 3000px block, two swapped nav entries, a `display: none` footnote).
 8. **`docs/CHANGELOG.md`** — Phase 6 entry written.
 9. **No `TODO`/`FIXME` without an issue number, no `#[ignore]`** — `xtask ci-lint` clean; zero
    `test.skip` or `.only` in the Playwright specs either.
@@ -355,6 +359,30 @@ emitter bug.
   Four fixtures retain 0.968–0.973, all of it ledgered furniture inside its budget.
 - **The Gopher n-gram statistics cannot gate output text.** `f09` scores `top_3gram` 0.8008 against
   a 0.18 bound and is correct: its contents page is hundreds of `. . .` leaders.
+
+### What CI found that Phase 6's own testing did not
+
+Seven defects, none a flake, none findable on one machine. The full argument for each is in
+`docs/DECISIONS_LOG.md`, 2026-09-19; in one line each:
+
+1. **The container's bytes differed on Windows.** `zip` fills the "version made by" host byte from
+   the building platform; the field is fixed-width, so the EPUB came out the same length with
+   different bytes. `zip.rs` already *claimed* the field was pinned.
+2. **Ubuntu ran out of disk mid-link.** Phase 6's eight new integration-test binaries;
+   `debug = "line-tables-only"` cut the workspace's test executables from 5.7 GB to 488 MB.
+3. **`epub-pagesource`, serious.** A book publishing page numbers did not say where they came from.
+4. **`metadata-accessmodesufficient`.** The condition was inverted — textual sufficiency claimed for
+   books that *had* images and withheld from books that were nothing but text.
+5. **`epub-type-has-matching-role`**, on every content document: no `role="doc-chapter"`.
+6. **The Ace runner read `data.metadata`**, a key Ace does not write, so the metadata half of its own
+   gate would have reported everything missing on every book. Its unit fixture had been composed from
+   the documentation by the same hand as the parser.
+7. **`xtask fetch-epubcheck` unpacked a zip with `tar`.** Works on Windows, where `tar` is
+   libarchive; GNU tar refuses it. Phase 5 code, and `epubcheck` and `tier1-parity` had never once
+   run in CI because `needs: test` had never passed.
+
+Nightly is green too (run 35462081049): `webkit-dom`, and `ace-a11y` once Ace's Electron was given
+a root-owned setuid `chrome-sandbox` and an Xvfb display.
 
 ## Phase 5 — Definition of Done
 
@@ -696,3 +724,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-18  P6.6      oc-core: the warning registry, en/de/tr templates, the registry lint (6.11 + 7)   167227d
 2026-09-18  P6.7      tests/dom: the Playwright DOM checks, three viewports, CI on (6.13-6.15 + 4)    4a71fc0
 2026-09-18  P6.8      oc-validate: the Tier-3 Ace runner and the nightly ace-a11y job (5 tests)      5855c53
+2026-09-19  P6.ci     seven defects CI found: cross-OS bytes, Ace a11y x3, disk, tar/zip     17bbef6
