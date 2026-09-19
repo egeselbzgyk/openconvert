@@ -1,9 +1,16 @@
 //! `cargo xtask fetch-epubcheck` — fetch the pinned EPUBCheck release, verify its SHA-256
 //! against `xtask/epubcheck.lock`, and unpack it to `vendor/epubcheck/` (D6).
 //!
-//! The download and the extraction shell out to `curl` and `tar`, exactly as `vendor-pdfium`
-//! does and for the same reason: `oc-net` stays the only crate in the workspace that can open a
-//! socket, and no build-time tool needs an HTTP client either (D13.9).
+//! The **download** shells out to `curl`, exactly as `vendor-pdfium` does and for the same reason:
+//! `oc-net` stays the only crate in the workspace that can open a socket, and no build-time tool
+//! needs an HTTP client either (D13.9).
+//!
+//! The **extraction** does not shell out, and used to. `tar -xf` on a zip works on Windows, where
+//! `tar` is libarchive, and fails on Linux, where GNU tar answers "This does not look like a tar
+//! archive" — so the `epubcheck` job failed the first time it ever ran, on code that had been
+//! green on one developer machine since Phase 5 (CI 35459390990). The release asset is a zip and
+//! the workspace already has the `zip` crate, so it is unpacked in process, with the same
+//! zip-slip refusal `fetch-epubcheck-corpus` uses.
 //!
 //! The jar is never committed and never bundled into a shipped artefact. CI downloads it; in
 //! the application it arrives with the optional validation pack.
@@ -78,16 +85,7 @@ pub fn run(workspace_root: &Path) -> Result<()> {
 
     verify(&archive, &lock)?;
 
-    let status = Command::new("tar")
-        .arg("-xf")
-        .arg(&archive)
-        .arg("-C")
-        .arg(&directory)
-        .status()
-        .context("cannot run tar")?;
-    if !status.success() {
-        bail!("tar failed unpacking {}", archive.display());
-    }
+    extract(&archive, &directory)?;
     // The archive is large and every byte of it is already on disk, unpacked.
     let _ = std::fs::remove_file(&archive);
 
@@ -112,6 +110,47 @@ fn lock() -> Result<Lock> {
         );
     }
     Ok(lock)
+}
+
+/// Unpack a zip into `into`, preserving the entry paths.
+///
+/// In process rather than through `tar`: the asset is a zip, and only a libarchive `tar` will open
+/// one. An entry whose name escapes the destination is refused outright — this one is fatal rather
+/// than skipped, unlike the corpus fetcher's, because a release asset with a traversal entry in it
+/// is not an archive with one bad file, it is an archive to stop trusting.
+fn extract(archive: &Path, into: &Path) -> Result<()> {
+    use std::io::Read as _;
+
+    let file = std::fs::File::open(archive)
+        .with_context(|| format!("cannot read {}", archive.display()))?;
+    let mut zip = ::zip::ZipArchive::new(file)
+        .with_context(|| format!("{} is not a zip", archive.display()))?;
+
+    for index in 0..zip.len() {
+        let mut entry = zip.by_index(index)?;
+        let Some(path) = entry.enclosed_name() else {
+            bail!(
+                "{} contains an entry whose name escapes the destination: {}",
+                archive.display(),
+                entry.name()
+            );
+        };
+        let target = into.join(path);
+        if entry.is_dir() {
+            std::fs::create_dir_all(&target)
+                .with_context(|| format!("cannot create {}", target.display()))?;
+            continue;
+        }
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("cannot create {}", parent.display()))?;
+        }
+        let mut bytes = Vec::new();
+        entry.read_to_end(&mut bytes)?;
+        std::fs::write(&target, bytes)
+            .with_context(|| format!("cannot write {}", target.display()))?;
+    }
+    Ok(())
 }
 
 /// The digest and the size, both, before anything is unpacked.

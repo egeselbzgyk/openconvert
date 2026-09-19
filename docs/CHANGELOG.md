@@ -816,6 +816,18 @@ real. The argument and the evidence are in `docs/DECISIONS_LOG.md`, 2026-09-19; 
   cross-OS failure — the first suspect, eliminated by recompiling every fixture from LF sources and
   finding the PDF digests unchanged.
 
+Two further jobs failed on the second run, both of which had never executed before — the first run
+skipped them because `needs: test` had failed:
+
+- **`xtask fetch-epubcheck` unpacks the release zip in process**, with the `zip` crate, instead of
+  shelling out to `tar`. `tar -xf` opens a zip on Windows, where `tar` is libarchive, and GNU tar
+  refuses it, so `epubcheck` and `tier1-parity` both died in that step. Phase 5 code, green on one
+  machine, unable to fail until a Linux runner reached it. `Command::new("tar")` is now absent from
+  `xtask` entirely.
+- **The nightly `ace-a11y` job configures Ace's Electron**: `chrome-sandbox` chowned to root and set
+  setuid, which is the remedy Electron's own error asks for, and the test run under Xvfb because the
+  runner has no X server.
+
 ### Known gaps, carried forward
 
 - `report.rs` is in `openconvert`, not in `oc-core` as the plan's Files list has it. Assembling the

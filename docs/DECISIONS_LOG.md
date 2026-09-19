@@ -2542,3 +2542,50 @@ Phase 6's Definition of Done named two rows it could not verify on one machine a
 them as passes. Both of them failed. That is the entry working as intended, and it is the argument
 for writing a partial row as partial rather than as "basically done": the two rows that were honest
 about being unverified are precisely the two that were broken.
+
+## 2026-09-19 — the second CI run, and two jobs that had never run at all
+
+The five defects above are fixed and their jobs are green: `test` on all three operating systems,
+`no-network`, `epub_is_byte_identical_across_os`, and — on its first real run —
+`dom-checks`. `webkit-dom` passed nightly too.
+
+Two jobs then failed that had never executed before. Both were skipped in the first run because
+`needs: test` had failed, and both die in the same step for the same reason:
+
+    tar: This does not look like a tar archive
+    Error: tar failed unpacking .../epubcheck-5.3.0.zip
+
+**`xtask fetch-epubcheck` unpacked a zip with `tar`.** EPUBCheck's release asset is a `.zip`; every
+other asset the workspace fetches is a `.tgz`. `tar -xf` opens a zip on Windows, where `tar` is
+libarchive, and GNU tar refuses it. The code has been in the tree since Phase 5, has been run on
+this Windows machine many times, and could not fail until a Linux runner reached it — which needed
+the `test` job to pass first.
+
+Fixed by unpacking in process with the `zip` crate the workspace already has, with the same
+zip-slip refusal `fetch-epubcheck-corpus` already used for the same reason. The refusal is fatal
+here rather than skipped: a release asset with a traversal entry in it is not an archive with one
+bad file, it is an archive to stop trusting. Verified by moving the vendored copy aside, fetching
+from scratch, and diffing the two trees — `diff -rq` reports nothing, so the in-process extraction
+reproduces what `tar` produced byte for byte.
+
+`Command::new("tar")` now appears nowhere in `xtask`, and the only asset that is not a tarball is
+the one that no longer goes through it.
+
+**Ace's Electron needed two things from the runner.** The improved error paid for itself on its
+first use and named them exactly: `chrome-sandbox` must be root-owned and setuid — `npm install
+--global` unpacks it as the runner user, and Electron aborts rather than run unsandboxed — and
+Electron on Linux needs a display even for a window it never shows. The job configures the sandbox
+rather than setting `ELECTRON_DISABLE_SANDBOX`, because turning off a security boundary to run a
+checker over our own fixtures is the wrong trade even on a throwaway runner, and runs the test under
+Xvfb.
+
+### The pattern across all seven
+
+Not one of the seven was a flake, and not one could have been found on this machine. Four were
+platform divergence that a single-OS run cannot see (a zip host byte, a zip unpacked by a tool that
+differs per platform, a setuid bit, a display). Two were a gate finding real defects the moment it
+first ran — which is what a gate is for. One was resource exhaustion that only appears at CI's
+scale.
+
+The Definition of Done's habit of naming a row it cannot verify, rather than rounding it up, is what
+made this tractable: the rows that failed were the rows already marked as unverified.
