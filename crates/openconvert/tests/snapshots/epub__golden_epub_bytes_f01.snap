@@ -1,7 +1,7 @@
 ---
 source: crates/openconvert/tests/epub.rs
-expression: "format!(\"sha256={}\\nentries={:?}\\nbytes={}\",\ncommon::sha256_hex(built.built.bytes.as_slice()), built.paths(),\nbuilt.built.bytes.len())"
+expression: "format!(\"sha256={}\\nentries={:?}\\nbytes={}\",\ncommon::sha256_hex_of(built.built.bytes.as_slice()), built.paths(),\nbuilt.built.bytes.len())"
 ---
-sha256=dbad6cfdfcb2ff92889d1fa7ed7c629accd432187a0f743fabfc3f8f8f840626
+sha256=bef0b09f57e45494fbdb3e000b1f86b2bd66bf68c649945d86d88d68d3f1ce82
 entries=["META-INF/container.xml", "content.opf", "mimetype", "nav.xhtml", "style.css", "text/c0001.xhtml", "toc.ncx"]
-bytes=3812
+bytes=3896

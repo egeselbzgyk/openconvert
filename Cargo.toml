@@ -81,6 +81,20 @@ criterion = { version = "0.8", features = ["html_reports"] }
 pdf-writer = "0.13"
 trybuild  = "1.0"
 
+# Debug info is the bulk of a test binary, and this workspace links a great many of them: every
+# integration test statically links the whole pipeline, including the PDFium binding, so
+# `openconvert` alone contributes twenty such executables. Phase 6 added eight more and the Ubuntu
+# CI runner ran out of disk while linking them — `collect2: fatal error: ld terminated with signal 7
+# [Bus error]` is what a full filesystem looks like from inside the linker (CI 35398970632, the
+# `test (ubuntu-latest)` and `no-network` jobs).
+#
+# `line-tables-only` keeps the file and line of every frame, which is all a panic backtrace in CI
+# needs in order to name the assertion that failed, and drops the type and variable descriptions
+# that make up most of the size. `release` and `bench` are deliberately untouched: `bench` wants
+# full symbols for profiling, and `release` already strips.
+[profile.dev]
+debug = "line-tables-only"
+
 [profile.release]
 lto = "thin"
 codegen-units = 1

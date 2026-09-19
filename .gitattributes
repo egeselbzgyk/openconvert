@@ -1,5 +1,14 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Auto detect text files, normalise on commit, and **check out with LF on every platform**.
+#
+# `eol=lf` is not a style preference. `text=auto` alone normalises what is *stored* and lets
+# `core.autocrlf` decide what is *checked out*, so on Windows the working tree gets CRLF — and this
+# repository has build products whose bytes are a hash of a text file. `corpus/fixtures/typst/*.typ`
+# is compiled to a PDF, the PDF's SHA-256 mints `dc:identifier`, and a `urn:uuid:` is a fixed-length
+# string: the EPUB came out the same length with different bytes on Windows than on Linux and macOS,
+# which is exactly how D13.8's cross-OS byte-identity gate failed on its first real run
+# (`epub_is_byte_identical_across_os`, CI 35398970632). A byte-identity claim over a build product
+# requires the build's *inputs* to be byte-identical first.
+* text=auto eol=lf
 
 # Binary fixtures and artefacts must never be line-ending normalised. Git's `text=auto`
 # heuristic only looks for a NUL byte, and a small PDF has none — so it would classify

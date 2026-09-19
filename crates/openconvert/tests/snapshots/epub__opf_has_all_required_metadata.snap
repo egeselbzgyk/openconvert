@@ -11,10 +11,12 @@ expression: redact(&opf)
 <meta property="dcterms:modified">[redacted]</meta>
 <dc:creator>O. Convert</dc:creator>
 <meta property="schema:accessMode">textual</meta>
+<meta property="schema:accessModeSufficient">textual</meta>
 <meta property="schema:accessibilityFeature">readingOrder</meta>
 <meta property="schema:accessibilityFeature">structuralNavigation</meta>
 <meta property="schema:accessibilityFeature">tableOfContents</meta>
 <meta property="schema:accessibilityFeature">printPageNumbers</meta>
+<meta property="pageBreakSource">urn:sha256:c4ff0780679e13043f1b997e47f356965f353504434729b263ba8be3b22701cc</meta>
 <meta property="schema:accessibilityHazard">none</meta>
 <meta property="schema:accessibilitySummary">Converted from PDF by OpenConvert. The reading order, a heading-based table of contents, and the printed page numbers as a page list come from the source document. No conformance to WCAG is claimed: a converter cannot guarantee it from PDF source.</meta>
 </metadata>

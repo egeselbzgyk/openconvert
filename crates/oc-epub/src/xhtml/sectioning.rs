@@ -84,8 +84,13 @@ impl El<Sectioning> {
         label: &SectionLabel,
         f: impl FnOnce(El<Sectioning>) -> El<Sectioning>,
     ) -> Self {
+        // The `epub:type` and its DPUB-ARIA role together, because EPUB Accessibility requires
+        // them to agree and a screen reader only reads the role (`EpubType::role`).
         let kind = kind
-            .map(|kind| format!(" epub:type=\"{}\"", kind.as_str()))
+            .map(|kind| match kind.role() {
+                Some(role) => format!(" epub:type=\"{}\" role=\"{role}\"", kind.as_str()),
+                None => format!(" epub:type=\"{}\"", kind.as_str()),
+            })
             .unwrap_or_default();
         let label = match label {
             SectionLabel::None => String::new(),

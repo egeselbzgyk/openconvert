@@ -785,6 +785,37 @@ measured on the ten fixtures: **I-7 holds on every one of them**, **zero repairs
   400-character unbroken line inside a phone viewport, and the table rules keep a wide table inside
   its column.
 
+### Fixed after the first CI run
+
+Phase 6 merged green on one machine and failed five jobs across two workflows. Every failure was
+real. The argument and the evidence are in `docs/DECISIONS_LOG.md`, 2026-09-19; what changed:
+
+- **`oc-epub::zip` pins the zip's host-system byte** (`.system(zip::System::Unix)`). Left unset, the
+  `zip` crate fills "version made by" from the *building* platform, so the container came out the
+  same length with different bytes on Windows than on Linux and macOS — and D13.8's cross-OS gate
+  failed on its first real run. The module comment had already claimed this field was pinned; it was
+  not. `golden_epub_bytes_f01`'s snapshot is corrected to the value all three platforms now produce.
+- **`oc-epub::opf` emits `pageBreakSource`** for a book with a page list, valued as
+  `urn:sha256:<source digest>`. Ace reported the absence as `epub-pagesource` at *serious*, the
+  severity the nightly gate bounds at zero.
+- **`schema:accessModeSufficient` is unconditional.** It was emitted `if has_alt` — the condition
+  inverted, claiming textual sufficiency only for books that *had* images.
+- **`epub:type` now carries its DPUB-ARIA role** (`EpubType::role`), on `<section>` and on
+  `<div epub:type>`. `<section epub:type="chapter">` had no `role="doc-chapter"`, on every content
+  document of every fixture.
+- **`oc-validate::ace` reads `a11y-metadata.present`**, which is where Ace puts it; it read
+  `data.metadata`, a key Ace does not write, so every required property came back missing on every
+  book. Its unit fixture is now a real `report.json` rather than one composed from the
+  documentation. `AceError::NoReport` carries Ace's exit status and output, because the first
+  version said only "EOF while parsing a value" and bought no information.
+- **`[profile.dev] debug = "line-tables-only"`**, which takes the workspace's test executables from
+  5.7 GB to 488 MB. Phase 6's eight new integration-test binaries ran the Ubuntu runners out of disk
+  mid-link; a signal 7 from `collect2` is what that looks like. The two Linux jobs also reclaim the
+  preinstalled toolchains they do not use.
+- **`.gitattributes` checks out with `eol=lf`.** Hygiene, and explicitly *not* the cause of the
+  cross-OS failure — the first suspect, eliminated by recompiling every fixture from LF sources and
+  finding the PDF digests unchanged.
+
 ### Known gaps, carried forward
 
 - `report.rs` is in `openconvert`, not in `oc-core` as the plan's Files list has it. Assembling the

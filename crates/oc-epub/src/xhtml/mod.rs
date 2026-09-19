@@ -170,6 +170,36 @@ impl EpubType {
             EpubType::Pagebreak => "pagebreak",
         }
     }
+
+    /// The DPUB-ARIA role this `epub:type` must be accompanied by, where one exists.
+    ///
+    /// EPUB Accessibility requires the two to agree: `epub:type` is EPUB's vocabulary and a
+    /// screen reader reads the ARIA role, so a type with no matching role is a semantic the
+    /// assistive technology never sees. Ace reports it as `epub-type-has-matching-role`, and did
+    /// — on every content document of every fixture, because `<section epub:type="chapter">`
+    /// carried none (nightly CI 35430065404).
+    ///
+    /// `None` for `frontmatter`, `bodymatter`, `backmatter` and `footnotes`: those four are absent
+    /// from the mapping DPUB-ARIA defines and Ace checks against, so inventing a role for them
+    /// would be asserting a semantic the specification does not have.
+    pub fn role(self) -> Option<&'static str> {
+        match self {
+            EpubType::Cover => Some("doc-cover"),
+            EpubType::Part => Some("doc-part"),
+            EpubType::Chapter => Some("doc-chapter"),
+            EpubType::Epigraph => Some("doc-epigraph"),
+            EpubType::Toc => Some("doc-toc"),
+            EpubType::PageList => Some("doc-pagelist"),
+            EpubType::Footnote => Some("doc-footnote"),
+            EpubType::Noteref => Some("doc-noteref"),
+            EpubType::Pagebreak => Some("doc-pagebreak"),
+            EpubType::Frontmatter
+            | EpubType::Bodymatter
+            | EpubType::Backmatter
+            | EpubType::Landmarks
+            | EpubType::Footnotes => None,
+        }
+    }
 }
 
 /// The CSS classes `style.css` defines (D13.11).
@@ -279,7 +309,11 @@ fn a_page_serialises_as_the_markup_it_was_built_from() {
 
     assert!(html.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE html>\n"));
     assert!(html.contains("xml:lang=\"en\" lang=\"en\""));
-    assert!(html.contains("<section epub:type=\"chapter\" id=\"sec1\" aria-labelledby=\"sec1-h\">"));
+    // The DPUB-ARIA role travels with the `epub:type`: EPUB Accessibility requires the two to
+    // agree, and the role is the half a screen reader reads (`EpubType::role`).
+    assert!(html.contains(
+        "<section epub:type=\"chapter\" role=\"doc-chapter\" id=\"sec1\" aria-labelledby=\"sec1-h\">"
+    ));
     assert!(html.contains("<h1 id=\"sec1-h\">Chapter One</h1>"));
     assert!(html.contains("<p>It was a dark and stormy night.</p>"));
     assert!(!html.contains("<!ENTITY"), "no internal subset, ever (D5)");

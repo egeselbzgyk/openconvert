@@ -115,10 +115,20 @@ pub fn write_deterministic_zip(entries: &[ZipEntry]) -> Result<Vec<u8>, ZipError
 /// `last_modified_time` is the earliest instant the MS-DOS timestamp format can express —
 /// 1980-01-01T00:00:00 — because there is no "no timestamp" to choose, and no permissions are
 /// set, because a mode bit is where the writing platform leaks into the bytes.
+///
+/// **`system` is pinned, and it is the field that broke D13.8's cross-OS gate.** Left unset, the
+/// `zip` crate fills the "version made by" host byte from the *building* platform — `System::Dos`
+/// on Windows, `System::Unix` everywhere else — which its own test suite documents. The byte is
+/// fixed-width, so the container came out the same length with different bytes: Ubuntu and macOS
+/// agreed with each other and Windows did not, and `epub_is_byte_identical_across_os` failed on its
+/// first real run (CI 35398970632). `Unix` is the value the other two already produced and the
+/// value every EPUB toolchain writes. Nothing reads it; that is the point — a field nothing reads
+/// has no business varying.
 fn options(method: CompressionMethod) -> SimpleFileOptions {
     SimpleFileOptions::default()
         .compression_method(method)
         .last_modified_time(epoch())
+        .system(zip::System::Unix)
         .large_file(false)
 }
 

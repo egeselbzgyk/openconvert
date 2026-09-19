@@ -82,6 +82,19 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      # Belt and braces after the linker ran the runner out of disk (CI 35398970632): every
+      # integration test statically links the whole pipeline, and on Linux the debug info is
+      # embedded in the ELF, so the workspace's test executables are the largest thing either job
+      # writes. `[profile.dev] debug = "line-tables-only"` cut that by an order of magnitude and is
+      # the actual fix; this reclaims the ~25 GB of preinstalled toolchains neither job uses, and
+      # prints the headroom so the next person does not have to infer it from a bus error.
+      - name: reclaim runner disk
+        if: runner.os == 'Linux'
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
       - uses: dtolnay/rust-toolchain@master
         with: { toolchain: 1.98.1 }
       - uses: Swatinem/rust-cache@v2
@@ -122,6 +135,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Belt and braces after the linker ran the runner out of disk (CI 35398970632): every
+      # integration test statically links the whole pipeline, and on Linux the debug info is
+      # embedded in the ELF, so the workspace's test executables are the largest thing either job
+      # writes. `[profile.dev] debug = "line-tables-only"` cut that by an order of magnitude and is
+      # the actual fix; this reclaims the ~25 GB of preinstalled toolchains neither job uses, and
+      # prints the headroom so the next person does not have to infer it from a bus error.
+      - name: reclaim runner disk
+        if: runner.os == 'Linux'
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
       - uses: dtolnay/rust-toolchain@master
         with: { toolchain: 1.98.1 }
       - uses: Swatinem/rust-cache@v2

@@ -99,12 +99,15 @@ impl<C: FlowContext> El<C> {
     }
 
     /// `<div epub:type="…">`, for the block-level semantics that are not a section.
+    ///
+    /// With the DPUB-ARIA role beside the type, for the reason [`EpubType::role`] gives: the type
+    /// is EPUB's vocabulary and the role is what a screen reader reads.
     pub fn div_type(self, kind: EpubType, f: impl FnOnce(El<Flow>) -> El<Flow>) -> Self {
-        self.child(
-            &format!("<div epub:type=\"{}\">", kind.as_str()),
-            "</div>",
-            f,
-        )
+        let open = match kind.role() {
+            Some(role) => format!("<div epub:type=\"{}\" role=\"{role}\">", kind.as_str()),
+            None => format!("<div epub:type=\"{}\">", kind.as_str()),
+        };
+        self.child(&open, "</div>", f)
     }
 
     /// `<blockquote>`.

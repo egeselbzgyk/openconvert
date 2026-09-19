@@ -145,11 +145,16 @@ fn accessibility(document: &Document, input: &PackageInput<'_>) -> String {
     if has_images {
         out.push_str("<meta property=\"schema:accessMode\">visual</meta>\n");
     }
-    // Sufficient on its own: every image carries alt text, so a reader who cannot see has the
-    // whole book in text. Claimed only when that is true.
-    if has_alt {
-        out.push_str("<meta property=\"schema:accessModeSufficient\">textual</meta>\n");
-    }
+    // Sufficient on its own, and **unconditionally**: a book with no images is textual and
+    // nothing else, and a book with images carries alt text on every one of them — the typed
+    // builder cannot emit an `<img>` without it (`an_image_without_alt_text_cannot_be_built`) and
+    // Tier 1 rejects an empty one. Either way a reader who cannot see has the whole book in text.
+    //
+    // This read `if has_alt`, which was the condition inverted: it claimed sufficiency only for
+    // books that *had* images and withheld it from books that were pure text. Ace reported it as
+    // `metadata-accessmodesufficient` on `f01` and `f08`, the two fixtures with no images at all
+    // (nightly CI 35430065404).
+    out.push_str("<meta property=\"schema:accessModeSufficient\">textual</meta>\n");
 
     out.push_str("<meta property=\"schema:accessibilityFeature\">readingOrder</meta>\n");
     if has_headings {
@@ -163,6 +168,21 @@ fn accessibility(document: &Document, input: &PackageInput<'_>) -> String {
     }
     if has_page_list {
         out.push_str("<meta property=\"schema:accessibilityFeature\">printPageNumbers</meta>\n");
+        // A book that publishes page numbers has to say where they came from, or a citation of
+        // "p. 42" names a page in nothing in particular. EPUB Accessibility 1.1 defines
+        // `pageBreakSource` for exactly this question (§pageSource), and Ace enforces it as
+        // `epub-pagesource` — at `serious`, the severity the nightly gate bounds at zero, which is
+        // how it was found (nightly CI 35430065404).
+        //
+        // The value is the source document's SHA-256, because that is the only handle we honestly
+        // have: a PDF carries no ISBN and no edition statement this converter may rely on, and the
+        // filename is the user's business and does not belong in a file they may hand to someone
+        // else. A digest identifies the source exactly, is the same on every machine, and says
+        // nothing about where it was kept.
+        out.push_str(&format!(
+            "<meta property=\"pageBreakSource\">urn:sha256:{}</meta>\n",
+            escape::text(&document.source_sha256)
+        ));
     }
     out.push_str("<meta property=\"schema:accessibilityHazard\">none</meta>\n");
 

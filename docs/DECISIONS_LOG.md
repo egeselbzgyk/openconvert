@@ -2448,3 +2448,97 @@ forgotten.
 
 The sibling row **VD-e** stays open and unchanged: it blocks the optional dictionary pack, which is
 post-v1, and D15 already routes around it for core data.
+
+## 2026-09-19 — what the first CI run of Phase 6 found that six phases of local testing did not
+
+Phase 6 merged to `main` with 455 tests green on Windows and every local gate clean. The push run
+failed four jobs and the nightly failed one. Every failure was real; none was a flake. They are
+recorded together because the pattern matters more than any one of them: **each was invisible to a
+machine that only ever ran the tests on one operating system with one toolchain.**
+
+### 1. The container's bytes were not the same on Windows as on Linux and macOS
+
+`epub_is_byte_identical_across_os` failed on its first real run, and `golden_epub_bytes_f01` failed
+on macOS. Ubuntu and macOS agreed with each other; Windows did not. The entry list was identical and
+the total was identical — 3812 bytes both ways — which is what made it hard to guess and easy to
+prove: **a fixed-width field was varying.**
+
+It was the "version made by" host byte. `zip`'s `SimpleFileOptions::default()` fills it from the
+*building* platform — `System::Dos` on Windows, `System::Unix` everywhere else — and the crate's own
+test suite documents exactly that. `zip.rs`'s module comment already claimed "a timestamp, the
+host-system byte in the version-made-by field, and the unix-permission extra fields. All three are
+pinned here". Two were. The sentence was written from intent rather than from the API, and nothing
+on one machine could contradict it.
+
+Fixed by `.system(zip::System::Unix)`. The proof is arithmetic rather than argument: with the field
+pinned, this Windows machine produces `b18e9a8d…` for `f01` — the byte-for-byte value macOS and
+Ubuntu had produced all along, and the value the committed snapshot has been corrected to.
+
+**A first guess that was wrong, recorded because the elimination is the evidence.** The obvious
+suspect was `core.autocrlf`: the Typst fixture sources were checked out CRLF on Windows and LF
+elsewhere, the PDF's SHA-256 mints `dc:identifier`, and a `urn:uuid:` is fixed-width — the same shape
+of symptom. It is not the cause: Typst normalises line endings itself, and recompiling every fixture
+from LF sources leaves the PDF digests unchanged. `.gitattributes` gained `eol=lf` anyway, so a
+Windows working tree matches what CI checks out, but it is hygiene and it fixed nothing.
+
+### 2. Ace found three real accessibility defects on its first run
+
+The `ace-a11y` job failed, and the gate was right to fail:
+
+- **`epub-pagesource`, *serious*.** A book that publishes page numbers must say where they came
+  from, or a citation of "p. 42" names a page in nothing in particular. Fixed by emitting
+  `pageBreakSource` — valued as `urn:sha256:<digest of the source PDF>`, because that is the only
+  handle this converter honestly has: a PDF carries no ISBN, and the filename is the user's business
+  and does not belong in a file they may hand to someone else.
+- **`metadata-accessmodesufficient`, moderate.** `schema:accessModeSufficient` was emitted under
+  `if has_alt`, which is the condition *inverted*: it claimed textual sufficiency only for books that
+  had images and withheld it from books that were nothing but text. It is unconditional now — the
+  typed builder cannot emit an image without alt text, so `textual` is always sufficient.
+- **`epub-type-has-matching-role`, moderate, on every content document of every fixture.**
+  `<section epub:type="chapter">` carried no `role="doc-chapter"`. `EpubType::role` now carries the
+  DPUB-ARIA mapping, taken from the table Ace checks against rather than from memory, and returns
+  `None` for the four types — `frontmatter`, `bodymatter`, `backmatter`, `footnotes` — that have no
+  role, because inventing one would assert a semantic the specification does not define.
+
+EPUBCheck still reports 0 errors on all ten fixtures after all three.
+
+### 3. The Ace runner would have hidden the metadata half of its own gate
+
+Two bugs in the runner, and the second is the instructive one.
+
+Its error said `EOF while parsing a value at line 1 column 0` and threw away Ace's stderr, so the
+first CI cycle bought no information at all. `AceError::NoReport` now carries Ace's exit status,
+stdout and stderr. When a subprocess fails, what it said is the entire diagnosis.
+
+And `parse` read the metadata from `data.metadata`, **a key Ace does not write**. Every required
+property came back missing on every book. The unit tests passed because their fixture JSON was
+composed from Ace's documentation by the same hand that composed the parser — so they tested the
+misreading against itself. The fixture is now a real `report.json`, trimmed, and the parser reads
+`a11y-metadata.present`, which is Ace's own answer. `empty` is deliberately not folded into
+`present`: a property declared blank satisfies a checker that only looks for the element and tells a
+reader nothing.
+
+A parser for someone else's format has to be tested against their output, not against one's reading
+of their documentation. This module's own doc comment had said the reader "would silently report zero
+violations if the schema moved" — and it was already doing the metadata half of exactly that.
+
+### 4. Phase 6 pushed the Ubuntu runners off the end of their disk
+
+`test (ubuntu-latest)` and `no-network` both died with `collect2: fatal error: ld terminated with
+signal 7 [Bus error], core dumped`, which is what a full filesystem looks like from inside the
+linker. Not a flake and not GitHub's fault: every integration test statically links the whole
+pipeline including the PDFium binding, `openconvert` alone contributes twenty such executables, and
+Phase 6 added eight more.
+
+`[profile.dev] debug = "line-tables-only"` takes the workspace's test executables from **5.7 GB to
+488 MB** — a twelvefold cut — and keeps the file and line of every frame, which is all a panic
+backtrace in CI needs to name the assertion that failed. The two Linux jobs additionally reclaim the
+preinstalled toolchains they do not use and print `df -h` either side, so the next person does not
+have to infer the disk state from a signal 7.
+
+### What this says about the Definition of Done
+
+Phase 6's Definition of Done named two rows it could not verify on one machine and declined to count
+them as passes. Both of them failed. That is the entry working as intended, and it is the argument
+for writing a partial row as partial rather than as "basically done": the two rows that were honest
+about being unverified are precisely the two that were broken.
