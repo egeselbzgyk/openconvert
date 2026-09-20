@@ -129,6 +129,194 @@ pub fn strip_tounicode(bytes: &[u8]) -> Result<Vec<u8>, MutateError> {
     save(document)
 }
 
+/// Delete the structure tree from the catalogue.
+///
+/// **Changes:** whether the file says what its parts *are* — headings, lists, figures,
+/// reading order — in machine-readable form. **Does not change:** a single mark on the page.
+///
+/// D18's reason for keeping the tagged bucket at the real world's ~12.6 %: a pipeline tuned on
+/// tagged input has been tuned on the 12.6 %. Stripping the tree from a document that has one
+/// is how the other 87.4 % is simulated from a file whose true structure is known.
+pub fn strip_structtree(bytes: &[u8]) -> Result<Vec<u8>, MutateError> {
+    let mut document = load(bytes)?;
+
+    let catalogue = document
+        .catalog_mut()
+        .map_err(|error| MutateError::Parse(error.to_string()))?;
+    let had_tree = catalogue.remove(b"StructTreeRoot").is_some();
+    catalogue.remove(b"MarkInfo");
+
+    if !had_tree {
+        return Err(MutateError::Absent {
+            what: "/StructTreeRoot to strip",
+        });
+    }
+
+    // `/StructParents` on a page points into the tree that is now gone. A dangling key is
+    // worse than no key: a reader that trusts it looks up a number in nothing.
+    for id in page_ids(&document) {
+        page_dictionary_mut(&mut document, id)?.remove(b"StructParents");
+    }
+
+    // The marked-content operators in the streams are left alone on purpose. A real untagged
+    // PDF from a producer that once tagged it looks exactly like this — `/P <</MCID 0>> BDC`
+    // with nothing to resolve the MCID against — and that is the file the pipeline must
+    // survive.
+    save(document)
+}
+
+/// Draw every page's content a second time, exactly on top of itself.
+///
+/// **Changes:** how many times each glyph is painted, and therefore `C_raw`, which doubles.
+/// **Does not change:** what a reader sees — the second pass lands on the first — or which
+/// characters the file contains once the overdraw is collapsed.
+///
+/// This is the mutation the `OverdrawDedup` reason exists for. A producer that draws a page
+/// twice to fake bold, or a tool that merged two layers, leaves exactly this, and a converter
+/// that does not collapse it emits every word twice.
+pub fn double_draw(bytes: &[u8]) -> Result<Vec<u8>, MutateError> {
+    rewrite_content(bytes, |content| {
+        let original = content.operations.clone();
+        content.operations.extend(original);
+    })
+}
+
+/// Add an invisible copy of every page's text, in render mode 3.
+///
+/// **Changes:** how many text-showing operations the page has, and therefore `C_raw`.
+/// **Does not change:** one pixel of what is drawn — render mode 3 paints nothing.
+///
+/// This is the shape of an OCR sandwich (D13.10): a scanned page carries an image and an
+/// invisible text layer the OCR engine produced, and a converter that reads both emits the
+/// page twice. Doing it to a born-digital fixture makes the duplicate exactly detectable — the
+/// visible and invisible runs carry the same characters at the same positions — which is what
+/// `OcrLayerDuplicate` has to recognise.
+pub fn ocr_sandwich(bytes: &[u8]) -> Result<Vec<u8>, MutateError> {
+    rewrite_content(bytes, |content| {
+        let mut invisible = Vec::with_capacity(content.operations.len() + 1);
+        for operation in &content.operations {
+            invisible.push(operation.clone());
+            if operation.operator == "BT" {
+                invisible.push(lopdf::content::Operation::new(
+                    "Tr",
+                    vec![Object::Integer(INVISIBLE_RENDER_MODE)],
+                ));
+            }
+        }
+        content.operations.extend(invisible);
+    })
+}
+
+/// Move every text-positioning operator sideways by a small, fixed-per-operator amount.
+///
+/// **Changes:** where each run starts, by a fraction of a point. **Does not change:** which
+/// characters are drawn, or in what order.
+///
+/// Word segmentation is a decision about gaps (R2 §B.3), and a gap that is 2.00 pt in one book
+/// and 1.97 pt in the next must not change the answer. The offsets come from a fixed sequence
+/// rather than a random source, because a mutation a test cannot reproduce is a mutation
+/// nobody can debug.
+pub fn jitter_spacing(bytes: &[u8]) -> Result<Vec<u8>, MutateError> {
+    rewrite_content(bytes, |content| {
+        let mut step = 0u32;
+        for operation in &mut content.operations {
+            if !matches!(operation.operator.as_str(), "Td" | "TD") {
+                continue;
+            }
+            let Some(first) = operation.operands.first() else {
+                continue;
+            };
+            let Some(x) = number(first) else {
+                continue;
+            };
+            operation.operands[0] = Object::Real(x + jitter(step));
+            step += 1;
+        }
+    })
+}
+
+/// Point `startxref` at nothing, so a reader has to rebuild the cross-reference table.
+///
+/// **Changes:** whether the file can be read by following its own index. **Does not change:** a
+/// single object — every one of them is still there, at the offset it was always at.
+///
+/// Real files arrive like this constantly: a truncated download, a naive concatenation, a tool
+/// that appended an incremental update and miscounted. Every serious reader reconstructs the
+/// table by scanning for `obj` markers, and D13.2's point is that we let it rather than refuse
+/// the file.
+pub fn damage_xref(bytes: &[u8]) -> Result<Vec<u8>, MutateError> {
+    let marker = b"startxref";
+    let start = bytes
+        .windows(marker.len())
+        .rposition(|window| window == marker)
+        .ok_or(MutateError::Absent {
+            what: "startxref to damage",
+        })?;
+
+    let mut damaged = bytes[..start].to_vec();
+    damaged.extend_from_slice(b"startxref\n");
+    damaged.extend_from_slice(BOGUS_XREF_OFFSET.as_bytes());
+    damaged.extend_from_slice(b"\n%%EOF\n");
+    Ok(damaged)
+}
+
+/// The offset a damaged `startxref` points at: past the end of any fixture, so a reader that
+/// trusts it finds nothing and a reader that rebuilds finds everything.
+const BOGUS_XREF_OFFSET: &str = "999999999";
+
+/// PDF text render mode 3: fill nothing, stroke nothing, clip nothing.
+const INVISIBLE_RENDER_MODE: i64 = 3;
+
+/// The jitter applied to the nth text-positioning operator, in points.
+///
+/// A fixed sequence, not a random one, and deliberately far smaller than the smallest gap that
+/// separates two words at any realistic size: the mutation is a perturbation the pipeline
+/// should shrug off, not a different layout.
+fn jitter(step: u32) -> f32 {
+    /// Peak displacement. A thirtieth of a point is below the resolution at which any
+    /// typographic distinction is made, and well below `words.gap_resolution_pt`.
+    const AMPLITUDE_PT: f32 = 0.03;
+    /// How many operators before the sequence repeats. Coprime with nothing in particular —
+    /// it just has to be short enough that a two-line fixture sees more than one value.
+    const PERIOD: u32 = 7;
+
+    let phase = f32::from(u16::try_from(step % PERIOD).unwrap_or(0)) / PERIOD as f32;
+    AMPLITUDE_PT * (2.0 * phase - 1.0)
+}
+
+/// Decode every page's content stream, hand it to `edit`, and write it back.
+fn rewrite_content(
+    bytes: &[u8],
+    mut edit: impl FnMut(&mut lopdf::content::Content),
+) -> Result<Vec<u8>, MutateError> {
+    let mut document = load(bytes)?;
+    let pages = page_ids(&document);
+    if pages.is_empty() {
+        return Err(MutateError::Absent { what: "pages" });
+    }
+
+    for (index, id) in pages.iter().enumerate() {
+        let mut content = document
+            .get_and_decode_page_content(*id)
+            .map_err(|error| MutateError::Parse(error.to_string()))?;
+        if content.operations.is_empty() {
+            return Err(MutateError::Missing {
+                page: u32::try_from(index).unwrap_or(u32::MAX),
+                attribute: "content stream",
+            });
+        }
+        edit(&mut content);
+        let encoded = content
+            .encode()
+            .map_err(|error| MutateError::Write(error.to_string()))?;
+        document
+            .change_page_content(*id, encoded)
+            .map_err(|error| MutateError::Write(error.to_string()))?;
+    }
+
+    save(document)
+}
+
 // ---------------------------------------------------------------------------
 // lopdf plumbing
 // ---------------------------------------------------------------------------

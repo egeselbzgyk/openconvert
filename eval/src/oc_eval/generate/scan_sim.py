@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import random
 from pathlib import Path
+from typing import cast
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -73,7 +74,7 @@ FONT_CANDIDATES = (
 )
 
 
-def _load_font(size: int) -> ImageFont.ImageFont:
+def _load_font(size: int) -> ImageFont.ImageFont | ImageFont.FreeTypeFont:
     for candidate in FONT_CANDIDATES:
         try:
             return ImageFont.truetype(candidate, size)
@@ -98,17 +99,22 @@ def make_fixture_asset(out_path: Path) -> Path:
 
     # A slight rotation, filling the corners with paper rather than black. Done before
     # quantisation so the interpolated edges land on the same grey levels as everything else.
-    page = page.rotate(SKEW_DEGREES, resample=Image.BICUBIC, fillcolor=PAPER_GREY)
+    page = page.rotate(SKEW_DEGREES, resample=Image.Resampling.BICUBIC, fillcolor=PAPER_GREY)
     page = page.point(lambda v: round(v / 255 * (GREY_LEVELS - 1)) * 255 // (GREY_LEVELS - 1))
 
     # Speckle, from a fixed seed so the file is reproducible.
     rng = random.Random(NOISE_SEED)
     pixels = page.load()
+    if pixels is None:  # pragma: no cover - a mode-"L" image always loads
+        raise RuntimeError("the page image could not be loaded for pixel access")
     speckles = int(WIDTH_PX * HEIGHT_PX * NOISE_PIXEL_SHARE)
     for _ in range(speckles):
         px = rng.randrange(WIDTH_PX)
         py = rng.randrange(HEIGHT_PX)
-        value = pixels[px, py] + rng.randint(-NOISE_AMPLITUDE, NOISE_AMPLITUDE)
+        # Mode "L" is one byte a pixel, so `pixels[x, y]` is a single value rather than the
+        # tuple a colour mode would give. The cast says so; Pillow's stubs cannot.
+        current = cast("int", pixels[px, py])
+        value = current + rng.randint(-NOISE_AMPLITUDE, NOISE_AMPLITUDE)
         pixels[px, py] = max(0, min(255, value))
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

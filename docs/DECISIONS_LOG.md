@@ -2589,3 +2589,105 @@ scale.
 
 The Definition of Done's habit of naming a row it cannot verify, rather than rounding it up, is what
 made this tractable: the rows that failed were the rows already marked as unverified.
+
+## 2026-09-20 · `xtask fixtures --keep-structtree` tagged every fixture, not ~12.6 % of them · Phase 7
+Context: Phase 7's `oc-eval corpus lint` implements IMPLEMENTATION_PLAN §1.8's rule that the synthetic
+bucket's `tagged` share stays within ±5 points of `corpus.tagged_share_target` (0.126, D18 / R1 §A.10).
+It fired on the manifest as committed: 6 tagged of 16 synthetic entries, 0.375. Reading the generator
+showed the number is worse than it looks — `run()` emitted a `__tagged` variant for *every* `.typ`
+source, so a full regeneration would have produced 10 tagged of 20, exactly 0.5. The committed manifest
+was 6 only because the task had last been run when six sources existed.
+Decision: `TAGGED_FIXTURES` names the fixtures that get a tagged variant, and it names two:
+`f01_prose_single_column` (English) and `f04_german_prose` (German). Two of ten sources is 2/12 = 0.167,
+inside 0.126 ± 0.05, and it is the widest coverage the share allows — one fixture would also fit at
+0.091, and would exercise the tagged path in one script only. The four surplus entries
+(`f02`, `f03`, `f05`, `f06` tagged variants) are deleted from `corpus/manifest.json`; the generator no
+longer produces them, so they do not return. `f01_prose_single_column__tagged` is the only tagged
+fixture any test names (`crates/oc-pdf/src/meta.rs`), and it is kept.
+A new threshold `corpus.tagged_share_tolerance = 0.05` carries §1.8's ±5 points, so the Rust gate and
+the Python lint read one number instead of two that agree today.
+Evidence: `xtask::fixtures::the_tagged_bucket_is_the_share_the_real_world_has`,
+`xtask::fixtures::every_named_tagged_fixture_is_a_fixture_that_exists`,
+`eval/tests/test_corpus_lint.py::test_a_synthetic_bucket_that_kept_its_struct_trees_is_a_finding`.
+Affects: D18, IMPLEMENTATION_PLAN §1.8, `xtask/src/fixtures.rs`, `thresholds.toml`, `corpus/manifest.json`.
+
+## 2026-09-20 · A harvested licence is verified by the harvester, and says so · Phase 7
+Context: TEST_CORPUS §7.1 requires every corpus entry to carry `license.verified_by` and
+`verified_date`. The Phase 7 harvest admits ~100 real documents, and a human did not read ~100 licence
+statements.
+Decision: `license.verified_by` records `oc-eval corpus harvest` — the agent that actually read the
+field, from the source's own machine-readable rights metadata (OAPEN `dc.rights.uri`, Internet Archive
+`licenseurl`, arXiv OAI `<license>`, NTRS `copyright.determinationType`, and the `<link rel="license">`
+on a DergiPark article page). Writing `maintainer` there would be a claim nobody made. Every licence
+is normalised through `stratify.license_from_url` and checked against §7.1's allowlist, so a
+non-commercial or no-derivatives record is named and rejected rather than quietly skipped; §7.4's
+annual re-verification remains a human job and is what would change this field.
+Evidence: `eval/tests/test_corpus_harvest.py::test_a_candidate_whose_licence_is_not_acceptable_is_rejected_by_name`,
+`eval/tests/test_corpus_sources.py` (one refusal test per source).
+Affects: TEST_CORPUS §7.1 §7.4, `corpus/manifest.json`, `eval/src/oc_eval/corpus/harvest.py`.
+
+## 2026-09-20 · Two mutation recipes are not reproducible, and the catalogue says so · Phase 7
+Context: PHASE 7 row 7.6 asks that each mutation recipe applied to its parent reproduce the committed
+mutant byte-for-byte. Running `cargo xtask mutations` twice showed the three encrypted mutants
+rewritten with different bytes each time — 902 bytes on one run and 903 on the next. AES-128 draws a
+fresh initialisation vector for every string and stream, so encrypting the same file twice cannot give
+the same file twice. That is the cipher working, not a defect.
+Decision: the catalogue carries `Reproducibility` per recipe. `Deterministic` recipes are asserted
+byte-for-byte against the committed mutant, which is row 7.6 as written. `Randomised` recipes are
+asserted on the property that makes byte-equality impossible — two applications to the same parent
+must differ — so a recipe that quietly became deterministic, which would mean a broken cipher, fails
+the same test. `xtask mutations` no longer rewrites an existing randomised mutant: regenerating it
+replaced a regression artefact with noise and put an unreviewable diff in front of whoever ran the
+task. `--regenerate` is deliberately absent; deleting the file is the way to ask for a new one.
+Evidence: `xtask::mutations::tests::every_mutation_recipe_replays`.
+Affects: IMPLEMENTATION_PLAN PHASE 7 row 7.6, `xtask/src/mutations.rs`.
+
+## 2026-09-20 · The Phase 7 mutation catalogue is Rust, not the Python of §1.7 · Phase 7
+Context: IMPLEMENTATION_PLAN §1.7 lists the mutation recipes as Python modules under
+`eval/src/oc_eval/mutate/` and PHASE 7 §4 calls for `pikepdf`/qpdf-QDF recipes. `oc-testkit::mutate`
+already held four of them in Rust, with the reason written in its module docstring in Phase 1: a
+metamorphic test has to apply the mutation and compare in one process, and a Python step in the middle
+would make `cargo nextest` — the gate — depend on an interpreter, a virtualenv and a wheel.
+Decision: the five recipes the failure taxonomy was missing (`strip_structtree`, `double_draw`,
+`ocr_sandwich`, `jitter_spacing`, `damage_xref`) are Rust, beside the four that were already there.
+Row 7.6's test walks one catalogue rather than two, the fast tier keeps them, and `xtask mutations`
+can apply the same recipes to a corpus document when the eval harness wants one. The plan's intent —
+a recipe committed as a reviewable diff — is met by the recipe being committed source with the
+mutant's bytes committed beside it, which is what a reviewer reads either way.
+Not done: **Type 3 re-encoding**, the sixth item in PHASE 7 §4's list. Re-encoding an embedded font as
+Type 3 while preserving its outlines needs a glyph-outline extractor that `lopdf` does not have, and a
+Type 3 font whose CharProcs draw rectangles would change what the page looks like rather than only how
+it is encoded. It belongs with the handmade fixtures — a small PDF authored as Type 3 with a
+`/ToUnicode` map — and is recorded in `PROGRESS.md` as a gap rather than faked here.
+Evidence: `xtask::mutations::tests::every_mutation_does_what_its_effect_promises`, which holds each
+recipe to a declared `Effect` through PDFium; flipping one declared effect turns it red.
+Affects: IMPLEMENTATION_PLAN §1.7 and PHASE 7 §4, `crates/oc-testkit/src/mutate.rs`,
+`xtask/src/mutations.rs`.
+
+## 2026-09-20 · The benchmarks live in `openconvert`, not `oc-core` · Phase 7
+Context: IMPLEMENTATION_PLAN PHASE 7's file list puts the criterion benches at
+`crates/oc-core/benches/{stages.rs,end_to_end.rs}`.
+Decision: they are `crates/openconvert/benches/{stages.rs,end_to_end.rs}`. `convert` lives in
+`openconvert`, and `oc-core` is below it in the dependency graph — a bench in `oc-core` that drove the
+pipeline would need `oc-core` to depend on `openconvert`, which is a cycle. The plan's list predates
+the stage driver landing in `openconvert` (Phase 5 item 5.8, "the pipeline moved into the library").
+Evidence: `crates/oc-core/Cargo.toml` has no path dependency on `openconvert` and cannot acquire one.
+Affects: IMPLEMENTATION_PLAN PHASE 7 file list.
+
+## 2026-09-20 · The wall-clock budget assertions are behind a cargo feature · Phase 7
+Context: PHASE 7 rows 7.11 and 7.12 are `bench-gate` rows. Run on every PR they would assert wall
+clock on a shared CI runner that is simultaneously building three other jobs.
+Decision: `crates/openconvert/tests/perf_budget.rs` splits in two. The arithmetic — that row 7.12's
+five stage budgets sum to `perf.seconds_per_page_max`, that each is a positive share of it, and that
+the reference book is the 300 pages D13.11 states the budget for — needs no clock and runs on every
+PR, because that is where the mistake that actually happens gets caught: a stage quietly given more
+room than the whole has to give. The timed assertions are behind the `bench` feature, which the
+nightly `bench` job turns on. A feature rather than `#[ignore]`, for the reason CLAUDE.md gives and
+the `epubcheck` and `ace` features already follow: a feature is something a job turns on and a
+developer can too, while an ignored test is one nobody ever runs again.
+Measured on the maintainer's machine, unoptimised `test` profile: **0.0217 s/page over 300 pages**
+against a 0.5 budget, and the gate was confirmed to fail when the budget was lowered below it.
+Machine L's number will differ; this is a floor on the headroom, not the reference measurement.
+Evidence: `openconvert::perf_budget::the_stage_budgets_sum_to_the_end_to_end_budget`,
+`openconvert::perf_budget::timed::bench_end_to_end_within_budget` (with `--features bench`).
+Affects: D13.11, IMPLEMENTATION_PLAN PHASE 7 rows 7.11, 7.12, `thresholds.toml`.

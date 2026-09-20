@@ -1,5 +1,6 @@
 ---
 source: crates/openconvert/tests/report.rs
+assertion_line: 49
 expression: value
 ---
 {
@@ -197,5 +198,5 @@ expression: value
       "llm": null
     }
   ],
-  "thresholds": "[155 entries, redacted]"
+  "thresholds": "[164 entries, redacted]"
 }

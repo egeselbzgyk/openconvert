@@ -8,9 +8,55 @@ concurrency: { group: nightly, cancel-in-progress: true }
 env: { CARGO_TERM_COLOR: always, INSTA_UPDATE: "no" }
 
 jobs:
+  # Phase 7 row 7.14. The whole corpus through the shipped binary, scored per file and per
+  # stratum, with the ours(*)-versus-real gap recorded to the committed trend (row 7.10).
+  #
+  # A file the manifest names and the download does not produce is reported as **missing**
+  # rather than skipped: a nightly that quietly scored the forty files it happened to have is
+  # a nightly whose number means something different every night, and the trend built on it
+  # would be worthless.
   full-corpus:            # Phase 7
     runs-on: ubuntu-latest
-    steps: [{ run: 'echo "not yet implemented (Phase 7)"' }]
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@v5
+        with: { version: "0.11.28" }
+      - run: cargo run -p xtask -- vendor-pdfium
+      - run: cargo build -p openconvert --release --locked
+      - run: uv venv eval/.venv --python 3.13
+      - run: uv pip install --python eval/.venv -e eval
+      - run: eval/.venv/bin/python -m oc_eval corpus lint
+      - run: eval/.venv/bin/python -m oc_eval corpus download
+      - run: |
+          eval/.venv/bin/python -m oc_eval run             --binary target/release/openconvert             --out eval/out/report.json
+      - run: |
+          eval/.venv/bin/python - <<'PY'
+          import json, pathlib
+          report = json.loads(pathlib.Path("eval/out/report.json").read_text(encoding="utf-8"))
+          rows = [
+              {
+                  "stratum": row["stratum"],
+                  "file_id": row["file_id"],
+                  "metric": row["metric"],
+                  "value": row["value"],
+              }
+              for row in report["per_file"]
+              if row["metric"] == "converted"
+          ]
+          pathlib.Path("eval/out/scores.json").write_text(json.dumps(rows), encoding="utf-8")
+          PY
+          eval/.venv/bin/python -m oc_eval report trend eval/out/scores.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: full-corpus-report
+          path: |
+            eval/out/report.json
+            eval/out/trend.json
+            eval/out/trend.png
 
   # The same structural DOM assertions as the `dom-checks` job on every PR, in WebKit: the engine
   # every Apple reading system renders with, and the one whose line breaking differs most from
@@ -33,17 +79,70 @@ jobs:
       - run: npx --prefix tests/dom playwright install --with-deps webkit
       - run: npm --prefix tests/dom run test:webkit
 
+  # Phase 7, TEST_STRATEGY §3.8. A suite that passes when the code is wrong is a suite that
+  # was never testing the code. `--in-place` is deliberately not used: the report is the
+  # output, and a surviving mutant is a finding to read rather than a build to fail, because
+  # the honest response to one is usually a new test and not a revert.
   mutation-testing:       # Phase 7 (cargo-mutants + mutmut)
     runs-on: ubuntu-latest
-    steps: [{ run: 'echo "not yet implemented (Phase 7)"' }]
+    timeout-minutes: 240
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-mutants
+      - run: cargo run -p xtask -- vendor-pdfium
+      - run: cargo run -p xtask -- fixtures
+      # The crates whose correctness is arithmetic rather than I/O, which is where a surviving
+      # mutant means something. `oc-pdf` is excluded: most of it is a binding, and mutating a
+      # PDFium call produces a mutant no test could catch and no reader would learn from.
+      - run: cargo mutants --package oc-layout --package oc-structure --package oc-validate --no-shuffle -j 2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: mutants-out, path: mutants.out }
 
+  # Phase 7. The property tests run at 24-256 cases on a PR so the suite stays fast; the
+  # domains they sample are far larger than that, and a counterexample that needs a thousand
+  # cases to find is still a counterexample.
   proptest-deep:          # Phase 7 (PROPTEST_CASES=4096)
     runs-on: ubuntu-latest
-    steps: [{ run: 'echo "not yet implemented (Phase 7)"' }]
+    timeout-minutes: 120
+    env: { PROPTEST_CASES: "4096" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+      - run: cargo run -p xtask -- vendor-pdfium
+      - run: cargo run -p xtask -- fixtures
+      - run: cargo nextest run --workspace --locked
+      - name: a shrunk counterexample is worth more than the log it is buried in
+        if: failure()
+        run: cat **/proptest-regressions/*.txt || true
 
+  # Phase 7 rows 7.11 and 7.12. The budget assertions are behind the `bench` cargo feature
+  # rather than running on every PR: a wall-clock assertion on a shared runner measures the
+  # runner, and a gate that fails for that reason is one people learn to re-run until it
+  # passes. Here the runner is this job's alone.
   bench:                  # Phase 7 (criterion + peak RSS)
     runs-on: ubuntu-latest
-    steps: [{ run: 'echo "not yet implemented (Phase 7)"' }]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+      - run: cargo run -p xtask -- vendor-pdfium
+      - name: the per-page and per-stage budgets (D13.11)
+        run: cargo nextest run -p openconvert --features bench --locked -E 'binary(perf_budget)'
+      - name: the criterion trend beside the gate
+        run: cargo bench -p openconvert --bench end_to_end --bench stages -- --warm-up-time 1 --measurement-time 5
+      - uses: actions/upload-artifact@v4
+        with: { name: criterion, path: target/criterion }
 
   live-llm-cassette-refresh:   # Phase 9
     runs-on: ubuntu-latest

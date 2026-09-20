@@ -820,6 +820,51 @@ evidence = "D13.11: <= 500 MB peak RSS for a 300-page born-digital book"
 owner = "maintainer"
 review_by = "2027-06-30"
 
+# Per-stage shares of `perf.seconds_per_page_max`. IMPLEMENTATION_PLAN PHASE 7 row 7.12 gives
+# the split and says it sums to the 0.5 end-to-end budget; `perf_budget::the_stage_budgets_sum_to_the_end_to_end_budget`
+# holds that arithmetic, so a stage cannot be given room without taking it from another.
+[perf.stage_seconds_per_page.ingest]
+value = 0.15
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN PHASE 7 row 7.12. The largest single share: ingest is where PDFium parses the file and rasterises what has to be rasterised"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[perf.stage_seconds_per_page.text]
+value = 0.05
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN PHASE 7 row 7.12"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[perf.stage_seconds_per_page.layout]
+value = 0.15
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN PHASE 7 row 7.12. Docstrum and the whitespace cover are the two quadratic-looking passes, so layout gets the same share as ingest"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[perf.stage_seconds_per_page.structure]
+value = 0.05
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN PHASE 7 row 7.12"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[perf.stage_seconds_per_page.epub]
+value = 0.10
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN PHASE 7 row 7.12. Image re-encoding dominates it, which is why it is twice the text and structure shares"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[perf.bench_reference_pages]
+value = 300
+source = "provisional"
+evidence = "D13.11 and IMPLEMENTATION_PLAN PHASE 7 row 7.11 state the budget for a 300-page born-digital book, so the benchmark's reference document is that long. A shorter one would measure per-document setup as though it were per-page work"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 # ---------- model promotion gate (D9 G1-G9) ----------
 [model_gate.g4_max_seconds_on_l]           # "L" = D9 reference machine L (4c/8t AVX2 x86, 16 GB)
 value = 50
@@ -862,6 +907,21 @@ evidence = "TEST_STRATEGY §7 promotion checklist; D17 provisional->calibrated g
 owner = "maintainer"
 review_by = "2027-06-30"
 
+# ---------- evaluation gates (PHASE 7 rows 7.8, 7.9) ----------
+[eval.assertion_confidence]
+value = 0.95
+source = "binary"
+evidence = "IMPLEMENTATION_PLAN PHASE 7 row 7.8 and A7.4: the assertion pass rate is reported with a 95% confidence interval and the PR gate is last-green minus that interval's half-width. The level is the plan's, and the interval is Wilson's rather than the normal approximation, which is wrong at the high pass rates this gate lives at (R9 §C.5)"
+owner = "maintainer"
+review_by = "2099-01-01"
+
+[eval.assertion_min_instances]
+value = 30
+source = "provisional"
+evidence = "A pass rate over a handful of assertions has a confidence interval wide enough to admit any regression, so a gate computed from one is a gate in name only. Thirty is where the Wilson half-width at p ~= 0.95 falls below 8 points; the corpus carries far more, and this is the floor at which the gate is allowed to have an opinion at all"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 # ---------- corpus (D18) ----------
 [corpus.ours_max_share]
 value = 0.40
@@ -881,6 +941,13 @@ review_by = "2099-01-01"
 value = 0.126
 source = "published"
 evidence = "RT A9 / R1 §A.10: real world measured at 12.6% tagged"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[corpus.tagged_share_tolerance]
+value = 0.05
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN §1.8: the synthetic bucket's tagged share is checked within +/-5 points of corpus.tagged_share_target. The width is the plan's, not a measurement; it is wide enough that a ten-fixture bucket can express the target at all and narrow enough that a bucket which kept every struct tree fails"
 owner = "maintainer"
 review_by = "2028-01-01"
 

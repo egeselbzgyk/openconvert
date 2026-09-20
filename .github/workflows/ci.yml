@@ -324,6 +324,47 @@ jobs:
         with: { node-version: 22 }
       - run: npm ci --prefix apps/desktop/ui && npm --prefix apps/desktop/ui run test && npm --prefix apps/desktop/ui run lint
 
+  # Phase 7. `eval/` is never a build or runtime dependency of the shipped product (D1), and
+  # the `no-network` and release jobs prove the engine needs no Python — but the eval tooling
+  # is committed, redistributed under Apache-2.0 and run by contributors, so it is held to the
+  # same standard as the Rust: formatted, linted, typed, tested.
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with: { version: "0.11.28" }
+      - run: uv venv eval/.venv --python 3.13
+      - run: uv pip install --python eval/.venv -e "eval[dev]"
+      # Row 7.13: PyMuPDF is AGPL (D15). Checked before anything else runs, because the point
+      # is to fail on a dependency somebody added rather than on a test that used it.
+      - run: eval/.venv/bin/python -m pytest eval/tests/test_no_agpl.py -q
+      - run: eval/.venv/bin/python -m ruff check eval corpus
+      - run: eval/.venv/bin/python -m ruff format --check eval corpus
+      - run: eval/.venv/bin/python -m mypy eval/src/oc_eval eval/tests corpus
+      # `cargo run -p xtask -- fixtures --keep-structtree` is what the struct-tree ground-truth
+      # test reads; it builds it itself if it is missing, and doing it here keeps that off the
+      # critical path of a single test.
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo run -p xtask -- vendor-pdfium
+      - run: cargo run -p xtask -- fixtures --keep-structtree
+      - run: eval/.venv/bin/python -m pytest eval/tests -q
+
+  # Phase 7 row 7.9 and A7.1: the corpus manifest is a contract, and CI enforces it. It reads
+  # only the manifest, never the files, so it costs a second and needs no downloads.
+  corpus-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with: { version: "0.11.28" }
+      - run: uv venv eval/.venv --python 3.13
+      - run: uv pip install --python eval/.venv -e eval
+      - run: eval/.venv/bin/python -m oc_eval corpus lint
+      - run: eval/.venv/bin/python -m oc_eval corpus stats
+
   # Placeholder wired in Phase 0, populated from Phase 7 onward.
   nightly-placeholder:
     if: false

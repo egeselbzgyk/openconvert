@@ -24,3 +24,5 @@ __pycache__/
 /tests/dom/test-results
 /tests/dom/results
 /tests/dom/playwright-report
+/corpus/LOCAL_EVAL_ONLY/
+/eval/out/*.png

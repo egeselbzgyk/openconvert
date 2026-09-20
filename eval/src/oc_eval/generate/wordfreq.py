@@ -167,9 +167,9 @@ def fetch(source: Source, cache: Path) -> bytes:
     return payload
 
 
-def count_words(lang: str, sources: tuple[Source, ...], cache: Path) -> tuple[
-    collections.Counter[str], list[dict[str, object]]
-]:
+def count_words(
+    lang: str, sources: tuple[Source, ...], cache: Path
+) -> tuple[collections.Counter[str], list[dict[str, object]]]:
     counts: collections.Counter[str] = collections.Counter()
     manifest: list[dict[str, object]] = []
 
