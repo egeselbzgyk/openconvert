@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 7
-CURRENT_ITEM: 7.2 — the manifest model and `oc-eval corpus lint` (rows 7.1, 7.3b)
+CURRENT_ITEM: 7.3 — corpus v1: harvest the frozen >= 100-document holdout (rows 7.2, 7.3)
 LAST_UPDATED: 2026-09-20
 
 ---
@@ -13,7 +13,28 @@ LAST_UPDATED: 2026-09-20
 
 - `STATUS` is one of `IN_PROGRESS` · `BLOCKED` · `COMPLETE`.
 - Set `STATUS: BLOCKED` **only** when a decision is needed that `docs/DECISIONS.md` does not settle.
-  Write the question under `## Blocked` and stop.
+  Write the question under `## Phase 7 — what it has built so far
+
+- **`oc_eval.corpus.download`** fetches mirror-first, verifies the manifest's sha256 before the
+  bytes are placed, and deletes a file that fails rather than quarantining it. The opener is a
+  parameter, so no test needs a connection; the default refuses any URL that is not https.
+- **`oc_eval.corpus.manifest`** is the vocabulary — licence allowlist and blocklist markers, the
+  nine producer strata plus `page-level-layout`, and the document-vs-page unit.
+  **`oc_eval.corpus.lint`** is fourteen rules over it, one stable slug each, and the slugs are
+  the contract the tests assert on.
+- **`oc_eval.thresholds`** reads `thresholds.toml`, so the corpus gates are the same numbers in
+  Python and in Rust rather than two that agree today.
+- Two rules needed a judgement the plan does not make. `tagged-share-off-target` is skipped when
+  the synthetic bucket is too small to land within five points of 0.126 at all — a five-file
+  bucket can be 0.0 or 0.2 tagged and nothing between, and reporting that is reporting
+  arithmetic. `is_page_level` deliberately does not trust the `unit` field alone: a DocLayNet
+  entry is page-level whether or not it says so, and `page-unit-undeclared` separately requires
+  it to say so, which is what closes §7.6's per-page shortcut.
+- **`mypy` is clean on everything Phase 7 has written** and reports 13 errors in two Phase 2
+  files (`generate/scan_sim.py`, `train/hyphen_clf.py`). Item 7.10 owns them, because that is
+  where `mypy` becomes a CI gate.
+
+## Blocked` and stop.
 - Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
 - Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
 
@@ -50,15 +71,32 @@ LAST_UPDATED: 2026-09-20
 
 ## Current work item
 
-**Phase 7, item 7.2 — the manifest model and `oc-eval corpus lint`** (plan rows 7.1 and 7.3b).
-Item 7.1 is done: the corpus download path verifies every file against the manifest's digest
-before anything may use it, and the non-redistributable boundary is a mechanism.
+**Phase 7, item 7.3 — corpus v1: harvest the frozen >= 100-document holdout.**
+
+The lint now exists and names exactly what is missing. `oc-eval corpus lint` on the manifest as
+committed reports three findings, and all three are item 7.3's to clear:
+
+```
+ours-share-above-maximum: 16/16 documents are ours (1.000 > 0.4)
+tagged-share-off-target:  synthetic bucket is 0.375 tagged, target 0.126 +/-0.05
+holdout-below-minimum:    0 holdout documents, 100 required
+```
+
+The third is the sourcing job. The first follows from it — 16 synthetic against 100+ real is a
+0.14 ours share. The second does not: the synthetic bucket is 10 base fixtures plus 6 tagged
+variants and stays 0.375 however many real books arrive, so item 7.3 has to decide whether
+D18's "tagged variants are a separate ~12 % bucket" is a statement about the synthetic bucket
+(IMPLEMENTATION_PLAN §1.8's wording, which the rule currently implements) or about the corpus.
+The four sources are reachable and licence metadata is machine-readable: OAPEN's
+`/rest/filtered-items` filters on `dc.rights.uri` and returns `dc.language` and `oapen.pages`;
+Internet Archive's `advancedsearch.php` filters on `licenseurl`; govinfo and DergiPark answer.
+arXiv's API needs a User-Agent or returns 406.
 
 Work items for Phase 7, in order. Each is one TDD loop and one commit:
 
 - [x] **7.1** `corpus/download.py` + `oc_eval.corpus.download`: mirror-then-source, sha256 before
       use, the `LOCAL_EVAL_ONLY` boundary (row 7.5)
-- [ ] **7.2** `oc_eval.corpus.{manifest,stratify}` + `oc-eval corpus lint` (rows 7.1, 7.3b)
+- [x] **7.2** `oc_eval.corpus.{manifest,lint}` + `oc-eval corpus lint|stats` (rows 7.1, 7.3b)
 - [ ] **7.3** corpus v1: harvest the frozen ≥ 100-**document** holdout to TEST_CORPUS §7.6's
       shape, and turn rows 7.2 and 7.3 on as gates over the real manifest (A7.1, A7.1b)
 - [ ] **7.4** the mutation catalogue, one reviewable recipe per failure mode (row 7.6)
@@ -309,6 +347,27 @@ Carried forward, in the order a fresh session needs them:
 - **The Python side runs out of `eval/.venv`** (`uv venv eval/.venv && uv pip install --python
   eval/.venv -e "eval[dev]"`). On the maintainer's Windows box `python3` exists only because a
   copy of `python.exe` was placed beside it under that name; CI's Linux runners have the real one.
+
+## Phase 7 — what it has built so far
+
+- **`oc_eval.corpus.download`** fetches mirror-first, verifies the manifest's sha256 before the
+  bytes are placed, and deletes a file that fails rather than quarantining it. The opener is a
+  parameter, so no test needs a connection; the default refuses any URL that is not https.
+- **`oc_eval.corpus.manifest`** is the vocabulary — licence allowlist and blocklist markers, the
+  nine producer strata plus `page-level-layout`, and the document-vs-page unit.
+  **`oc_eval.corpus.lint`** is fourteen rules over it, one stable slug each, and the slugs are
+  the contract the tests assert on.
+- **`oc_eval.thresholds`** reads `thresholds.toml`, so the corpus gates are the same numbers in
+  Python and in Rust rather than two that agree today.
+- Two rules needed a judgement the plan does not make. `tagged-share-off-target` is skipped when
+  the synthetic bucket is too small to land within five points of 0.126 at all — a five-file
+  bucket can be 0.0 or 0.2 tagged and nothing between, and reporting that is reporting
+  arithmetic. `is_page_level` deliberately does not trust the `unit` field alone: a DocLayNet
+  entry is page-level whether or not it says so, and `page-unit-undeclared` separately requires
+  it to say so, which is what closes §7.6's per-page shortcut.
+- **`mypy` is clean on everything Phase 7 has written** and reports 13 errors in two Phase 2
+  files (`generate/scan_sim.py`, `train/hyphen_clf.py`). Item 7.10 owns them, because that is
+  where `mypy` becomes a CI gate.
 
 ## Blocked
 

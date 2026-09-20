@@ -11,6 +11,8 @@ from pathlib import Path
 import typer
 
 from oc_eval.corpus import download as download_mod
+from oc_eval.corpus import lint as lint_mod
+from oc_eval.corpus import manifest as manifest_mod
 
 app = typer.Typer(help="OpenConvert offline evaluation tooling.")
 corpus_app = typer.Typer(help="Corpus manifest, download and lint.")
@@ -52,6 +54,37 @@ def corpus_download(
         reused += int(got.reused)
         fetched += int(not got.reused)
     typer.echo(f"{fetched} fetched, {reused} already present, into {dest}", err=True)
+
+
+@corpus_app.command("lint")
+def corpus_lint(
+    manifest: Path = typer.Option(DEFAULT_MANIFEST, help="Manifest to lint."),
+) -> None:
+    """Check the manifest against TEST_CORPUS §7.1's rules. Exits 1 on any finding."""
+    findings = lint_mod.lint(manifest_mod.load(manifest))
+    for finding in findings:
+        typer.echo(str(finding), err=True)
+    if findings:
+        typer.echo(f"{len(findings)} findings", err=True)
+        raise typer.Exit(code=1)
+    typer.echo("corpus lint: clean", err=True)
+
+
+@corpus_app.command("stats")
+def corpus_stats(
+    manifest: Path = typer.Option(DEFAULT_MANIFEST, help="Manifest to summarise."),
+) -> None:
+    """Per-stratum counts. D18 reports per stratum, never in aggregate."""
+    loaded = manifest_mod.load(manifest)
+    for stratum, items in loaded.by_stratum().items():
+        holdout = sum(1 for item in items if item.holdout)
+        tagged = sum(1 for item in items if item.tagged)
+        typer.echo(f"{stratum:20} n={len(items):4}  holdout={holdout:4}  tagged={tagged:4}")
+    typer.echo(
+        f"{'TOTAL':20} n={len(loaded.entries):4}  "
+        f"holdout-documents={loaded.holdout_document_count:4}  "
+        f"ours-share={loaded.ours_share:.3f}"
+    )
 
 
 def _is_remote(entry: dict[str, object]) -> bool:

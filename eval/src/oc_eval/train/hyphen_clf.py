@@ -241,9 +241,7 @@ def build_examples(counts: dict[str, int]) -> list[dict[str, object]]:
             if len(word) < MIN_PIECE * 2:
                 continue
             seam = rng.randrange(MIN_PIECE, len(word) - MIN_PIECE + 1)
-            examples.append(
-                {"head": word[:seam], "tail": word[seam:], "lang": "en", "keep": False}
-            )
+            examples.append({"head": word[:seam], "tail": word[seam:], "lang": "en", "keep": False})
     rng.shuffle(examples)
     return examples
 
@@ -275,9 +273,7 @@ def metrics(scores: np.ndarray, labels: np.ndarray) -> dict[str, float]:
     predicted_keep = scores > 0.0
     actual_keep = labels > 0.5
     keep_recall = float((predicted_keep & actual_keep).sum() / max(actual_keep.sum(), 1))
-    join_recall = float(
-        ((~predicted_keep) & (~actual_keep)).sum() / max((~actual_keep).sum(), 1)
-    )
+    join_recall = float(((~predicted_keep) & (~actual_keep)).sum() / max((~actual_keep).sum(), 1))
     return {
         "keep_recall": keep_recall,
         "join_recall": join_recall,
