@@ -23,7 +23,7 @@ dependencies = [
 
 [project.optional-dependencies]
 render = ["weasyprint>=63"]     # optional: second synthetic renderer (R7 §B.1)
-dev     = ["pytest>=8", "syrupy>=4", "hypothesis>=6", "ruff>=0.9", "mypy>=1.14"]
+dev     = ["pytest>=8", "syrupy>=4", "hypothesis>=6", "ruff>=0.9", "mypy>=1.14", "lxml-stubs>=0.5"]
 
 [project.scripts]
 oc-eval = "oc_eval.__main__:app"

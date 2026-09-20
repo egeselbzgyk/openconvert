@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 7
-CURRENT_ITEM: 7.5 — ground truth: Standard Ebooks XHTML, struct trees, arXiv LaTeX (row 7.7)
+CURRENT_ITEM: 7.6 — the metric suite and the per-stratum report (rows 7.8, 7.9)
 LAST_UPDATED: 2026-09-20
 
 ---
@@ -87,6 +87,37 @@ like rather than only how it is encoded. It belongs with the handmade fixtures �
 authored as Type 3 with a `/ToUnicode` map — and is a gap, not a mutation.
 `docs/DECISIONS_LOG.md`, 2026-09-20.
 
+### Item 7.5 — ground truth
+
+Three sources, one type. `oc_eval.ground_truth.schema.GroundTruth` is TEST_CORPUS §5.1's shape
+— headings, paragraphs, footnote pairs, figures — whatever produced it, so the scorer has one
+thing to compare against and a fourth source would not touch it.
+
+**The assertions are the engine's own vocabulary.** `to_assertions` emits `heading_tree`,
+`text_present`, `block_count`, `image_count`, `note_bijection`, `lang_tag` and `text_order` —
+the same kinds `oc_testkit::assertions` reads and the committed `.assert.json` fixtures are
+written in — so one runner checks a generated expectation and a hand-written one.
+`test_every_generated_assertion_kind_is_one_the_engine_knows` reads the Rust enum rather than
+keeping a second copy of the list, the same trick `xtask ci-lint` uses for the warning registry.
+
+**A ground truth never invents what its source does not say.** A tagged PDF's `/H1` points at
+marked content, not at characters, so a struct-tree heading has a level and no text — and
+`to_assertions` emits no `heading_tree` or `heading_level` for it, because asserting on an
+empty string would score every document as wrong. The same rule drops a noteref whose endnote
+is in a file that was not read, and withholds `note_bijection` when the notes do not pair.
+
+- `from_xhtml` reads Standard Ebooks markup. Heading levels come from `<section>` nesting, not
+  from the tag number: SE writes a chapter title as `<h2>` because the book's `<h1>` is its
+  title page, and comparing `h2` against `h1` would score a correct conversion as wrong.
+- `from_structtree` reads a tagged PDF's own tree. On the tagged fixture it finds one `/H1`
+  and four `/P`, which is the document.
+- `from_latex` reads arXiv sectioning, and `looks_parseable` is §5.2's "curated
+  parses-cleanly subset" as a predicate — a paper that pulls its sections in through `\input`
+  is refused **before** it is scored against rather than after it has quietly scored zero.
+
+`corpus/gt/se_sample/` is a small SE-shaped book written for this repository: a chapter with
+two heading levels, four paragraphs, two noteref/endnote pairs and a captioned figure.
+
 ## Blocked` and stop.
 - Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
 - Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
@@ -124,7 +155,7 @@ authored as Type 3 with a `/ToUnicode` map — and is a gap, not a mutation.
 
 ## Current work item
 
-**Phase 7, item 7.5 — ground truth** (plan row 7.7).
+**Phase 7, item 7.6 — the metric suite and the per-stratum report** (plan rows 7.8, 7.9).
 
 **The corpus exists** and **the mutation catalogue is complete.** `corpus/manifest.json` holds
 116 entries: 104 frozen holdout documents across 17 291 pages, and 12 synthetic fixtures.
@@ -150,7 +181,7 @@ Work items for Phase 7, in order. Each is one TDD loop and one commit:
 - [x] **7.3** corpus v1: 104 holdout documents to TEST_CORPUS §7.6's shape; rows 7.2 and 7.3
       are gates over the real manifest and the whole lint is clean (A7.1, A7.1b)
 - [x] **7.4** the mutation catalogue: ten recipes, each with a declared effect (row 7.6)
-- [ ] **7.5** ground truth: Standard Ebooks XHTML, tagged-PDF struct trees, arXiv LaTeX (row 7.7)
+- [x] **7.5** ground truth from three sources, emitting the engine's own assertions (row 7.7)
 - [ ] **7.6** the metric suite and the per-stratum report (rows 7.8, 7.9)
 - [ ] **7.7** the ours-vs-real gap, written to `eval/out/trend.json` (row 7.10)
 - [ ] **7.8** `oc-eval calibrate` refuses to read a holdout file (row 7.4)
@@ -471,6 +502,37 @@ not have, and a Type 3 font whose CharProcs draw rectangles would change what th
 like rather than only how it is encoded. It belongs with the handmade fixtures — a small PDF
 authored as Type 3 with a `/ToUnicode` map — and is a gap, not a mutation.
 `docs/DECISIONS_LOG.md`, 2026-09-20.
+
+### Item 7.5 — ground truth
+
+Three sources, one type. `oc_eval.ground_truth.schema.GroundTruth` is TEST_CORPUS §5.1's shape
+— headings, paragraphs, footnote pairs, figures — whatever produced it, so the scorer has one
+thing to compare against and a fourth source would not touch it.
+
+**The assertions are the engine's own vocabulary.** `to_assertions` emits `heading_tree`,
+`text_present`, `block_count`, `image_count`, `note_bijection`, `lang_tag` and `text_order` —
+the same kinds `oc_testkit::assertions` reads and the committed `.assert.json` fixtures are
+written in — so one runner checks a generated expectation and a hand-written one.
+`test_every_generated_assertion_kind_is_one_the_engine_knows` reads the Rust enum rather than
+keeping a second copy of the list, the same trick `xtask ci-lint` uses for the warning registry.
+
+**A ground truth never invents what its source does not say.** A tagged PDF's `/H1` points at
+marked content, not at characters, so a struct-tree heading has a level and no text — and
+`to_assertions` emits no `heading_tree` or `heading_level` for it, because asserting on an
+empty string would score every document as wrong. The same rule drops a noteref whose endnote
+is in a file that was not read, and withholds `note_bijection` when the notes do not pair.
+
+- `from_xhtml` reads Standard Ebooks markup. Heading levels come from `<section>` nesting, not
+  from the tag number: SE writes a chapter title as `<h2>` because the book's `<h1>` is its
+  title page, and comparing `h2` against `h1` would score a correct conversion as wrong.
+- `from_structtree` reads a tagged PDF's own tree. On the tagged fixture it finds one `/H1`
+  and four `/P`, which is the document.
+- `from_latex` reads arXiv sectioning, and `looks_parseable` is §5.2's "curated
+  parses-cleanly subset" as a predicate — a paper that pulls its sections in through `\input`
+  is refused **before** it is scored against rather than after it has quietly scored zero.
+
+`corpus/gt/se_sample/` is a small SE-shaped book written for this repository: a chapter with
+two heading levels, four paragraphs, two noteref/endnote pairs and a captioned figure.
 
 ## Blocked
 

@@ -17,6 +17,8 @@ from oc_eval.corpus import manifest as manifest_mod
 app = typer.Typer(help="OpenConvert offline evaluation tooling.")
 corpus_app = typer.Typer(help="Corpus manifest, download and lint.")
 app.add_typer(corpus_app, name="corpus")
+gt_app = typer.Typer(help="Ground truth from sources that state their own structure.")
+app.add_typer(gt_app, name="ground-truth")
 
 # `eval/src/oc_eval/__main__.py` -> repository root.
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -143,6 +145,72 @@ def corpus_stats(
         f"holdout-documents={loaded.holdout_document_count:4}  "
         f"ours-share={loaded.ours_share:.3f}"
     )
+
+
+@gt_app.command("from-xhtml")
+def gt_from_xhtml(
+    sources: list[Path] = typer.Argument(..., help="XHTML files, in spine order."),
+    title: str = typer.Option("", help="The book's title."),
+    out: Path = typer.Option(Path("-"), help="Where to write the ground truth JSON."),
+    assertions: bool = typer.Option(False, help="Write assertions instead of ground truth."),
+) -> None:
+    """Standard Ebooks XHTML to ground truth (TEST_CORPUS §5.1)."""
+    from oc_eval.ground_truth import from_xhtml, schema
+
+    truth = from_xhtml.ground_truth(sources, title=title or sources[0].stem)
+    payload = schema.to_assertions(truth) if assertions else schema.to_json(truth)
+    _emit(payload, out)
+
+
+@gt_app.command("from-structtree")
+def gt_from_structtree(
+    source: Path = typer.Argument(..., help="A tagged PDF."),
+    out: Path = typer.Option(Path("-"), help="Where to write the ground truth JSON."),
+    assertions: bool = typer.Option(False, help="Write assertions instead of ground truth."),
+) -> None:
+    """A tagged PDF's own structure tree as ground truth (TEST_CORPUS §5.4)."""
+    from oc_eval.ground_truth import from_structtree, schema
+
+    try:
+        truth = from_structtree.ground_truth(source)
+    except from_structtree.NoStructTree as failure:
+        typer.echo(str(failure), err=True)
+        raise typer.Exit(code=1) from failure
+    payload = schema.to_assertions(truth) if assertions else schema.to_json(truth)
+    _emit(payload, out)
+
+
+@gt_app.command("from-latex")
+def gt_from_latex(
+    source: Path = typer.Argument(..., help="A LaTeX source file."),
+    title: str = typer.Option("", help="The paper's title."),
+    out: Path = typer.Option(Path("-"), help="Where to write the ground truth JSON."),
+    assertions: bool = typer.Option(False, help="Write assertions instead of ground truth."),
+) -> None:
+    """arXiv LaTeX to ground truth (TEST_CORPUS §5.2). Refuses a paper it cannot read."""
+    from oc_eval.ground_truth import from_latex, schema
+
+    text = source.read_text(encoding="utf-8", errors="replace")
+    if not from_latex.looks_parseable(text):
+        typer.echo(
+            f"{source.name}: no sectioning commands this reader can follow — "
+            "TEST_CORPUS §5.2's curated subset excludes it",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    truth = from_latex.ground_truth(text, title=title or source.stem)
+    payload = schema.to_assertions(truth) if assertions else schema.to_json(truth)
+    _emit(payload, out)
+
+
+def _emit(payload: object, out: Path) -> None:
+    text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+    if str(out) == "-":
+        typer.echo(text)
+        return
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    typer.echo(f"wrote {out}", err=True)
 
 
 def _is_remote(entry: dict[str, object]) -> bool:
