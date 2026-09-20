@@ -1,0 +1,4 @@
+# One Python lint configuration for the repository. The settings live in
+# `eval/pyproject.toml` (IMPLEMENTATION_PLAN §1.7); this file makes them apply to
+# `corpus/*.py` as well, which sits outside that package.
+extend = "eval/pyproject.toml"

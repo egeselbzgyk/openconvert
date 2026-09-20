@@ -4,9 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 7
-CURRENT_ITEM: 7.1 — read PHASE 7 of the plan and docs/TEST_CORPUS.md, then take its first
-              work item
-LAST_UPDATED: 2026-09-19
+CURRENT_ITEM: 7.2 — the manifest model and `oc-eval corpus lint` (rows 7.1, 7.3b)
+LAST_UPDATED: 2026-09-20
 
 ---
 
@@ -51,11 +50,25 @@ LAST_UPDATED: 2026-09-19
 
 ## Current work item
 
-**Phase 6 is complete.** Its Definition of Done is checked below, with the two rows that cannot be
-verified on a single machine named as such rather than counted as passes.
+**Phase 7, item 7.2 — the manifest model and `oc-eval corpus lint`** (plan rows 7.1 and 7.3b).
+Item 7.1 is done: the corpus download path verifies every file against the manifest's digest
+before anything may use it, and the non-redistributable boundary is a mechanism.
 
-First step for Phase 7: read `docs/IMPLEMENTATION_PLAN.md` PHASE 7 and `docs/TEST_CORPUS.md`, then
-take the first work item with the TDD loop.
+Work items for Phase 7, in order. Each is one TDD loop and one commit:
+
+- [x] **7.1** `corpus/download.py` + `oc_eval.corpus.download`: mirror-then-source, sha256 before
+      use, the `LOCAL_EVAL_ONLY` boundary (row 7.5)
+- [ ] **7.2** `oc_eval.corpus.{manifest,stratify}` + `oc-eval corpus lint` (rows 7.1, 7.3b)
+- [ ] **7.3** corpus v1: harvest the frozen ≥ 100-**document** holdout to TEST_CORPUS §7.6's
+      shape, and turn rows 7.2 and 7.3 on as gates over the real manifest (A7.1, A7.1b)
+- [ ] **7.4** the mutation catalogue, one reviewable recipe per failure mode (row 7.6)
+- [ ] **7.5** ground truth: Standard Ebooks XHTML, tagged-PDF struct trees, arXiv LaTeX (row 7.7)
+- [ ] **7.6** the metric suite and the per-stratum report (rows 7.8, 7.9)
+- [ ] **7.7** the ours-vs-real gap, written to `eval/out/trend.json` (row 7.10)
+- [ ] **7.8** `oc-eval calibrate` refuses to read a holdout file (row 7.4)
+- [ ] **7.9** benchmarks: `criterion` per stage, whole-tree peak RSS (rows 7.11, 7.12)
+- [ ] **7.10** CI: a `python` job, and the nightly `full-corpus`, `bench`, `proptest-deep` and
+      `mutation-testing` bodies (rows 7.13, 7.14)
 
 Phase 7 is the corpus, the eval harness, the benchmarks and the real-world holdout — the phase every
 earlier one has been deferring to. What waits on it, in the order it will be wanted:
@@ -292,7 +305,10 @@ Carried forward, in the order a fresh session needs them:
 - **EPUBCheck and its corpus are fetched, never committed**: `cargo run -p xtask -- fetch-epubcheck`
   and `fetch-epubcheck-corpus` put them under `vendor/`, which `.gitignore` covers.
 - Local tool versions: rustc 1.98.1, cargo-nextest 0.9.143, cargo-deny 0.20.2, EPUBCheck 5.3.0,
-  Temurin-compatible JVM 23 locally / Temurin 21 in CI.
+  Temurin-compatible JVM 23 locally / Temurin 21 in CI, Python 3.13.7 + uv 0.11.28.
+- **The Python side runs out of `eval/.venv`** (`uv venv eval/.venv && uv pip install --python
+  eval/.venv -e "eval[dev]"`). On the maintainer's Windows box `python3` exists only because a
+  copy of `python.exe` was placed beside it under that name; CI's Linux runners have the real one.
 
 ## Blocked
 
