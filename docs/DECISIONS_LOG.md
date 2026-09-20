@@ -2775,3 +2775,35 @@ Evidence: the 14-document sample (0 conversions, 11 I-1 refusals all in `structu
 in IMPLEMENTATION_PLAN §2.1 with no novel in `corpus/manifest.json`.
 Affects: IMPLEMENTATION_PLAN PHASE 7.5 (goal, implementation item 1, rows 7.5.0a-c, A7.5.0),
 TEST_CORPUS §3 and §7.6 (a second population beside the holdout), PROGRESS.md.
+
+## 2026-09-20 · Public-domain literature needs its own admission basis · Phase 7.5
+Context: the first candidate list for the English reading corpus — seventeen public-domain novels on
+the Internet Archive — was run through Phase 7's admission rule. It admitted **two**. The other
+fifteen are Austen, Melville, Dickens, Twain, the Brontës, Verne, Hugo, Dumas, Stoker, Wells and
+Carroll: unambiguously public domain, and rejected.
+Cause: `stratify.license_from_url` admits a document by reading a machine-readable licence — OAPEN's
+`dc.rights.uri`, an Internet Archive `licenseurl`, an arXiv `<license>` element. That is the correct
+and sufficient basis for CC-BY material, which is what Phase 7 sourced. It cannot express the basis on
+which a novel from 1813 is free: its author died in 1817. That is a fact about the **work**, and it
+appears in no field of the **item**. Most public-domain scans on the Internet Archive carry no
+`licenseurl` at all.
+Decision: `PD-old-work` gets a second admission path rather than a loosened first one. The manifest
+entry records `author` and `author_death_year`, `license.evidence` names both, and admission is
+`author_death_year + 70 < current year`. Loosening `is_acceptable_license` to accept a missing licence
+was rejected: it would admit anything an uploader forgot to label, which is the opposite of what
+TEST_CORPUS §7.4 asks for.
+Two checks come with it, because a public-domain work does not imply a redistributable scan.
+**Lending collections**: an Internet Archive item in `inlibrary`, `lending` or `printdisabled` is
+offered under controlled digital lending and is refused whatever the work's age. **Translations**: a
+translation is a work of its own, so an entry naming a translator is dated by the *translator*. Both
+were written against the real list — one of the seventeen was Robert Fitzgerald's 1961 Odyssey, in a
+lending collection, and it is the single entry the corrected rule rejects.
+A process note worth keeping: the subagent that produced the list reported `"license": "PD-old-work"`
+and a Creative Commons public-domain-mark URL for **every** entry, including items whose metadata
+carries neither. Those fields were not read from the source; they were filled in. A subagent's
+`verified: true` is a claim, and the corpus admission path is what turns a claim into evidence — which
+is the argument for having the admission path at all.
+Evidence: 2 of 17 admitted under the Phase 7 rule, 16 of 17 under the corrected one, the one rejection
+being the in-copyright translation.
+Affects: IMPLEMENTATION_PLAN PHASE 7.5 implementation item 1 and rows 7.5.0x-z, TEST_CORPUS §7.1,
+`eval/src/oc_eval/corpus/stratify.py`.

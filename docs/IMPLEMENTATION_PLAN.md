@@ -2423,6 +2423,30 @@ Concretely:
    languages before anyone may touch it, and a ten-document language cannot supply that for
    anything but the most common fault.
 
+   **A second admission basis is needed, and Phase 7's harvester does not have it.**
+   `stratify.license_from_url` admits a document by reading a machine-readable licence — a
+   `dc.rights.uri`, an IA `licenseurl`, an arXiv `<license>`. That is the whole basis Phase 7
+   works on and it is the right one for CC-BY. It **cannot admit public-domain literature**,
+   because a novel published in 1813 is public domain by virtue of its author having died in
+   1817, which is a fact about the *work* and appears in no field of the *item*. Measured on
+   sixteen unambiguously public-domain English novels, the Phase 7 rule admitted **two**.
+
+   So `PD-old-work` gets its own path: the manifest entry records `author`,
+   `author_death_year` and a `license.evidence` naming both, and admission is
+   `author_death_year + 70 < current year`. Two further checks come with it, because a
+   public-domain *work* does not imply a redistributable *scan*:
+
+   - **the item may not be in a lending or restricted collection.** An Internet Archive item in
+     `inlibrary`, `lending` or `printdisabled` is available under controlled digital lending,
+     not as a download, whatever the underlying work's age;
+   - **a translation is a work of its own.** A 1961 translation of Homer is in copyright and the
+     original's age says nothing about it. An entry whose title or metadata names a translator
+     needs the *translator's* death year, or it is refused.
+
+   Both checks were written against a real list: of seventeen candidates for the English
+   reading corpus, one was a 1961 translation sitting in a lending collection, and it is the
+   one the rule rejects.
+
 2. **The diagnostic comes second, because the absence of one is itself a finding.** Locating
    the first defect took a hand-written binary search over page prefixes — forty minutes to
    learn that one page of one book loses 644 characters. That cost is paid again for every
@@ -2487,6 +2511,9 @@ Concretely:
 
 | # | Test name | Kind | Assertion |
 |---|---|---|---|
+| 7.5.0z | `a_public_domain_work_is_admitted_on_its_author_death_year` | unit | `PD-old-work` needs `author_death_year + 70 < now`; an entry without one is refused **[anchored: binary]** |
+| 7.5.0y | `a_lending_collection_item_is_refused_however_old_the_work` | unit | an IA item in `inlibrary`/`lending`/`printdisabled` is rejected: a public-domain work is not a redistributable scan |
+| 7.5.0x | `a_translation_is_dated_by_its_translator` | unit | an entry naming a translator is admitted on the translator's death year, never the original author's |
 | 7.5.0a | `reading_corpus_has_forty_documents_per_language` | CI-gate | ≥ 40 entries each for `en`, `de`, `tr`, all licence-cleared **[anchored: binary]** |
 | 7.5.0b | `reading_corpus_is_prose_not_papers` | CI-gate | every reading-corpus entry is ≥ 60 pages and carries `category` in {simple, difficult}; no entry shared with the frozen holdout |
 | 7.5.0c | `reading_corpus_entries_are_not_holdout` | unit | nothing in the reading corpus is marked `holdout`, so fitting on it is legal and the frozen set stays unread **[anchored: binary]** |
