@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 7
-CURRENT_ITEM: 7.7 — the ours-vs-real gap, written to eval/out/trend.json (row 7.10)
+CURRENT_ITEM: 7.8 — `oc-eval calibrate` refuses to read a holdout file (row 7.4)
 LAST_UPDATED: 2026-09-20
 
 ---
@@ -150,6 +150,19 @@ Two new thresholds: `eval.assertion_confidence` (0.95, binary — the plan's lev
 `eval.assertion_min_instances` (30, provisional — where the Wilson half-width at p ≈ 0.95
 falls under eight points).
 
+### Item 7.7 — the trend
+
+`oc_eval.trend` keeps the `ours(*)`-versus-real gap in `eval/out/trend.json`, in the
+repository, because TEST_STRATEGY §8 wants a regression to be a diff against the
+immediately-prior committed baseline. One entry per commit: re-running the nightly on an
+unchanged tree corrects the record rather than doubling it.
+
+The point is the **direction**, not the number. A gap of 0.06 is fine or alarming depending on
+whether last week's was 0.05 or 0.09, so `widening()` reports first-to-last and returns None
+when the history holds fewer than two runs that stated a gap at all — a run with no real strata
+states no gap, and is not evidence about widening either. `plot()` draws it to a PNG under a
+headless backend.
+
 ## Blocked` and stop.
 - Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
 - Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
@@ -187,7 +200,7 @@ falls under eight points).
 
 ## Current work item
 
-**Phase 7, item 7.7 — the ours-vs-real trend** (plan row 7.10).
+**Phase 7, item 7.8 — `oc-eval calibrate` refuses the holdout** (plan row 7.4).
 
 **The corpus exists** and **the mutation catalogue is complete.** `corpus/manifest.json` holds
 116 entries: 104 frozen holdout documents across 17 291 pages, and 12 synthetic fixtures.
@@ -215,7 +228,7 @@ Work items for Phase 7, in order. Each is one TDD loop and one commit:
 - [x] **7.4** the mutation catalogue: ten recipes, each with a declared effect (row 7.6)
 - [x] **7.5** ground truth from three sources, emitting the engine's own assertions (row 7.7)
 - [x] **7.6** the metric suite, the Wilson-interval gate and the per-stratum report (7.8, 7.9)
-- [ ] **7.7** the ours-vs-real gap, written to `eval/out/trend.json` (row 7.10)
+- [x] **7.7** the ours-vs-real gap recorded and plotted over time (row 7.10)
 - [ ] **7.8** `oc-eval calibrate` refuses to read a holdout file (row 7.4)
 - [ ] **7.9** benchmarks: `criterion` per stage, whole-tree peak RSS (rows 7.11, 7.12)
 - [ ] **7.10** CI: a `python` job, and the nightly `full-corpus`, `bench`, `proptest-deep` and
@@ -597,6 +610,19 @@ hyphen inside a line is content and still costs.
 Two new thresholds: `eval.assertion_confidence` (0.95, binary — the plan's level) and
 `eval.assertion_min_instances` (30, provisional — where the Wilson half-width at p ≈ 0.95
 falls under eight points).
+
+### Item 7.7 — the trend
+
+`oc_eval.trend` keeps the `ours(*)`-versus-real gap in `eval/out/trend.json`, in the
+repository, because TEST_STRATEGY §8 wants a regression to be a diff against the
+immediately-prior committed baseline. One entry per commit: re-running the nightly on an
+unchanged tree corrects the record rather than doubling it.
+
+The point is the **direction**, not the number. A gap of 0.06 is fine or alarming depending on
+whether last week's was 0.05 or 0.09, so `widening()` reports first-to-last and returns None
+when the history holds fewer than two runs that stated a gap at all — a run with no real strata
+states no gap, and is not evidence about widening either. `plot()` draws it to a PNG under a
+headless backend.
 
 ## Blocked
 
@@ -1034,3 +1060,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-20  P7.3      corpus: the frozen holdout, 104 real documents, five sources (7.2, 7.3 + 50)  86848f8
 2026-09-20  P7.4      oc-testkit: the mutation catalogue, ten recipes with declared effects (7.6 + 3)  3b55dbb
 2026-09-20  P7.5      oc-eval: ground truth from XHTML, struct trees and LaTeX (7.7 + 16)     36b6384
+2026-09-20  P7.6      oc-eval: metrics, the Wilson gate, the per-stratum report (7.8, 7.9 + 21)  ee146db

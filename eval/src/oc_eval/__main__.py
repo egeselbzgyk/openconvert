@@ -258,6 +258,50 @@ def report_show(
     _emit(report_mod.build(rows), out)
 
 
+@report_app.command("trend")
+def report_trend(
+    scores: Path = typer.Argument(..., help="A JSON array of {stratum,file_id,metric,value}."),
+    trend_path: Path = typer.Option(Path("eval/out/trend.json"), help="The history file."),
+    plot: bool = typer.Option(True, help="Also draw eval/out/trend.png."),
+    commit: str = typer.Option("", help="The commit this run measured; empty means HEAD."),
+) -> None:
+    """PHASE 7 row 7.10: record the ours(*)-versus-real gap and say whether it is widening."""
+    from oc_eval import trend as trend_mod
+    from oc_eval.metrics import report as report_mod
+
+    rows = [
+        report_mod.Row(
+            stratum=str(row["stratum"]),
+            file_id=str(row["file_id"]),
+            metric=str(row["metric"]),
+            value=float(row["value"]),
+        )
+        for row in json.loads(scores.read_text(encoding="utf-8"))
+    ]
+    entry = trend_mod.record(report_mod.build(rows), path=trend_path, commit=commit or None)
+    typer.echo(
+        f"ours {_fmt(entry['ours'])}  real {_fmt(entry['real'])}  gap {_fmt(entry['gap'])}",
+        err=True,
+    )
+
+    moving = trend_mod.widening(trend_path)
+    if moving is None:
+        typer.echo("not enough history to say whether the gap is widening", err=True)
+    else:
+        direction = "WIDENING" if moving.is_widening else "steady or narrowing"
+        typer.echo(
+            f"{direction}: {moving.first:.4f} -> {moving.last:.4f} over {moving.runs} runs",
+            err=True,
+        )
+
+    if plot:
+        typer.echo(f"wrote {trend_mod.plot(trend_path)}", err=True)
+
+
+def _fmt(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.4f}"
+
+
 def _is_remote(entry: dict[str, object]) -> bool:
     source = entry.get("source")
     url = source.get("url", "") if isinstance(source, dict) else ""
