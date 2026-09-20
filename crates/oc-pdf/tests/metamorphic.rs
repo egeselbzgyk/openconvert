@@ -308,3 +308,32 @@ fn assert_inside_page(label: &str, page: &PageGlyphs, bytes: &[u8]) {
         }
     }
 }
+
+/// `C_raw` is `C(·)` of what extraction produced, and `C(·)` has exactly one definition.
+///
+/// The backend used to build this histogram one glyph at a time. That is indistinguishable
+/// from `c_of` until a document draws a base and a combining mark as two glyphs — and then
+/// `C_raw` is in a different normal form from every other histogram in the pipeline, because
+/// ARCHITECTURE §5.2 takes `C(·)` after canonical composition (amended 2026-09-20). Nothing
+/// divides by `C_raw` today; `report.json` prints it and the retention ratio is one change
+/// away from using it.
+///
+/// So the assertion is not "the number is right" but "it came from the one function".
+#[test]
+fn c_raw_is_c_of_the_extracted_text_and_not_a_second_count() {
+    for name in [
+        "../../target/fixtures/f01_prose_single_column.pdf",
+        "../../target/fixtures/f04_german_prose.pdf",
+        "../../target/fixtures/f05_turkish_prose.pdf",
+        "../../corpus/fixtures/handmade/h01_two_glyphs.pdf",
+    ] {
+        let page = ingest(&fixture(name));
+        let glyph_text: String = page.glyphs.iter().map(|glyph| glyph.ch).collect();
+
+        assert_eq!(
+            page.c_raw,
+            oc_model::ledger::c_of(&glyph_text),
+            "{name}: C_raw disagrees with C(·) of the glyphs it was built from"
+        );
+    }
+}

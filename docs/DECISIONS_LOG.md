@@ -3080,3 +3080,51 @@ inventory decides it.
 Evidence: `openconvert diff-stage structure` on arxiv-2304-14883, arxiv-2406-09769,
 arxiv-2210-07996.
 Affects: `oc-structure::build::para_of`, PHASE 7.5 item 3.
+
+## 2026-09-20 · The NFC ruling is general, and two bypasses that would have made it not · Phase 7.5
+Context: the ruling was raised by one character — U+2126 OHM SIGN — and the question was
+asked whether the fix follows the character or the mechanism.
+
+Measured. **NFC rewrites 1 120 code points**: 1 002 CJK, 34 Hebrew, 23 Greek, 17 Tibetan, 13
+Musical, 8 Devanagari, 6 Gurmukhi, 3 Bengali, 2 Oriya, plus the Angstrom and Kelvin signs
+beside the ohm. 85 of the 1 120 are *composition exclusions*, where one scalar becomes several
+— so they break I-1 with **unequal** counts and would not even have matched the signature the
+first seven documents were found by. And all of that is before the far larger population of
+**sequences**: every accented letter a producer chose to draw as a base plus a combining mark,
+which is most of German, Turkish, French and Vietnamese in some encodings.
+
+Greek carries the ohm sign's exact shape: U+1F71 GREEK SMALL LETTER ALPHA WITH OXIA is a
+singleton that rewrites to U+03AC. A fix reading "if the character is U+2126" would have left
+it, and left 1 119 others.
+
+The fix does follow the mechanism — `c_of` composes, so every canonical equivalence folds by
+construction — but the test did not prove it. Three examples were replaced with
+`c_of_is_invariant_under_canonical_equivalence_across_unicode`, which sweeps **every scalar in
+Unicode** and requires a character, its canonical decomposition and its canonical composition
+to have one `C`. Mutation-tested: reverting `c_of` to `text.chars()` fails it at **U+00C0**,
+the second character it checks, a thousand code points before the ohm sign.
+
+`c_of_folds_the_encodings_the_three_v1_languages_arrive_in` covers Turkish `İ ş ğ`, German
+`ä ö`, and Greek in both encodings, and asserts the two things that must **not** fold: `ı` is
+not `i` and `İ` is not `I`, because folding either would be a case fold and D13.4 forbids that
+outright (R10 §6.3).
+
+**Two bypasses found by auditing every histogram construction site**, and this is the part the
+question was worth asking for:
+
+- `oc_pdf::pdfium::doc` built `C_raw` with `c_raw.add(ch)`, one glyph at a time. Composition is
+  a property of a sequence, so a base and its combining mark would never have composed there —
+  leaving `C_raw` in a different normal form from every other histogram in the pipeline.
+  Nothing divides by it today; `report.json` prints it and the retention ratio is one change
+  away from using it. Now `c_of(&raw_text)`, guarded by
+  `c_raw_is_c_of_the_extracted_text_and_not_a_second_count`.
+- `openconvert::pipeline::glyph_chars` had the same shape and was fixed with the ruling itself.
+
+`oc_validate::structural` (I-7) and `LedgerDelta::side`/`reason_side` were checked and already
+route through `c_of`. The definition of `C` now lives in exactly one function, and that — not
+the ohm sign — is what makes the invariant hold.
+
+Evidence: `c_of_is_invariant_under_canonical_equivalence_across_unicode` (mutation-tested),
+`c_of_folds_the_encodings_the_three_v1_languages_arrive_in`,
+`c_raw_is_c_of_the_extracted_text_and_not_a_second_count`; 488 workspace tests green.
+Affects: `oc-model::ledger::c_of`, `oc-pdf::pdfium::doc`, `openconvert::pipeline`, D13.4.

@@ -18,9 +18,7 @@ use crate::images::{classify_image, effective_dpi};
 use crate::inspect::{DocMetadata, PdfDoc};
 use crate::limits::check_image;
 use oc_core::limits::Limits;
-use oc_model::extract::{
-    CharHistogram, FontId, FontInfo, Glyph, ImageId, ImageRef, PageRef, VecId, VectorRegion,
-};
+use oc_model::extract::{FontId, FontInfo, Glyph, ImageId, ImageRef, PageRef, VecId, VectorRegion};
 use oc_model::ledger::{LedgerEntry, Reason};
 
 /// Unicode private-use areas. A subset font with no `ToUnicode` map lands here rather than
@@ -440,7 +438,13 @@ impl PdfiumDoc {
         let mut fonts: Vec<FontInfo> = Vec::new();
         let mut glyphs = Vec::new();
         let mut removed = Vec::new();
-        let mut c_raw = CharHistogram::new();
+        // Collected as text rather than counted glyph by glyph, because `C(·)` is defined
+        // after canonical composition (ARCHITECTURE §5.2, amended 2026-09-20) and a
+        // composition is a property of a *sequence* — a base and the combining mark that
+        // follows it. Counting one character at a time would leave `C_raw` in a different
+        // normal form from every other histogram in the pipeline, so the moment anything
+        // divided by it the ratio would be wrong.
+        let mut raw_text = String::new();
 
         for (position, character) in text.chars().iter().enumerate() {
             let position = u32::try_from(position).unwrap_or(u32::MAX);
@@ -509,7 +513,7 @@ impl PdfiumDoc {
                 Err(_) => (bbox.x0, bbox.y1),
             };
 
-            c_raw.add(ch);
+            raw_text.push(ch);
             glyphs.push(Glyph {
                 ch,
                 bbox,
@@ -531,7 +535,7 @@ impl PdfiumDoc {
             glyphs,
             fonts,
             removed,
-            c_raw,
+            c_raw: oc_model::ledger::c_of(&raw_text),
             stats,
             class,
             class_confidence,

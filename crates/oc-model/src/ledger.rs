@@ -316,39 +316,102 @@ pub struct StageCheck {
 mod c_of_tests {
     use super::*;
 
-    /// The ruling of 2026-09-20, as an invariant rather than as a fix.
+    /// The ruling of 2026-09-20, as an invariant over **all of Unicode** rather than as a
+    /// fix for the one character that happened to be in the corpus.
     ///
-    /// Seven corpus documents were refused by I-1 at the `text` stage because `N`'s NFC
-    /// component rewrites U+2126 OHM SIGN to U+03A9 GREEK CAPITAL LETTER OMEGA — one scalar
-    /// for one scalar, so the refusal read "N characters left and N appeared", and D13.4's
-    /// closed `Reason` enum had nothing honest to record it as.
+    /// The refusal that raised this was U+2126 OHM SIGN composing to U+03A9 GREEK CAPITAL
+    /// LETTER OMEGA. Ohm is one of **1 120 code points** NFC rewrites — 1 002 CJK, 34 Hebrew,
+    /// 23 Greek, 17 Tibetan, 8 Devanagari, and the Angstrom and Kelvin signs beside it — and
+    /// that is before the far larger population of *sequences*: every accented letter written
+    /// as a base plus a combining mark, which is most of German, Turkish, French and
+    /// Vietnamese as some producers encode them.
     ///
-    /// Composing inside `c_of` makes that unrepresentable: no stage can break I-1 by
-    /// composing, because both sides of every comparison are composed by this function.
+    /// So the assertion is not three examples. It sweeps every scalar in Unicode and requires
+    /// that a character, its canonical decomposition and its canonical composition all have
+    /// the same `C` — which is the whole of canonical equivalence, by definition. A fix
+    /// fitted to the ohm sign would pass a three-example test and fail this one early.
     #[test]
-    fn c_of_is_invariant_under_canonical_composition() {
-        // Singletons: one scalar in, one scalar out. These are the ones that produced equal
-        // counts on both sides of the refusal and therefore looked like a substitution.
-        for (decomposed, composed) in [
-            ("\u{2126}", "\u{03A9}"), // OHM SIGN -> GREEK CAPITAL LETTER OMEGA
-            ("\u{212B}", "\u{00C5}"), // ANGSTROM SIGN -> LATIN CAPITAL LETTER A WITH RING
-            ("\u{212A}", "\u{004B}"), // KELVIN SIGN -> LATIN CAPITAL LETTER K
+    fn c_of_is_invariant_under_canonical_equivalence_across_unicode() {
+        use unicode_normalization::UnicodeNormalization;
+
+        let mut rewritten = 0u32;
+        let mut checked = 0u32;
+
+        for cp in 0u32..0x11_0000 {
+            let Some(ch) = char::from_u32(cp) else {
+                continue; // a surrogate: not a scalar
+            };
+            let own = ch.to_string();
+            let decomposed: String = own.nfd().collect();
+            let composed: String = own.nfc().collect();
+            checked += 1;
+
+            // Canonically equivalent encodings are the same text, so they are one `C`.
+            assert_eq!(
+                c_of(&own),
+                c_of(&decomposed),
+                "U+{cp:04X}: a character and its canonical decomposition differ under C"
+            );
+            assert_eq!(
+                c_of(&own),
+                c_of(&composed),
+                "U+{cp:04X}: a character and its canonical composition differ under C"
+            );
+
+            if composed != own {
+                rewritten += 1;
+            }
+        }
+
+        // The sweep is not vacuous: NFC really does rewrite a large population, and each one
+        // is a document this pipeline would have refused with nothing lost.
+        assert!(
+            checked > 1_000_000,
+            "the sweep covers Unicode, not a sample: {checked}"
+        );
+        assert!(
+            rewritten > 1_000,
+            "NFC rewrites a population, not an exception: {rewritten}"
+        );
+    }
+
+    /// The three languages v1 claims, in both encodings, because this is where a producer's
+    /// choice actually bites (R10 §6.3).
+    ///
+    /// A German book whose umlauts are drawn as `a` + U+0308 and a Turkish one whose `ş` is
+    /// `s` + U+0327 are ordinary, not pathological — some producers emit one form and some
+    /// the other, and one book can mix them. Greek is here because it carries the ohm sign's
+    /// exact shape: U+1F71 is a singleton that rewrites to U+03AC.
+    #[test]
+    fn c_of_folds_the_encodings_the_three_v1_languages_arrive_in() {
+        for (what, left, right) in [
+            ("tr dotted capital I", "\u{0130}", "I\u{0307}"),
+            ("tr s-cedilla", "\u{015F}", "s\u{0327}"),
+            ("tr g-breve", "\u{011F}", "g\u{0306}"),
+            ("de a-umlaut", "\u{00E4}", "a\u{0308}"),
+            ("de o-umlaut", "\u{00F6}", "o\u{0308}"),
+            ("el alpha-tonos", "\u{03AC}", "\u{03B1}\u{0301}"),
+            ("el alpha-oxia is the ohm shape", "\u{03AC}", "\u{1F71}"),
         ] {
             assert_eq!(
-                c_of(decomposed),
-                c_of(composed),
-                "canonically equivalent text is the same text: {decomposed:?} vs {composed:?}"
+                c_of(left),
+                c_of(right),
+                "{what}: the two encodings are the same text"
             );
         }
 
-        // Sequences: a base and its combining mark compose to one scalar. Unequal counts, so
-        // this shape was always visible to I-1 — and it must be folded for the same reason.
-        assert_eq!(
-            c_of("e\u{0301}crit"),
-            c_of("\u{00E9}crit"),
-            "a combining acute and a precomposed e-acute are the same word"
+        // Turkish dotless i has no decomposition and must not acquire one: folding `ı` into
+        // `i` would be a case fold, which D13.4 forbids outright (R10 §6.3).
+        assert_ne!(
+            c_of("\u{0131}"),
+            c_of("i"),
+            "dotless i is not i; C never case-folds"
         );
-        assert_eq!(c_of("e\u{0301}").total(), 1, "composed, then counted");
+        assert_ne!(
+            c_of("\u{0130}"),
+            c_of("I"),
+            "dotted capital I is not I; the dot is a character"
+        );
     }
 
     /// The other half of D13.4, and the reason the fold is NFC and not NFKC.
