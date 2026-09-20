@@ -52,7 +52,7 @@ const EXCERPT_CHARS: usize = 72;
 /// `structure` first because it is where every one of Phase 7's eleven refusals landed. The
 /// others arrive as the classes that need them do: a command that claimed to diff twelve
 /// stages and did one would be a worse lie than a command that says which one.
-const IMPLEMENTED: &[&str] = &[oc_core::stages::STRUCTURE.name];
+const IMPLEMENTED: &[&str] = &[oc_core::stages::TEXT.name, oc_core::stages::STRUCTURE.name];
 
 pub fn run<W: Write>(
     args: &DiffStageArgs,
@@ -99,7 +99,12 @@ pub fn run<W: Write>(
         }
     };
 
-    match structure_diff(document.as_ref(), &args.input, stdout) {
+    let result = if args.stage == oc_core::stages::TEXT.name {
+        text_diff(document.as_ref(), &args.input, stdout)
+    } else {
+        structure_diff(document.as_ref(), &args.input, stdout)
+    };
+    match result {
         Ok(balanced) => {
             // The command succeeded whatever the document did. A diagnostic that exits
             // non-zero on the defect it was run to investigate cannot be used in a loop over
@@ -112,6 +117,131 @@ pub fn run<W: Write>(
             ExitCode::Failed
         }
     }
+}
+
+/// Diff `text`: the glyph stream against the runs `N` produced from it.
+///
+/// The interesting failures here are **substitutions** — equal counts left and appeared —
+/// because a substitution is a character the pipeline silently replaced with a different
+/// one. The histograms name them exactly, which a stage error stating only two totals cannot.
+fn text_diff(
+    pdf: &dyn oc_pdf::inspect::PdfDoc,
+    path: &std::path::Path,
+    stdout: &mut dyn Write,
+) -> Result<bool, String> {
+    let t = &T;
+    let input = openconvert::input::page_inputs(pdf).map_err(|error| error.to_string())?;
+
+    let in_units: Vec<Unit> = input
+        .iter()
+        .map(|page| {
+            let text: String = page
+                .glyphs
+                .iter()
+                .filter(|glyph| !glyph.ch.is_whitespace())
+                .map(|glyph| glyph.ch)
+                .collect();
+            Unit::new(
+                format!("page {} glyphs", page.page.index + 1),
+                Some(page.page.index),
+                text,
+            )
+        })
+        .collect();
+
+    // Deliberately not `text_stage`: that one checks and refuses.
+    let mut totals = oc_core::ledger_check::ReasonTotals::default();
+    let staged = text_stage(&input, &mut totals, t);
+    let (out_units, ledgered) = match &staged {
+        Ok(stage) => (
+            stage
+                .pages
+                .iter()
+                .map(|page| {
+                    let text: String = page.runs.iter().map(|run| run.text.as_str()).collect();
+                    Unit::new(
+                        format!("page {} runs", page.page.index + 1),
+                        Some(page.page.index),
+                        text,
+                    )
+                })
+                .collect::<Vec<_>>(),
+            0u64,
+        ),
+        // The stage refused, so nothing is returned to diff against. Re-running the pure
+        // transform is what is left, and it is exactly what the check compared.
+        Err(_) => (Vec::new(), 0u64),
+    };
+    let _ = ledgered;
+
+    writeln!(stdout, "diff-stage text {}", path.display()).map_err(io)?;
+    writeln!(stdout).map_err(io)?;
+
+    if out_units.is_empty() {
+        // Re-derive the output the way the stage does, without the check, so the difference
+        // can be named rather than merely counted.
+        let mut after = oc_model::extract::CharHistogram::new();
+        let mut before = oc_model::extract::CharHistogram::new();
+        for unit in &in_units {
+            before = before.union(&oc_model::ledger::c_of(&unit.text));
+        }
+        for page in &input {
+            for run in oc_text::words::assemble_runs(&page.glyphs, page.page.clone(), t).runs {
+                after = after.union(&oc_model::ledger::c_of(&oc_text::normalize::normalized(
+                    &run.text,
+                )));
+            }
+        }
+        let lost = before.difference(&after);
+        let appeared = after.difference(&before);
+        writeln!(
+            stdout,
+            "  the stage refused; the pure transform loses {} and invents {}",
+            lost.total(),
+            appeared.total()
+        )
+        .map_err(io)?;
+        writeln!(stdout).map_err(io)?;
+        report_chars(stdout, "LEFT    ", &lost)?;
+        report_chars(stdout, "APPEARED", &appeared)?;
+        return Ok(false);
+    }
+
+    let result = diff(&in_units, &out_units);
+    writeln!(
+        stdout,
+        "  lost {}  appeared {}",
+        result.lost.total(),
+        result.appeared.total()
+    )
+    .map_err(io)?;
+    report_chars(stdout, "LEFT    ", &result.lost)?;
+    report_chars(stdout, "APPEARED", &result.appeared)?;
+    Ok(result.balances())
+}
+
+/// Name the characters themselves, with their code points. "14 characters left" is a count;
+/// "U+FB01 LATIN SMALL LIGATURE FI x14" is a diagnosis.
+fn report_chars(
+    stdout: &mut dyn Write,
+    label: &str,
+    histogram: &oc_model::extract::CharHistogram,
+) -> Result<(), String> {
+    if histogram.is_empty() {
+        return Ok(());
+    }
+    let mut rows: Vec<(char, u32)> = histogram.iter().collect();
+    rows.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
+    for (ch, count) in rows.iter().take(20) {
+        writeln!(
+            stdout,
+            "  {label}  U+{:04X} {:?}  x{count}",
+            u32::from(*ch),
+            ch
+        )
+        .map_err(io)?;
+    }
+    Ok(())
 }
 
 /// Run everything up to `structure`, then diff its input against its output both ways.

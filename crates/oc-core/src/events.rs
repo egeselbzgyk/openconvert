@@ -85,11 +85,31 @@ impl<W: Write> EventSink<W> {
     }
 
     /// The `fatal` event: the run stops here.
+    ///
+    /// **Always reaches the user, whatever `--progress` says.** Every other event on this
+    /// sink is telemetry a caller may decline; a fatal is the program's answer to what it
+    /// was asked to do, and a process that exits non-zero having printed nothing at all has
+    /// not answered. Nine corpus documents failed in under a second with a precise message
+    /// — "I-1: stage text does not balance: 14 characters left and 14 appeared" — and every
+    /// one of them looked, from outside, like a hang. The class they were filed under did
+    /// not exist (PHASE 7.5).
+    ///
+    /// When the NDJSON channel is off the same code and message go out as one human line,
+    /// on the same stream, because stderr is not the NDJSON channel then and is free to
+    /// carry prose. That is the rule `--locale` already follows for warnings.
     pub fn fatal(&mut self, code: &str, message: &str) {
-        self.emit(
-            "fatal",
-            serde_json::json!({ "code": code, "message": message }),
-        );
+        if self.enabled {
+            self.emit(
+                "fatal",
+                serde_json::json!({ "code": code, "message": message }),
+            );
+            return;
+        }
+        // Deliberately not through `emit`: this is not an event, and it must not be
+        // numbered, truncated at `MAX_EVENT_BYTES`, or silenced by the `enabled` flag that
+        // is the whole reason it was invisible.
+        let _ = writeln!(self.writer, "error [{code}]: {message}");
+        let _ = self.writer.flush();
     }
 
     /// Emit one event with the common envelope.
@@ -142,4 +162,56 @@ fn now_ms() -> u64 {
 /// Types serialised into an event payload must round-trip through `serde_json`.
 pub fn payload<T: Serialize>(value: &T) -> serde_json::Value {
     serde_json::to_value(value).unwrap_or(serde_json::Value::Null)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// PHASE 7.5. A process that exits non-zero having printed nothing has not answered the
+    /// question it was asked.
+    ///
+    /// Nine corpus documents were filed as a "timeout class" on exactly this evidence: an
+    /// empty output file and a non-zero exit. Every one of them had failed in under a second
+    /// with a precise message, and the message was discarded because `--progress json` was
+    /// not passed. The class did not exist; the silence invented it.
+    #[test]
+    fn a_fatal_reaches_the_user_without_progress_json() {
+        let mut out = Vec::new();
+        EventSink::new(&mut out, false).fatal("E_PDF", "stage text does not balance");
+
+        let text = String::from_utf8(out).expect("the sink writes UTF-8");
+        assert!(text.contains("E_PDF"), "the code is named: {text:?}");
+        assert!(
+            text.contains("stage text does not balance"),
+            "the message survives: {text:?}"
+        );
+    }
+
+    /// The other half: with the NDJSON channel on, a fatal is an event and not prose, because
+    /// the GUI localises and cannot parse a sentence.
+    #[test]
+    fn a_fatal_is_an_ndjson_event_when_the_channel_is_on() {
+        let mut out = Vec::new();
+        EventSink::new(&mut out, true).fatal("E_PDF", "stage text does not balance");
+
+        let text = String::from_utf8(out).expect("the sink writes UTF-8");
+        let event: serde_json::Value =
+            serde_json::from_str(text.trim()).expect("one JSON object per line");
+        assert_eq!(event["t"], "fatal");
+        assert_eq!(event["code"], "E_PDF");
+        assert_eq!(event["v"], PROTOCOL_VERSION);
+    }
+
+    /// Telemetry stays optional. A `stage` event with the channel off writes nothing — the
+    /// exemption is for the fatal alone, not a licence for every event to print.
+    #[test]
+    fn an_ordinary_event_stays_silent_when_the_channel_is_off() {
+        let mut out = Vec::new();
+        let mut sink = EventSink::new(&mut out, false);
+        sink.stage("text", "begin");
+        sink.done("ok");
+
+        assert!(out.is_empty(), "no telemetry without --progress json");
+    }
 }
