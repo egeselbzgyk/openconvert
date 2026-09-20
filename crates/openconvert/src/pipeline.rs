@@ -869,11 +869,13 @@ pub fn block_chars(blocks: &[Vec<Block>], pages: &[LayoutPage]) -> CharHistogram
 pub fn glyph_chars(input: &[PageInput]) -> CharHistogram {
     let mut histogram = CharHistogram::new();
     for page in input {
-        for glyph in &page.glyphs {
-            if !glyph.ch.is_whitespace() {
-                histogram.add(glyph.ch);
-            }
-        }
+        // Assembled into a string first, and per page, so that `c_of` composes it. A
+        // canonical composition is a property of a *sequence* — a base and the combining
+        // mark that follows it — so counting glyph by glyph would leave the two sides of I-1
+        // composed differently, which is the defect this was changed to close, moved one
+        // function along (`docs/DECISIONS_LOG.md`, 2026-09-20).
+        let text: String = page.glyphs.iter().map(|glyph| glyph.ch).collect();
+        histogram = histogram.union(&c_of(&text));
     }
     histogram
 }

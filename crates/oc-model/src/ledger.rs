@@ -125,14 +125,36 @@ impl LedgerEntry {
     }
 }
 
-/// The multiset the conservation law is stated over: the non-whitespace scalars of `text`.
+/// The multiset the conservation law is stated over: the non-whitespace scalars of `text`,
+/// **after canonical composition**.
+///
+/// Two exclusions, and each one buys something.
 ///
 /// `C(D)` excludes every scalar with the Unicode `White_Space` property (ARCHITECTURE §5.2).
-/// That single exclusion is what makes a backend-generated space invisible to the ledger and
-/// a soft hyphen — which is *not* whitespace — visible to it.
+/// That is what makes a backend-generated space invisible to the ledger and a soft hyphen —
+/// which is *not* whitespace — visible to it.
+///
+/// `C(D)` is taken **after NFC**, which is the ruling of 2026-09-20 and an amendment to
+/// ARCHITECTURE §5.2 (`docs/DECISIONS_LOG.md`). `N` includes NFC, D13.4's `Reason` enum is
+/// closed and has no variant for canonical composition, and NFC has *singleton* compositions
+/// — U+2126 OHM SIGN becomes U+03A9 GREEK CAPITAL LETTER OMEGA, one scalar for one scalar.
+/// Seven corpus documents were refused by I-1 for exactly that, with nothing lost. Unicode's
+/// own canonical equivalence says the two are the same character; a law that counts them
+/// apart is counting encodings rather than text.
+///
+/// Composing here rather than ledgering there makes the fault **unrepresentable**: no stage
+/// can break I-1 by composing, at any point, ever, because the two sides of the comparison
+/// are composed by the same function. It cannot hide a real loss — NFC is a bijection on the
+/// text it composes, so a character that actually vanishes still vanishes.
+///
+/// NFC and **not** NFKC: D13.4 forbids NFKC, because compatibility decomposition does change
+/// the text (`ﬁ` and `fi` are not the same characters, and `²` is not `2`). Only canonical
+/// equivalence is folded.
 pub fn c_of(text: &str) -> CharHistogram {
+    use unicode_normalization::UnicodeNormalization;
+
     let mut histogram = CharHistogram::new();
-    for ch in text.chars().filter(|ch| !ch.is_whitespace()) {
+    for ch in text.nfc().filter(|ch| !ch.is_whitespace()) {
         histogram.add(ch);
     }
     histogram
@@ -194,9 +216,7 @@ impl LedgerDelta {
     fn side(&self, added: bool) -> CharHistogram {
         let mut histogram = CharHistogram::new();
         for entry in self.entries.iter().filter(|e| e.added == added) {
-            for ch in entry.text.chars().filter(|ch| !ch.is_whitespace()) {
-                histogram.add(ch);
-            }
+            histogram = histogram.union(&c_of(&entry.text));
         }
         histogram
     }
@@ -208,9 +228,7 @@ impl LedgerDelta {
             .iter()
             .filter(|e| e.added == added && e.reason == reason)
         {
-            for ch in entry.text.chars().filter(|ch| !ch.is_whitespace()) {
-                histogram.add(ch);
-            }
+            histogram = histogram.union(&c_of(&entry.text));
         }
         histogram
     }
@@ -262,9 +280,7 @@ impl Ledger {
     fn side(&self, added: bool) -> CharHistogram {
         let mut histogram = CharHistogram::new();
         for entry in self.entries.iter().filter(|e| e.added == added) {
-            for ch in entry.text.chars().filter(|ch| !ch.is_whitespace()) {
-                histogram.add(ch);
-            }
+            histogram = histogram.union(&c_of(&entry.text));
         }
         histogram
     }
@@ -294,4 +310,76 @@ pub struct StageCheck {
     pub added_chars: u64,
     /// `|C(D_after)| / |C_0|` — the retention ratio as of this stage.
     pub retention: f32,
+}
+
+#[cfg(test)]
+mod c_of_tests {
+    use super::*;
+
+    /// The ruling of 2026-09-20, as an invariant rather than as a fix.
+    ///
+    /// Seven corpus documents were refused by I-1 at the `text` stage because `N`'s NFC
+    /// component rewrites U+2126 OHM SIGN to U+03A9 GREEK CAPITAL LETTER OMEGA — one scalar
+    /// for one scalar, so the refusal read "N characters left and N appeared", and D13.4's
+    /// closed `Reason` enum had nothing honest to record it as.
+    ///
+    /// Composing inside `c_of` makes that unrepresentable: no stage can break I-1 by
+    /// composing, because both sides of every comparison are composed by this function.
+    #[test]
+    fn c_of_is_invariant_under_canonical_composition() {
+        // Singletons: one scalar in, one scalar out. These are the ones that produced equal
+        // counts on both sides of the refusal and therefore looked like a substitution.
+        for (decomposed, composed) in [
+            ("\u{2126}", "\u{03A9}"), // OHM SIGN -> GREEK CAPITAL LETTER OMEGA
+            ("\u{212B}", "\u{00C5}"), // ANGSTROM SIGN -> LATIN CAPITAL LETTER A WITH RING
+            ("\u{212A}", "\u{004B}"), // KELVIN SIGN -> LATIN CAPITAL LETTER K
+        ] {
+            assert_eq!(
+                c_of(decomposed),
+                c_of(composed),
+                "canonically equivalent text is the same text: {decomposed:?} vs {composed:?}"
+            );
+        }
+
+        // Sequences: a base and its combining mark compose to one scalar. Unequal counts, so
+        // this shape was always visible to I-1 — and it must be folded for the same reason.
+        assert_eq!(
+            c_of("e\u{0301}crit"),
+            c_of("\u{00E9}crit"),
+            "a combining acute and a precomposed e-acute are the same word"
+        );
+        assert_eq!(c_of("e\u{0301}").total(), 1, "composed, then counted");
+    }
+
+    /// The other half of D13.4, and the reason the fold is NFC and not NFKC.
+    ///
+    /// Compatibility decomposition *does* change the text, so folding it would let a real
+    /// difference through the law. `expand_ligatures` is a ledgered transform with its own
+    /// `Reason` precisely because `ﬁ` and `fi` are not the same characters.
+    #[test]
+    fn c_of_does_not_fold_compatibility_equivalents() {
+        assert_ne!(
+            c_of("\u{FB01}re"),
+            c_of("fire"),
+            "the fi ligature is not f followed by i; LigatureExpand ledgers that transform"
+        );
+        assert_ne!(
+            c_of("\u{00B2}"),
+            c_of("2"),
+            "superscript two is not two; D13.4 forbids NFKC for this reason"
+        );
+    }
+
+    /// Composition must not become a way to lose a character.
+    #[test]
+    fn c_of_still_sees_a_character_that_actually_vanished() {
+        let before = c_of("\u{2126} resistance");
+        let after = c_of("resistance");
+
+        assert_eq!(
+            before.difference(&after),
+            c_of("\u{03A9}"),
+            "the omega is gone and the law says so, in its composed form"
+        );
+    }
 }

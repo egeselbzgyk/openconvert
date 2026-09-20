@@ -3023,3 +3023,60 @@ mechanism seen only in pdfTeX output might be a pdfTeX habit.
 
 Evidence: `openconvert diff-stage text corpus/downloads/arxiv-22*.pdf`.
 Affects: D13.4, ARCHITECTURE §5.2, `oc-text::normalize`, `oc-model::ledger::c_of`.
+
+## 2026-09-20 · RULING: `C(·)` is taken after canonical composition · Phase 7.5
+Context: the question raised under PROGRESS `## Blocked` earlier today — `N` includes NFC,
+ARCHITECTURE §5.2 defined `C(D)` over Unicode scalars, D13.4's `Reason` enum is closed with no
+variant for canonical composition, and I-1 is checked after the stage that applies `N`. Four
+statements, jointly unsatisfiable, and seven corpus documents refused with nothing lost.
+
+Decision: **option B.** `c_of` composes before counting. ARCHITECTURE §5.2 now reads "after
+canonical composition (NFC)" and D13.4 carries the amendment. The `Reason` enum stays closed at
+fifteen; NFKC stays forbidden.
+
+Why this one rather than a sixteenth `Reason`: it makes the fault **unrepresentable** instead of
+merely recordable. No stage can break I-1 by composing, at any point, because both sides of
+every comparison are composed by the same function — which is this phase's own standard for a
+fix, applied to the law itself. It cannot mask a real loss: NFC is a bijection on the text it
+composes, so `c_of("Ω resistance").difference(c_of("resistance"))` is still one omega.
+
+**A consequence the ruling did not anticipate, found by implementing it.** `glyph_chars` built
+its histogram by adding glyphs one at a time, bypassing `c_of`. Canonical composition is a
+property of a *sequence* — a base and the combining mark after it — so composing one side and
+not the other would have moved the defect one function along instead of closing it. Both sides
+now go through `c_of`, and so do `LedgerDelta::side` and `reason_side`. The definition of `C`
+lives in exactly one function, which is the property that makes the invariant hold.
+
+Measured: four of the seven documents now pass `text` and three of those **conserve perfectly
+at `structure` as well** (lost 0, appeared 0).
+
+Evidence: `c_of_is_invariant_under_canonical_composition`,
+`c_of_does_not_fold_compatibility_equivalents`,
+`c_of_still_sees_a_character_that_actually_vanished`;
+`openconvert diff-stage structure corpus/downloads/arxiv-2209-10024.pdf`.
+Affects: D13.4, ARCHITECTURE §5.2, `oc-model::ledger::c_of`, `openconvert::pipeline::glyph_chars`.
+
+## 2026-09-20 · Class `structure/panic/spans-text-disagreement`, recorded and NOT admitted · Phase 7.5
+Context: with the NFC ruling in, three of the seven documents get past `text` and reach a
+**panic** in `oc_structure::build::para_of`:
+
+```
+assertion `left == right` failed: the spans are the paragraph's text split, never a different text
+  left: "5 2 0 2 n a J 2 ] G"   right: "5 2 0 2  n a J  2 ] G"
+```
+
+`para_of` builds `text` by trimming each line and joining with a single space; `spans_of` does
+not trim, so an untrimmed line contributes a double space. The difference is whitespace only, so
+no character is at risk — but it is a `debug_assert_eq!`, which means **every debug and CI run
+on such a document panics**, and D13.4 wants the conservation checks running in exactly those
+builds.
+
+Decision: **recorded, not fixed.** Three documents, all `pdfTeX`, and the text is arXiv's
+vertical datestamp read bottom-to-top ("G[ 2 Jan 2025"). One producer stratum, and the phase's
+admission rule is ≥ 3 documents across ≥ 2 strata — which exists for precisely this shape, a
+mechanism that may be one producer's habit rather than a general fault. The full-corpus
+inventory decides it.
+
+Evidence: `openconvert diff-stage structure` on arxiv-2304-14883, arxiv-2406-09769,
+arxiv-2210-07996.
+Affects: `oc-structure::build::para_of`, PHASE 7.5 item 3.

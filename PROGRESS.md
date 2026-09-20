@@ -2,93 +2,14 @@
 
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
-STATUS: BLOCKED
+STATUS: IN_PROGRESS
 CURRENT_PHASE: 7.5
 CURRENT_ITEM: 7.5.3 — BLOCKED on an ADR ruling: NFC canonical composition changes C(D)
-              and D13.4 has no Reason for it. See ## Blocked. The full-corpus
-              inventory is running and is what admits or refuses the class.
-LAST_UPDATED: 2026-09-20
+              and D13.4 has no Reason for it. See ## Blocked
 
----
-
-## How to use this file
-
-- `STATUS` is one of `IN_PROGRESS` · `BLOCKED` · `COMPLETE`.
-- Set `STATUS: BLOCKED` **only** when a decision is needed that `docs/DECISIONS.md` does not settle.
-  Write the question under `## Blocked
-
-### D13.4 cannot express what `N` does: NFC canonical composition has no `Reason`
-
-**Raised 2026-09-20, Phase 7.5.** This is not a bug report — the code does what D13.4 says. It
-is that four things D13.4 states are jointly unsatisfiable, and the conservation law is
-"the mechanism the whole architecture rests on" (IMPLEMENTATION_PLAN §, Phase 2 detail 4).
-
-**The measurement.** Seven corpus documents are refused by I-1 at the `text` stage. Every one
-of them is the same single mechanism, named exactly by `openconvert diff-stage text`:
-
-```
-arxiv-2210-07996   LEFT U+2126 'Ω' x58   APPEARED U+03A9 'Ω' x58
-arxiv-2209-10024   LEFT U+2126 'Ω' x14   APPEARED U+03A9 'Ω' x14
-arxiv-2004-06003   LEFT U+2126 'Ω' x8    APPEARED U+03A9 'Ω' x8
-arxiv-2302-06815   LEFT U+2126 'Ω' x5    APPEARED U+03A9 'Ω' x5
-arxiv-2306-07008   LEFT U+2126 'Ω' x1    APPEARED U+03A9 'Ω' x1
-arxiv-2304-14883   LEFT U+2126 'Ω' x1    APPEARED U+03A9 'Ω' x1
-arxiv-2406-09769   LEFT U+2126 'Ω' x1    APPEARED U+03A9 'Ω' x1
-```
-
-U+2126 OHM SIGN has a canonical decomposition to U+03A9 GREEK CAPITAL LETTER OMEGA, so NFC
-rewrites it. It is a **singleton** composition: one scalar in, one scalar out, which is why
-the counts are equal and why the refusal reads "N characters left and N appeared".
-
-**The four statements that cannot all hold.**
-
-1. D13.4: `N = strip(U+00AD) ∘ expand_ligatures(U+FB00–FB06) ∘ NFC`, and NFC is mandatory.
-2. ARCHITECTURE §5.2: `C(D)` is a multiset of **Unicode scalars**. U+2126 and U+03A9 are
-   different scalars, so NFC changes `C`.
-3. D13.4: the `Reason` enum is **closed**, fifteen variants, listed. None of them is canonical
-   composition, and `SoftHyphen` and `LigatureExpand` cover the other two components of `N`
-   precisely because those two *do* change `C`.
-4. D13.4: I-1 is checked after every stage, and `text` is the stage that applies `N`.
-
-So `N`'s third component changes `C` and cannot be written down. Any document containing a
-canonical singleton is refused, correctly by the letter of the law and wrongly in substance —
-nothing was lost. The same applies to U+212B ANGSTROM SIGN, U+212A KELVIN SIGN, U+2000-U+2001,
-and the Greek oxia/tonos pairs, so this is not an arXiv-and-ohms problem.
-
-**D13.4 is also ambiguous about where `N` runs**, and the two readings disagree about whether
-this can happen at all:
-
-- *"Normalization N … is applied exactly once **at extraction**"* — under this reading `N`
-  belongs to `ingest`, `C_raw` is taken after it, and NFC is invisible to the law by
-  construction.
-- *"Two baselines: `C_raw` (after extraction) and `C_0` (after `N`, …)"* — under this reading
-  `C_raw` is taken **before** `N`, which is what the implementation does (`glyph_chars` in
-  `text_stage`), and NFC is inside the checked interval.
-
-Both sentences are in D13.4. Only the second matches the code.
-
-**The options, and what each costs.**
-
-| | Change | Cost |
-|---|---|---|
-| **A** | Add `Reason::CanonicalCompose`, ledgered as a Removed/Added pair | Opens D13.4's closed enum. PHASE 7.5 forbids any item from adding a `Reason`, for good reason — and this one would be honest, unlike a "text we could not account for" reason. Sixteen variants, and every consumer of the enum grows a case. |
-| **B** | State `C(·)` over canonically-composed scalars: `c_of` applies NFC before counting | One function. Makes NFC invisible to the law **by construction**, at every stage, forever. Changes ARCHITECTURE §5.2 from "Unicode scalars" to "Unicode scalars after canonical composition". Defensible on Unicode's own terms — canonical equivalence means U+2126 and U+03A9 *are the same character*, and D13.4 chose NFC over the forbidden NFKC precisely because NFC preserves meaning. |
-| **C** | Move `N` to `ingest`, so `C_raw` is post-`N` | Matches D13.4's "applied exactly once at extraction" literally. But `SoftHyphen` and `LigatureExpand` entries move to `ingest` with it, `C_raw` stops meaning "what the PDF drew", and the `text` stage loses its subject. Largest blast radius. |
-
-**Recommendation: B.** It is the only one that makes the fault *unrepresentable* rather than
-merely *recordable*, which is this phase's own standard for a fix. It cannot hide a real loss:
-a character that actually vanishes still vanishes, because NFC is a bijection on the text it
-composes. And it is the smallest change — `c_of` is one function and every stage inherits it.
-
-**This is not a licence to proceed.** It changes the definition of `C(D)` in ARCHITECTURE §5.2,
-which is load-bearing, so CLAUDE.md §1 says it needs the Chief Architect's ruling in
-`DECISIONS.md` rather than an implementer's judgement.
-
-**Note on admission.** Under this phase's own rule the class is **not yet admitted** — seven
-documents but only **one producer stratum** (pdfTeX), and the rule is ≥ 3 documents across ≥ 2
-strata. The full-corpus inventory is running and will settle it. So even with a ruling, the fix
-waits on evidence that the mechanism is not a pdfTeX habit. The ruling is still wanted now,
-because it is an ADR question and not an implementation one.
+Nothing. The NFC question raised earlier today was ruled on the same day — `C(·)` is taken
+after canonical composition — and is implemented. See `docs/DECISIONS_LOG.md`, 2026-09-20,
+and the D13.4 amendment in `docs/DECISIONS.md`.
 
 ## Phase 7 — Definition of Done
 
