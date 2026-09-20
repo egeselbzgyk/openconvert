@@ -7,6 +7,7 @@
 
 mod cli;
 mod cmd_convert;
+mod cmd_diff_stage;
 mod cmd_dump_stage;
 mod cmd_inspect;
 mod cmd_validate;
@@ -63,6 +64,15 @@ fn run() -> ExitCode {
             let stdout = std::io::stdout();
             let mut stdout = stdout.lock();
             let code = cmd_inspect::run(&inspect, &mut events, &mut stdout);
+            let _ = stdout.flush();
+            code
+        }
+        Ok(Command::DiffStage(diff)) => {
+            let mut events =
+                EventSink::new(std::io::stderr().lock(), diff.progress == Progress::Json);
+            let stdout = std::io::stdout();
+            let mut stdout = stdout.lock();
+            let code = cmd_diff_stage::run(&diff, &mut events, &mut stdout);
             let _ = stdout.flush();
             code
         }

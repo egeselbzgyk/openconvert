@@ -23,6 +23,7 @@ use oc_model::text::Run;
 
 use crate::book::{book_structure, FlowItem};
 use crate::build::{para_of, Minter};
+use crate::claims::{Claim, ClaimKind, Claimant, Claims};
 use crate::figures::associate_captions;
 use crate::headings::candidate::heading_candidates;
 use crate::headings::cluster::{cluster_styles, StyleInventory};
@@ -76,6 +77,8 @@ pub struct StructureOutput {
     pub escalations: Vec<EscalationCandidate>,
     pub warnings: Vec<Warning>,
     pub confidence: Confidence,
+    /// Which structure took each block out of the flow, and what it undertook to emit.
+    pub claims: Claims,
 }
 
 impl StructureOutput {
@@ -105,6 +108,123 @@ impl StructureOutput {
             }
         }
         out
+    }
+
+    /// Every piece of text the *book* contains — as distinct from every piece the stage is
+    /// holding somewhere (PHASE 7.5).
+    ///
+    /// [`Self::emitted_text`] iterates `self.notes`, `self.tables` and `self.figures`: every
+    /// container the stage built, whether or not anything in the flow points at it. That is
+    /// the wrong denominator for a conservation check. A table whose region was detected but
+    /// whose first block could not be located is never pushed into the flow; a figure whose
+    /// image was dropped as an ornament takes its bound caption with it. In both cases the
+    /// blocks are claimed, so they leave the flow, and `emitted_text` counts the orphaned
+    /// container's text as though a reader would see it. The stage balances and the book is
+    /// short.
+    ///
+    /// This walks the other way: from the flow outwards, following each reference, so a
+    /// container nothing references contributes nothing. The difference between the two is
+    /// exactly the text that has been lost without anyone being told.
+    pub fn reachable_text(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut figures = std::collections::BTreeSet::new();
+        let mut tables = std::collections::BTreeSet::new();
+        let mut notes = std::collections::BTreeSet::new();
+
+        for section in &self.sections {
+            for section in section.walk() {
+                if let Some(heading) = &section.heading {
+                    out.push(heading.text());
+                }
+                reach(
+                    &section.content,
+                    &mut out,
+                    &mut figures,
+                    &mut tables,
+                    &mut notes,
+                );
+            }
+        }
+
+        // A note is reached through the marker that refers to it, which is a `Span` on the
+        // text rather than a `Content` — so the set of referenced notes is the one `note_refs`
+        // records. A note nothing refers to is a note no reader can arrive at.
+        for note_ref in &self.note_refs {
+            notes.insert(note_ref.note);
+        }
+        for note in self.notes.iter().filter(|note| notes.contains(&note.id)) {
+            collect(&note.body, &mut out);
+        }
+        for table in self
+            .tables
+            .iter()
+            .filter(|table| tables.contains(&table.id))
+        {
+            out.extend(table.cell_texts());
+        }
+        for figure in self
+            .figures
+            .iter()
+            .filter(|figure| figures.contains(&figure.id))
+        {
+            if let Some(caption) = &figure.caption {
+                out.push(oc_model::doc::spans_text(caption));
+            }
+        }
+        out
+    }
+}
+
+/// Walk a content list the way a reader does, recording which containers it reaches.
+fn reach(
+    content: &[Content],
+    out: &mut Vec<String>,
+    figures: &mut std::collections::BTreeSet<oc_model::ids::FigureId>,
+    tables: &mut std::collections::BTreeSet<oc_model::ids::TableId>,
+    notes: &mut std::collections::BTreeSet<oc_model::ids::NoteId>,
+) {
+    for item in content {
+        match item {
+            Content::Paragraph(para) => out.push(para.text.clone()),
+            Content::Heading(heading) => out.push(heading.text()),
+            Content::List(list) => reach_list(list, out, figures, tables, notes),
+            Content::BlockQuote(inner) | Content::Epigraph(inner) => {
+                reach(inner, out, figures, tables, notes)
+            }
+            Content::Verse(verse) => {
+                for stanza in &verse.stanzas {
+                    for line in stanza {
+                        out.push(oc_model::doc::spans_text(line));
+                    }
+                }
+            }
+            Content::Preformatted(pre) => out.extend(pre.lines.iter().cloned()),
+            Content::Figure(id) => {
+                figures.insert(*id);
+            }
+            Content::Table(id) => {
+                tables.insert(*id);
+            }
+            Content::NoteRefAnchor(id) => {
+                notes.insert(*id);
+            }
+            Content::PageBreak(_) | Content::Rule => {}
+        }
+    }
+}
+
+fn reach_list(
+    list: &List,
+    out: &mut Vec<String>,
+    figures: &mut std::collections::BTreeSet<oc_model::ids::FigureId>,
+    tables: &mut std::collections::BTreeSet<oc_model::ids::TableId>,
+    notes: &mut std::collections::BTreeSet<oc_model::ids::NoteId>,
+) {
+    for item in &list.items {
+        reach(&item.content, out, figures, tables, notes);
+        if let Some(nested) = &item.nested {
+            reach_list(nested, out, figures, tables, notes);
+        }
     }
 }
 
@@ -197,25 +317,98 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
     let images = drop_ornaments(&input.images, &input.image_hashes, input.page_count, t);
     let (metadata, meta_confidence) = metadata(&input.meta, blocks, body_size, t);
 
-    // Which blocks have already had their text taken by something other than the flow.
-    let mut taken: std::collections::BTreeSet<BlockId> = std::collections::BTreeSet::new();
-    taken.extend(note_blocks.iter().copied());
-    taken.extend(tables.consumed.iter().copied());
-    taken.extend(lists.consumed.iter().copied());
+    // Which blocks have had their text taken by something other than the flow, and — the
+    // part a bare `BTreeSet<BlockId>` could not say — *which* structure undertook to emit
+    // each one. Four independent claimants feed this, and until the claim carried its
+    // claimant there was no way to ask any of them whether it kept its word (PHASE 7.5).
+    let mut claims = Claims::new();
+    let page_of = |id: BlockId| -> u32 {
+        blocks
+            .iter()
+            .find(|block| block.id == id)
+            .map(|block| block.page)
+            .unwrap_or_default()
+    };
+    let text_of = |id: BlockId| -> String {
+        blocks
+            .iter()
+            .find(|block| block.id == id)
+            .map(|block| block.text.clone())
+            .unwrap_or_default()
+    };
+
+    for note in &notes {
+        for content in &note.body {
+            if let Content::Paragraph(para) = content {
+                if let Some(&block) = para.blocks.first() {
+                    claims.push(Claim {
+                        block,
+                        page: page_of(block),
+                        by: Claimant::new(ClaimKind::Note, format!("n{}", note.id.0)),
+                        text: text_of(block),
+                    });
+                }
+            }
+        }
+    }
+    for &block in &tables.consumed {
+        // Which table, by the region the block sits inside. `consumed` is flat, so this is
+        // the only place the association exists; a block no region contains is recorded as
+        // claimed by an unnamed table rather than silently attributed to the first one.
+        let named = tables
+            .regions
+            .iter()
+            .find(|region| {
+                blocks.iter().any(|view| {
+                    view.id == block
+                        && view.page == region.page
+                        && view.bbox.y0 >= region.bbox.y0 - 1.0
+                        && view.bbox.y1 <= region.bbox.y1 + 1.0
+                })
+            })
+            .map(|region| Claimant::new(ClaimKind::Table, format!("t{}", region.id.0)));
+        claims.push(Claim {
+            block,
+            page: page_of(block),
+            by: named.unwrap_or_else(|| Claimant::unnamed(ClaimKind::Table)),
+            text: text_of(block),
+        });
+    }
+    for &block in &lists.consumed {
+        let named = lists
+            .lists
+            .iter()
+            .find(|list| list_covers(list, block))
+            .map(|list| Claimant::new(ClaimKind::List, list.id.as_str().to_owned()));
+        claims.push(Claim {
+            block,
+            page: page_of(block),
+            by: named.unwrap_or_else(|| Claimant::unnamed(ClaimKind::List)),
+            text: text_of(block),
+        });
+    }
     // Only the captions that were actually bound: an unattached caption stays in the flow as
     // a paragraph, which is what "abstain rather than guess" means for the text as well as
     // for the link.
-    let bound: std::collections::BTreeSet<String> = figures
+    let bound: std::collections::BTreeMap<String, oc_model::ids::FigureId> = figures
         .iter()
-        .filter_map(|figure| figure.caption.as_ref())
-        .map(|caption| oc_model::doc::spans_text(caption))
+        .filter_map(|figure| {
+            figure
+                .caption
+                .as_ref()
+                .map(|caption| (oc_model::doc::spans_text(caption), figure.id))
+        })
         .collect();
-    taken.extend(
-        captions
-            .iter()
-            .filter(|caption| bound.contains(caption.text.trim()))
-            .map(|caption| caption.block),
-    );
+    for caption in &captions {
+        if let Some(figure) = bound.get(caption.text.trim()) {
+            claims.push(Claim {
+                block: caption.block,
+                page: page_of(caption.block),
+                by: Claimant::new(ClaimKind::Caption, format!("f{}", figure.0)),
+                text: text_of(caption.block),
+            });
+        }
+    }
 
     let mut minter = Minter::new();
     let mut flow: Vec<FlowItem> = Vec::new();
@@ -247,7 +440,7 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
                 content: Content::Table(region.id),
             });
         }
-        if taken.contains(&block.id) {
+        if claims.contains(block.id) {
             // A list is emitted at the first block it consumed, and only once.
             if let Some(list) = lists
                 .lists
@@ -412,6 +605,7 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
         escalations,
         warnings,
         confidence,
+        claims,
     }
 }
 
@@ -425,6 +619,25 @@ fn first_block_of(blocks: &[BlockView], region: &TableRegion) -> Option<BlockId>
                 && block.bbox.y1 <= region.bbox.y1 + 1.0
         })
         .map(|block| block.id)
+}
+
+/// Whether any of a list's items — at any depth — came from this block.
+fn list_covers(list: &List, block: BlockId) -> bool {
+    list.items.iter().any(|item| {
+        content_has_block(&item.content, block)
+            || item
+                .nested
+                .as_ref()
+                .is_some_and(|nested| list_covers(nested, block))
+    })
+}
+
+fn content_has_block(content: &[Content], block: BlockId) -> bool {
+    content.iter().any(|item| match item {
+        Content::Paragraph(para) => para.blocks.contains(&block),
+        Content::BlockQuote(inner) | Content::Epigraph(inner) => content_has_block(inner, block),
+        _ => false,
+    })
 }
 
 /// Whether a list's first item came from this block.

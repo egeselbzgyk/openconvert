@@ -341,7 +341,7 @@ fn decode_images(pdf: &dyn PdfDoc, images: &[oc_model::extract::ImageRef]) -> Ve
 }
 
 /// One image's perceptual hash per image, for the ornament rule.
-fn image_hashes(pdf: &dyn PdfDoc, images: &[oc_model::extract::ImageRef]) -> Vec<u64> {
+pub fn image_hashes(pdf: &dyn PdfDoc, images: &[oc_model::extract::ImageRef]) -> Vec<u64> {
     images
         .iter()
         .map(|image| oc_pdf::images::perceptual_hash(&decode_one(pdf, images, image)))

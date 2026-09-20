@@ -23,6 +23,7 @@ pub enum Command {
     Validate(ValidateArgs),
     Inspect(InspectArgs),
     DumpStage(DumpStageArgs),
+    DiffStage(DiffStageArgs),
     /// `--help` or `--version`: print and exit successfully.
     Print(String),
 }
@@ -82,6 +83,20 @@ pub struct InspectArgs {
     pub max_pages: Option<u32>,
 }
 
+/// `diff-stage <STAGE> <INPUT>`: what a stage did to the text, including when it did not
+/// balance (PHASE 7.5).
+///
+/// The same arguments as `dump-stage`, and deliberately so: the two answer the two halves of
+/// the same question and a reader who knows one should not have to learn the other.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DiffStageArgs {
+    pub stage: String,
+    pub input: PathBuf,
+    pub password: Option<String>,
+    pub progress: Progress,
+    pub limits: oc_core::limits::Limits,
+}
+
 /// `dump-stage <STAGE> <INPUT>`: everything a stage produced, as canonical JSON.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DumpStageArgs {
@@ -111,6 +126,8 @@ pub enum CliError {
     InputCount,
     #[error("dump-stage needs a stage name and exactly one input file")]
     DumpStageArgs,
+    #[error("diff-stage needs a stage name and exactly one input file")]
+    DiffStageArgs,
     #[error("convert needs exactly one input file")]
     ConvertArgs,
     #[error("validate needs exactly one input file")]
@@ -129,6 +146,8 @@ usage:
   openconvert inspect <INPUT.pdf> [--json] [--pages <RANGE>] [--password <STRING>]
                                   [--progress none|json] [--max-pages <N>]
   openconvert dump-stage <STAGE> <INPUT.pdf> [--password <STRING>]
+                                  [--progress none|json] [--max-pages <N>]
+  openconvert diff-stage <STAGE> <INPUT.pdf> [--password <STRING>]
                                   [--progress none|json] [--max-pages <N>]
   openconvert --version
   openconvert --help
@@ -149,6 +168,11 @@ usage:
 
   dump-stage writes one canonical-JSON object per line: a header, then one per page.
   <STAGE> is one of the twelve stage names; `ingest` and `text` are implemented so far.
+
+  diff-stage runs <STAGE> outside the conservation check and reports what it did to the
+  text: characters lost and gained, and which input blocks the book does not contain.
+  Unlike dump-stage it still answers when the stage does not balance, which is when the
+  answer is wanted. `structure` is implemented so far.
 ";
 
 /// Parse the arguments after the program name.
@@ -168,6 +192,7 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, CliErro
         "convert" => return parse_convert(args),
         "validate" => return parse_validate(args),
         "dump-stage" => return parse_dump_stage(args),
+        "diff-stage" => return parse_diff_stage(args),
         other => return Err(CliError::UnknownSubcommand(other.to_owned())),
     }
 
@@ -434,6 +459,28 @@ fn parse_dump_stage<I: Iterator<Item = String>>(mut args: I) -> Result<Command, 
         }
         _ => Err(CliError::DumpStageArgs),
     }
+}
+
+/// Parse `diff-stage <STAGE> <INPUT>`, having already consumed the subcommand.
+///
+/// The same grammar as `dump-stage`, parsed by the same function: two commands that take the
+/// same arguments and disagree about how to spell them would be a defect waiting to happen.
+fn parse_diff_stage<I: Iterator<Item = String>>(args: I) -> Result<Command, CliError> {
+    let parsed = parse_dump_stage(args).map_err(|error| match error {
+        CliError::DumpStageArgs => CliError::DiffStageArgs,
+        other => other,
+    })?;
+    Ok(match parsed {
+        Command::DumpStage(dump) => Command::DiffStage(DiffStageArgs {
+            stage: dump.stage,
+            input: dump.input,
+            password: dump.password,
+            progress: dump.progress,
+            limits: dump.limits,
+        }),
+        // `--help` anywhere in the arguments, which `parse_dump_stage` answers directly.
+        other => other,
+    })
 }
 
 /// Parse `1-10,20` into zero-based page indices.

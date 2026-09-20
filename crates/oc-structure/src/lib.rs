@@ -4,6 +4,7 @@
 
 pub mod book;
 pub mod build;
+pub mod claims;
 pub mod figures;
 pub mod headings;
 pub mod images;
