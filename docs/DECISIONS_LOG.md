@@ -3196,3 +3196,28 @@ Evidence: `c_of_does_not_depend_on_where_the_text_was_cut`,
 all four documents now pass `text`.
 Affects: D13.4 amendment, ARCHITECTURE §5.2, `oc-model::ledger::{c_of, c_of_parts}`,
 `openconvert::pipeline` (seven comparison sites).
+
+## 2026-09-20 · PROGRESS.md lost 515 lines to a substring match, and how · Phase 7.5
+Context: the file that is supposed to let a fresh session resume was silently truncated from
+1 094 lines to 579, losing the Phases list, the whole Phase 7.5 write-up, the Notes and the
+Phase 7 section. Nobody noticed for three commits.
+
+Cause: a scripted edit anchored on `s.index("## Blocked")`. The string `## Blocked` occurs
+**twice** — once as the section heading near the end, and once at line 17 inside the file's own
+instructions: *"Write the question under `## Blocked` and stop."* `index` returns the first,
+so the replacement consumed everything between line 17 and the end anchor.
+
+This is the second time today the same shape has bitten. The first was
+`|| echo "TIMEOUT_OR_FAIL $name"` in a shell loop, whose guess became a defect class with a
+stratum breakdown in this file. Both are the same error: **a convenient anchor that is not a
+unique one, trusted without checking.**
+
+Decision, and it is a working rule rather than a code change: a scripted edit to a document
+anchors on a string that is unique in that document — `"\n## Blocked"` and not `"## Blocked"` —
+and the edit is followed by a check that the result still has the shape it should. `wc -l` and
+a heading list take one command and would have caught this immediately.
+
+Restored from `811388a`, with the three intended edits since then reapplied: the Blocked
+section cleared, `CURRENT_ITEM` moved to the inventory, and the timeout class rewritten with
+what was measured rather than what was assumed.
+Affects: PROGRESS.md, and the way this session edits documents.
