@@ -78,18 +78,29 @@ Two implementations in v1: `LocalSidecar` (server we own) and `OpenAiCompatible`
 
 **D13.4 Conservation law (replaces "character multiset" Gate L). [RT]** Normalization `N = strip(U+00AD) ∘ expand_ligatures(U+FB00–FB06) ∘ NFC` is applied exactly once at extraction; NFKC is forbidden; text is never case-folded (Turkish-aware folding builds lookup keys only); superscript status is captured from geometry before `N`. Two baselines: `C_raw` (after extraction) and `C_0` (after `N`, overdraw dedup, OCR-layer dedup) — the retention denominator. Every stage is statically `Conserving` or `Budgeted` with a closed `Reason` enum (`SoftHyphen, LigatureExpand, GeneratedSpace, RunningHeader, RunningFooter, PageNumber, OverdrawDedup, OcrLayerDuplicate, Dehyphenate, Ocr, DecorativeGlyph, Watermark, ClippedOffPage, HiddenText, UserOverride` — fifteen variants: `ClippedOffPage` is geometric (wholly outside the CropBox, or removed by a clipping path), `HiddenText` is rendered but not visible (render-mode-3 text on a page that is not an OCR sandwich, or a fill colour within the delta-E tolerance of the local background); both are owned by `ingest`) and per-reason budgets as fractions of `|C_0|` (provisional: furniture ≤ 0.04, overdraw ≤ 0.02, OCR-layer dup ≤ 0.60 per page, dehyphenate ≤ 0.005, decorative ≤ 0.002, others ≤ 0.001, global non-OCR removal ≤ 0.08). Invariants checked after every stage: I-1 `C(D_i) ⊎ Added = C(D_{i+1}) ⊎ Removed`; I-2 reasons declared; I-3 conserving stages have empty ledgers — **reading order, block typing, headings, structure roles, verse/quote, lists, footnote linking, image anchoring, chapter splitting, XHTML serialization, and every LLM edit are Conserving**; I-4 budgets; I-5 dehyphenation removes exactly one `U+002D`/`U+2010` and nothing else; I-6 OCR is Added-only and **region-scoped**: an `Ocr` ledger entry is permitted on any page region whose bbox contains no PDF text runs — the whole page on an `image-only` page, each uncovered image region on a `mixed` page — and every such region is marked `provenance = ocr` and excluded from source retention; I-7 end-to-end `C(EPUB) ⊎ Removed_all = C_0 ⊎ Added_all` is a release gate. Cost: a scalar histogram per stage (sub-millisecond); ledger entries are spans. What it does **not** catch: a wrong dehyphenation join, a wrong heading level, a wrong reading order — those have their own checks.
 
-> **Amendment, 2026-09-20 (Phase 7.5).** `C(·)` is taken **after canonical composition**: the
-> multiset is of the non-whitespace scalars of `NFC(text)`, not of `text`. Without it the three
-> components of `N` are not equally expressible — `strip(U+00AD)` has `SoftHyphen` and
-> `expand_ligatures` has `LigatureExpand`, but NFC has no `Reason` and this enum is closed, so a
-> canonical *singleton* (U+2126 OHM SIGN → U+03A9 GREEK CAPITAL LETTER OMEGA, and likewise
-> U+212B, U+212A and the Greek oxia pairs) breaks I-1 with nothing lost. Seven corpus documents
-> were refused for exactly that. Unicode's canonical equivalence says the two encodings *are*
-> the same character, and NFC was chosen over the forbidden NFKC precisely because it preserves
-> meaning; a law that counts them apart is counting encodings rather than text. Folding it into
-> `c_of` makes the fault unrepresentable at every stage rather than recordable at one, and it
-> cannot mask a real loss, because NFC is a bijection on the text it composes. NFKC stays
-> forbidden. The `Reason` enum stays closed at fifteen.
+> **Amendment, 2026-09-20 (Phase 7.5).** `C(·)` is taken **after canonical decomposition
+> (NFD)**: the multiset is of the non-whitespace scalars of `NFD(text)`, not of `text`.
+>
+> *Why a canonical form.* The three components of `N` are not equally expressible —
+> `strip(U+00AD)` has `SoftHyphen` and `expand_ligatures` has `LigatureExpand`, but NFC has no
+> `Reason` and this enum is closed — so a canonical *singleton* (U+2126 OHM SIGN → U+03A9, and
+> likewise U+212B, U+212A, U+1F71 and the rest of the 1 120 code points NFC rewrites) breaks
+> I-1 with nothing lost. Seven corpus documents were refused for exactly that.
+>
+> *Why decomposition and not composition.* Composition depends on **adjacency**: `u` followed
+> by U+0308 composes only when the two are next to each other. A stage cuts its text where it
+> likes — the glyph stream is one sequence in draw order, the runs are many in reading order —
+> so a composing law gives two answers for one book. That was measured, not feared: four more
+> documents were refused after the first attempt, an umlaut drawn as two glyphs and assembled
+> into two non-adjacent runs. Decomposition expands each character independently, and the
+> canonical reordering that follows cannot change a *multiset*, so `C` is the same whatever
+> pieces the text arrives in. The law is granularity-independent by construction instead of by
+> every stage remembering to cut in the same place.
+>
+> Both fold the same equivalences, because two canonically equivalent strings have the same
+> decomposition by definition. NFKD stays forbidden alongside NFKC: `ﬁ` is not `fi` and `²` is
+> not `2`. The `Reason` enum stays closed at fifteen. `N` itself is unchanged and still
+> composes — this is about how `C` is *measured*, not about what the book contains.
 
 **D13.5 Escalation and the four gates (LLM edits).** Deterministic → escalation predicate true (v1 uses structural predicates, not calibrated scores; see D17) AND `ai.enabled` AND budget remains → LLM → gates: (S) parses against the grammar, ids bijective, enums legal, arity correct; (L) the edit is `Conserving` (labels/levels/roles/CSS classes only); (V) a fixed tuple of region-valid statistics (duplicate-line ratio, top-n-gram ratio, non-alpha-word ratio, heading-tree sanity) does not worsen beyond epsilon — else revert; (D) the deterministic answer stands as fallback and is recorded. **Label authority ≠ deletion authority:** the LLM may propose `running_head`; only the deterministic furniture remover deletes, and only when its cross-page repetition evidence independently agrees.
 

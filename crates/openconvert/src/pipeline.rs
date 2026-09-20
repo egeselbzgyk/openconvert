@@ -6,7 +6,7 @@
 //! runs on every conversion, and a violation is an error rather than a warning, because a
 //! conservation law that can be disabled is a preference (D13.4).
 
-use oc_core::ledger_check::{c_of, check_invariants, ConservationError, ReasonTotals};
+use oc_core::ledger_check::{c_of, c_of_parts, check_invariants, ConservationError, ReasonTotals};
 use oc_core::stages;
 use oc_core::thresholds::Thresholds;
 use oc_layout::anchor::{anchor_images, drop_caps, Anchor, DropCap};
@@ -485,10 +485,8 @@ pub fn structure_stage(
     let before = block_chars(&layout.blocks, &layout.pages);
     let output = oc_structure::stage::structure(input, t);
 
-    let mut after = CharHistogram::new();
-    for text in output.emitted_text() {
-        after = after.union(&c_of(&text));
-    }
+    let emitted = output.emitted_text();
+    let after = c_of_parts(emitted.iter().map(String::as_str));
     let delta = LedgerDelta::default();
     let check = check_invariants(&before, &after, &delta, stages::STRUCTURE, totals)?;
 
@@ -523,10 +521,8 @@ pub fn document_stage(
     totals: &mut ReasonTotals,
     t: &Thresholds,
 ) -> Result<DocumentStage, DocumentError> {
-    let mut before = CharHistogram::new();
-    for text in structure.output.emitted_text() {
-        before = before.union(&c_of(&text));
-    }
+    let emitted = structure.output.emitted_text();
+    let before = c_of_parts(emitted.iter().map(String::as_str));
 
     let document = crate::document::assemble(input, t);
 
@@ -535,10 +531,8 @@ pub fn document_stage(
         return Err(DocumentError::Dangling(dangling));
     }
 
-    let mut after = CharHistogram::new();
-    for text in document.text_pieces() {
-        after = after.union(&c_of(&text));
-    }
+    let pieces = document.text_pieces();
+    let after = c_of_parts(pieces.iter().map(String::as_str));
     let delta = LedgerDelta::default();
     let check = check_invariants(&before, &after, &delta, stages::DOCUMENT, totals)?;
 
@@ -596,15 +590,14 @@ pub fn epub_check(
     built: oc_epub::BuiltEpub,
     totals: &mut ReasonTotals,
 ) -> Result<EpubStage, EpubStageError> {
-    let mut before = CharHistogram::new();
-    for text in document.text_pieces() {
-        before = before.union(&c_of(&text));
-    }
+    let pieces = document.text_pieces();
+    let before = c_of_parts(pieces.iter().map(String::as_str));
 
-    let mut after = CharHistogram::new();
+    let mut bodies: Vec<String> = Vec::with_capacity(built.emitted.files.len());
     for file in &built.emitted.files {
-        after = after.union(&c_of(&oc_epub::textcontent::body_text(&file.markup)?));
+        bodies.push(oc_epub::textcontent::body_text(&file.markup)?);
     }
+    let after = c_of_parts(bodies.iter().map(String::as_str));
 
     let delta = LedgerDelta::default();
     let check = check_invariants(&before, &after, &delta, stages::EPUB, totals)?;
@@ -690,14 +683,10 @@ pub fn validate_repair_stage(
     let validate_check = check_invariants(&emitted, &emitted, &empty, stages::VALIDATE, totals)?;
 
     // `repair` compares the two documents. Equal by I-1 with an empty ledger, which is the claim.
-    let mut before = CharHistogram::new();
-    for text in document.text_pieces() {
-        before = before.union(&c_of(&text));
-    }
-    let mut after = CharHistogram::new();
-    for text in settled.text_pieces() {
-        after = after.union(&c_of(&text));
-    }
+    let given = document.text_pieces();
+    let before = c_of_parts(given.iter().map(String::as_str));
+    let kept = settled.text_pieces();
+    let after = c_of_parts(kept.iter().map(String::as_str));
     let repair_check = check_invariants(&before, &after, &empty, stages::REPAIR, totals)?;
 
     Ok(ValidateRepairStage {
@@ -768,11 +757,7 @@ pub fn body_runs(text: &TextStage, furniture: &FurnitureStage) -> Vec<Run> {
 
 /// `C` of the reconstructed paragraphs.
 pub fn paragraph_chars(paragraphs: &[Para]) -> CharHistogram {
-    let mut histogram = CharHistogram::new();
-    for para in paragraphs {
-        histogram = histogram.union(&c_of(&para.text));
-    }
-    histogram
+    c_of_parts(paragraphs.iter().map(|para| para.text.as_str()))
 }
 
 /// One line's text, found on the page it came from.
@@ -854,50 +839,40 @@ pub fn line_text(runs: &[Run], line: &Line) -> String {
 
 /// `C` of the segmented blocks — every line of every block, through the same flattening.
 pub fn block_chars(blocks: &[Vec<Block>], pages: &[LayoutPage]) -> CharHistogram {
-    let mut histogram = CharHistogram::new();
+    let mut parts: Vec<&str> = Vec::new();
     for (page_blocks, page) in blocks.iter().zip(pages) {
         for block in page_blocks {
             for line in &block.lines {
-                histogram = histogram.union(&c_of(text_of(page, line)));
+                parts.push(text_of(page, line));
             }
         }
     }
-    histogram
+    c_of_parts(parts)
 }
 
 /// `C` of the glyph stream: the document as extraction left it.
 pub fn glyph_chars(input: &[PageInput]) -> CharHistogram {
-    let mut histogram = CharHistogram::new();
-    for page in input {
-        // Assembled into a string first, and per page, so that `c_of` composes it. A
-        // canonical composition is a property of a *sequence* — a base and the combining
-        // mark that follows it — so counting glyph by glyph would leave the two sides of I-1
-        // composed differently, which is the defect this was changed to close, moved one
-        // function along (`docs/DECISIONS_LOG.md`, 2026-09-20).
-        let text: String = page.glyphs.iter().map(|glyph| glyph.ch).collect();
-        histogram = histogram.union(&c_of(&text));
-    }
-    histogram
+    let text: String = input
+        .iter()
+        .flat_map(|page| page.glyphs.iter().map(|glyph| glyph.ch))
+        .collect();
+    c_of(&text)
 }
 
 /// `C` of the assembled runs.
 pub fn run_chars(pages: &[TextPage]) -> CharHistogram {
-    let mut histogram = CharHistogram::new();
-    for page in pages {
-        for run in &page.runs {
-            histogram = histogram.union(&c_of(&run.text));
-        }
-    }
-    histogram
+    c_of_parts(
+        pages
+            .iter()
+            .flat_map(|page| page.runs.iter().map(|run| run.text.as_str())),
+    )
 }
 
 /// `C` of the surviving body flow.
 pub fn line_chars(pages: &[PageLines]) -> CharHistogram {
-    let mut histogram = CharHistogram::new();
-    for page in pages {
-        for line in &page.lines {
-            histogram = histogram.union(&c_of(&line.text));
-        }
-    }
-    histogram
+    c_of_parts(
+        pages
+            .iter()
+            .flat_map(|page| page.lines.iter().map(|line| line.text.as_str())),
+    )
 }

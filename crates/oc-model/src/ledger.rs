@@ -125,6 +125,32 @@ impl LedgerEntry {
     }
 }
 
+/// `C(·)` of text that arrives in pieces — a page's runs, a document's blocks, a ledger's
+/// entries — **composed across the joins**.
+///
+/// This exists because `c_of` alone is not enough once `C` is defined after canonical
+/// composition. Composition is a property of a *sequence*, so where the sequence is cut
+/// changes the answer: a base and the combining mark after it compose when they are in one
+/// string and stay apart when they are in two. Compare a page composed whole against its runs
+/// composed one at a time and a single mark split across a run boundary reads as
+/// "1 character left and 2 appeared" — which is what four corpus documents did, and the loss
+/// was an artefact of the comparison rather than anything the stage had done.
+///
+/// So every side of every conservation comparison joins first and composes once. That makes
+/// the law **granularity-independent**: it cannot matter where a stage happens to cut its
+/// text, which is not a property the pipeline should have to remember.
+///
+/// The parts are joined with **nothing**, and that is the load-bearing choice. Both sides of
+/// a comparison have to cut the text the same way or the composition differs again, and the
+/// only cut guaranteed to be identical on a glyph stream and on a list of runs is no cut at
+/// all. A separator here would reintroduce the very mismatch this function exists to remove:
+/// the glyph stream has no separators, so runs joined by one would leave a mark at a run
+/// boundary uncomposed on one side and composed on the other.
+pub fn c_of_parts<'a>(parts: impl IntoIterator<Item = &'a str>) -> CharHistogram {
+    let joined: String = parts.into_iter().collect();
+    c_of(&joined)
+}
+
 /// The multiset the conservation law is stated over: the non-whitespace scalars of `text`,
 /// **after canonical composition**.
 ///
@@ -134,27 +160,46 @@ impl LedgerEntry {
 /// That is what makes a backend-generated space invisible to the ledger and a soft hyphen —
 /// which is *not* whitespace — visible to it.
 ///
-/// `C(D)` is taken **after NFC**, which is the ruling of 2026-09-20 and an amendment to
-/// ARCHITECTURE §5.2 (`docs/DECISIONS_LOG.md`). `N` includes NFC, D13.4's `Reason` enum is
-/// closed and has no variant for canonical composition, and NFC has *singleton* compositions
-/// — U+2126 OHM SIGN becomes U+03A9 GREEK CAPITAL LETTER OMEGA, one scalar for one scalar.
-/// Seven corpus documents were refused by I-1 for exactly that, with nothing lost. Unicode's
-/// own canonical equivalence says the two are the same character; a law that counts them
+/// `C(D)` is taken **after canonical decomposition (NFD)** — the ruling of 2026-09-20 and an
+/// amendment to ARCHITECTURE §5.2 (`docs/DECISIONS_LOG.md`).
+///
+/// *Why a canonical form at all.* `N` includes NFC, D13.4's `Reason` enum is closed and has
+/// no variant for canonical composition, and NFC has **singleton** compositions — U+2126 OHM
+/// SIGN becomes U+03A9 GREEK CAPITAL LETTER OMEGA, one scalar for one scalar. Seven corpus
+/// documents were refused by I-1 for exactly that, with nothing lost. Unicode's canonical
+/// equivalence says the two encodings *are* the same character, so a law that counts them
 /// apart is counting encodings rather than text.
 ///
-/// Composing here rather than ledgering there makes the fault **unrepresentable**: no stage
-/// can break I-1 by composing, at any point, ever, because the two sides of the comparison
-/// are composed by the same function. It cannot hide a real loss — NFC is a bijection on the
-/// text it composes, so a character that actually vanishes still vanishes.
+/// *Why NFD and not NFC.* Composition depends on **adjacency**: `u` followed by U+0308
+/// composes to `ü` only when the two are next to each other. But a stage cuts its text where
+/// it likes — the glyph stream is one sequence in *draw* order and the runs are many in
+/// *reading* order — so a composing law gives two different answers for the same book. That
+/// is not hypothetical: it is how `oapen-20-500-12657-116098` was refused, an umlaut drawn as
+/// two glyphs and assembled into two runs that are not adjacent.
 ///
-/// NFC and **not** NFKC: D13.4 forbids NFKC, because compatibility decomposition does change
-/// the text (`ﬁ` and `fi` are not the same characters, and `²` is not `2`). Only canonical
-/// equivalence is folded.
+/// Decomposition has no such dependency. It expands each character on its own, and the
+/// canonical reordering that follows cannot change a **multiset**, which is what `C` is. So
+/// `C` of a text is the same whatever pieces it arrives in, and the law becomes
+/// granularity-independent by construction rather than by every stage remembering to cut in
+/// the same place.
+///
+/// It folds exactly what NFC folded — U+2126/U+03A9, `ü`/`u`+◌̈, `İ`/`I`+◌̇, U+1F71/U+03AC —
+/// because two canonically equivalent strings have the same decomposition by definition.
+///
+/// NFD and **not** NFKD: D13.4 forbids compatibility normalisation, because it changes the
+/// text. `ﬁ` is not `fi` (that is `LigatureExpand`, which is ledgered) and `²` is not `2`.
+/// Turkish `ı` is not `i` and `İ` is not `I`: folding either would be a case fold, which
+/// D13.4 forbids outright (R10 §6.3).
+///
+/// Composing — or here, decomposing — inside `c_of` makes the fault **unrepresentable**: no
+/// stage can break I-1 over an encoding difference, because both sides of every comparison
+/// pass through this one function. It cannot hide a real loss, because decomposition is a
+/// bijection on the text it expands.
 pub fn c_of(text: &str) -> CharHistogram {
     use unicode_normalization::UnicodeNormalization;
 
     let mut histogram = CharHistogram::new();
-    for ch in text.nfc().filter(|ch| !ch.is_whitespace()) {
+    for ch in text.nfd().filter(|ch| !ch.is_whitespace()) {
         histogram.add(ch);
     }
     histogram
@@ -412,6 +457,50 @@ mod c_of_tests {
             c_of("I"),
             "dotted capital I is not I; the dot is a character"
         );
+    }
+
+    /// The regression the first NFC fix introduced, as an invariant.
+    ///
+    /// Composing inside `c_of` closed the ohm-sign class and opened a subtler one: composition
+    /// is a property of a *sequence*, so where the text is cut changes the answer. The glyph
+    /// stream is one string per page and the runs are many, so a base and the combining mark
+    /// after it composed on the input side and stayed apart on the output side — and four
+    /// corpus documents reported "1 character left and 2 appeared" for a loss that had not
+    /// happened. It was caught by the corpus inventory, not by any test, which is why this
+    /// one exists.
+    ///
+    /// The property: **where the text is cut must not change `C`.**
+    #[test]
+    fn c_of_does_not_depend_on_where_the_text_was_cut() {
+        // A base and its combining mark, split at every position the string allows.
+        let whole = "cafe\u{0301} noir";
+        for cut in 1..whole.len() {
+            if !whole.is_char_boundary(cut) {
+                continue;
+            }
+            let (left, right) = whole.split_at(cut);
+            assert_eq!(
+                c_of_parts([left, right]),
+                c_of(whole),
+                "cutting {whole:?} at {cut} changed C"
+            );
+        }
+
+        // The case that actually happened: the mark opens the second piece, because `text`
+        // put it in a run of its own.
+        assert_eq!(
+            c_of_parts(["cafe", "\u{0301}"]),
+            c_of("caf\u{00E9}"),
+            "a combining mark at a run boundary is still part of the letter before it"
+        );
+        // Two scalars, not one: `C` is taken after *de*composition, so `é` is `e` plus
+        // its acute on both sides. What matters is that the two encodings agree —
+        // the assertion above — not that either of them is short.
+        assert_eq!(c_of_parts(["e", "\u{0301}"]).total(), 2);
+
+        // Three-way and empty pieces must not matter either.
+        assert_eq!(c_of_parts(["e", "", "\u{0301}"]), c_of("\u{00E9}"));
+        assert_eq!(c_of_parts(["\u{0130}"]), c_of_parts(["I", "\u{0307}"]));
     }
 
     /// The other half of D13.4, and the reason the fold is NFC and not NFKC.

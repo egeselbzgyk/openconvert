@@ -25,7 +25,7 @@ use std::fmt;
 use oc_model::extract::CharHistogram;
 use oc_model::ledger::{LedgerDelta, Reason, StageCheck, StageKind};
 
-pub use oc_model::ledger::c_of;
+pub use oc_model::ledger::{c_of, c_of_parts};
 
 use crate::stages::StageDecl;
 use crate::thresholds::T;

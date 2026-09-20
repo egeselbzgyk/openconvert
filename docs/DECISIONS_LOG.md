@@ -3128,3 +3128,71 @@ Evidence: `c_of_is_invariant_under_canonical_equivalence_across_unicode` (mutati
 `c_of_folds_the_encodings_the_three_v1_languages_arrive_in`,
 `c_raw_is_c_of_the_extracted_text_and_not_a_second_count`; 488 workspace tests green.
 Affects: `oc-model::ledger::c_of`, `oc-pdf::pdfium::doc`, `openconvert::pipeline`, D13.4.
+
+## 2026-09-20 · Correction: `C(·)` is decomposed, not composed — NFC was the wrong canonical form · Phase 7.5
+Context: the ruling earlier today folded canonical equivalence into `c_of` with **NFC**. That
+closed the ohm-sign class and opened a subtler one, which the corpus inventory found and no
+test did.
+
+Composition depends on **adjacency**. `u` followed by U+0308 composes to `ü` only when the two
+are next to each other, and a stage cuts its text where it likes: the glyph stream is one
+sequence in *draw* order, the runs are many in *reading* order, the blocks are many again. So a
+composing law gives two different answers for one book, and the difference reads as a loss.
+
+Measured, twice, each time one stage later:
+
+```
+arxiv-2201-05139, oapen-...-115756, oapen-...-115799   text:   "2 characters left and 4 appeared"
+oapen-...-116098                                       text:   "1 character left and 2 appeared"
+oapen-...-115756 (after the first correction)          layout: "1 character left and 2 appeared"
+oapen-...-116098  diff-stage text:  LEFT U+00FC 'ü'    APPEARED U+0075 'u' + U+0308
+```
+
+The last line is the whole story: an umlaut drawn as **one glyph** and assembled into **two
+runs that are not adjacent**. Composed on the input side, uncomposed on the output side, and
+nothing was lost.
+
+The first correction — `c_of_parts`, which joins the pieces before composing — was necessary
+and not sufficient. It made both sides compose over the whole document, which fixed the runs
+that *were* adjacent and broke nothing, but draw order is not reading order, so the input side
+still composed pairs the output side could not.
+
+Decision: **`C(·)` is taken after canonical *de*composition (NFD).** Decomposition expands each
+character independently and the canonical reordering that follows cannot change a *multiset*,
+which is what `C` is. So `C` of a text is the same whatever pieces it arrives in — the law is
+granularity-independent **by construction** rather than by every stage remembering to cut in
+the same place. Verified over every cut position:
+
+```
+                       NFD    NFC
+cafe + combining acute True   False
+u-umlaut decomposed    True   False
+I-dot decomposed       True   False
+```
+
+It folds exactly what NFC folded — U+2126/U+03A9, ü/u+◌̈, İ/I+◌̇, U+1F71/U+03AC, ş/s+◌̧ — because
+two canonically equivalent strings have the same decomposition by definition. And it still
+distinguishes what must stay distinct: `ı` is not `i`, `İ` is not `I`, `ﬁ` is not `fi`, `²` is
+not `2`.
+
+`c_of_parts` is kept. It is no longer load-bearing for correctness, but every conservation
+comparison in the pipeline now goes through one of two functions, and that is the property
+worth having.
+
+**What this cost, honestly.** The first ruling was implemented, committed, pushed, and tested
+over all of Unicode — and the Unicode sweep passed, because it tests one character at a time
+and the fault only appears across a cut. `c_of_does_not_depend_on_where_the_text_was_cut` is
+the test that would have caught it, and it exists now. A corpus inventory caught what a
+1.1-million-case test did not, which is the argument for running the corpus stated as a
+measurement.
+
+Snapshot moved: `structural__retention_per_fixture`. Only the three fixtures with accented
+characters, counts only — f04 594→610, f05 569→612, f06 394→399 — and **retention stays
+1.0000** on all three, because both sides moved together. The English fixtures are unchanged.
+
+Evidence: `c_of_does_not_depend_on_where_the_text_was_cut`,
+`c_of_is_invariant_under_canonical_equivalence_across_unicode`,
+`c_of_folds_the_encodings_the_three_v1_languages_arrive_in`; 489 workspace tests green;
+all four documents now pass `text`.
+Affects: D13.4 amendment, ARCHITECTURE §5.2, `oc-model::ledger::{c_of, c_of_parts}`,
+`openconvert::pipeline` (seven comparison sites).
