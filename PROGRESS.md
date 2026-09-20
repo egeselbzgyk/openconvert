@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 7
-CURRENT_ITEM: 7.9 — benchmarks: criterion per stage, whole-tree peak RSS (rows 7.11, 7.12)
+CURRENT_ITEM: 7.10 — CI: a python job and the nightly bodies (rows 7.13, 7.14)
 LAST_UPDATED: 2026-09-20
 
 ---
@@ -179,6 +179,35 @@ confidence, and report the widest coverage whose risk is still under the target 
 None when nothing meets it, rather than the best available dressed up as a hit. `reliability`
 is the ECE and the diagram rows behind it.
 
+### Item 7.9 — the performance budget
+
+**Measured: 0.0217 s/page over 300 pages**, against D13.11's 0.5 — a 23x margin, in an
+unoptimised `test` profile on the maintainer's machine. The gate was confirmed to fail when the
+budget was lowered below the measurement, so it is not vacuous. Machine L's number will differ;
+this is a floor on the headroom, not the reference measurement.
+
+`oc_testkit::handmade::reference_book(pages)` builds the input rather than committing it: three
+hundred pages of prose is a megabyte of fixture nobody would regenerate or review. It is
+deterministic, and it carries what makes a book *expensive* rather than merely long — a running
+head and a folio on every page for furniture detection to find, a chapter opening every twenty
+pages, body lines at a real leading.
+
+The split: the **arithmetic** runs on every PR — that row 7.12's five stage budgets sum to
+`perf.seconds_per_page_max`, that each is a positive share of it, that the reference book is the
+300 pages D13.11 states the budget for — because that is where the mistake that actually happens
+gets caught, a stage quietly given room the whole does not have. The **timed** assertions are
+behind the `bench` cargo feature, which the nightly job turns on: a wall-clock assertion on a
+shared CI runner measures the runner, and a gate that fails for that reason is one people learn
+to re-run until it passes.
+
+`oc_eval.bench.peak_rss` measures the **whole process tree** — `/proc`'s `VmHWM` on Linux, a Job
+Object on Windows, `psutil` polling otherwise — because D13.11's 500 MB is for the converter and
+whatever it spawns, and a figure that counts only the parent stops being true the moment Phase
+9's sidecar exists. It says which mechanism it used and whether the answer is exact, and a
+sampled floor is printed as a floor.
+
+Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
+
 ## Blocked` and stop.
 - Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
 - Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
@@ -216,7 +245,7 @@ is the ECE and the diagram rows behind it.
 
 ## Current work item
 
-**Phase 7, item 7.9 — the benchmarks** (plan rows 7.11, 7.12).
+**Phase 7, item 7.10 — the CI wiring** (plan rows 7.13, 7.14). The last item of the phase.
 
 **The corpus exists** and **the mutation catalogue is complete.** `corpus/manifest.json` holds
 116 entries: 104 frozen holdout documents across 17 291 pages, and 12 synthetic fixtures.
@@ -246,7 +275,7 @@ Work items for Phase 7, in order. Each is one TDD loop and one commit:
 - [x] **7.6** the metric suite, the Wilson-interval gate and the per-stratum report (7.8, 7.9)
 - [x] **7.7** the ours-vs-real gap recorded and plotted over time (row 7.10)
 - [x] **7.8** `oc-eval calibrate` refuses the holdout, and the curves it fits (row 7.4)
-- [ ] **7.9** benchmarks: `criterion` per stage, whole-tree peak RSS (rows 7.11, 7.12)
+- [x] **7.9** the performance budget, measured at 0.0217 s/page on 300 pages (7.11, 7.12)
 - [ ] **7.10** CI: a `python` job, and the nightly `full-corpus`, `bench`, `proptest-deep` and
       `mutation-testing` bodies (rows 7.13, 7.14)
 
@@ -655,6 +684,35 @@ Two details make it hold:
 confidence, and report the widest coverage whose risk is still under the target — returning
 None when nothing meets it, rather than the best available dressed up as a hit. `reliability`
 is the ECE and the diagram rows behind it.
+
+### Item 7.9 — the performance budget
+
+**Measured: 0.0217 s/page over 300 pages**, against D13.11's 0.5 — a 23x margin, in an
+unoptimised `test` profile on the maintainer's machine. The gate was confirmed to fail when the
+budget was lowered below the measurement, so it is not vacuous. Machine L's number will differ;
+this is a floor on the headroom, not the reference measurement.
+
+`oc_testkit::handmade::reference_book(pages)` builds the input rather than committing it: three
+hundred pages of prose is a megabyte of fixture nobody would regenerate or review. It is
+deterministic, and it carries what makes a book *expensive* rather than merely long — a running
+head and a folio on every page for furniture detection to find, a chapter opening every twenty
+pages, body lines at a real leading.
+
+The split: the **arithmetic** runs on every PR — that row 7.12's five stage budgets sum to
+`perf.seconds_per_page_max`, that each is a positive share of it, that the reference book is the
+300 pages D13.11 states the budget for — because that is where the mistake that actually happens
+gets caught, a stage quietly given room the whole does not have. The **timed** assertions are
+behind the `bench` cargo feature, which the nightly job turns on: a wall-clock assertion on a
+shared CI runner measures the runner, and a gate that fails for that reason is one people learn
+to re-run until it passes.
+
+`oc_eval.bench.peak_rss` measures the **whole process tree** — `/proc`'s `VmHWM` on Linux, a Job
+Object on Windows, `psutil` polling otherwise — because D13.11's 500 MB is for the converter and
+whatever it spawns, and a figure that counts only the parent stops being true the moment Phase
+9's sidecar exists. It says which mechanism it used and whether the answer is exact, and a
+sampled floor is printed as a floor.
+
+Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 
 ## Blocked
 
@@ -1094,3 +1152,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-20  P7.5      oc-eval: ground truth from XHTML, struct trees and LaTeX (7.7 + 16)     36b6384
 2026-09-20  P7.6      oc-eval: metrics, the Wilson gate, the per-stratum report (7.8, 7.9 + 21)  ee146db
 2026-09-20  P7.7      oc-eval: the ours-vs-real gap recorded and plotted (7.10 + 7)      8a056c0
+2026-09-20  P7.8      oc-eval: calibration refuses the holdout; risk-coverage (7.4 + 11)  bb253f3

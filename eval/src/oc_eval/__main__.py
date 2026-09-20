@@ -353,6 +353,35 @@ def calibrate_cmd(
     typer.echo(f"expected calibration error {ece:.4f}")
 
 
+@app.command("bench")
+def bench_cmd(
+    pages: int = typer.Option(..., help="How many pages the command converts."),
+    command: list[str] = typer.Argument(..., help="The conversion command to measure."),
+) -> None:
+    """PHASE 7 rows 7.11 and 7.12: seconds per page and whole-tree peak RSS, against D13.11."""
+    from oc_eval.bench import runner as bench_runner
+
+    result = bench_runner.run(list(command), pages=pages)
+
+    typer.echo(
+        f"{result.pages} pages in {result.measurement.wall_seconds:.3f} s "
+        f"({result.seconds_per_page:.4f} s/page), peak RSS "
+        f"{result.measurement.peak_rss_mb:.1f} MB via {result.measurement.method}"
+    )
+    for verdict in result.verdicts:
+        typer.echo(str(verdict), err=True)
+    typer.echo(
+        "both budgets are `provisional` in thresholds.toml: D13.11's numbers are a sanity "
+        "check against Docling's published range, not a measurement of this pipeline",
+        err=True,
+    )
+    if result.measurement.exit_code != 0:
+        typer.echo(f"the command exited {result.measurement.exit_code}", err=True)
+        raise typer.Exit(code=1)
+    if not result.passed:
+        raise typer.Exit(code=1)
+
+
 def _is_remote(entry: dict[str, object]) -> bool:
     source = entry.get("source")
     url = source.get("url", "") if isinstance(source, dict) else ""

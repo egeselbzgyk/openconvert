@@ -17,6 +17,10 @@ epubcheck = []
 # Tier 3: Ace by DAISY is a Node application, gated for the same reason and turned on by the
 # nightly `ace-a11y` job.
 ace = []
+# PHASE 7 rows 7.11 and 7.12: the wall-clock budget assertions. Gated because a timing
+# assertion on a shared CI runner measures the runner, and a gate that fails for that
+# reason is one people learn to re-run until it passes. The nightly `bench` job turns it on.
+bench = []
 
 [lib]
 name = "openconvert"
@@ -50,3 +54,12 @@ zip.workspace = true
 oc-testkit = { path = "../oc-testkit", version = "0.1.0" }
 insta.workspace = true
 proptest.workspace = true
+criterion.workspace = true
+
+[[bench]]
+name = "end_to_end"
+harness = false
+
+[[bench]]
+name = "stages"
+harness = false

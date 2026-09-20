@@ -2663,3 +2663,31 @@ Evidence: `xtask::mutations::tests::every_mutation_does_what_its_effect_promises
 recipe to a declared `Effect` through PDFium; flipping one declared effect turns it red.
 Affects: IMPLEMENTATION_PLAN §1.7 and PHASE 7 §4, `crates/oc-testkit/src/mutate.rs`,
 `xtask/src/mutations.rs`.
+
+## 2026-09-20 · The benchmarks live in `openconvert`, not `oc-core` · Phase 7
+Context: IMPLEMENTATION_PLAN PHASE 7's file list puts the criterion benches at
+`crates/oc-core/benches/{stages.rs,end_to_end.rs}`.
+Decision: they are `crates/openconvert/benches/{stages.rs,end_to_end.rs}`. `convert` lives in
+`openconvert`, and `oc-core` is below it in the dependency graph — a bench in `oc-core` that drove the
+pipeline would need `oc-core` to depend on `openconvert`, which is a cycle. The plan's list predates
+the stage driver landing in `openconvert` (Phase 5 item 5.8, "the pipeline moved into the library").
+Evidence: `crates/oc-core/Cargo.toml` has no path dependency on `openconvert` and cannot acquire one.
+Affects: IMPLEMENTATION_PLAN PHASE 7 file list.
+
+## 2026-09-20 · The wall-clock budget assertions are behind a cargo feature · Phase 7
+Context: PHASE 7 rows 7.11 and 7.12 are `bench-gate` rows. Run on every PR they would assert wall
+clock on a shared CI runner that is simultaneously building three other jobs.
+Decision: `crates/openconvert/tests/perf_budget.rs` splits in two. The arithmetic — that row 7.12's
+five stage budgets sum to `perf.seconds_per_page_max`, that each is a positive share of it, and that
+the reference book is the 300 pages D13.11 states the budget for — needs no clock and runs on every
+PR, because that is where the mistake that actually happens gets caught: a stage quietly given more
+room than the whole has to give. The timed assertions are behind the `bench` feature, which the
+nightly `bench` job turns on. A feature rather than `#[ignore]`, for the reason CLAUDE.md gives and
+the `epubcheck` and `ace` features already follow: a feature is something a job turns on and a
+developer can too, while an ignored test is one nobody ever runs again.
+Measured on the maintainer's machine, unoptimised `test` profile: **0.0217 s/page over 300 pages**
+against a 0.5 budget, and the gate was confirmed to fail when the budget was lowered below it.
+Machine L's number will differ; this is a floor on the headroom, not the reference measurement.
+Evidence: `openconvert::perf_budget::the_stage_budgets_sum_to_the_end_to_end_budget`,
+`openconvert::perf_budget::timed::bench_end_to_end_within_budget` (with `--features bench`).
+Affects: D13.11, IMPLEMENTATION_PLAN PHASE 7 rows 7.11, 7.12, `thresholds.toml`.
