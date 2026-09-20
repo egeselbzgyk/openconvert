@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 7.5
-CURRENT_ITEM: 7.5.1 — `openconvert diff-stage`: name the characters that left, and from
-              which block and claimant (rows 7.5.1-7.5.3)
+CURRENT_ITEM: 7.5.0 — the reading corpus: 40-50 novels per language across en/de/tr
+              (rows 7.5.0a-7.5.0c), then 7.5.1 the diff-stage diagnostic
 LAST_UPDATED: 2026-09-20
 
 ---
@@ -209,6 +209,55 @@ sampled floor is printed as a floor.
 
 Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 
+### Phase 7.5 — where to resume (written for a fresh session)
+
+The plan section is `docs/IMPLEMENTATION_PLAN.md` PHASE 7.5. Read it; this is only the state.
+
+**Two things are true and both drive the phase.**
+
+1. **The pipeline converts nothing.** A random sample of 14 Phase 7 holdout documents gave
+   11 I-1 refusals — **every one in `structure`** — losses 48 … 203 205 characters, plus 2
+   timeouts at 180 s. Minimal reproducer already isolated:
+   `corpus/downloads/oapen-20-500-12657-115632.pdf` **page 42 alone** loses 644 characters.
+2. **Phase 7's corpus is the wrong population.** Open-access monographs, papers, government
+   reports and library scans — chosen for licence clearability. This product converts PDFs
+   into books people read. `--preset novel` exists in §2.1 and no novel has ever gone through
+   the pipeline.
+
+**The work item in progress is 7.5.0, the reading corpus**: 40–50 novels per language across
+English, German and Turkish, same licence discipline and the same
+`oc-eval corpus harvest` admission path, **not marked holdout** so the phase may fit on them.
+Three Haiku agents were dispatched on 2026-09-20 to find verified direct-PDF URLs, one per
+language; their JSON output is the seed list. If that output is lost, re-dispatch: the
+requirement is a direct `application/pdf` URL, a PD/CC0/CC-BY/CC-BY-SA licence, prose fiction,
+60+ pages, and the URL verified by actually fetching it.
+
+**The rule that governs every fix in this phase, and the reason it is a phase:**
+a fix may not be derived from a single document. The unit of work is a defect *class*
+`(stage, direction, signature)`, admitted only at **≥ 3 documents across ≥ 2 strata** and, for
+a reading-corpus class, **≥ 2 languages**. Every class carries a written *How else could this
+arise?* answered **before** any code changes. A class closes by making the fault
+unrepresentable or checked — never by special-casing the shape it was found in — and leaves an
+invariant test, not only a corpus file.
+
+**Two things no item in this phase may do**: fix a document instead of a class, and make a
+refusal disappear by widening a `conservation.budget.*` or adding a `Reason` meaning "text we
+could not account for". The second would turn a refusal into a silent loss, which is worse
+than shipping nothing.
+
+**The first class is already visible and is the template.** `oc_structure::stage` keeps a
+`taken: BTreeSet<BlockId>` fed from four independent sources — note blocks, `tables.consumed`,
+`lists.consumed`, bound captions. A block in `taken` is dropped from the flow on the assumption
+that whatever claimed it re-emits its text, and **nothing checks that assumption**. The
+architectural answer is a `Claim { block, by, text }` carrying its obligation, with the
+invariant stated in `oc-core` over the IR rather than inside `oc-structure` — because the same
+shape exists in `document`, `epub` and `repair`, and stating it once fixes four stages.
+
+**The LLM boundary is one question**, and `docs/LLM_BOUNDARY.md` is item 7.5.7's deliverable:
+*if this is answered wrongly, does the book lose or gain a character?* Yes → deterministic,
+permanently. No → it is a name, and a name may be escalated (D13.6's four tasks). A property
+test asserts no permitted LLM edit changes `C(D)`.
+
 ## Blocked` and stop.
 - Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
 - Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
@@ -239,9 +288,10 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
       across 17 291 pages and seven producer strata, `ours(*)` at 0.103, corpus lint clean,
       and 0.0217 s/page against D13.11's 0.5 budget.** The CI jobs this phase wrote cannot be
       verified on one machine and are unverified until the branch merges.)*
-- [ ] **Phase 7.5** — Conservation defect closure  *(added 2026-09-20, after Phase 7's first
-      corpus run converted 0 of 14 sampled documents. Appendix D's "I-1 … I-7 hold on 100 %
-      of the corpus" is a v1.0 release gate and does not hold.)*
+- [ ] **Phase 7.5** — Reading corpus and conservation defect closure  *(added 2026-09-20,
+      after Phase 7's first corpus run converted 0 of 14 sampled documents. Appendix D's
+      "I-1 … I-7 hold on 100 % of the corpus" is a v1.0 release gate and does not hold —
+      and Phase 7's corpus is monographs and papers, not the novels this product is for.)*
 - [ ] **Phase 8** — AI abstraction (no real model yet)
 - [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
 - [ ] **Phase 10** — AI-assisted decisions (the four tasks)

@@ -2743,3 +2743,35 @@ What makes it a boundary rather than a preference: an `oc-ai` property test asse
 edit the grammar permits leaves `C(D)` unchanged, and a CI lint holds `LLM_BOUNDARY.md` and `oc-ai`'s
 task enum in agreement in both directions.
 Affects: D13.5, D13.6, new `docs/LLM_BOUNDARY.md`, PHASE 7.5 rows 7.5.8 and 7.5.9.
+
+## 2026-09-20 · Phase 7.5 gains the reading corpus: the product is for novels · Phase 7.5
+Context: Phase 7's corpus is open-access monographs, journal articles, government technical reports
+and library scans. That population was chosen for **licence clearability**, which is the right way to
+build a redistributable corpus and the wrong way to build a representative one. OpenConvert converts
+PDFs into reflowable EPUBs for people to read; the document it exists for is a novel — continuous
+prose, chapters, running heads, notes, a contents page, and almost nothing else. `--preset novel` is a
+first-class preset in §2.1 and **no novel has ever been through the pipeline**. A converter measured
+only on monographs is tuned on two-column layouts, dense tables, affiliations and reference lists —
+the features a novel does not have — and untested on the one that matters.
+Decision: Phase 7.5 assembles a **reading corpus** before it fixes anything: 40–50 documents per
+language across English, German and Turkish, all prose people read end to end, under the same licence
+discipline and the same `oc-eval corpus harvest` admission path as Phase 7. It is a separate stratum
+axis rather than a replacement — Phase 7's corpus is what proves a two-column paper with a reference
+list survives, and D18's per-stratum reporting means the two are never averaged.
+**Reading-corpus entries are not marked `holdout`.** That is deliberate and is what makes the phase
+legal: these are the documents the pipeline is developed against, fitting on them is the point, and
+the frozen ≥ 100-document holdout stays frozen and unread so it can still report at the end.
+Three properties of this population matter to the defect work. It is **mostly scans**, so
+`ABBYY-scanner` stops being 16 documents and becomes the largest stratum — the one with an OCR text
+layer and a hyphenation habit of its own. It is **long**, 200–600 pages of uninterrupted body text,
+which is where the cross-page passes are first exercised at scale: furniture repetition, paragraphs
+continuing over a page break, footnotes carried to the next page — and the one defect already isolated
+is a footnote that spans a page boundary. And **German and Turkish become a third each** rather than a
+ten-document slice, so R10 §6.3's dotted and dotless i gets a population.
+The per-language target is 40–50 rather than ten because of the phase's own admission rule: a class
+must be observable on ≥ 3 documents across ≥ 2 strata and ≥ 2 languages before anyone may touch it,
+and a ten-document language cannot supply that for anything but the most common fault.
+Evidence: the 14-document sample (0 conversions, 11 I-1 refusals all in `structure`); `--preset novel`
+in IMPLEMENTATION_PLAN §2.1 with no novel in `corpus/manifest.json`.
+Affects: IMPLEMENTATION_PLAN PHASE 7.5 (goal, implementation item 1, rows 7.5.0a-c, A7.5.0),
+TEST_CORPUS §3 and §7.6 (a second population beside the holdout), PROGRESS.md.

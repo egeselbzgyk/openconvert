@@ -2294,7 +2294,7 @@ RT A9 is the whole point of this phase: a corpus rendered by our own toolchain i
 
 ---
 
-# PHASE 7.5 — Conservation defect closure
+# PHASE 7.5 — Reading corpus and conservation defect closure
 
 ## Why this phase exists
 
@@ -2305,23 +2305,62 @@ documents converted **zero** of them: eleven were refused by invariant I-1, two 
 deterministic path was correct once its own tests passed and Phase 7 was only to measure it.
 The measurement disagreed.
 
-This is not a quality phase and not a polish phase. **Appendix D's first correctness item —
-"I-1 … I-7 hold on 100 % of the corpus" — is a v1.0 release gate**, and nothing after this
-phase can be trusted until it holds: Phase 10 calibrates AI decisions by McNemar comparison
-against the deterministic baseline, and a baseline that loses a fifth of a book is not a
-baseline any comparison means anything against.
+There is a second reason, and it is the more important one. **Phase 7's corpus is the wrong
+population for this product.** It is open-access monographs, journal articles, government
+technical reports and library scans — chosen for their licences, which is the right way to
+choose a *licence-clearable* corpus and the wrong way to choose a *representative* one.
+OpenConvert converts PDFs into reflowable EPUBs for people to read. The document it exists to
+handle is a **novel**: continuous prose, chapter structure, running heads, footnotes or
+endnotes, a table of contents, and almost nothing else. `--preset novel` is a first-class
+preset in §2.1 and no novel has ever been through the pipeline.
+
+A converter measured only on monographs is tuned on two-column layouts, dense tables, author
+affiliations and reference lists — the features a novel does not have — and untested on the
+one that matters, which is three hundred pages of body text that has to come out as three
+hundred pages of body text.
+
+**Appendix D's first correctness item — "I-1 … I-7 hold on 100 % of the corpus" — is a v1.0
+release gate**, and nothing after this phase can be trusted until it holds: Phase 10 calibrates
+AI decisions by McNemar comparison against the deterministic baseline, and a baseline that
+loses a fifth of a book is not a baseline any comparison means anything against.
 
 ## Goal and scope
 
-Close the conservation defects the corpus found, **as classes rather than as files**, and
-leave behind instruments and invariants that make the class unable to recur.
+Assemble the **reading corpus** — the document population this product is actually for — run
+it, and close the conservation defects it exposes **as classes rather than as files**, leaving
+behind instruments and invariants that make each class unable to recur.
 
-**In this phase:** a per-stage conservation diagnostic; a defect-class inventory over the whole
-corpus; the architectural fix for each admitted class; an explicit, tested boundary between
-what the deterministic pipeline decides and what an LLM may ever be asked.
+**In this phase:** a reading corpus of novels and literary prose, 40–50 per language across
+English, German and Turkish; a per-stage conservation diagnostic; a defect-class inventory over
+both corpora; the architectural fix for each admitted class; an explicit, tested boundary
+between what the deterministic pipeline decides and what an LLM may ever be asked.
 
 **Not in this phase:** any new feature; any LLM work; any threshold fitted on the holdout
 (`oc-eval calibrate` refuses it, and that refusal is not to be worked around).
+
+## The reading corpus
+
+40–50 documents per language, three languages, all prose people read end to end: novels, short
+story collections, memoirs. Same licence discipline as Phase 7 — public domain, CC0, CC BY or
+CC BY-SA, verified and dated in `corpus/manifest.json` — and the same admission path
+(`oc-eval corpus harvest` fetches, probes and records what the bytes actually say).
+
+It is a **separate stratum axis**, not a replacement. Phase 7's corpus stays: it is what proves
+the converter survives a two-column paper with a reference list, and D18's per-stratum
+reporting means the two are never averaged together. What the reading corpus adds is the case
+the product is named for, in the three languages v1 claims, at a size where a defect class has
+somewhere to be observed three times.
+
+Its composition differs from Phase 7's in ways that matter to this phase:
+
+- **It is mostly scans.** Public-domain novels reach us as library digitisations, so the
+  `ABBYY-scanner` stratum stops being 16 documents and becomes the largest one. That is the
+  stratum with an OCR text layer, a crooked baseline and a hyphenation habit of its own.
+- **It is long.** A novel is 200–600 pages of uninterrupted body text, which is where the
+  cross-page passes — furniture repetition, paragraph continuation across a page break,
+  footnote carry-over — are exercised for the first time at scale.
+- **German and Turkish stop being a slice and become a third each.** R10 §6.3's dotted and
+  dotless i, and German compound hyphenation, get a population rather than ten documents.
 
 ## The rule that governs every fix in this phase
 
@@ -2330,42 +2369,61 @@ what the deterministic pipeline decides and what an LLM may ever be asked.
 This is the phase's central constraint and the reason it is a phase rather than a bug list. A
 change that makes one PDF convert is a change fitted to one PDF: it will pass its own test,
 leave the class open, and make the next instance harder to see because the obvious symptom is
-gone. The corpus exists precisely so that a defect can be met as a population.
+gone. The corpus exists precisely so that a defect can be met as a population, and the reading
+corpus is what makes that population large enough to be one.
 
 Concretely:
 
 1. **The unit of work is a defect class**, identified by `(stage, direction, signature)` —
    never by file name. `direction` is *lost* or *appeared*; `signature` is the code path the
    diagnostic names, not the book's subject.
-2. **Admission.** A class is worked on only when it is observed on **≥ 3 documents across
-   ≥ 2 producer strata**. A class seen on one document is *recorded*, with its diagnostic
-   output, and left open: one instance cannot distinguish the general fault from that book's
-   typography. The threshold is the same reasoning as D18's `ours(*)` cap and
+3. **Admission.** A class is worked on only when it is observed on **≥ 3 documents across
+   ≥ 2 producer strata**, and for a class found in the reading corpus, **≥ 2 languages** as
+   well. A class seen on one document is *recorded*, with its diagnostic output, and left open:
+   one instance cannot distinguish the general fault from that book's typography. The threshold
+   is the same reasoning as D18's `ours(*)` cap and
    `calibration.min_gold_instances_per_task` — a conclusion drawn from too few observations is
    not a conclusion.
-3. **Generalisation before fix.** Every class carries a written *How else could this arise?*
+4. **Generalisation before fix.** Every class carries a written *How else could this arise?*
    section in `docs/DECISIONS_LOG.md`, answered before any code changes, and that answer is
    what produces the fixtures. Asking it is not optional documentation: it is the step that
    turns a symptom into a mechanism.
-4. **The fix is architectural or it is not a fix.** A class closes by making the fault
+5. **The fix is architectural or it is not a fix.** A class closes by making the fault
    *unrepresentable* or *checked*, not by special-casing the shape it was found in. If the fix
    reads "when the note is longer than one block, also …", it is a patch; if it reads "a block
    claimed by any structure carries the text that structure must account for, and the stage
    asserts it", it is a fix.
-5. **The regression artefact is an invariant, not an example.** Each closed class leaves a
+6. **The regression artefact is an invariant, not an example.** Each closed class leaves a
    property or metamorphic test expressing the rule, plus the corpus documents that exhibited
    it as named fixtures.
-6. **A class closes only against the whole corpus.** Re-running the fast subset is not closure.
+7. **A class closes only against both corpora.** Re-running the fast subset is not closure.
 
 ## Files
 
+`corpus/reading/` (manifest entries, not files — the same fetch-and-verify path);
+`eval/src/oc_eval/corpus/sources/{gutenberg.py,wikisource.py}`;
 `crates/openconvert/src/cmd_diff_stage.rs`, `crates/oc-core/src/conservation_diff.rs`;
 `crates/oc-structure/src/claims.rs`; `docs/LLM_BOUNDARY.md`;
 `eval/src/oc_eval/triage/{cluster.py,inventory.py}`; `corpus/defects/<class-id>/`.
 
 ## Implementation details
 
-1. **The diagnostic comes first, because the absence of one is itself a finding.** Locating
+1. **The reading corpus is assembled first, because everything after it is measured on it.**
+   Sources are the ones whose licences are unambiguous at scale: Internet Archive
+   public-domain digitisations (the bulk, and the `ABBYY-scanner` stratum), Wikisource PDF
+   exports, and national-library digitisation programmes. Each candidate goes through the
+   Phase 7 admission path unchanged — fetched, opened, digest and page count and producer read
+   from the bytes, licence normalised through `stratify.license_from_url` and checked against
+   §7.1's allowlist. **Reading-corpus entries are not holdout**: they are what the pipeline is
+   developed against in this phase, and fitting on them is the point. The frozen holdout stays
+   frozen and stays unread.
+
+   The per-language target is 40–50, and the reason it is that number rather than ten is the
+   admission rule in the section above: a class has to be observable three times across two
+   languages before anyone may touch it, and a ten-document language cannot supply that for
+   anything but the most common fault.
+
+2. **The diagnostic comes second, because the absence of one is itself a finding.** Locating
    the first defect took a hand-written binary search over page prefixes — forty minutes to
    learn that one page of one book loses 644 characters. That cost is paid again for every
    class, by every person, forever. `openconvert diff-stage <stage> <input.pdf>` reports the
@@ -2373,13 +2431,13 @@ Concretely:
    attributed to the block and page it came from and the claim that took it. Every subsequent
    item in this phase is minutes of work on top of it.
 
-2. **The triage is a clustering, not a list.** `oc-eval triage` runs the corpus, collects each
+3. **The triage is a clustering, not a list.** `oc-eval triage` runs the corpus, collects each
    refusal's diagnostic signature, and groups them. The output is the defect-class inventory:
    class id, member documents, strata covered, magnitude range, and whether the class is
    admitted (≥ 3 documents, ≥ 2 strata) or recorded-and-open. This inventory is committed and
    is the phase's work queue.
 
-3. **The first class is already visible, and its shape is the phase's template.**
+4. **The first class is already visible, and its shape is the phase's template.**
    `oc_structure::stage` maintains a `taken: BTreeSet<BlockId>` fed from four independent
    sources — note blocks, `tables.consumed`, `lists.consumed`, bound captions. A block in
    `taken` is dropped from the flow on the assumption that the structure which claimed it
@@ -2389,20 +2447,20 @@ Concretely:
    `Σ claimed_text == Σ text emitted by the claimant` before it returns. Four silent paths
    become one checked invariant, and a fifth claimant added later is checked by construction.
 
-4. ***How else could this arise?* — worked, for that class.** The same shape is any stage that
+5. ***How else could this arise?* — worked, for that class.** The same shape is any stage that
    moves text between containers while a bookkeeping set says it has been handled: `document`
    moving blocks into chapters, `epub` moving a document into XHTML files, `repair` editing a
    `Document` in place. The claim invariant is therefore stated in `oc-core` over the IR, not
    inside `oc-structure`, so that the other three get it without being changed. This is the
    difference the phase is about: the same hour spent produces a fix for one stage or for four.
 
-5. **Timeouts are a class too.** Two of fourteen documents exceeded 180 s, both Internet
+6. **Timeouts are a class too.** Two of fourteen documents exceeded 180 s, both Internet
    Archive scans. A conversion that does not finish is a conversion that failed, and D13.2's
    `limits.stage_deadline_secs` exists to make it fail *legibly*. Whether that cap is not
    wired, not reached, or reached and ignored is a diagnostic question, and it goes through the
    same class machinery.
 
-6. **The LLM boundary, written down and tested.** D13.5 and D13.6 already draw it; this phase
+7. **The LLM boundary, written down and tested.** D13.5 and D13.6 already draw it; this phase
    makes it a document that can be pointed at and a test that cannot be argued with. The
    line — derived from the existing decisions rather than invented here:
 
@@ -2421,7 +2479,7 @@ Concretely:
    enforceable — an `oc-ai` test asserts that applying any LLM edit to a `Document` leaves
    `C(D)` unchanged, so the boundary is checked rather than remembered.
 
-7. **Order of work.** Diagnostic → inventory → admitted classes in descending document count.
+8. **Order of work.** Diagnostic → inventory → admitted classes in descending document count.
    A class affecting forty documents is worth more than one affecting three, and the inventory
    makes that ordering a fact rather than a preference.
 
@@ -2429,6 +2487,9 @@ Concretely:
 
 | # | Test name | Kind | Assertion |
 |---|---|---|---|
+| 7.5.0a | `reading_corpus_has_forty_documents_per_language` | CI-gate | ≥ 40 entries each for `en`, `de`, `tr`, all licence-cleared **[anchored: binary]** |
+| 7.5.0b | `reading_corpus_is_prose_not_papers` | CI-gate | every reading-corpus entry is ≥ 60 pages and carries `category` in {simple, difficult}; no entry shared with the frozen holdout |
+| 7.5.0c | `reading_corpus_entries_are_not_holdout` | unit | nothing in the reading corpus is marked `holdout`, so fitting on it is legal and the frozen set stays unread **[anchored: binary]** |
 | 7.5.1 | `diff_stage_names_every_character_that_left` | unit | on a document with a known ledgered removal, the diff is exactly the removed characters, attributed to their block |
 | 7.5.2 | `diff_stage_names_every_character_that_appeared` | unit | the other direction, on a fixture that duplicates a block |
 | 7.5.3 | `diff_stage_is_silent_on_a_conserving_stage` | fixture | a stage that changed nothing reports an empty diff on all ten Typst fixtures |
@@ -2450,7 +2511,8 @@ Phase deps: 7 (the corpus and the harness are the instrument). No new external d
 
 | # | Given | When | Then |
 |---|---|---|---|
-| A7.5.1 | the whole corpus | `oc-eval run` | I-1 … I-7 hold on 100 % of it — Appendix D's first correctness item, which is what this phase exists to deliver **[anchored: binary]** |
+| A7.5.0 | the reading corpus | `oc-eval corpus stats --reading` | ≥ 40 documents per language across en/de/tr, every licence on §7.1's allowlist, none of them holdout **[anchored: binary]** |
+| A7.5.1 | both corpora | `oc-eval run` | I-1 … I-7 hold on 100 % of both — Appendix D's first correctness item, which is what this phase exists to deliver **[anchored: binary]** |
 | A7.5.2 | any refusal | `openconvert diff-stage` | the characters that left or appeared are named, with their block, page and claimant, in one command **[anchored: binary]** |
 | A7.5.3 | the defect inventory | inspection | every admitted class has ≥ 3 documents across ≥ 2 strata, a written *how else could this arise*, an architectural fix and an invariant test; every open class has its diagnostic output recorded |
 | A7.5.4 | `docs/LLM_BOUNDARY.md` | the test question | every task on the LLM side answers "no" to *does a wrong answer lose or gain a character* — and a test proves the code cannot violate it **[anchored: binary]** |
