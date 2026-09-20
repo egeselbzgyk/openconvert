@@ -225,12 +225,32 @@ The plan section is `docs/IMPLEMENTATION_PLAN.md` PHASE 7.5. Read it; this is on
    the pipeline.
 
 **The work item in progress is 7.5.0, the reading corpus**: 40–50 novels per language across
-English, German and Turkish, same licence discipline and the same
-`oc-eval corpus harvest` admission path, **not marked holdout** so the phase may fit on them.
-Three Haiku agents were dispatched on 2026-09-20 to find verified direct-PDF URLs, one per
-language; their JSON output is the seed list. If that output is lost, re-dispatch: the
-requirement is a direct `application/pdf` URL, a PD/CC0/CC-BY/CC-BY-SA licence, prose fiction,
-60+ pages, and the URL verified by actually fetching it.
+English, German and Turkish, same licence discipline, **not marked holdout** so the phase may
+fit on them.
+
+Three agents produced candidate lists on 2026-09-20; the seeds are committed at
+`corpus/reading/candidates_{en,de,tr}.json` and the admitted subsets beside them. Every list
+was re-verified here, because none of the agents' own licence fields were read from the source:
+
+```
+English  16 of 17 admitted    (rejected: Fitzgerald's 1961 Odyssey, in a lending collection)
+German   23 of 24 admitted    (rejected: an untraced German translation)
+Turkish   4 of 10 admitted    (rejected: 5 in copyright, 1 a Chagatai manuscript)
+```
+
+**The Turkish number is structural, not a sourcing failure.** Copyright is life + 70 and the
+alphabet reform was 1928, so a Latin-script Turkish novel is public domain only if its author
+wrote after 1928 and died before 1956 — a 28-year window. *Çalıkuşu* misses by one year and
+enters on 1 January 2027. Source the slice from inside the window — **Sabahattin Ali (d. 1948)
+and Sait Faik Abasıyanık (d. 1954)** are the two widely-read authors in it — and if it cannot
+reach 40, report it short with the reason rather than padding it with Ottoman-script scans,
+which answer a different question.
+
+Still to do for 7.5.0: the German list is Google-Books Fraktur and several entries are plays
+rather than prose, so it wants filtering and topping up; English needs ~24 more; the
+`PD-old-work` admission path itself (rows 7.5.0x–z) is written in the plan and not yet in
+`stratify.py`. The verification script used here is in the session scratchpad and should be
+rewritten as `eval/src/oc_eval/corpus/sources/public_domain.py`.
 
 **The rule that governs every fix in this phase, and the reason it is a phase:**
 a fix may not be derived from a single document. The unit of work is a defect *class*
