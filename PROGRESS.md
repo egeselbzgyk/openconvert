@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 7
-CURRENT_ITEM: 7.6 — the metric suite and the per-stratum report (rows 7.8, 7.9)
+CURRENT_ITEM: 7.7 — the ours-vs-real gap, written to eval/out/trend.json (row 7.10)
 LAST_UPDATED: 2026-09-20
 
 ---
@@ -118,6 +118,38 @@ is in a file that was not read, and withholds `note_bijection` when the notes do
 `corpus/gt/se_sample/` is a small SE-shaped book written for this repository: a chapter with
 two heading levels, four paragraphs, two noteref/endnote pairs and a captioned figure.
 
+### Item 7.6 — the metric suite
+
+Eight modules under `oc_eval.metrics`, TEST_STRATEGY §8.1's table one function at a time:
+`cer` (text NED after D13.4's normalisation), `reading_order` (edit similarity plus Kendall
+tau), `toc_f1` (heading P/R/F1 and outline edit distance), `footnotes`, `images`, `teds`
+(TEDS and TEDS-S), `prf` (the shape the four set-metrics share) and `report`.
+
+Two decisions carry the phase's weight.
+
+- **A pass rate is an interval, not a number.** 94 of 100 and 940 of 1000 are the same rate
+  and not the same evidence. `assertions.PassRate.interval()` is Wilson's, pinned against the
+  published value for 95/100 — (0.8882, 0.9785) — because the normal approximation is wrong
+  exactly where this gate lives, at p near 1. The gate is last-green minus the half-width, and
+  a suite below `eval.assertion_min_instances` **fails and says why** rather than passing on
+  an interval wide enough to admit any regression.
+- **There is no aggregate row and there never will be.** `report.build` emits `per_file`,
+  `per_stratum` and `ours_vs_real`, and a test asserts no `aggregate` key appears — an average
+  across strata is precisely the number that lets a synthetic win mask a real-book regression,
+  which is what D18 exists to prevent. A report with no real strata states no gap rather than
+  inventing one.
+
+The metrics normalise before they measure. `cer.ned("ﬁre", "fire")` is 0.0 and
+`cer.ned("pipe-
+line", "pipeline")` is 0.0, because the pipeline is *supposed* to fold those
+(D13.4's `N`) and a metric that charges for them scores a correct conversion as wrong — R9
+§A.10's gap in Nougat's metric. What is not folded is anything the pipeline may not change: a
+hyphen inside a line is content and still costs.
+
+Two new thresholds: `eval.assertion_confidence` (0.95, binary — the plan's level) and
+`eval.assertion_min_instances` (30, provisional — where the Wilson half-width at p ≈ 0.95
+falls under eight points).
+
 ## Blocked` and stop.
 - Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
 - Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
@@ -155,7 +187,7 @@ two heading levels, four paragraphs, two noteref/endnote pairs and a captioned f
 
 ## Current work item
 
-**Phase 7, item 7.6 — the metric suite and the per-stratum report** (plan rows 7.8, 7.9).
+**Phase 7, item 7.7 — the ours-vs-real trend** (plan row 7.10).
 
 **The corpus exists** and **the mutation catalogue is complete.** `corpus/manifest.json` holds
 116 entries: 104 frozen holdout documents across 17 291 pages, and 12 synthetic fixtures.
@@ -182,7 +214,7 @@ Work items for Phase 7, in order. Each is one TDD loop and one commit:
       are gates over the real manifest and the whole lint is clean (A7.1, A7.1b)
 - [x] **7.4** the mutation catalogue: ten recipes, each with a declared effect (row 7.6)
 - [x] **7.5** ground truth from three sources, emitting the engine's own assertions (row 7.7)
-- [ ] **7.6** the metric suite and the per-stratum report (rows 7.8, 7.9)
+- [x] **7.6** the metric suite, the Wilson-interval gate and the per-stratum report (7.8, 7.9)
 - [ ] **7.7** the ours-vs-real gap, written to `eval/out/trend.json` (row 7.10)
 - [ ] **7.8** `oc-eval calibrate` refuses to read a holdout file (row 7.4)
 - [ ] **7.9** benchmarks: `criterion` per stage, whole-tree peak RSS (rows 7.11, 7.12)
@@ -533,6 +565,38 @@ is in a file that was not read, and withholds `note_bijection` when the notes do
 
 `corpus/gt/se_sample/` is a small SE-shaped book written for this repository: a chapter with
 two heading levels, four paragraphs, two noteref/endnote pairs and a captioned figure.
+
+### Item 7.6 — the metric suite
+
+Eight modules under `oc_eval.metrics`, TEST_STRATEGY §8.1's table one function at a time:
+`cer` (text NED after D13.4's normalisation), `reading_order` (edit similarity plus Kendall
+tau), `toc_f1` (heading P/R/F1 and outline edit distance), `footnotes`, `images`, `teds`
+(TEDS and TEDS-S), `prf` (the shape the four set-metrics share) and `report`.
+
+Two decisions carry the phase's weight.
+
+- **A pass rate is an interval, not a number.** 94 of 100 and 940 of 1000 are the same rate
+  and not the same evidence. `assertions.PassRate.interval()` is Wilson's, pinned against the
+  published value for 95/100 — (0.8882, 0.9785) — because the normal approximation is wrong
+  exactly where this gate lives, at p near 1. The gate is last-green minus the half-width, and
+  a suite below `eval.assertion_min_instances` **fails and says why** rather than passing on
+  an interval wide enough to admit any regression.
+- **There is no aggregate row and there never will be.** `report.build` emits `per_file`,
+  `per_stratum` and `ours_vs_real`, and a test asserts no `aggregate` key appears — an average
+  across strata is precisely the number that lets a synthetic win mask a real-book regression,
+  which is what D18 exists to prevent. A report with no real strata states no gap rather than
+  inventing one.
+
+The metrics normalise before they measure. `cer.ned("ﬁre", "fire")` is 0.0 and
+`cer.ned("pipe-
+line", "pipeline")` is 0.0, because the pipeline is *supposed* to fold those
+(D13.4's `N`) and a metric that charges for them scores a correct conversion as wrong — R9
+§A.10's gap in Nougat's metric. What is not folded is anything the pipeline may not change: a
+hyphen inside a line is content and still costs.
+
+Two new thresholds: `eval.assertion_confidence` (0.95, binary — the plan's level) and
+`eval.assertion_min_instances` (30, provisional — where the Wilson half-width at p ≈ 0.95
+falls under eight points).
 
 ## Blocked
 
@@ -968,3 +1032,5 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-20  P7.1      corpus: sha256 before use, mirror-then-source, the LOCAL_EVAL boundary (9)   3bf9c1c
 2026-09-20  P7.2      corpus: the manifest vocabulary and fourteen lint rules (7.1, 7.3b + 21)     5281b83
 2026-09-20  P7.3      corpus: the frozen holdout, 104 real documents, five sources (7.2, 7.3 + 50)  86848f8
+2026-09-20  P7.4      oc-testkit: the mutation catalogue, ten recipes with declared effects (7.6 + 3)  3b55dbb
+2026-09-20  P7.5      oc-eval: ground truth from XHTML, struct trees and LaTeX (7.7 + 16)     36b6384

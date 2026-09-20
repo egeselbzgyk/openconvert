@@ -19,6 +19,8 @@ corpus_app = typer.Typer(help="Corpus manifest, download and lint.")
 app.add_typer(corpus_app, name="corpus")
 gt_app = typer.Typer(help="Ground truth from sources that state their own structure.")
 app.add_typer(gt_app, name="ground-truth")
+report_app = typer.Typer(help="Scores, per stratum, and the assertion gate.")
+app.add_typer(report_app, name="report")
 
 # `eval/src/oc_eval/__main__.py` -> repository root.
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -211,6 +213,49 @@ def _emit(payload: object, out: Path) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     typer.echo(f"wrote {out}", err=True)
+
+
+@report_app.command("gate")
+def report_gate(
+    passed: int = typer.Option(..., help="Assertions the build satisfied."),
+    total: int = typer.Option(..., help="Assertions run."),
+    last_green: float = typer.Option(-1.0, help="Last green pass rate; below 0 means none."),
+) -> None:
+    """PHASE 7 row 7.8: the pass rate with its interval, and the gate built on the width."""
+    from oc_eval.metrics import assertions as assertion_metrics
+
+    rate = assertion_metrics.PassRate(passed=passed, total=total)
+    low, high = rate.interval()
+    typer.echo(
+        f"pass rate {rate.rate:.4f}  "
+        f"{assertion_metrics.confidence():.0%} CI [{low:.4f}, {high:.4f}]  "
+        f"margin {rate.margin():.4f}  n={rate.total}"
+    )
+
+    outcome = assertion_metrics.gate(rate, last_green=None if last_green < 0 else last_green)
+    typer.echo(("PASS " if outcome.passed else "FAIL ") + outcome.detail, err=True)
+    if not outcome.passed:
+        raise typer.Exit(code=1)
+
+
+@report_app.command("show")
+def report_show(
+    scores: Path = typer.Argument(..., help="A JSON array of {stratum,file_id,metric,value}."),
+    out: Path = typer.Option(Path("-"), help="Where to write the report."),
+) -> None:
+    """PHASE 7 row 7.9: one row per stratum, one record per file, no aggregate-only row."""
+    from oc_eval.metrics import report as report_mod
+
+    rows = [
+        report_mod.Row(
+            stratum=str(row["stratum"]),
+            file_id=str(row["file_id"]),
+            metric=str(row["metric"]),
+            value=float(row["value"]),
+        )
+        for row in json.loads(scores.read_text(encoding="utf-8"))
+    ]
+    _emit(report_mod.build(rows), out)
 
 
 def _is_remote(entry: dict[str, object]) -> bool:

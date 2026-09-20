@@ -862,6 +862,21 @@ evidence = "TEST_STRATEGY §7 promotion checklist; D17 provisional->calibrated g
 owner = "maintainer"
 review_by = "2027-06-30"
 
+# ---------- evaluation gates (PHASE 7 rows 7.8, 7.9) ----------
+[eval.assertion_confidence]
+value = 0.95
+source = "binary"
+evidence = "IMPLEMENTATION_PLAN PHASE 7 row 7.8 and A7.4: the assertion pass rate is reported with a 95% confidence interval and the PR gate is last-green minus that interval's half-width. The level is the plan's, and the interval is Wilson's rather than the normal approximation, which is wrong at the high pass rates this gate lives at (R9 §C.5)"
+owner = "maintainer"
+review_by = "2099-01-01"
+
+[eval.assertion_min_instances]
+value = 30
+source = "provisional"
+evidence = "A pass rate over a handful of assertions has a confidence interval wide enough to admit any regression, so a gate computed from one is a gate in name only. Thirty is where the Wilson half-width at p ~= 0.95 falls below 8 points; the corpus carries far more, and this is the floor at which the gate is allowed to have an opinion at all"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 # ---------- corpus (D18) ----------
 [corpus.ours_max_share]
 value = 0.40
