@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 7.5
-CURRENT_ITEM: 7.5.0 — the reading corpus: 40-50 novels per language across en/de/tr
-              (rows 7.5.0a-7.5.0c), then 7.5.1 the diff-stage diagnostic
+CURRENT_ITEM: 7.5.3 — the timeout class: 10 of the first 22 corpus documents produce no
+              output at all within 180 s, across three producer strata
 LAST_UPDATED: 2026-09-20
 
 ---
@@ -14,271 +14,7 @@ LAST_UPDATED: 2026-09-20
 
 - `STATUS` is one of `IN_PROGRESS` · `BLOCKED` · `COMPLETE`.
 - Set `STATUS: BLOCKED` **only** when a decision is needed that `docs/DECISIONS.md` does not settle.
-  Write the question under `## Phase 7 — what it has built so far
-
-- **`oc_eval.corpus.download`** fetches mirror-first, verifies the manifest's sha256 before the
-  bytes are placed, and deletes a file that fails rather than quarantining it. The opener is a
-  parameter, so no test needs a connection; the default refuses any URL that is not https.
-- **`oc_eval.corpus.manifest`** is the vocabulary — licence allowlist and blocklist markers, the
-  nine producer strata plus `page-level-layout`, and the document-vs-page unit.
-  **`oc_eval.corpus.lint`** is fourteen rules over it, one stable slug each, and the slugs are
-  the contract the tests assert on.
-- **`oc_eval.thresholds`** reads `thresholds.toml`, so the corpus gates are the same numbers in
-  Python and in Rust rather than two that agree today.
-- Two rules needed a judgement the plan does not make. `tagged-share-off-target` is skipped when
-  the synthetic bucket is too small to land within five points of 0.126 at all — a five-file
-  bucket can be 0.0 or 0.2 tagged and nothing between, and reporting that is reporting
-  arithmetic. `is_page_level` deliberately does not trust the `unit` field alone: a DocLayNet
-  entry is page-level whether or not it says so, and `page-unit-undeclared` separately requires
-  it to say so, which is what closes §7.6's per-page shortcut.
-- **`mypy` is clean on everything Phase 7 has written** and reports 13 errors in two Phase 2
-  files (`generate/scan_sim.py`, `train/hyphen_clf.py`). Item 7.10 owns them, because that is
-  where `mypy` becomes a CI gate.
-
-### Item 7.3 — how the corpus was assembled
-
-- **Five adapters, each a pure parser plus a thin fetch loop.** OAPEN's DSpace
-  `/rest/filtered-items` filters on `dc.rights.uri` and `dc.language`, so the CC-BY subset and
-  the German slice are selected by the catalogue rather than by downloading and hoping.
-  Internet Archive filters on `licenseurl` and then picks the scan out of an item's files,
-  avoiding the `_text.pdf` and `_djvu.pdf` sidecars. arXiv reads OAI-PMH `arXivRaw`, because
-  the Atom search API reports no licence at all and a paper with none is under arXiv's own
-  distribution licence, not ours. US-Gov is NASA's NTRS, admitting only
-  `copyright.determinationType == "GOV_PUBLIC_USE_PERMITTED"`.
-- **The Turkish slice was rewritten mid-item.** Reading the licence off a DergiPark article
-  page admitted one article in ten — most DergiPark journals are CC BY-NC-ND. Selecting
-  **journals** from DOAJ by their curated `license.type` and then taking a few articles from
-  each admits at the journal's rate instead, and DOAJ's `fulltext` link for those journals is
-  the direct PDF, so nothing scrapes a page any more.
-- **Nothing enters the manifest on a promise.** Every entry's `sha256`, `pages`, `tagged` and
-  `producer_raw` come from opening the file that actually arrived. 45 candidates were rejected
-  with a named reason across the four runs — duplicates, landing pages that were not PDFs,
-  files over the 40 MB per-file budget, documents under four pages.
-- **A top-up harvest needed a fix to work at all.** A source adapter re-walks its catalogue
-  from the start, so `usgov=2` against thirteen NASA reports already held yielded thirteen
-  duplicates and nothing else. `admit(want=…)` caps what one call admits and `ask_for` clears
-  the held count, so the generator is drawn further down the catalogue and stops as soon as it
-  has enough.
-
-### Item 7.4 — the mutation catalogue
-
-Ten recipes in `oc-testkit::mutate`, listed as data in `xtask::mutations::catalogue()` so that
-row 7.6's "every recipe" has one place to be asked. Five are new: `strip_structtree`,
-`double_draw`, `ocr_sandwich`, `jitter_spacing`, `damage_xref`.
-
-Each recipe declares two things the tests hold it to.
-
-- **`Reproducibility`.** Running `xtask mutations` twice showed the three encrypted mutants
-  rewritten with different bytes every time — 902 bytes on one run, 903 on the next — because
-  AES-128 draws a fresh initialisation vector per string and stream. Row 7.6's byte-for-byte
-  assertion holds for the seven `Deterministic` recipes; the three `Randomised` ones are
-  asserted on the property that makes byte-equality impossible, that two applications differ.
-  `xtask mutations` now leaves an existing randomised mutant alone, because regenerating it
-  replaced a regression artefact with noise.
-- **`Effect`** — what the recipe does to the characters on the page, checked through PDFium
-  against the parent. `Preserves` (cropbox offset, struct-tree strip, jitter, damaged xref),
-  `Duplicates` (double draw, OCR sandwich — exactly twice the characters, the original first),
-  `BreaksTextMapping` (ToUnicode strip), `Unopenable` (encrypted with a user password).
-  Flipping one declared effect turns the test red, which is how it is known not to be vacuous.
-
-**Type 3 re-encoding is the one item of PHASE 7 §4's list that is not done.** Re-encoding an
-embedded font as Type 3 while keeping its outlines needs a glyph-outline extractor `lopdf` does
-not have, and a Type 3 font whose CharProcs draw rectangles would change what the page looks
-like rather than only how it is encoded. It belongs with the handmade fixtures — a small PDF
-authored as Type 3 with a `/ToUnicode` map — and is a gap, not a mutation.
-`docs/DECISIONS_LOG.md`, 2026-09-20.
-
-### Item 7.5 — ground truth
-
-Three sources, one type. `oc_eval.ground_truth.schema.GroundTruth` is TEST_CORPUS §5.1's shape
-— headings, paragraphs, footnote pairs, figures — whatever produced it, so the scorer has one
-thing to compare against and a fourth source would not touch it.
-
-**The assertions are the engine's own vocabulary.** `to_assertions` emits `heading_tree`,
-`text_present`, `block_count`, `image_count`, `note_bijection`, `lang_tag` and `text_order` —
-the same kinds `oc_testkit::assertions` reads and the committed `.assert.json` fixtures are
-written in — so one runner checks a generated expectation and a hand-written one.
-`test_every_generated_assertion_kind_is_one_the_engine_knows` reads the Rust enum rather than
-keeping a second copy of the list, the same trick `xtask ci-lint` uses for the warning registry.
-
-**A ground truth never invents what its source does not say.** A tagged PDF's `/H1` points at
-marked content, not at characters, so a struct-tree heading has a level and no text — and
-`to_assertions` emits no `heading_tree` or `heading_level` for it, because asserting on an
-empty string would score every document as wrong. The same rule drops a noteref whose endnote
-is in a file that was not read, and withholds `note_bijection` when the notes do not pair.
-
-- `from_xhtml` reads Standard Ebooks markup. Heading levels come from `<section>` nesting, not
-  from the tag number: SE writes a chapter title as `<h2>` because the book's `<h1>` is its
-  title page, and comparing `h2` against `h1` would score a correct conversion as wrong.
-- `from_structtree` reads a tagged PDF's own tree. On the tagged fixture it finds one `/H1`
-  and four `/P`, which is the document.
-- `from_latex` reads arXiv sectioning, and `looks_parseable` is §5.2's "curated
-  parses-cleanly subset" as a predicate — a paper that pulls its sections in through `\input`
-  is refused **before** it is scored against rather than after it has quietly scored zero.
-
-`corpus/gt/se_sample/` is a small SE-shaped book written for this repository: a chapter with
-two heading levels, four paragraphs, two noteref/endnote pairs and a captioned figure.
-
-### Item 7.6 — the metric suite
-
-Eight modules under `oc_eval.metrics`, TEST_STRATEGY §8.1's table one function at a time:
-`cer` (text NED after D13.4's normalisation), `reading_order` (edit similarity plus Kendall
-tau), `toc_f1` (heading P/R/F1 and outline edit distance), `footnotes`, `images`, `teds`
-(TEDS and TEDS-S), `prf` (the shape the four set-metrics share) and `report`.
-
-Two decisions carry the phase's weight.
-
-- **A pass rate is an interval, not a number.** 94 of 100 and 940 of 1000 are the same rate
-  and not the same evidence. `assertions.PassRate.interval()` is Wilson's, pinned against the
-  published value for 95/100 — (0.8882, 0.9785) — because the normal approximation is wrong
-  exactly where this gate lives, at p near 1. The gate is last-green minus the half-width, and
-  a suite below `eval.assertion_min_instances` **fails and says why** rather than passing on
-  an interval wide enough to admit any regression.
-- **There is no aggregate row and there never will be.** `report.build` emits `per_file`,
-  `per_stratum` and `ours_vs_real`, and a test asserts no `aggregate` key appears — an average
-  across strata is precisely the number that lets a synthetic win mask a real-book regression,
-  which is what D18 exists to prevent. A report with no real strata states no gap rather than
-  inventing one.
-
-The metrics normalise before they measure. `cer.ned("ﬁre", "fire")` is 0.0 and
-`cer.ned("pipe-
-line", "pipeline")` is 0.0, because the pipeline is *supposed* to fold those
-(D13.4's `N`) and a metric that charges for them scores a correct conversion as wrong — R9
-§A.10's gap in Nougat's metric. What is not folded is anything the pipeline may not change: a
-hyphen inside a line is content and still costs.
-
-Two new thresholds: `eval.assertion_confidence` (0.95, binary — the plan's level) and
-`eval.assertion_min_instances` (30, provisional — where the Wilson half-width at p ≈ 0.95
-falls under eight points).
-
-### Item 7.7 — the trend
-
-`oc_eval.trend` keeps the `ours(*)`-versus-real gap in `eval/out/trend.json`, in the
-repository, because TEST_STRATEGY §8 wants a regression to be a diff against the
-immediately-prior committed baseline. One entry per commit: re-running the nightly on an
-unchanged tree corrects the record rather than doubling it.
-
-The point is the **direction**, not the number. A gap of 0.06 is fine or alarming depending on
-whether last week's was 0.05 or 0.09, so `widening()` reports first-to-last and returns None
-when the history holds fewer than two runs that stated a gap at all — a run with no real strata
-states no gap, and is not evidence about widening either. `plot()` draws it to a PNG under a
-headless backend.
-
-### Item 7.8 — the holdout refusal
-
-TEST_CORPUS §7.1(c) as a mechanism rather than a sentence. Every fit goes through
-`calibrate.fit`, which loads the manifest and raises `HoldoutLeak` on any id marked `holdout`.
-Two details make it hold:
-
-- **an unknown id is refused too** (`UnknownFile`). An id the manifest cannot account for is
-  not evidence that it is not holdout, and "I could not check" must not read as "it is fine";
-- **one offending file stops the whole fit.** Dropping it and carrying on would produce a
-  number that looks fitted on what was asked for and was not.
-
-`risk_coverage` is where an escalation threshold actually comes from (D17): sort by
-confidence, and report the widest coverage whose risk is still under the target — returning
-None when nothing meets it, rather than the best available dressed up as a hit. `reliability`
-is the ECE and the diagram rows behind it.
-
-### Item 7.9 — the performance budget
-
-**Measured: 0.0217 s/page over 300 pages**, against D13.11's 0.5 — a 23x margin, in an
-unoptimised `test` profile on the maintainer's machine. The gate was confirmed to fail when the
-budget was lowered below the measurement, so it is not vacuous. Machine L's number will differ;
-this is a floor on the headroom, not the reference measurement.
-
-`oc_testkit::handmade::reference_book(pages)` builds the input rather than committing it: three
-hundred pages of prose is a megabyte of fixture nobody would regenerate or review. It is
-deterministic, and it carries what makes a book *expensive* rather than merely long — a running
-head and a folio on every page for furniture detection to find, a chapter opening every twenty
-pages, body lines at a real leading.
-
-The split: the **arithmetic** runs on every PR — that row 7.12's five stage budgets sum to
-`perf.seconds_per_page_max`, that each is a positive share of it, that the reference book is the
-300 pages D13.11 states the budget for — because that is where the mistake that actually happens
-gets caught, a stage quietly given room the whole does not have. The **timed** assertions are
-behind the `bench` cargo feature, which the nightly job turns on: a wall-clock assertion on a
-shared CI runner measures the runner, and a gate that fails for that reason is one people learn
-to re-run until it passes.
-
-`oc_eval.bench.peak_rss` measures the **whole process tree** — `/proc`'s `VmHWM` on Linux, a Job
-Object on Windows, `psutil` polling otherwise — because D13.11's 500 MB is for the converter and
-whatever it spawns, and a figure that counts only the parent stops being true the moment Phase
-9's sidecar exists. It says which mechanism it used and whether the answer is exact, and a
-sampled floor is printed as a floor.
-
-Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
-
-### Phase 7.5 — where to resume (written for a fresh session)
-
-The plan section is `docs/IMPLEMENTATION_PLAN.md` PHASE 7.5. Read it; this is only the state.
-
-**Two things are true and both drive the phase.**
-
-1. **The pipeline converts nothing.** A random sample of 14 Phase 7 holdout documents gave
-   11 I-1 refusals — **every one in `structure`** — losses 48 … 203 205 characters, plus 2
-   timeouts at 180 s. Minimal reproducer already isolated:
-   `corpus/downloads/oapen-20-500-12657-115632.pdf` **page 42 alone** loses 644 characters.
-2. **Phase 7's corpus is the wrong population.** Open-access monographs, papers, government
-   reports and library scans — chosen for licence clearability. This product converts PDFs
-   into books people read. `--preset novel` exists in §2.1 and no novel has ever gone through
-   the pipeline.
-
-**The work item in progress is 7.5.0, the reading corpus**: 40–50 novels per language across
-English, German and Turkish, same licence discipline, **not marked holdout** so the phase may
-fit on them.
-
-Three agents produced candidate lists on 2026-09-20; the seeds are committed at
-`corpus/reading/candidates_{en,de,tr}.json` and the admitted subsets beside them. Every list
-was re-verified here, because none of the agents' own licence fields were read from the source:
-
-```
-English  16 of 17 admitted    (rejected: Fitzgerald's 1961 Odyssey, in a lending collection)
-German   23 of 24 admitted    (rejected: an untraced German translation)
-Turkish   4 of 10 admitted    (rejected: 5 in copyright, 1 a Chagatai manuscript)
-```
-
-**The Turkish number is structural, not a sourcing failure.** Copyright is life + 70 and the
-alphabet reform was 1928, so a Latin-script Turkish novel is public domain only if its author
-wrote after 1928 and died before 1956 — a 28-year window. *Çalıkuşu* misses by one year and
-enters on 1 January 2027. Source the slice from inside the window — **Sabahattin Ali (d. 1948)
-and Sait Faik Abasıyanık (d. 1954)** are the two widely-read authors in it — and if it cannot
-reach 40, report it short with the reason rather than padding it with Ottoman-script scans,
-which answer a different question.
-
-Still to do for 7.5.0: the German list is Google-Books Fraktur and several entries are plays
-rather than prose, so it wants filtering and topping up; English needs ~24 more; the
-`PD-old-work` admission path itself (rows 7.5.0x–z) is written in the plan and not yet in
-`stratify.py`. The verification script used here is in the session scratchpad and should be
-rewritten as `eval/src/oc_eval/corpus/sources/public_domain.py`.
-
-**The rule that governs every fix in this phase, and the reason it is a phase:**
-a fix may not be derived from a single document. The unit of work is a defect *class*
-`(stage, direction, signature)`, admitted only at **≥ 3 documents across ≥ 2 strata** and, for
-a reading-corpus class, **≥ 2 languages**. Every class carries a written *How else could this
-arise?* answered **before** any code changes. A class closes by making the fault
-unrepresentable or checked — never by special-casing the shape it was found in — and leaves an
-invariant test, not only a corpus file.
-
-**Two things no item in this phase may do**: fix a document instead of a class, and make a
-refusal disappear by widening a `conservation.budget.*` or adding a `Reason` meaning "text we
-could not account for". The second would turn a refusal into a silent loss, which is worse
-than shipping nothing.
-
-**The first class is already visible and is the template.** `oc_structure::stage` keeps a
-`taken: BTreeSet<BlockId>` fed from four independent sources — note blocks, `tables.consumed`,
-`lists.consumed`, bound captions. A block in `taken` is dropped from the flow on the assumption
-that whatever claimed it re-emits its text, and **nothing checks that assumption**. The
-architectural answer is a `Claim { block, by, text }` carrying its obligation, with the
-invariant stated in `oc-core` over the IR rather than inside `oc-structure` — because the same
-shape exists in `document`, `epub` and `repair`, and stating it once fixes four stages.
-
-**The LLM boundary is one question**, and `docs/LLM_BOUNDARY.md` is item 7.5.7's deliverable:
-*if this is answered wrongly, does the book lose or gain a character?* Yes → deterministic,
-permanently. No → it is a name, and a name may be escalated (D13.6's four tasks). A property
-test asserts no permitted LLM edit changes `C(D)`.
-
-## Blocked` and stop.
+  Write the question under `## Blocked` and stop.
 - Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
 - Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
 
@@ -323,85 +59,134 @@ test asserts no permitted LLM edit changes `C(D)`.
 
 ## Current work item
 
-**Phase 7 is complete, and its first corpus run is why Phase 7.5 now exists.**
+**Phase 7.5 is in progress.** Two work items are done; the state below is measured, not planned.
 
-A random sample of 14 holdout documents converted **zero** of them:
+### 7.5.1 — the diagnostic  ✅
 
-```
-11  I-1 refusal, every one of them in `structure`, losses 48 … 203 205 characters
- 2  timeout at 180 s (both Internet Archive scans)
- 1  harness error (a /dev/null output path on Windows), not a pipeline failure
-```
+`openconvert diff-stage <stage> <input.pdf>` runs a stage **outside** the conservation check and
+reports what it did to the text. It exists because `dump-stage` refuses on a stage that does not
+balance — the debugging surface was unavailable exactly when it was wanted, and locating the first
+defect cost a hand-written binary search over page prefixes.
 
-All eleven refusals are the same stage and the same invariant, so this is one systematic
-defect — or a small number of them — rather than a diffuse quality problem. **The conservation
-law is working**: every other converter would have emitted these books short and said nothing.
-But Appendix D's first correctness item, "I-1 … I-7 hold on 100 % of the corpus", is a v1.0
-release gate, and Phases 8–15 had no place to do that work.
-
-**Phase 7.5 is that place**, and its governing rule is that a fix may not be derived from a
-single document: the unit of work is a defect *class*, admitted only at ≥ 3 documents across
-≥ 2 strata, closed only by an architectural change plus an invariant test. The plan section
-states the rule, the admission threshold, the required *how else could this arise?* step, and
-the two failure modes it is written against — fixing books instead of classes, and making a
-refusal disappear by widening a `conservation.budget.*`.
-
-First step for Phase 7.5: read `docs/IMPLEMENTATION_PLAN.md` PHASE 7.5, then take item 7.5.1
-with the TDD loop. It is the diagnostic, and it is first because its absence is itself a
-finding — locating one defect cost a hand-written binary search over page prefixes.
-
-**The corpus exists** and **the mutation catalogue is complete.** `corpus/manifest.json` holds
-116 entries: 104 frozen holdout documents across 17 291 pages, and 12 synthetic fixtures.
-`oc-eval corpus lint` is clean.
+It answers three questions at once, and the third is the one that was invisible before:
 
 ```
-ABBYY-scanner  n=16  holdout=16   InDesign  n=12  holdout=12   Word     n=14  holdout=14
-Ghostscript    n= 1  holdout= 1   pdfTeX    n=14  holdout=14   unknown  n=47  holdout=47
-ours(Typst)    n=12  holdout= 0
-TOTAL        n=116  holdout-documents=104  ours-share=0.103
+  in           108491 characters over 3048 blocks
+  declared      84599 characters over 3229 units   lost 23894  appeared 2
+  reachable     84421 characters over 3185 units   lost 24072  appeared 2
+
+  SILENT LOSS  178 characters are in a container the flow does not reach
+  CONTESTED      7 blocks are claimed by more than one structure
 ```
 
-TEST_CORPUS §7.6's sourcing target is met as written — OAPEN 44 (~40), Internet Archive 20
-(~20), arXiv 15 (~15), US-Gov 15 (~15), DergiPark 10 (~10) — and the two slices §7.6 says may
-not be dropped are there: 34 German documents and 10 Turkish. Licences: CC-BY-4.0 66,
-PD-old-work 20, PD-US-Gov 15, CC-BY-SA-4.0 3.
+- **declared** is `StructureOutput::emitted_text` — every container the stage built. This is what
+  I-1 is computed against today.
+- **reachable** is `StructureOutput::reachable_text` — only the containers the flow points at,
+  which is what a reader will see.
+- The gap between them is a **loss the conservation law cannot see**: a figure whose image was
+  dropped as an ornament keeps its bound caption claimed, and the stage balances against its own
+  bookkeeping while the book is short.
 
-Work items for Phase 7, in order. Each is one TDD loop and one commit:
+`oc_structure::claims` replaces the bare `taken: BTreeSet<BlockId>` with a `Claim` that names its
+claimant, so a dropped block can be traced to the structure that dropped it. `contested()` reports
+a block two claimants both want — which the set used to resolve silently by insertion order.
 
-- [x] **7.1** `corpus/download.py` + `oc_eval.corpus.download`: mirror-then-source, sha256 before
-      use, the `LOCAL_EVAL_ONLY` boundary (row 7.5)
-- [x] **7.2** `oc_eval.corpus.{manifest,lint}` + `oc-eval corpus lint|stats` (rows 7.1, 7.3b)
-- [x] **7.3** corpus v1: 104 holdout documents to TEST_CORPUS §7.6's shape; rows 7.2 and 7.3
-      are gates over the real manifest and the whole lint is clean (A7.1, A7.1b)
-- [x] **7.4** the mutation catalogue: ten recipes, each with a declared effect (row 7.6)
-- [x] **7.5** ground truth from three sources, emitting the engine's own assertions (row 7.7)
-- [x] **7.6** the metric suite, the Wilson-interval gate and the per-stratum report (7.8, 7.9)
-- [x] **7.7** the ours-vs-real gap recorded and plotted over time (row 7.10)
-- [x] **7.8** `oc-eval calibrate` refuses the holdout, and the curves it fits (row 7.4)
-- [x] **7.9** the performance budget, measured at 0.0217 s/page on 300 pages (7.11, 7.12)
-- [x] **7.10** CI: the `python` and `corpus-lint` jobs, and the four nightly bodies (7.13, 7.14)
+### 7.5.2 — first defect class, admitted and closed  ✅
 
-Phase 7 is the corpus, the eval harness, the benchmarks and the real-world holdout — the phase every
-earlier one has been deferring to. What waits on it, in the order it will be wanted:
+`structure/lost/claim-without-emission`, admitted on **7 documents across 2 producer strata**.
 
-1. **`validate.min_char_retention` cannot be a gate as written.** Retention counts ledgered furniture
-   removal as loss, so the 0.98 floor and the 0.04 furniture budget are jointly unsatisfiable for a
-   book with a running head. Either the floor moves to `1 − global_non_ocr_removal` (0.92), or the
-   metric becomes retention of text *no reason accounts for* — which is I-7, and would make the second
-   gate redundant. Appendix D's v1.0 item needs the strata to choose. `docs/DECISIONS_LOG.md`,
-   2026-09-18.
-2. **`validate.h1_count_min_pages = 20` means every fixture answers `None`** to the h1-count
-   plausibility question. The check is written and tested and is first exercised for real on the
-   corpus.
-3. **`validate.dup_block_frac = 0.02` has met no real book.** Derived from the *AI Engineering* shape
-   (21 526 characters emitted twice), not measured.
-4. **Two of four real books outside the corpus are still refused by the conservation law**, both in
-   `structure`, and the table thresholds are all `provisional`. See the Notes below.
-5. **A2.3, A3.2, A3.3 and A4.3 are all partial on one cause**: no corpus, no gold data.
-6. **The benchmark harness** is what turns A1.6 (0.5 s/page, 500 MB RSS on D9's reference machine L)
-   from an indication into a measurement.
-7. **`oc-eval bench report` prints repair fires per id per stratum** (RT A10.4). The loop counts them
-   already; nothing aggregates them yet.
+**The claim was computed from a predicate over the input rather than from what the builder
+produced.** Two independent instances of one shape:
+
+- `lists` extended `consumed_lines` over the whole marked run while `build_level` emitted only
+  `lines.get(marker.line)`. Its own comment said "its marked line and every unmarked line beneath
+  it before the next marker" and the code took one line. Every continuation line in every list was
+  claimed and dropped — 22 776 characters on one arXiv paper.
+- `tables` consumed every block geometrically inside the region while `build_table` read text from
+  the runs inside it. Two different predicates, and the blocks in the gap were lost.
+
+Measured on the eleven documents, reachable output: **46 413 → 37 980 characters lost (−18 %)**, no
+document worse than before, **all 62 `(unnamed)` claimants gone**.
+
+Two things were learned by doing it and both changed the fix — `docs/DECISIONS_LOG.md`, 2026-09-20:
+
+1. The first attempt made two documents **worse**: deriving the table's claim from the runs it took
+   consumed blocks that only partly overlap the region.
+2. Correcting that traded loss for duplication (544 → 2 015 characters emitted twice), because a
+   straddling block stayed in the flow while its inside runs were still in the cells. **The unit of
+   taking and the unit of claiming must be the same unit** — the table read at run granularity and
+   claimed at block granularity, and every straddling block fell in that gap.
+
+### What is open, in the order it matters
+
+1. **`structure/appeared/claim-unit-mismatch-list`** — the same unit mismatch on the list side.
+   `detect_lists` takes at *line* granularity and claims at *block* granularity, so a block mixing
+   introductory prose with a list item has its list lines in the item and its prose in the flow.
+   Duplication across the eleven documents is 544 → 681 because of it. **Recorded, not fixed**:
+   closing it inside the class above would be fitting a fix to the documents that happened to be on
+   the bench, which this phase's rule forbids.
+2. **The timeout class.** 10 of the first 22 corpus documents produced **no output at all** within
+   180 s — across pdfTeX, Word and ABBYY-scanner, so three strata. `diff-stage` on the big Google
+   Books scans does not return. D13.2's `limits.stage_deadline_secs` exists to make that fail
+   legibly and it is not doing so. This is plan item 6 and it is the next class to work.
+3. **`emitted_text` is still what I-1 is computed against.** `reachable_text` exists and is
+   asserted on the fixtures, but the pipeline has not been switched over to it. Switching it will
+   make I-1 fire on documents that pass today — correctly, because those documents are losing text
+   silently — so it wants the timeout class closed first, or the corpus run cannot finish to
+   measure it.
+4. **Item 7.5.0, the reading corpus**, is unfinished. Three agents produced candidate lists on
+   2026-09-20, committed at `corpus/reading/candidates_{en,de,tr}.json`; every one was re-verified
+   here because none of the agents' licence fields were read from the source:
+
+   ```
+   English  16 of 17 admitted    (rejected: Fitzgerald's 1961 Odyssey, in a lending collection)
+   German   23 of 24 admitted    (rejected: an untraced German translation)
+   Turkish   4 of 10 admitted    (rejected: 5 in copyright, 1 a Chagatai manuscript)
+   ```
+
+   **The Turkish number is structural, not a sourcing failure.** Copyright is life + 70 and the
+   alphabet reform was 1928, so a Latin-script Turkish novel is public domain only if its author
+   wrote after 1928 and died before 1956 — a 28-year window. *Çalıkuşu* misses by one year and
+   enters on 1 January 2027. Source the slice from inside the window — **Sabahattin Ali (d. 1948)
+   and Sait Faik Abasıyanık (d. 1954)** — and if it cannot reach 40, report it short with the
+   reason rather than padding it with Ottoman-script scans, which answer a different question.
+
+   Still to do: the German list is Google-Books Fraktur and several entries are plays rather than
+   prose, so it wants filtering and topping up; English needs ~24 more; the `PD-old-work` admission
+   path (rows 7.5.0x–z) is written in the plan and **not yet in `stratify.py`**. The verification
+   script used here is in the session scratchpad and should be rewritten as
+   `eval/src/oc_eval/corpus/sources/public_domain.py`.
+
+### Two findings about the instruments themselves
+
+- **`oc_eval run` writes nothing until it finishes.** It accumulates in memory and has a 600 s
+  per-file timeout over 104 files; a run killed after fifty minutes yielded zero bytes. For a phase
+  whose whole method is re-running the corpus, that is a defect in the instrument. It should write
+  each row as it is produced.
+- **The fixture suite could not have found any of this.**
+  `every_container_the_conservation_check_counts_is_reachable_from_the_flow` passes on all ten
+  Typst fixtures and fails on real documents; `structure` is conserving on every fixture and loses
+  23 894 characters on an arXiv paper. A synthetic corpus cannot exhibit the defects of a producer
+  nobody wrote — which is the argument for the reading corpus, stated as a measurement rather than
+  as an expectation.
+
+### The rule that governs every fix in this phase
+
+A fix may not be derived from a single document. The unit of work is a defect *class*
+`(stage, direction, signature)`, admitted only at **≥ 3 documents across ≥ 2 strata** and, for a
+reading-corpus class, **≥ 2 languages**. Every class carries a written *How else could this arise?*
+answered **before** any code changes. A class closes by making the fault unrepresentable or checked
+— never by special-casing the shape it was found in — and leaves an invariant test, not only a
+corpus file.
+
+**Two things no item in this phase may do**: fix a document instead of a class, and make a refusal
+disappear by widening a `conservation.budget.*` or adding a `Reason` meaning "text we could not
+account for". The second would turn a refusal into a silent loss, which is worse than shipping
+nothing.
+
+**The LLM boundary is one question**, and `docs/LLM_BOUNDARY.md` is still to be written:
+*if this is answered wrongly, does the book lose or gain a character?* Yes → deterministic,
+permanently. No → it is a name, and a name may be escalated (D13.6's four tasks).
 
 ## Phase 6 — what it built
 
