@@ -382,6 +382,41 @@ def bench_cmd(
         raise typer.Exit(code=1)
 
 
+@app.command("run")
+def run_cmd(
+    binary: Path = typer.Option(..., help="The openconvert binary to measure."),
+    manifest: Path = typer.Option(DEFAULT_MANIFEST, help="The corpus manifest."),
+    downloads: Path = typer.Option(DEFAULT_DOWNLOAD_DIR, help="Where corpus files are."),
+    out: Path = typer.Option(Path("eval/out/report.json"), help="Where to write the report."),
+    limit: int = typer.Option(0, help="Stop after this many entries; 0 means all of them."),
+) -> None:
+    """PHASE 7 row 7.14: convert the corpus and write the per-file, per-stratum report."""
+    from oc_eval import run as run_mod
+
+    outcome = run_mod.run(
+        binary,
+        manifest_path=manifest,
+        downloads=downloads,
+        limit=limit or None,
+    )
+    built = run_mod.write_report(outcome, out)
+
+    typer.echo(
+        f"{outcome.converted} converted, {len(outcome.failed)} failed, "
+        f"{len(outcome.missing)} missing, {len(built['per_stratum'])} stratum rows -> {out}",
+        err=True,
+    )
+    for file_id, message in outcome.failed[:10]:
+        typer.echo(f"  FAILED {file_id}: {message}", err=True)
+    if outcome.missing:
+        typer.echo(
+            f"  {len(outcome.missing)} corpus files are not present; run "
+            "`oc-eval corpus download` first. A run that scored only what it had would be a "
+            "different measurement every night",
+            err=True,
+        )
+
+
 def _is_remote(entry: dict[str, object]) -> bool:
     source = entry.get("source")
     url = source.get("url", "") if isinstance(source, dict) else ""

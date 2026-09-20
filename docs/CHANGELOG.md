@@ -838,3 +838,78 @@ skipped them because `needs: test` had failed:
   gate that says every repair firing is an emitter bug.
 - The three-OS test claim and the `dom-checks` job are CI's, and are unverified until this branch
   merges — the same shape of deferral Phases 0–5 made and cashed.
+
+---
+
+## Phase 7 — Corpus v1, eval harness, benchmarks, real-world holdout
+
+The phase every earlier one deferred to. The corpus exists, the metrics exist, and the numbers
+they produce have a place to be kept.
+
+### The corpus
+
+**104 frozen holdout documents, 17 291 pages, across seven producer strata**, assembled to
+TEST_CORPUS §7.6's sourcing target as written: OAPEN 44 (~40), Internet Archive 20 (~20),
+arXiv 15 (~15), US-Gov 15 (~15), DergiPark 10 (~10). The two slices §7.6 says may not be
+dropped are there — 34 German documents and 10 Turkish. `ours(*)` is 0.103 of the corpus
+against D18's 0.40 ceiling, and `oc-eval corpus lint` is clean.
+
+Five source adapters, each a pure parser over its catalogue's payload plus a thin fetch loop,
+so every decision is tested without a connection. OAPEN's DSpace endpoint filters on
+`dc.rights.uri` and `dc.language`, so the CC-BY subset and the German slice are *selected*
+rather than downloaded and hoped for. arXiv is read through OAI-PMH because the Atom search
+API reports no licence at all, and a paper with none is redistributable by arXiv and not by us.
+
+**Nothing enters the manifest on a promise.** Every entry's digest, page count, `tagged` flag
+and producer come from opening the file that actually arrived. Forty-five candidates were
+rejected with a named reason.
+
+### The gates
+
+- **`oc-eval corpus lint`** — fourteen rules, one stable slug each. `is_page_level` deliberately
+  does not trust the `unit` field alone, and `page-unit-undeclared` separately requires a
+  DocLayNet page to declare itself: together they close §7.6's per-page shortcut, so a manifest
+  cannot reach a hundred documents by leaving a field off a hundred pages.
+- **The assertion pass rate is an interval, not a number.** 94 of 100 and 940 of 1000 are the
+  same rate and not the same evidence. The interval is Wilson's, pinned against the published
+  value for 95/100, and the gate is last green minus its half-width. A suite below
+  `eval.assertion_min_instances` fails and says why rather than passing on an interval wide
+  enough to admit any regression.
+- **Calibration cannot read the holdout.** `calibrate.fit` raises on a holdout id, raises on an
+  id the manifest cannot account for — "I could not check" must not read as "it is fine" — and
+  one offending file stops the whole fit.
+- **The performance budget is measured**: 0.0217 s/page over 300 pages against D13.11's 0.5, in
+  an unoptimised profile, and the gate was confirmed to fail when the budget was lowered below
+  it. Peak RSS is measured over the **whole process tree**, because D13.11's 500 MB is for the
+  converter and whatever it spawns.
+
+### There is no aggregate row, and a test keeps it that way
+
+`report.build` emits `per_file`, `per_stratum` and `ours_vs_real`. An average across strata is
+precisely the number that lets a synthetic-corpus win mask a real-book regression, which is
+what D18 exists to prevent. The gap is kept over time in `eval/out/trend.json`, in the
+repository, because a *widening* gap is the signal and that is a statement about history.
+
+### Two defects this phase exposed
+
+- **`xtask fixtures --keep-structtree` tagged every fixture**, which would have made the
+  synthetic bucket exactly half tagged against D18's ~12.6 %. `TAGGED_FIXTURES` now names two.
+- **A top-up harvest could not reach new documents at all.** An adapter re-walks its catalogue
+  from the start, so asking for two more NASA reports against thirteen already held returned
+  thirteen duplicates. `admit(want=…)` caps what one call admits and `ask_for` clears the held
+  count.
+
+### Known gaps, carried forward
+
+- **Type 3 re-encoding** is the one item of PHASE 7 §4's mutation list not done. Keeping an
+  embedded font's outlines through a Type 3 conversion needs a glyph extractor `lopdf` does not
+  have, and a Type 3 font drawing rectangles would change what the page *looks like* rather
+  than only how it is encoded. It belongs with the handmade fixtures.
+- **Three mutation recipes are not byte-reproducible**, and the catalogue says so rather than
+  pretending otherwise: AES-128 draws a fresh initialisation vector per string and stream, so
+  row 7.6's byte-for-byte assertion is made for the seven deterministic recipes and the three
+  randomised ones are held to the property that makes it impossible.
+- **The benchmarks live in `openconvert`, not the `oc-core` the plan's file list names.**
+  `convert` is there and `oc-core` cannot depend on it without a cycle.
+- **The Phase 7 CI jobs are unverified until this branch merges** — the same shape of deferral
+  Phases 0–6 made and cashed.

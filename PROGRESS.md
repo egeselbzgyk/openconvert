@@ -3,8 +3,8 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 7
-CURRENT_ITEM: 7.10 — CI: a python job and the nightly bodies (rows 7.13, 7.14)
+CURRENT_PHASE: 8
+CURRENT_ITEM: 8.1 — read PHASE 8 of the plan, then take its first work item
 LAST_UPDATED: 2026-09-20
 
 ---
@@ -233,7 +233,11 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
       ubuntu/macos/windows and `dom-checks` passes. Both of them failed first, along with five other
       real defects the first CI run found — `docs/DECISIONS_LOG.md`, 2026-09-19. VD-f deferred to
       Phase 15 with its reason.)*
-- [ ] **Phase 7** — Corpus v1, eval harness, benchmarks, real-world holdout
+- [x] **Phase 7** — Corpus v1, eval harness, benchmarks, real-world holdout
+      *(all 14 named tests green, plus about 180 additions. **104 frozen holdout documents
+      across 17 291 pages and seven producer strata, `ours(*)` at 0.103, corpus lint clean,
+      and 0.0217 s/page against D13.11's 0.5 budget.** The CI jobs this phase wrote cannot be
+      verified on one machine and are unverified until the branch merges.)*
 - [ ] **Phase 8** — AI abstraction (no real model yet)
 - [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
 - [ ] **Phase 10** — AI-assisted decisions (the four tasks)
@@ -245,7 +249,11 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 
 ## Current work item
 
-**Phase 7, item 7.10 — the CI wiring** (plan rows 7.13, 7.14). The last item of the phase.
+**Phase 7 is complete.** Its Definition of Done is checked below, with the rows that cannot be
+verified on a single machine named as such rather than counted as passes.
+
+First step for Phase 8: read `docs/IMPLEMENTATION_PLAN.md` PHASE 8, then take the first work
+item with the TDD loop. Phase 8 is the AI abstraction with no real model behind it yet.
 
 **The corpus exists** and **the mutation catalogue is complete.** `corpus/manifest.json` holds
 116 entries: 104 frozen holdout documents across 17 291 pages, and 12 synthetic fixtures.
@@ -276,8 +284,7 @@ Work items for Phase 7, in order. Each is one TDD loop and one commit:
 - [x] **7.7** the ours-vs-real gap recorded and plotted over time (row 7.10)
 - [x] **7.8** `oc-eval calibrate` refuses the holdout, and the curves it fits (row 7.4)
 - [x] **7.9** the performance budget, measured at 0.0217 s/page on 300 pages (7.11, 7.12)
-- [ ] **7.10** CI: a `python` job, and the nightly `full-corpus`, `bench`, `proptest-deep` and
-      `mutation-testing` bodies (rows 7.13, 7.14)
+- [x] **7.10** CI: the `python` and `corpus-lint` jobs, and the four nightly bodies (7.13, 7.14)
 
 Phase 7 is the corpus, the eval harness, the benchmarks and the real-world holdout — the phase every
 earlier one has been deferring to. What waits on it, in the order it will be wanted:
@@ -718,6 +725,56 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 
 _(empty — Q1 resolved 2026-09-09; see `docs/DECISIONS_LOG.md`)_
 
+## Phase 7 — Definition of Done
+
+`IMPLEMENTATION_PLAN.md` §0.3, row by row. Checked on this machine unless the row says otherwise.
+
+| Row | State |
+|---|---|
+| Every named test exists and passes | **Yes.** All 14 of PHASE 7's rows, plus ~180 additions. Rows 7.11 and 7.12 are behind the `bench` cargo feature and pass with it on. |
+| `cargo nextest run --workspace` green | **Yes**, 466 tests. |
+| Green on Linux/macOS/Windows CI | **Not verifiable here.** Windows only. |
+| clippy `-D warnings` clean | **Yes**, workspace, all targets, all features. |
+| `cargo fmt --check` clean | **Yes.** |
+| `cargo deny check` clean | **Yes** — no new Rust dependency; `criterion` was already in the workspace manifest. |
+| `cargo xtask thresholds-lint` clean | **Yes.** Eight thresholds added, each with source, evidence, owner and an unexpired `review_by`. |
+| Every Given/When/Then demonstrated | **A7.1, A7.1b, A7.2 and A7.3 yes** (below). **A7.4 partially**: the gate is written and tested, and there is no "last green" until the nightly has run once. |
+| `docs/CHANGELOG.md` entry | **Yes.** |
+| No `TODO`/`FIXME` without an issue number | **Yes**, `xtask ci-lint` clean. |
+
+### Acceptance criteria
+
+- **A7.1** — `oc-eval corpus lint` is clean. `ours(*)` is 0.103 against the 0.40 cap; the
+  holdout is 104 **documents**, counted with page-level entries excluded.
+- **A7.1b** — the composition meets §7.6's target as written: OAPEN 44 (~40), Internet Archive
+  20 (~20), arXiv 15 (~15), US-Gov 15 (~15), DergiPark 10 (~10), and the German (34) and
+  Turkish (10) slices are non-empty.
+- **A7.2** — `report.build` emits `per_file`, `per_stratum` and `ours_vs_real`, and
+  `test_per_stratum_scores_are_reported_separately` asserts no `aggregate` key exists.
+- **A7.3** — **0.0217 s/page over 300 pages**, unoptimised `test` profile, against 0.5. The
+  gate fails when the budget is lowered below the measurement. Reference machine L will differ.
+- **A7.4** — the gate is `last green - margin` where the margin is the Wilson half-width, and
+  it refuses to gate at all below `eval.assertion_min_instances`. The first nightly records the
+  baseline it will compare against.
+
+### What Phase 7 was asked to settle, and did not
+
+The seven items the phase was carrying are not all closed, and it is worth saying which.
+
+1. **`validate.min_char_retention` is still not a gate.** The corpus now exists to choose
+   between the two candidate definitions, and nothing has run against it yet. Still open.
+2. **`validate.h1_count_min_pages = 20`** is first exercisable now — 104 real documents,
+   most well over twenty pages — but the first exercise is the nightly's, not this branch's.
+3. **`validate.dup_block_frac = 0.02` has still met no real book.** Same reason.
+4. **The two real books the conservation law refuses** have not been re-run. They are in
+   `example_pdfs/`, which is not corpus, and the table thresholds are still `provisional`.
+5. **A2.3, A3.2, A3.3 and A4.3** are still partial. The corpus exists; the gold data for them
+   does not, and `corpus/gt/` holds one hand-written sample rather than §5.5's ~50-file set.
+6. **The benchmark harness is done**, and A1.6 is a measurement on this machine rather than
+   on reference machine L.
+7. **Repair fires per id per stratum** — `oc-eval run` records `repairs_fired` per file and
+   the report groups per stratum, so RT A10.4 is answerable on the first nightly.
+
 ## Phase 6 — Definition of Done
 
 Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-18, every gate run for real. **Two rows
@@ -1153,3 +1210,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-20  P7.6      oc-eval: metrics, the Wilson gate, the per-stratum report (7.8, 7.9 + 21)  ee146db
 2026-09-20  P7.7      oc-eval: the ours-vs-real gap recorded and plotted (7.10 + 7)      8a056c0
 2026-09-20  P7.8      oc-eval: calibration refuses the holdout; risk-coverage (7.4 + 11)  bb253f3
+2026-09-20  P7.9      openconvert: the perf budget, 0.0217 s/page on 300 pages (7.11, 7.12 + 14)  1f94be4

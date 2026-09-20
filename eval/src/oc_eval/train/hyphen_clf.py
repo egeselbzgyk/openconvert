@@ -253,7 +253,7 @@ def train(matrix: np.ndarray, labels: np.ndarray, weights: np.ndarray) -> tuple[
     a convex problem in eight thousand dimensions a fixed schedule is entirely adequate.
     """
     rng = np.random.default_rng(SEED)
-    theta = rng.normal(0.0, 0.01, size=matrix.shape[1]).astype(np.float64)
+    theta: np.ndarray = np.asarray(rng.normal(0.0, 0.01, size=matrix.shape[1]), dtype=np.float64)
     bias = 0.0
     rate = 0.5
     l2 = 1e-5
@@ -272,8 +272,10 @@ def train(matrix: np.ndarray, labels: np.ndarray, weights: np.ndarray) -> tuple[
 def metrics(scores: np.ndarray, labels: np.ndarray) -> dict[str, float]:
     predicted_keep = scores > 0.0
     actual_keep = labels > 0.5
-    keep_recall = float((predicted_keep & actual_keep).sum() / max(actual_keep.sum(), 1))
-    join_recall = float(((~predicted_keep) & (~actual_keep)).sum() / max((~actual_keep).sum(), 1))
+    keep_total = max(int(actual_keep.sum()), 1)
+    join_total = max(int((~actual_keep).sum()), 1)
+    keep_recall = float(int((predicted_keep & actual_keep).sum()) / keep_total)
+    join_recall = float(int(((~predicted_keep) & (~actual_keep)).sum()) / join_total)
     return {
         "keep_recall": keep_recall,
         "join_recall": join_recall,
@@ -325,7 +327,7 @@ def main(argv: list[str] | None = None) -> int:
     rng.shuffle(holdout)
     rng.shuffle(training)
 
-    rows = [(row["head"], row["tail"], row["lang"]) for row in training]
+    rows = [(str(row["head"]), str(row["tail"]), str(row["lang"])) for row in training]
     matrix = vectorise(rows).astype(np.float64)
     labels = np.array([1.0 if row["keep"] else 0.0 for row in training])
     # Balanced class weights: the population is 98 % join, and a model fitted to that prior
@@ -336,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
 
     theta, bias = train(matrix, labels, weights)
 
-    holdout_rows = [(row["head"], row["tail"], row["lang"]) for row in holdout]
+    holdout_rows = [(str(row["head"]), str(row["tail"]), str(row["lang"])) for row in holdout]
     holdout_scores = vectorise(holdout_rows).astype(np.float64) @ theta + bias
     holdout_labels = np.array([1.0 if row["keep"] else 0.0 for row in holdout])
     holdout_metrics = metrics(holdout_scores, holdout_labels)
