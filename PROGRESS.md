@@ -3,8 +3,9 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 8
-CURRENT_ITEM: 8.1 — read PHASE 8 of the plan, then take its first work item
+CURRENT_PHASE: 7.5
+CURRENT_ITEM: 7.5.1 — `openconvert diff-stage`: name the characters that left, and from
+              which block and claimant (rows 7.5.1-7.5.3)
 LAST_UPDATED: 2026-09-20
 
 ---
@@ -238,6 +239,9 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
       across 17 291 pages and seven producer strata, `ours(*)` at 0.103, corpus lint clean,
       and 0.0217 s/page against D13.11's 0.5 budget.** The CI jobs this phase wrote cannot be
       verified on one machine and are unverified until the branch merges.)*
+- [ ] **Phase 7.5** — Conservation defect closure  *(added 2026-09-20, after Phase 7's first
+      corpus run converted 0 of 14 sampled documents. Appendix D's "I-1 … I-7 hold on 100 %
+      of the corpus" is a v1.0 release gate and does not hold.)*
 - [ ] **Phase 8** — AI abstraction (no real model yet)
 - [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
 - [ ] **Phase 10** — AI-assisted decisions (the four tasks)
@@ -249,11 +253,32 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 
 ## Current work item
 
-**Phase 7 is complete.** Its Definition of Done is checked below, with the rows that cannot be
-verified on a single machine named as such rather than counted as passes.
+**Phase 7 is complete, and its first corpus run is why Phase 7.5 now exists.**
 
-First step for Phase 8: read `docs/IMPLEMENTATION_PLAN.md` PHASE 8, then take the first work
-item with the TDD loop. Phase 8 is the AI abstraction with no real model behind it yet.
+A random sample of 14 holdout documents converted **zero** of them:
+
+```
+11  I-1 refusal, every one of them in `structure`, losses 48 … 203 205 characters
+ 2  timeout at 180 s (both Internet Archive scans)
+ 1  harness error (a /dev/null output path on Windows), not a pipeline failure
+```
+
+All eleven refusals are the same stage and the same invariant, so this is one systematic
+defect — or a small number of them — rather than a diffuse quality problem. **The conservation
+law is working**: every other converter would have emitted these books short and said nothing.
+But Appendix D's first correctness item, "I-1 … I-7 hold on 100 % of the corpus", is a v1.0
+release gate, and Phases 8–15 had no place to do that work.
+
+**Phase 7.5 is that place**, and its governing rule is that a fix may not be derived from a
+single document: the unit of work is a defect *class*, admitted only at ≥ 3 documents across
+≥ 2 strata, closed only by an architectural change plus an invariant test. The plan section
+states the rule, the admission threshold, the required *how else could this arise?* step, and
+the two failure modes it is written against — fixing books instead of classes, and making a
+refusal disappear by widening a `conservation.budget.*`.
+
+First step for Phase 7.5: read `docs/IMPLEMENTATION_PLAN.md` PHASE 7.5, then take item 7.5.1
+with the TDD loop. It is the diagnostic, and it is first because its absence is itself a
+finding — locating one defect cost a hand-written binary search over page prefixes.
 
 **The corpus exists** and **the mutation catalogue is complete.** `corpus/manifest.json` holds
 116 entries: 104 frozen holdout documents across 17 291 pages, and 12 synthetic fixtures.

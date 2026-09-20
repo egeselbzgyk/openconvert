@@ -2691,3 +2691,55 @@ Machine L's number will differ; this is a floor on the headroom, not the referen
 Evidence: `openconvert::perf_budget::the_stage_budgets_sum_to_the_end_to_end_budget`,
 `openconvert::perf_budget::timed::bench_end_to_end_within_budget` (with `--features bench`).
 Affects: D13.11, IMPLEMENTATION_PLAN PHASE 7 rows 7.11, 7.12, `thresholds.toml`.
+
+## 2026-09-20 · Phase 7.5 inserted: the corpus converted 0 of 14, and no phase owned the fix · Phase 7
+Context: Phase 7's first real corpus run. A random sample of 14 holdout documents converted **none**:
+11 refused by I-1, all of them in `structure`, with losses from 48 to 203 205 characters; 2 exceeded a
+180 s timeout, both Internet Archive scans; 1 was a harness error on my side (a `/dev/null` output
+path on Windows) and not a pipeline failure. Appendix D's first correctness item — "I-1 … I-7 hold on
+100 % of the corpus" — is a v1.0 release gate and does not hold. Phases 8–15 are AI abstraction, local
+model, AI decisions, BYO providers, desktop UI, OCR, security and packaging: **no phase's job was to
+fix what the corpus found.** The plan assumed the deterministic path was correct once Phase 6's own
+tests passed, and Phase 7 was only to measure it. The measurement disagreed.
+Decision: PHASE 7.5 — Conservation defect closure — is inserted between Phases 7 and 8, and Phase 8
+does not start before it. The ordering is not tidiness: Phase 10 calibrates each AI decision by
+McNemar comparison against the deterministic baseline, and a baseline that loses a fifth of a book is
+not something a comparison against it means anything about.
+The phase's governing rule, at the maintainer's direction: **a fix may not be derived from a single
+document.** The unit of work is a defect class keyed on `(stage, direction, signature)`, admitted only
+at ≥ 3 documents across ≥ 2 producer strata — the same reasoning as D18's `ours(*)` cap and
+`calibration.min_gold_instances_per_task`, that a conclusion drawn from too few observations is not a
+conclusion. Every class carries a written *How else could this arise?* answered **before** any code
+changes, because that is the step that turns a symptom into a mechanism and it is what produces the
+sibling fixtures. A class closes by making the fault unrepresentable or checked, never by
+special-casing the shape it was found in, and it leaves behind an invariant test rather than only a
+corpus file.
+Two failure modes are named in the phase and guarded by its tests: fixing documents instead of classes
+(the reward for which arrives immediately — the book converts), and making a refusal disappear by
+widening a `conservation.budget.*` or inventing a `Reason` meaning "text we could not account for",
+which would convert a refusal into a silent loss and be worse than shipping nothing. No item in Phase
+7.5 may change `conservation.budget.*` or add a `Reason`.
+Evidence: the 14-document sample above, reproduced from `corpus/downloads`; a minimal reproducer
+already isolated — `oapen-20-500-12657-115632.pdf` page 42 alone loses 644 characters in `structure`,
+found by hand-written binary search over page prefixes, which is why the phase's first item is a
+diagnostic.
+Affects: IMPLEMENTATION_PLAN (new PHASE 7.5, Appendix C's phase map), PROGRESS.md, Appendix D.
+
+## 2026-09-20 · The line between the LLM and the deterministic pipeline, as a test · Phase 7.5
+Context: D13.5 and D13.6 already draw the boundary — an LLM edit must be `Conserving`, "labels/levels/
+roles/CSS classes only", and "label authority is not deletion authority". It is stated across two
+decisions and a call-shape paragraph, which is enough to follow and not enough to settle an argument.
+Decision: the boundary gets one question, stated in `docs/LLM_BOUNDARY.md` and derived from the
+existing decisions rather than invented: **if this question is answered wrongly, does the book lose or
+gain a character?** If yes, the answer is deterministic, permanently, and no amount of model quality
+changes it. If no, the question is about a *name* and may be escalated.
+Deterministic by that test: which characters exist (extraction, dehyphenation, ligature expansion),
+which are removed and under what `Reason` (furniture, overdraw, OCR-layer duplicates), which block
+owns a character (table cell assignment, note body assembly, caption binding), and reading order.
+LLM-eligible, and exactly D13.6's four tasks: metadata fields, heading role per style cluster,
+front/body/back boundaries, verse-vs-quote for an ambiguous indented block — all of them names for
+characters whose identity is already fixed.
+What makes it a boundary rather than a preference: an `oc-ai` property test asserts that applying any
+edit the grammar permits leaves `C(D)` unchanged, and a CI lint holds `LLM_BOUNDARY.md` and `oc-ai`'s
+task enum in agreement in both directions.
+Affects: D13.5, D13.6, new `docs/LLM_BOUNDARY.md`, PHASE 7.5 rows 7.5.8 and 7.5.9.

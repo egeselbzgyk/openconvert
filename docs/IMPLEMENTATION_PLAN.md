@@ -2294,6 +2294,190 @@ RT A9 is the whole point of this phase: a corpus rendered by our own toolchain i
 
 ---
 
+# PHASE 7.5 — Conservation defect closure
+
+## Why this phase exists
+
+Phase 7 built the corpus and pointed the pipeline at it. A random sample of 14 holdout
+documents converted **zero** of them: eleven were refused by invariant I-1, two exceeded a
+180 s timeout, and all eleven refusals were in the same stage, `structure`, with losses from
+48 to 203 205 characters. The plan had no phase for this, because Phases 0–6 assumed the
+deterministic path was correct once its own tests passed and Phase 7 was only to measure it.
+The measurement disagreed.
+
+This is not a quality phase and not a polish phase. **Appendix D's first correctness item —
+"I-1 … I-7 hold on 100 % of the corpus" — is a v1.0 release gate**, and nothing after this
+phase can be trusted until it holds: Phase 10 calibrates AI decisions by McNemar comparison
+against the deterministic baseline, and a baseline that loses a fifth of a book is not a
+baseline any comparison means anything against.
+
+## Goal and scope
+
+Close the conservation defects the corpus found, **as classes rather than as files**, and
+leave behind instruments and invariants that make the class unable to recur.
+
+**In this phase:** a per-stage conservation diagnostic; a defect-class inventory over the whole
+corpus; the architectural fix for each admitted class; an explicit, tested boundary between
+what the deterministic pipeline decides and what an LLM may ever be asked.
+
+**Not in this phase:** any new feature; any LLM work; any threshold fitted on the holdout
+(`oc-eval calibrate` refuses it, and that refusal is not to be worked around).
+
+## The rule that governs every fix in this phase
+
+> **A fix may not be derived from a single document.**
+
+This is the phase's central constraint and the reason it is a phase rather than a bug list. A
+change that makes one PDF convert is a change fitted to one PDF: it will pass its own test,
+leave the class open, and make the next instance harder to see because the obvious symptom is
+gone. The corpus exists precisely so that a defect can be met as a population.
+
+Concretely:
+
+1. **The unit of work is a defect class**, identified by `(stage, direction, signature)` —
+   never by file name. `direction` is *lost* or *appeared*; `signature` is the code path the
+   diagnostic names, not the book's subject.
+2. **Admission.** A class is worked on only when it is observed on **≥ 3 documents across
+   ≥ 2 producer strata**. A class seen on one document is *recorded*, with its diagnostic
+   output, and left open: one instance cannot distinguish the general fault from that book's
+   typography. The threshold is the same reasoning as D18's `ours(*)` cap and
+   `calibration.min_gold_instances_per_task` — a conclusion drawn from too few observations is
+   not a conclusion.
+3. **Generalisation before fix.** Every class carries a written *How else could this arise?*
+   section in `docs/DECISIONS_LOG.md`, answered before any code changes, and that answer is
+   what produces the fixtures. Asking it is not optional documentation: it is the step that
+   turns a symptom into a mechanism.
+4. **The fix is architectural or it is not a fix.** A class closes by making the fault
+   *unrepresentable* or *checked*, not by special-casing the shape it was found in. If the fix
+   reads "when the note is longer than one block, also …", it is a patch; if it reads "a block
+   claimed by any structure carries the text that structure must account for, and the stage
+   asserts it", it is a fix.
+5. **The regression artefact is an invariant, not an example.** Each closed class leaves a
+   property or metamorphic test expressing the rule, plus the corpus documents that exhibited
+   it as named fixtures.
+6. **A class closes only against the whole corpus.** Re-running the fast subset is not closure.
+
+## Files
+
+`crates/openconvert/src/cmd_diff_stage.rs`, `crates/oc-core/src/conservation_diff.rs`;
+`crates/oc-structure/src/claims.rs`; `docs/LLM_BOUNDARY.md`;
+`eval/src/oc_eval/triage/{cluster.py,inventory.py}`; `corpus/defects/<class-id>/`.
+
+## Implementation details
+
+1. **The diagnostic comes first, because the absence of one is itself a finding.** Locating
+   the first defect took a hand-written binary search over page prefixes — forty minutes to
+   learn that one page of one book loses 644 characters. That cost is paid again for every
+   class, by every person, forever. `openconvert diff-stage <stage> <input.pdf>` reports the
+   exact multiset difference `C(D_in) \ C(D_out)` and `C(D_out) \ C(D_in)`, each character
+   attributed to the block and page it came from and the claim that took it. Every subsequent
+   item in this phase is minutes of work on top of it.
+
+2. **The triage is a clustering, not a list.** `oc-eval triage` runs the corpus, collects each
+   refusal's diagnostic signature, and groups them. The output is the defect-class inventory:
+   class id, member documents, strata covered, magnitude range, and whether the class is
+   admitted (≥ 3 documents, ≥ 2 strata) or recorded-and-open. This inventory is committed and
+   is the phase's work queue.
+
+3. **The first class is already visible, and its shape is the phase's template.**
+   `oc_structure::stage` maintains a `taken: BTreeSet<BlockId>` fed from four independent
+   sources — note blocks, `tables.consumed`, `lists.consumed`, bound captions. A block in
+   `taken` is dropped from the flow on the assumption that the structure which claimed it
+   re-emits its text. **Nothing checks that assumption**, and there are four places to get it
+   wrong. The architectural answer is not to audit four call sites but to make the claim carry
+   its obligation: a `Claim { block, by, text }` replaces the bare id, and `structure` asserts
+   `Σ claimed_text == Σ text emitted by the claimant` before it returns. Four silent paths
+   become one checked invariant, and a fifth claimant added later is checked by construction.
+
+4. ***How else could this arise?* — worked, for that class.** The same shape is any stage that
+   moves text between containers while a bookkeeping set says it has been handled: `document`
+   moving blocks into chapters, `epub` moving a document into XHTML files, `repair` editing a
+   `Document` in place. The claim invariant is therefore stated in `oc-core` over the IR, not
+   inside `oc-structure`, so that the other three get it without being changed. This is the
+   difference the phase is about: the same hour spent produces a fix for one stage or for four.
+
+5. **Timeouts are a class too.** Two of fourteen documents exceeded 180 s, both Internet
+   Archive scans. A conversion that does not finish is a conversion that failed, and D13.2's
+   `limits.stage_deadline_secs` exists to make it fail *legibly*. Whether that cap is not
+   wired, not reached, or reached and ignored is a diagnostic question, and it goes through the
+   same class machinery.
+
+6. **The LLM boundary, written down and tested.** D13.5 and D13.6 already draw it; this phase
+   makes it a document that can be pointed at and a test that cannot be argued with. The
+   line — derived from the existing decisions rather than invented here:
+
+   > **Ask: if this question is answered wrongly, does the book lose or gain a character?**
+   > If yes, the answer is deterministic, always, and no amount of model quality changes that.
+   > If no, it is a *label*, and a label may be escalated.
+
+   Deterministic by this test, permanently: which characters exist at all (extraction,
+   dehyphenation, ligature expansion), which are removed and under what `Reason` (furniture,
+   overdraw, OCR-layer duplicates), which block owns a character (table cell assignment, note
+   body assembly, caption binding), and reading order. LLM-eligible by this test, and already
+   enumerated as D13.6's four tasks: metadata fields, heading role per style cluster,
+   front/body/back boundaries, verse-vs-quote for an ambiguous indented block. These are the
+   *names* of things whose characters are already fixed.
+   `docs/LLM_BOUNDARY.md` states the test, lists both sides, and — the part that makes it
+   enforceable — an `oc-ai` test asserts that applying any LLM edit to a `Document` leaves
+   `C(D)` unchanged, so the boundary is checked rather than remembered.
+
+7. **Order of work.** Diagnostic → inventory → admitted classes in descending document count.
+   A class affecting forty documents is worth more than one affecting three, and the inventory
+   makes that ordering a fact rather than a preference.
+
+## Tests to write FIRST
+
+| # | Test name | Kind | Assertion |
+|---|---|---|---|
+| 7.5.1 | `diff_stage_names_every_character_that_left` | unit | on a document with a known ledgered removal, the diff is exactly the removed characters, attributed to their block |
+| 7.5.2 | `diff_stage_names_every_character_that_appeared` | unit | the other direction, on a fixture that duplicates a block |
+| 7.5.3 | `diff_stage_is_silent_on_a_conserving_stage` | fixture | a stage that changed nothing reports an empty diff on all ten Typst fixtures |
+| 7.5.4 | `a_claimed_block_must_be_accounted_for_by_its_claimant` | unit | the claim invariant: a `Claim` whose text is not emitted by the claimant fails, with the claimant named |
+| 7.5.5 | `every_claimant_is_covered_by_the_invariant` | unit | a claimant added to the enum and not to the accounting fails to compile or fails the test — the fifth claimant cannot be forgotten |
+| 7.5.6 | `the_defect_inventory_admits_only_classes_with_enough_evidence` | unit (Python) | a class with 2 documents, or 3 from one stratum, is recorded and not admitted **[anchored: binary]** |
+| 7.5.7 | `every_admitted_class_names_its_documents_and_strata` | unit (Python) | the committed inventory is complete: no admitted class without its member list |
+| 7.5.8 | `an_llm_edit_cannot_change_the_character_content_of_a_document` | property | over generated `Document`s and every edit shape the grammar permits, `C(D)` is invariant **[anchored: binary]** |
+| 7.5.9 | `the_boundary_document_lists_every_llm_task_the_code_can_run` | CI-gate | `docs/LLM_BOUNDARY.md` and `oc-ai`'s task enum agree in both directions |
+| 7.5.10 | `structure_conserves_on_every_corpus_document` | CI-gate (nightly) | I-1 holds for `structure` on 100 % of the corpus **[anchored: binary]** |
+| 7.5.11 | `every_corpus_document_converts_or_fails_within_its_deadline` | CI-gate (nightly) | no document exceeds `limits.stage_deadline_secs`; one that would is refused legibly, not hung |
+| 7.5.12 | `a_closed_class_has_an_invariant_test_and_not_only_a_fixture` | CI-gate | every class marked closed in the inventory names a property or metamorphic test, not only a corpus file |
+
+## Dependencies
+
+Phase deps: 7 (the corpus and the harness are the instrument). No new external dependency.
+
+## Acceptance criteria
+
+| # | Given | When | Then |
+|---|---|---|---|
+| A7.5.1 | the whole corpus | `oc-eval run` | I-1 … I-7 hold on 100 % of it — Appendix D's first correctness item, which is what this phase exists to deliver **[anchored: binary]** |
+| A7.5.2 | any refusal | `openconvert diff-stage` | the characters that left or appeared are named, with their block, page and claimant, in one command **[anchored: binary]** |
+| A7.5.3 | the defect inventory | inspection | every admitted class has ≥ 3 documents across ≥ 2 strata, a written *how else could this arise*, an architectural fix and an invariant test; every open class has its diagnostic output recorded |
+| A7.5.4 | `docs/LLM_BOUNDARY.md` | the test question | every task on the LLM side answers "no" to *does a wrong answer lose or gain a character* — and a test proves the code cannot violate it **[anchored: binary]** |
+| A7.5.5 | the corpus | timing | no document hangs; every one either converts or is refused within `limits.stage_deadline_secs` **[anchored: binary]** |
+
+## Failure modes and mitigations
+
+**The failure this phase is most likely to suffer is the one it is written against**: fixing
+documents instead of classes. Under time pressure a single failing book is a concrete, tractable
+target and a defect class is not, and the reward for the wrong choice arrives immediately — the
+book converts. The admission rule, the *how else* section and test row 7.5.12 are three
+independent obstacles to taking it, and they are deliberately awkward.
+
+The second failure is **fixing conservation by widening a budget**. Every defect here could be
+made to disappear by raising a `conservation.budget.*` or by inventing a `Reason` that means
+"text we could not account for". That converts a refusal into a silent loss, which is the exact
+outcome the conservation law was built to prevent, and it would be worse than shipping nothing.
+No item in this phase may change `conservation.budget.*` or add a `Reason`; a change to either
+is an architectural decision and belongs in `DECISIONS.md` with the Chief Architect's ruling.
+
+The third is **scope drift into quality**. A document that converts and reads badly is not this
+phase's subject. The gate is conservation and the deadline, both binary.
+
+**Estimated size: L.**
+
+---
+
 # PHASE 8 — AI abstraction (no real model yet)
 
 ## Goal and scope
@@ -3358,9 +3542,9 @@ Every field is load-bearing. `prompt_sha256` and `grammar_sha256` let a test fai
 | D13.1 Engine is a library, CLI is its face | 0, 12 | Crate split (0); the app spawns the CLI (12) |
 | D13.2 IPC protocol | 0, 12, 14 | §2.3 event schema; UI event reader (12); cancel/deadline single abort path (14) |
 | D13.3 IR, not Markdown | 1–4 | `oc-model` types, block ids, canonical JSON |
-| D13.4 Conservation law | 2–6, 13 | Ledger and invariants from Phase 2; I-6 region scope in Phase 13 |
-| D13.5 Four gates | 8, 10 | Gate implementations (8); applied to the four tasks (10) |
-| D13.6 LLM call shape | 8, 10 | Prompts, grammars, budgets; task 4 at 10 blocks/call (ratified N-4) |
+| D13.4 Conservation law | 2–6, **7.5**, 13 | Ledger and invariants from Phase 2; **the corpus-wide closure of I-1 in Phase 7.5**; I-6 region scope in Phase 13 |
+| D13.5 Four gates | **7.5**, 8, 10 | **The boundary stated and tested as `docs/LLM_BOUNDARY.md` (7.5)**; gate implementations (8); applied to the four tasks (10) |
+| D13.6 LLM call shape | **7.5**, 8, 10 | **Which questions may ever be asked, by the lose-or-gain-a-character test (7.5)**; prompts, grammars, budgets; task 4 at 10 blocks/call (ratified N-4) |
 | D13.7 Validate → repair loop | 6 | Termination measure, cap 3, repair-fire rate as a release metric |
 | D13.8 Cache and reproducibility | 8, 10, 15 | Cache key (8); byte-identical AI runs on cache hit (10); cross-OS repro job (15) |
 | D13.9 Privacy by construction | 0, 9, 12, 14 | `cargo-deny` bans (0); `oc-net` isolation (9); webview CSP (12); `unshare -n` + audit log (14) |
@@ -3370,7 +3554,7 @@ Every field is load-bearing. `prompt_sha256` and `grammar_sha256` let a test fai
 | D15 Apache-2.0 + allow-list | 0, 9, 15 | `deny.toml` (0); LICENSE/NOTICE beside downloads (9); SBOM (15) |
 | D16 Out of v1 | 13, 14, App. E | OCR pack spike (13); `--isolate-parser` spike (14); the rest in the backlog |
 | D17 Thresholds policy | 0, all | §0.7 and `xtask thresholds-lint`; every phase's numbers carry provenance |
-| D18 Corpus honesty | 7, 13 | Stratification and holdout (7); scanned strata and per-stratum CER (13) |
+| D18 Corpus honesty | 7, **7.5**, 13 | Stratification and holdout (7); **the corpus used as a defect population rather than a score (7.5)**; scanned strata and per-stratum CER (13) |
 | N-1 I-6 region scope | 13 | Merge and invariant check |
 | N-2 `Ocr` owned by `ingest` | 13 | Declared reason set |
 | N-3 `HiddenText` variant | 1, 2 | `ingest` removal classes |
