@@ -302,6 +302,57 @@ def _fmt(value: float | None) -> str:
     return "n/a" if value is None else f"{value:.4f}"
 
 
+@app.command("calibrate")
+def calibrate_cmd(
+    observations: Path = typer.Argument(
+        ..., help="A JSON array of {file_id, confidence, correct}."
+    ),
+    manifest: Path = typer.Option(DEFAULT_MANIFEST, help="The corpus manifest to check against."),
+    target_risk: float = typer.Option(0.05, help="The error rate the threshold must hold."),
+) -> None:
+    """Fit a confidence threshold. Refuses to read the frozen holdout (TEST_CORPUS §7.1c)."""
+    from oc_eval import calibrate as calibrate_mod
+    from oc_eval.calibrate import reliability, risk_coverage
+
+    records = json.loads(observations.read_text(encoding="utf-8"))
+    parsed = [
+        calibrate_mod.Observation(
+            file_id=str(row["file_id"]),
+            confidence=float(row["confidence"]),
+            correct=bool(row["correct"]),
+        )
+        for row in records
+    ]
+
+    try:
+        outcome = calibrate_mod.fit(parsed, manifest_path=manifest)
+    except (calibrate_mod.HoldoutLeak, calibrate_mod.UnknownFile) as failure:
+        typer.echo(f"REFUSED {failure}", err=True)
+        raise typer.Exit(code=2) from failure
+    except calibrate_mod.NotEnoughEvidence as failure:
+        typer.echo(str(failure), err=True)
+        raise typer.Exit(code=1) from failure
+
+    typer.echo(
+        f"{outcome.observations} observations over {len(outcome.files)} files, "
+        f"accuracy {outcome.accuracy:.4f}"
+    )
+
+    points = [risk_coverage.Point(row.confidence, row.correct) for row in parsed]
+    chosen = risk_coverage.threshold_for(points, target_risk=target_risk)
+    if chosen is None:
+        typer.echo(f"no threshold holds risk <= {target_risk}", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(
+        f"threshold {chosen.confidence:.4f}: coverage {chosen.coverage:.4f}, risk {chosen.risk:.4f}"
+    )
+
+    ece = reliability.expected_calibration_error(
+        [reliability.Point(row.confidence, row.correct) for row in parsed]
+    )
+    typer.echo(f"expected calibration error {ece:.4f}")
+
+
 def _is_remote(entry: dict[str, object]) -> bool:
     source = entry.get("source")
     url = source.get("url", "") if isinstance(source, dict) else ""

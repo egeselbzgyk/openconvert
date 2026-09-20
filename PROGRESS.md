@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 7
-CURRENT_ITEM: 7.8 — `oc-eval calibrate` refuses to read a holdout file (row 7.4)
+CURRENT_ITEM: 7.9 — benchmarks: criterion per stage, whole-tree peak RSS (rows 7.11, 7.12)
 LAST_UPDATED: 2026-09-20
 
 ---
@@ -163,6 +163,22 @@ when the history holds fewer than two runs that stated a gap at all — a run wi
 states no gap, and is not evidence about widening either. `plot()` draws it to a PNG under a
 headless backend.
 
+### Item 7.8 — the holdout refusal
+
+TEST_CORPUS §7.1(c) as a mechanism rather than a sentence. Every fit goes through
+`calibrate.fit`, which loads the manifest and raises `HoldoutLeak` on any id marked `holdout`.
+Two details make it hold:
+
+- **an unknown id is refused too** (`UnknownFile`). An id the manifest cannot account for is
+  not evidence that it is not holdout, and "I could not check" must not read as "it is fine";
+- **one offending file stops the whole fit.** Dropping it and carrying on would produce a
+  number that looks fitted on what was asked for and was not.
+
+`risk_coverage` is where an escalation threshold actually comes from (D17): sort by
+confidence, and report the widest coverage whose risk is still under the target — returning
+None when nothing meets it, rather than the best available dressed up as a hit. `reliability`
+is the ECE and the diagram rows behind it.
+
 ## Blocked` and stop.
 - Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
 - Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
@@ -200,7 +216,7 @@ headless backend.
 
 ## Current work item
 
-**Phase 7, item 7.8 — `oc-eval calibrate` refuses the holdout** (plan row 7.4).
+**Phase 7, item 7.9 — the benchmarks** (plan rows 7.11, 7.12).
 
 **The corpus exists** and **the mutation catalogue is complete.** `corpus/manifest.json` holds
 116 entries: 104 frozen holdout documents across 17 291 pages, and 12 synthetic fixtures.
@@ -229,7 +245,7 @@ Work items for Phase 7, in order. Each is one TDD loop and one commit:
 - [x] **7.5** ground truth from three sources, emitting the engine's own assertions (row 7.7)
 - [x] **7.6** the metric suite, the Wilson-interval gate and the per-stratum report (7.8, 7.9)
 - [x] **7.7** the ours-vs-real gap recorded and plotted over time (row 7.10)
-- [ ] **7.8** `oc-eval calibrate` refuses to read a holdout file (row 7.4)
+- [x] **7.8** `oc-eval calibrate` refuses the holdout, and the curves it fits (row 7.4)
 - [ ] **7.9** benchmarks: `criterion` per stage, whole-tree peak RSS (rows 7.11, 7.12)
 - [ ] **7.10** CI: a `python` job, and the nightly `full-corpus`, `bench`, `proptest-deep` and
       `mutation-testing` bodies (rows 7.13, 7.14)
@@ -623,6 +639,22 @@ whether last week's was 0.05 or 0.09, so `widening()` reports first-to-last and 
 when the history holds fewer than two runs that stated a gap at all — a run with no real strata
 states no gap, and is not evidence about widening either. `plot()` draws it to a PNG under a
 headless backend.
+
+### Item 7.8 — the holdout refusal
+
+TEST_CORPUS §7.1(c) as a mechanism rather than a sentence. Every fit goes through
+`calibrate.fit`, which loads the manifest and raises `HoldoutLeak` on any id marked `holdout`.
+Two details make it hold:
+
+- **an unknown id is refused too** (`UnknownFile`). An id the manifest cannot account for is
+  not evidence that it is not holdout, and "I could not check" must not read as "it is fine";
+- **one offending file stops the whole fit.** Dropping it and carrying on would produce a
+  number that looks fitted on what was asked for and was not.
+
+`risk_coverage` is where an escalation threshold actually comes from (D17): sort by
+confidence, and report the widest coverage whose risk is still under the target — returning
+None when nothing meets it, rather than the best available dressed up as a hit. `reliability`
+is the ECE and the diagram rows behind it.
 
 ## Blocked
 
@@ -1061,3 +1093,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-20  P7.4      oc-testkit: the mutation catalogue, ten recipes with declared effects (7.6 + 3)  3b55dbb
 2026-09-20  P7.5      oc-eval: ground truth from XHTML, struct trees and LaTeX (7.7 + 16)     36b6384
 2026-09-20  P7.6      oc-eval: metrics, the Wilson gate, the per-stratum report (7.8, 7.9 + 21)  ee146db
+2026-09-20  P7.7      oc-eval: the ours-vs-real gap recorded and plotted (7.10 + 7)      8a056c0
