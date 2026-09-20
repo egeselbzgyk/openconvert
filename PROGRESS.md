@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 7
-CURRENT_ITEM: 7.3 — corpus v1: harvest the frozen >= 100-document holdout (rows 7.2, 7.3)
+CURRENT_ITEM: 7.4 — the mutation catalogue, one reviewable recipe per failure mode (row 7.6)
 LAST_UPDATED: 2026-09-20
 
 ---
@@ -33,6 +33,31 @@ LAST_UPDATED: 2026-09-20
 - **`mypy` is clean on everything Phase 7 has written** and reports 13 errors in two Phase 2
   files (`generate/scan_sim.py`, `train/hyphen_clf.py`). Item 7.10 owns them, because that is
   where `mypy` becomes a CI gate.
+
+### Item 7.3 — how the corpus was assembled
+
+- **Five adapters, each a pure parser plus a thin fetch loop.** OAPEN's DSpace
+  `/rest/filtered-items` filters on `dc.rights.uri` and `dc.language`, so the CC-BY subset and
+  the German slice are selected by the catalogue rather than by downloading and hoping.
+  Internet Archive filters on `licenseurl` and then picks the scan out of an item's files,
+  avoiding the `_text.pdf` and `_djvu.pdf` sidecars. arXiv reads OAI-PMH `arXivRaw`, because
+  the Atom search API reports no licence at all and a paper with none is under arXiv's own
+  distribution licence, not ours. US-Gov is NASA's NTRS, admitting only
+  `copyright.determinationType == "GOV_PUBLIC_USE_PERMITTED"`.
+- **The Turkish slice was rewritten mid-item.** Reading the licence off a DergiPark article
+  page admitted one article in ten — most DergiPark journals are CC BY-NC-ND. Selecting
+  **journals** from DOAJ by their curated `license.type` and then taking a few articles from
+  each admits at the journal's rate instead, and DOAJ's `fulltext` link for those journals is
+  the direct PDF, so nothing scrapes a page any more.
+- **Nothing enters the manifest on a promise.** Every entry's `sha256`, `pages`, `tagged` and
+  `producer_raw` come from opening the file that actually arrived. 45 candidates were rejected
+  with a named reason across the four runs — duplicates, landing pages that were not PDFs,
+  files over the 40 MB per-file budget, documents under four pages.
+- **A top-up harvest needed a fix to work at all.** A source adapter re-walks its catalogue
+  from the start, so `usgov=2` against thirteen NASA reports already held yielded thirteen
+  duplicates and nothing else. `admit(want=…)` caps what one call admits and `ask_for` clears
+  the held count, so the generator is drawn further down the catalogue and stops as soon as it
+  has enough.
 
 ## Blocked` and stop.
 - Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
@@ -71,34 +96,30 @@ LAST_UPDATED: 2026-09-20
 
 ## Current work item
 
-**Phase 7, item 7.3 — corpus v1: harvest the frozen >= 100-document holdout.**
+**Phase 7, item 7.4 — the mutation catalogue** (plan row 7.6).
 
-The lint now exists and names exactly what is missing. `oc-eval corpus lint` on the manifest as
-committed reports three findings, and all three are item 7.3's to clear:
+**The corpus exists.** `corpus/manifest.json` holds 116 entries: 104 frozen holdout documents
+across 17 291 pages, and 12 synthetic fixtures. `oc-eval corpus lint` is clean.
 
 ```
-ours-share-above-maximum: 16/16 documents are ours (1.000 > 0.4)
-tagged-share-off-target:  synthetic bucket is 0.375 tagged, target 0.126 +/-0.05
-holdout-below-minimum:    0 holdout documents, 100 required
+ABBYY-scanner  n=16  holdout=16   InDesign  n=12  holdout=12   Word     n=14  holdout=14
+Ghostscript    n= 1  holdout= 1   pdfTeX    n=14  holdout=14   unknown  n=47  holdout=47
+ours(Typst)    n=12  holdout= 0
+TOTAL        n=116  holdout-documents=104  ours-share=0.103
 ```
 
-The third is the sourcing job. The first follows from it — 16 synthetic against 100+ real is a
-0.14 ours share. The second does not: the synthetic bucket is 10 base fixtures plus 6 tagged
-variants and stays 0.375 however many real books arrive, so item 7.3 has to decide whether
-D18's "tagged variants are a separate ~12 % bucket" is a statement about the synthetic bucket
-(IMPLEMENTATION_PLAN §1.8's wording, which the rule currently implements) or about the corpus.
-The four sources are reachable and licence metadata is machine-readable: OAPEN's
-`/rest/filtered-items` filters on `dc.rights.uri` and returns `dc.language` and `oapen.pages`;
-Internet Archive's `advancedsearch.php` filters on `licenseurl`; govinfo and DergiPark answer.
-arXiv's API needs a User-Agent or returns 406.
+TEST_CORPUS §7.6's sourcing target is met as written — OAPEN 44 (~40), Internet Archive 20
+(~20), arXiv 15 (~15), US-Gov 15 (~15), DergiPark 10 (~10) — and the two slices §7.6 says may
+not be dropped are there: 34 German documents and 10 Turkish. Licences: CC-BY-4.0 66,
+PD-old-work 20, PD-US-Gov 15, CC-BY-SA-4.0 3.
 
 Work items for Phase 7, in order. Each is one TDD loop and one commit:
 
 - [x] **7.1** `corpus/download.py` + `oc_eval.corpus.download`: mirror-then-source, sha256 before
       use, the `LOCAL_EVAL_ONLY` boundary (row 7.5)
 - [x] **7.2** `oc_eval.corpus.{manifest,lint}` + `oc-eval corpus lint|stats` (rows 7.1, 7.3b)
-- [ ] **7.3** corpus v1: harvest the frozen ≥ 100-**document** holdout to TEST_CORPUS §7.6's
-      shape, and turn rows 7.2 and 7.3 on as gates over the real manifest (A7.1, A7.1b)
+- [x] **7.3** corpus v1: 104 holdout documents to TEST_CORPUS §7.6's shape; rows 7.2 and 7.3
+      are gates over the real manifest and the whole lint is clean (A7.1, A7.1b)
 - [ ] **7.4** the mutation catalogue, one reviewable recipe per failure mode (row 7.6)
 - [ ] **7.5** ground truth: Standard Ebooks XHTML, tagged-PDF struct trees, arXiv LaTeX (row 7.7)
 - [ ] **7.6** the metric suite and the per-stratum report (rows 7.8, 7.9)
@@ -368,6 +389,31 @@ Carried forward, in the order a fresh session needs them:
 - **`mypy` is clean on everything Phase 7 has written** and reports 13 errors in two Phase 2
   files (`generate/scan_sim.py`, `train/hyphen_clf.py`). Item 7.10 owns them, because that is
   where `mypy` becomes a CI gate.
+
+### Item 7.3 — how the corpus was assembled
+
+- **Five adapters, each a pure parser plus a thin fetch loop.** OAPEN's DSpace
+  `/rest/filtered-items` filters on `dc.rights.uri` and `dc.language`, so the CC-BY subset and
+  the German slice are selected by the catalogue rather than by downloading and hoping.
+  Internet Archive filters on `licenseurl` and then picks the scan out of an item's files,
+  avoiding the `_text.pdf` and `_djvu.pdf` sidecars. arXiv reads OAI-PMH `arXivRaw`, because
+  the Atom search API reports no licence at all and a paper with none is under arXiv's own
+  distribution licence, not ours. US-Gov is NASA's NTRS, admitting only
+  `copyright.determinationType == "GOV_PUBLIC_USE_PERMITTED"`.
+- **The Turkish slice was rewritten mid-item.** Reading the licence off a DergiPark article
+  page admitted one article in ten — most DergiPark journals are CC BY-NC-ND. Selecting
+  **journals** from DOAJ by their curated `license.type` and then taking a few articles from
+  each admits at the journal's rate instead, and DOAJ's `fulltext` link for those journals is
+  the direct PDF, so nothing scrapes a page any more.
+- **Nothing enters the manifest on a promise.** Every entry's `sha256`, `pages`, `tagged` and
+  `producer_raw` come from opening the file that actually arrived. 45 candidates were rejected
+  with a named reason across the four runs — duplicates, landing pages that were not PDFs,
+  files over the 40 MB per-file budget, documents under four pages.
+- **A top-up harvest needed a fix to work at all.** A source adapter re-walks its catalogue
+  from the start, so `usgov=2` against thirteen NASA reports already held yielded thirteen
+  duplicates and nothing else. `admit(want=…)` caps what one call admits and `ask_for` clears
+  the held count, so the generator is drawn further down the catalogue and stops as soon as it
+  has enough.
 
 ## Blocked
 
@@ -800,3 +846,5 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-18  P6.7      tests/dom: the Playwright DOM checks, three viewports, CI on (6.13-6.15 + 4)    4a71fc0
 2026-09-18  P6.8      oc-validate: the Tier-3 Ace runner and the nightly ace-a11y job (5 tests)      5855c53
 2026-09-19  P6.ci     seven defects CI found: cross-OS bytes, Ace a11y x3, disk, tar/zip     23c7064
+2026-09-20  P7.1      corpus: sha256 before use, mirror-then-source, the LOCAL_EVAL boundary (9)   3bf9c1c
+2026-09-20  P7.2      corpus: the manifest vocabulary and fourteen lint rules (7.1, 7.3b + 21)     5281b83

@@ -241,3 +241,55 @@ def test_the_committed_manifest_is_parseable_and_declares_its_schema_version() -
 
     assert raw["schema_version"] == mf.SCHEMA_VERSION
     assert mf.load(COMMITTED_MANIFEST).entries
+
+
+# --------------------------------------------------------------------------- rows 7.2, 7.3
+
+
+def test_ours_share_under_forty_percent() -> None:
+    """Row 7.2, over the corpus as committed. D18: a release may not pass on `ours(*)` alone."""
+    committed = mf.load(COMMITTED_MANIFEST)
+
+    assert "ours-share-above-maximum" not in rules_fired(lint(committed)), (
+        f"ours share is {committed.ours_share:.3f}, limit {mf.ours_max_share()}"
+    )
+    assert committed.ours_share <= mf.ours_max_share()
+
+
+def test_holdout_has_at_least_100_documents() -> None:
+    """Row 7.3, over the corpus as committed, counted per document (TEST_CORPUS §7.6)."""
+    committed = mf.load(COMMITTED_MANIFEST)
+
+    assert committed.holdout_document_count >= mf.holdout_minimum()
+    assert "holdout-below-minimum" not in rules_fired(lint(committed))
+
+
+def test_the_committed_manifest_passes_the_whole_lint() -> None:
+    findings = lint(mf.load(COMMITTED_MANIFEST))
+
+    assert findings == [], "\n".join(str(f) for f in findings)
+
+
+def test_the_holdout_covers_more_than_one_producer_stratum() -> None:
+    """Producer diversity is the property §7.6 says the holdout exists to measure."""
+    committed = mf.load(COMMITTED_MANIFEST)
+
+    strata = {item.producer_stratum for item in committed.documents if item.holdout}
+
+    assert len(strata) >= 3, f"the holdout spans only {sorted(strata)}"
+
+
+def test_the_holdout_carries_the_two_non_english_languages_v1_claims() -> None:
+    """§7.6: a holdout that reaches 100 by dropping the German and Turkish slices has not met
+    the target — they are the only real-document evidence for those two languages."""
+    committed = mf.load(COMMITTED_MANIFEST)
+
+    languages = {
+        tag
+        for item in committed.documents
+        if item.holdout
+        for tag in item.raw.get("expected_output_characteristics", {}).get("languages", [])
+    }
+
+    assert "de" in languages, f"no German in the holdout; it has {sorted(languages)}"
+    assert "tr" in languages, f"no Turkish in the holdout; it has {sorted(languages)}"

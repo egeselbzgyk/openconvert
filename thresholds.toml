@@ -884,6 +884,13 @@ evidence = "RT A9 / R1 §A.10: real world measured at 12.6% tagged"
 owner = "maintainer"
 review_by = "2028-01-01"
 
+[corpus.tagged_share_tolerance]
+value = 0.05
+source = "provisional"
+evidence = "IMPLEMENTATION_PLAN §1.8: the synthetic bucket's tagged share is checked within +/-5 points of corpus.tagged_share_target. The width is the plan's, not a measurement; it is wide enough that a ten-fixture bucket can express the target at all and narrow enough that a bucket which kept every struct tree fails"
+owner = "maintainer"
+review_by = "2028-01-01"
+
 # ---------- vector regions (PIPELINE 8.3, 8.7) ----------
 [vector.rule_max_thickness_pt]
 value = 3.0

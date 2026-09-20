@@ -2,6 +2,570 @@
   "schema_version": 1,
   "files": [
     {
+      "id": "arxiv-1902-00488",
+      "title": "On Solving Reachability in Grid Digraphs using a Psuedoseparator",
+      "source": {
+        "name": "arXiv",
+        "url": "https://arxiv.org/abs/1902.00488",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXivRaw&set=cs&from=2025-01-01&until=2025-01-15"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "14c735d0e6e4eb4b036bd6a4e2119ee49cb050b539df651cef467fa5ab267084",
+      "file_size_bytes": 636357,
+      "pages": 23,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "pdfTeX",
+      "producer_raw": "pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023) kpathsea version 6.3.5",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://arxiv.org/pdf/1902.00488"
+    },
+    {
+      "id": "arxiv-2004-06003",
+      "title": "Discrimination of Internal Faults and Other Transients in an Interconnected System with Power Transformers and Phase Angle Regulators",
+      "source": {
+        "name": "arXiv",
+        "url": "https://arxiv.org/abs/2004.06003",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXivRaw&set=cs&from=2025-01-01&until=2025-01-15"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "e95d38204bcae191a2b2214615c144350a3227de4872a805433f193aad3a126e",
+      "file_size_bytes": 11550652,
+      "pages": 12,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "pdfTeX",
+      "producer_raw": "pdfTeX-1.40.17",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://arxiv.org/pdf/2004.06003"
+    },
+    {
+      "id": "arxiv-2109-08745",
+      "title": "Sublinear-Time Computation in the Presence of Online Erasures",
+      "source": {
+        "name": "arXiv",
+        "url": "https://arxiv.org/abs/2109.08745",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXivRaw&set=cs&from=2025-01-01&until=2025-01-15"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "38c9d64d66910420c43bf2e5b29b6212416207394dc3d510dfe0fa8d8a75ecc1",
+      "file_size_bytes": 813232,
+      "pages": 48,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "pdfTeX",
+      "producer_raw": "pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023) kpathsea version 6.3.5",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://arxiv.org/pdf/2109.08745"
+    },
+    {
+      "id": "arxiv-2201-05139",
+      "title": "Kernel methods for long term dose response curves",
+      "source": {
+        "name": "arXiv",
+        "url": "https://arxiv.org/abs/2201.05139",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXivRaw&set=cs&from=2025-01-01&until=2025-01-15"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "f0c116cce6088a64a61804e946486ff0108a3733df16fd757c207c5affcd1975",
+      "file_size_bytes": 1758538,
+      "pages": 47,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "pdfTeX",
+      "producer_raw": "pdfTeX-1.40.25",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://arxiv.org/pdf/2201.05139"
+    },
+    {
+      "id": "arxiv-2209-10024",
+      "title": "Geometric Tracking Control of Omnidirectional Multirotors for Aggressive Maneuvers",
+      "source": {
+        "name": "arXiv",
+        "url": "https://arxiv.org/abs/2209.10024",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXivRaw&set=cs&from=2025-01-01&until=2025-01-15"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "e61603a69cbf84fd287b93a89cd7f984dfead47ac189831434eb3d847928732a",
+      "file_size_bytes": 936631,
+      "pages": 9,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "pdfTeX",
+      "producer_raw": "pdfTeX-1.40.25",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://arxiv.org/pdf/2209.10024"
+    },
+    {
+      "id": "arxiv-2210-07996",
+      "title": "Degeneracy is OK: Logarithmic Regret for Network Revenue Management with Indiscrete Distributions",
+      "source": {
+        "name": "arXiv",
+        "url": "https://arxiv.org/abs/2210.07996",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXivRaw&set=cs&from=2025-01-01&until=2025-01-15"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "3ad437f4639465a694bb95440ac87ffe4600c2d2acc0528c215a43027e369fce",
+      "file_size_bytes": 1165223,
+      "pages": 64,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "pdfTeX",
+      "producer_raw": "pdfTeX-1.40.25",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://arxiv.org/pdf/2210.07996"
+    },
+    {
+      "id": "arxiv-2301-10632",
+      "title": "(Almost Full) EFX for Three (and More) Types of Agents",
+      "source": {
+        "name": "arXiv",
+        "url": "https://arxiv.org/abs/2301.10632",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXivRaw&set=cs&from=2025-01-01&until=2025-01-15"
+      },
+      "license": {
+        "name": "CC-BY-SA-4.0",
+        "url": "http://creativecommons.org/licenses/by-sa/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "8f0cfeeb385a5320c8bbf6ed1ecf0ca734309db6e85454ffafb25672577956c1",
+      "file_size_bytes": 385007,
+      "pages": 14,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "pdfTeX",
+      "producer_raw": "pdfTeX-1.40.25",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://arxiv.org/pdf/2301.10632"
+    },
+    {
+      "id": "arxiv-2302-06815",
+      "title": "Self-Supervised Likelihood Estimation with Energy Guidance for Anomaly Segmentation in Urban Scenes",
+      "source": {
+        "name": "arXiv",
+        "url": "https://arxiv.org/abs/2302.06815",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXivRaw&set=cs&from=2025-01-01&until=2025-01-15"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "8ddfad680a44625b86bbb641a7a4f5b3be5cb4b1caf0c4d5b473ad54e746f015",
+      "file_size_bytes": 9386393,
+      "pages": 14,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "pdfTeX",
+      "producer_raw": "pdfTeX-1.40.25",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://arxiv.org/pdf/2302.06815"
+    },
+    {
+      "id": "arxiv-2303-09565",
+      "title": "A SysML-based language for evaluating the integrity of simulation and physical embodiments of Cyber-Physical systems",
+      "source": {
+        "name": "arXiv",
+        "url": "https://arxiv.org/abs/2303.09565",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXivRaw&set=cs&from=2025-01-01&until=2025-01-15"
+      },
+      "license": {
+        "name": "CC-BY-SA-4.0",
+        "url": "http://creativecommons.org/licenses/by-sa/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "70230af07707c94b5099e4c57fed6ba33307ba5e140c32b670cee95516c07ea5",
+      "file_size_bytes": 6558874,
+      "pages": 16,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Acrobat Distiller 8.1.0 (Windows)",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://arxiv.org/pdf/2303.09565"
+    },
+    {
+      "id": "arxiv-2304-14883",
+      "title": "A reduced-order model for advection-dominated problems based on Radon Cumulative Distribution Transform",
+      "source": {
+        "name": "arXiv",
+        "url": "https://arxiv.org/abs/2304.14883",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXivRaw&set=cs&from=2025-01-01&until=2025-01-15"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "5251c2837f53ce774e1f13ef5532e6b894ce7e09afd83a8685ec11e88c4035a3",
+      "file_size_bytes": 6261179,
+      "pages": 27,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "pdfTeX",
+      "producer_raw": "pdfTeX-1.40.25",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://arxiv.org/pdf/2304.14883"
+    },
+    {
+      "id": "arxiv-2305-09065",
+      "title": "Robust Auction Design with Support Information",
+      "source": {
+        "name": "arXiv",
+        "url": "https://arxiv.org/abs/2305.09065",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXivRaw&set=cs&from=2025-01-01&until=2025-01-15"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "187c5b731781affc1c059077903ecf3ee9c8fdac7e7fbf646b4a5621a70c1df3",
+      "file_size_bytes": 1108538,
+      "pages": 76,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "pdfTeX",
+      "producer_raw": "pdfTeX-1.40.25",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://arxiv.org/pdf/2305.09065"
+    },
+    {
+      "id": "arxiv-2305-14528",
+      "title": "Function Basis Encoding of Numerical Features in Factorization Machines",
+      "source": {
+        "name": "arXiv",
+        "url": "https://arxiv.org/abs/2305.14528",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXivRaw&set=cs&from=2025-01-01&until=2025-01-15"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "972cd96cd098634ee49bfad7ad720a579cff6e91d902a1edcd2db662270ddde0",
+      "file_size_bytes": 1559249,
+      "pages": 21,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "pdfTeX",
+      "producer_raw": "pdfTeX-1.40.25",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://arxiv.org/pdf/2305.14528"
+    },
+    {
+      "id": "arxiv-2306-07008",
+      "title": "Quantum Phase Estimation by Compressed Sensing",
+      "source": {
+        "name": "arXiv",
+        "url": "https://arxiv.org/abs/2306.07008",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXivRaw&set=cs&from=2025-01-01&until=2025-01-15"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "894e9e7337557dcacfb8fd60fc33a700eeb5c54ed64c4e6576bb7931cc531ae6",
+      "file_size_bytes": 1110549,
+      "pages": 32,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "pdfTeX",
+      "producer_raw": "pdfTeX-1.40.25",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://arxiv.org/pdf/2306.07008"
+    },
+    {
+      "id": "arxiv-2309-01261",
+      "title": "Worst-Case Input Generation for Concurrent Programs under Non-Monotone Resource Metrics",
+      "source": {
+        "name": "arXiv",
+        "url": "https://arxiv.org/abs/2309.01261",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXivRaw&set=cs&from=2025-01-01&until=2025-01-15"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "622c5208cd00aeb41028697d7acc271646af70db28ed268028878b9cddb0a2c4",
+      "file_size_bytes": 820339,
+      "pages": 43,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "pdfTeX",
+      "producer_raw": "pdfTeX-1.40.25",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://arxiv.org/pdf/2309.01261"
+    },
+    {
+      "id": "arxiv-2406-09769",
+      "title": "Approximate Contraction of Arbitrary Tensor Networks with a Flexible and Efficient Density Matrix Algorithm",
+      "source": {
+        "name": "arXiv",
+        "url": "https://arxiv.org/abs/2406.09769",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXivRaw&set=cs&from=2025-01-01&until=2025-01-15"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "608a277aed8d37123129bb337a429939df25e667ca6ef4760e77d7ffe3fefe39",
+      "file_size_bytes": 4749170,
+      "pages": 42,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "pdfTeX",
+      "producer_raw": "pdfTeX-1.40.25",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://arxiv.org/pdf/2406.09769"
+    },
+    {
+      "id": "dergipark-1113748",
+      "title": "Türkiye’deki Okullarda Siber Zorbalık: Bir Literatür Değerlendirmesi",
+      "source": {
+        "name": "DergiPark",
+        "url": "https://dergipark.org.tr/tr/pub/ajit-e/issue/54422/740743",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://doaj.org/api/search/articles"
+      },
+      "license": {
+        "name": "CC-BY-SA-4.0",
+        "url": "http://creativecommons.org/licenses/by-sa/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "cac240de4a8d7e60032c4f52ba9a9b6293cb1388dbe4d2b1eb360717e25a00e9",
+      "file_size_bytes": 1202518,
+      "pages": 16,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "Word",
+      "producer_raw": "Microsoft® Word 2016",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "tr"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://dergipark.org.tr/tr/download/article-file/1113748"
+    },
+    {
       "id": "f01_prose_single_column",
       "title": "f01_prose_single_column",
       "source": {
@@ -80,32 +644,6 @@
       "source_path": "corpus/fixtures/typst/f02_two_column.typ"
     },
     {
-      "id": "f02_two_column__tagged",
-      "title": "f02_two_column__tagged",
-      "source": {
-        "name": "synthetic-generator",
-        "url": "https://github.com/openconvert/openconvert",
-        "retrieved_date": "2026-09-09"
-      },
-      "license": {
-        "name": "CC0-1.0",
-        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
-        "verified_by": "maintainer",
-        "verified_date": "2026-09-09"
-      },
-      "sha256": "dc14158959abfbdfc92ce6438df4859217e0be7deded0c775ed801e12035422a",
-      "file_size_bytes": 23372,
-      "category": "simple",
-      "producer_stratum": "ours(Typst)",
-      "producer_raw": "Typst 0.15.1",
-      "tagged": true,
-      "holdout": false,
-      "ground_truth_type": "none",
-      "generator": "typst-0.15.1",
-      "defect_injection": [],
-      "source_path": "corpus/fixtures/typst/f02_two_column.typ"
-    },
-    {
       "id": "f03_image_only",
       "title": "f03_image_only",
       "source": {
@@ -125,32 +663,6 @@
       "producer_stratum": "ours(Typst)",
       "producer_raw": "Typst 0.15.1",
       "tagged": false,
-      "holdout": false,
-      "ground_truth_type": "none",
-      "generator": "typst-0.15.1",
-      "defect_injection": [],
-      "source_path": "corpus/fixtures/typst/f03_image_only.typ"
-    },
-    {
-      "id": "f03_image_only__tagged",
-      "title": "f03_image_only__tagged",
-      "source": {
-        "name": "synthetic-generator",
-        "url": "https://github.com/openconvert/openconvert",
-        "retrieved_date": "2026-09-09"
-      },
-      "license": {
-        "name": "CC0-1.0",
-        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
-        "verified_by": "maintainer",
-        "verified_date": "2026-09-09"
-      },
-      "sha256": "c92a7d8858aa8bf1fd279f546158ce307026564ea6c826058d15e25670ebdc95",
-      "file_size_bytes": 60212,
-      "category": "simple",
-      "producer_stratum": "ours(Typst)",
-      "producer_raw": "Typst 0.15.1",
-      "tagged": true,
       "holdout": false,
       "ground_truth_type": "none",
       "generator": "typst-0.15.1",
@@ -236,32 +748,6 @@
       "source_path": "corpus/fixtures/typst/f05_turkish_prose.typ"
     },
     {
-      "id": "f05_turkish_prose__tagged",
-      "title": "f05_turkish_prose__tagged",
-      "source": {
-        "name": "synthetic-generator",
-        "url": "https://github.com/openconvert/openconvert",
-        "retrieved_date": "2026-09-09"
-      },
-      "license": {
-        "name": "CC0-1.0",
-        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
-        "verified_by": "maintainer",
-        "verified_date": "2026-09-09"
-      },
-      "sha256": "b0dc74c5d3b9f288f3a0383034b75701d12e731a4f38e8f97c8831768abef98c",
-      "file_size_bytes": 14527,
-      "category": "simple",
-      "producer_stratum": "ours(Typst)",
-      "producer_raw": "Typst 0.15.1",
-      "tagged": true,
-      "holdout": false,
-      "ground_truth_type": "none",
-      "generator": "typst-0.15.1",
-      "defect_injection": [],
-      "source_path": "corpus/fixtures/typst/f05_turkish_prose.typ"
-    },
-    {
       "id": "f06_hyphenation_de",
       "title": "f06_hyphenation_de",
       "source": {
@@ -281,32 +767,6 @@
       "producer_stratum": "ours(Typst)",
       "producer_raw": "Typst 0.15.1",
       "tagged": false,
-      "holdout": false,
-      "ground_truth_type": "none",
-      "generator": "typst-0.15.1",
-      "defect_injection": [],
-      "source_path": "corpus/fixtures/typst/f06_hyphenation_de.typ"
-    },
-    {
-      "id": "f06_hyphenation_de__tagged",
-      "title": "f06_hyphenation_de__tagged",
-      "source": {
-        "name": "synthetic-generator",
-        "url": "https://github.com/openconvert/openconvert",
-        "retrieved_date": "2026-09-09"
-      },
-      "license": {
-        "name": "CC0-1.0",
-        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
-        "verified_by": "maintainer",
-        "verified_date": "2026-09-09"
-      },
-      "sha256": "095e03beb29854926fe13008c4e0dba9f66d8818a625e251db0fa0655c73871a",
-      "file_size_bytes": 15039,
-      "category": "simple",
-      "producer_stratum": "ours(Typst)",
-      "producer_raw": "Typst 0.15.1",
-      "tagged": true,
       "holdout": false,
       "ground_truth_type": "none",
       "generator": "typst-0.15.1",
@@ -416,6 +876,3204 @@
       "generator": "typst-0.15.1",
       "defect_injection": [],
       "source_path": "corpus/fixtures/typst/f10_lists_and_table.typ"
+    },
+    {
+      "id": "ia-152017-20170505",
+      "title": "مقال فراس الطرابلسي مجلة أفكار عدد 15 أفريل 2017",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/152017_20170505",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "67ae3fe22dbe998eae2bc02626d968bddd3ecbc13218569b76f488c8ad0652ca",
+      "file_size_bytes": 447686,
+      "pages": 13,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Nitro PDF PrimoPDF",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "ara"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/152017_20170505/%D9%85%D9%82%D8%A7%D9%84%20%D9%81%D8%B1%D8%A7%D8%B3%20%D8%A7%D9%84%D8%B7%D8%B1%D8%A7%D8%A8%D9%84%D8%B3%D9%8A-%D9%85%D8%AC%D9%84%D8%A9%20%D8%A3%D9%81%D9%83%D8%A7%D8%B1-%D8%B9%D8%AF%D8%AF15%20%D8%A3%D9%81%D8%B1%D9%8A%D9%84%202017.pdf"
+    },
+    {
+      "id": "ia-2003-nov",
+      "title": "2003 Nov",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/2003-nov",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "885f9cb500b4efaf4d9ff478a7423eb23a55eb6e98b0ed3fb5e3959566aa95f7",
+      "file_size_bytes": 6895150,
+      "pages": 32,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "ABBYY FineReader 11",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "eng"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/2003-nov/2003-Nov.pdf"
+    },
+    {
+      "id": "ia-2005-05-17-letter",
+      "title": "Schmidt vs. AIP -- 2005-05-17 -- AIP's response to Schmidt's objections to its position on document production",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/2005-05-17--letter",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "2ba85e3932b8580cbe9d82bdd15090675d2e244e09f6723b1c81658d7bbb11bf",
+      "file_size_bytes": 594438,
+      "pages": 6,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "iTextSharp 4.1.6 by 1T3XT",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "eng"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/2005-05-17--letter/2005-05-17--letter.pdf"
+    },
+    {
+      "id": "ia-bub-gb-arqjaqaaiaaj",
+      "title": "Archiv für Hygiene und Bakteriologie",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/bub_gb_ArQjAQAAIAAJ",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "10461a4817aa95deea3348ea1f3c01ca83bb1861494f6a03b81dbb079d5ac2de",
+      "file_size_bytes": 27812142,
+      "pages": 414,
+      "category": "difficult",
+      "difficulty": 4,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "Recoded by LuraDocument PDF v2.65",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "ger"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/bub_gb_ArQjAQAAIAAJ/bub_gb_ArQjAQAAIAAJ.pdf"
+    },
+    {
+      "id": "ia-bub-gb-axnxaaaamaaj",
+      "title": "Reine nach Indien aus Briefen und Tagebüchern zusammengestellt",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/bub_gb_axNXAAAAMAAJ",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "18aed4c7c0fc2f5e3988694f75e3dbdef1df73a3903d641244feabde0c73b662",
+      "file_size_bytes": 7371987,
+      "pages": 125,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "Recoded by LuraDocument PDF v2.65",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "ger"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/bub_gb_axNXAAAAMAAJ/bub_gb_axNXAAAAMAAJ.pdf"
+    },
+    {
+      "id": "ia-bub-gb-cwc2aqaamaaj",
+      "title": "Russlands Handels-, Zoll- und Industriepolitik",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/bub_gb_CWc2AQAAMAAJ",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "3d5cbfec244ce4d0cdd3cc5abd773ec5343bb215d32db9dd7bb5717565683847",
+      "file_size_bytes": 28385447,
+      "pages": 416,
+      "category": "difficult",
+      "difficulty": 4,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "Recoded by LuraDocument PDF v2.65",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "ger"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/bub_gb_CWc2AQAAMAAJ/bub_gb_CWc2AQAAMAAJ.pdf"
+    },
+    {
+      "id": "ia-bub-gb-kbguaqaaiaaj",
+      "title": "Grundbesitz und Erbsitten in Schleswig-Holstein und Lauenburg : [Diss. Rostock.]",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/bub_gb_kBgUAQAAIAAJ",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "0af8f369fe624144324e4a31665e4ac47afaab93f10649de7c91f0c53089622f",
+      "file_size_bytes": 5337160,
+      "pages": 131,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "Recoded by LuraDocument PDF v2.65",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "ger"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/bub_gb_kBgUAQAAIAAJ/bub_gb_kBgUAQAAIAAJ.pdf"
+    },
+    {
+      "id": "ia-bub-gb-lcxeaqaamaaj",
+      "title": "Der mord von Sarajewo und Tiszas schuld an dem weltkriege ; die serbischen warnungen und eine \"schwierige\" gerichtliche untersuchung (die Wiener schmähbriefe im jahre 1914) zwei beiträge über die notwendigkeit einer ehrlichen demokratie und volkerverständigung",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/bub_gb_lcxEAQAAMAAJ",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "4a5fb9baa2e1216108cddfccdb556cd9a63bc2320b3ae0b33d77f2aa18a76423",
+      "file_size_bytes": 1742123,
+      "pages": 58,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "Recoded by LuraDocument PDF v2.65",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "ger"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/bub_gb_lcxEAQAAMAAJ/bub_gb_lcxEAQAAMAAJ.pdf"
+    },
+    {
+      "id": "ia-bub-gb-o6hoaaaacaaj",
+      "title": "Ontwerpreglement op de zamenstelling der regterlijke magt in de Nederlandsche WestIndische koloniën",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/bub_gb_o6hOAAAAcAAJ",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "ca2f5cf1ded7acdec94b8a37d6c76ccdcc521f95a66e850002fc48676edea2f1",
+      "file_size_bytes": 2690581,
+      "pages": 42,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "Recoded by LuraDocument PDF v2.65",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "dutch"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/bub_gb_o6hOAAAAcAAJ/bub_gb_o6hOAAAAcAAJ.pdf"
+    },
+    {
+      "id": "ia-bub-gb-uduoaaaayaaj",
+      "title": "Von der Landstrasse; Lieder",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/bub_gb_uDUoAAAAYAAJ",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "b9c0f66599bd8e2d4c4af37ef2926215ebeebebc9b43a334be0c6b21d6816a8a",
+      "file_size_bytes": 5542276,
+      "pages": 123,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "Recoded by LuraDocument PDF v2.65",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "ger"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/bub_gb_uDUoAAAAYAAJ/bub_gb_uDUoAAAAYAAJ.pdf"
+    },
+    {
+      "id": "ia-bub-gb-ulldaaaaiaaj",
+      "title": "Die asthetischen anschauungen Aristarchs in der exegese und kritik der homerischen gedichte",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/bub_gb_uLlDAAAAIAAJ",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "40b36cc100cc30fce601ebc0a91f8ba874607c428dc41cd4a3aa6176c1230436",
+      "file_size_bytes": 1440202,
+      "pages": 54,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "Recoded by LuraDocument PDF v2.65",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "ger"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/bub_gb_uLlDAAAAIAAJ/bub_gb_uLlDAAAAIAAJ.pdf"
+    },
+    {
+      "id": "ia-cawoyca-000767",
+      "title": "The Yolo Democrat 1874-11-13",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/cawoyca_000767",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "78f8804e5552fedc7999fa89ed84147cfb9277a51538a3327b5331273c246dbd",
+      "file_size_bytes": 32656547,
+      "pages": 6,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "ABBYY FineReader 12",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "eng"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/cawoyca_000767/cawoyca_000767_access.pdf"
+    },
+    {
+      "id": "ia-cawoyca-000911",
+      "title": "The Yolo Democrat 1877-08-16",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/cawoyca_000911",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "3538230c29e2797bbb2887b201ddf1a30150286639637f6f483a99be68784fbe",
+      "file_size_bytes": 35147584,
+      "pages": 6,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "ABBYY FineReader 12",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "eng"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/cawoyca_000911/cawoyca_000911_access.pdf"
+    },
+    {
+      "id": "ia-cric-004167",
+      "title": "Richmond Record-Herald 1921-09-18",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/cric_004167",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "97c511feb52a5e71e73eebe5ce57ac78ca7240547a89a1cb217abb9e15da40c9",
+      "file_size_bytes": 27125952,
+      "pages": 6,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "ABBYY FineReader 12",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "eng"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/cric_004167/cric_004167_access.pdf"
+    },
+    {
+      "id": "ia-cric-007224",
+      "title": "Richmond Terminal 1913-01-24",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/cric_007224",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "8a0ea053e05507dca71186061b3154d40af4e079d0f4da9c2dc1a59d636d88a5",
+      "file_size_bytes": 19621400,
+      "pages": 4,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "ABBYY FineReader 12",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "eng"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/cric_007224/cric_007224_access.pdf"
+    },
+    {
+      "id": "ia-cwats-000431",
+      "title": "The Kalifornski 2007 Spring",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/cwats_000431",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "9d8cd7529de1305d5ca7224766290086e064106d4213798f949da60c41c1decb",
+      "file_size_bytes": 1494179,
+      "pages": 11,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "ABBYY FineReader Engine 11",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "eng"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/cwats_000431/cwats_000431_access.pdf"
+    },
+    {
+      "id": "ia-philtrans00464588",
+      "title": "The Influence of Satellites upon the Form of Saturn's Ring",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/philtrans00464588",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "d6d245237cd3992685dc7f8c4cc5453a596ffec01b0d78def708b91cb0fcf8eb",
+      "file_size_bytes": 3044842,
+      "pages": 30,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "Recoded by LuraDocument PDF v2.28",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "eng"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/philtrans00464588/00464588.pdf"
+    },
+    {
+      "id": "ia-sveti-juraj-i-sveti-blaz-zagrebacka-legenda-1",
+      "title": "Sveti Juraj i sveti Blaž. Zagrebačka legenda",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/sveti_juraj_i_sveti_blaz_zagrebacka_legenda_1909-k_m_n",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "4916284a4dffcf2b966679739296b65ac8fac96a073db5952723f035d1e5532a",
+      "file_size_bytes": 2050324,
+      "pages": 9,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "ABBYY-scanner",
+      "producer_raw": "EPSON Scan",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [
+        "ocr-text-layer"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "scr"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/sveti_juraj_i_sveti_blaz_zagrebacka_legenda_1909-k_m_n/sveti_juraj_i_sveti_blaz_zagrebacka_legenda_1909-k_m_n.pdf"
+    },
+    {
+      "id": "ia-yacine-03-201802",
+      "title": "دورة في فن التجديد",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/Yacine_03_201802",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "2b68693a940887457855ef9ba079c48beb4a6fe6c20811bbf33e513c2719e837",
+      "file_size_bytes": 860533,
+      "pages": 51,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "PDFlib 5.0.3 (C++/Win32)",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": []
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/Yacine_03_201802/03.pdf"
+    },
+    {
+      "id": "ia-zujonak-maucannie-travy-djvu",
+      "title": "Маўчанне травы",
+      "source": {
+        "name": "Internet Archive",
+        "url": "https://archive.org/details/Zujonak.Maucannie_travy.djvu",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://archive.org/advancedsearch.php?q=mediatype%3Atexts+AND+licenseurl%3A%22http%3A%2F%2Fcreativecommons.org%2Fpublicdomain%2Fmark%2F1.0%2F%22+AND+format%3A%22Text+PDF%22&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=language&fl%5B%5D=licenseurl&rows=50&page=1&output=json"
+      },
+      "license": {
+        "name": "PD-old-work",
+        "url": "http://creativecommons.org/publicdomain/mark/1.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "d7ddda80c25f9bab3174396bda6aeb346f59fb6277b40362fff6f1fb48bb72d4",
+      "file_size_bytes": 3484789,
+      "pages": 190,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Internet Archive PDF 1.2.0; including mupdf and pymupdf/skimage",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "belarusian"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://archive.org/download/Zujonak.Maucannie_travy.djvu/Zujonak.Maucannie_travy.pdf"
+    },
+    {
+      "id": "oapen-20-500-12657-115627",
+      "title": "Diskurse – Institutionen – Individuen",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115627",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "62427e351c6322916e6279a7f17065caf0834b507c0da3ad5667d454bf89cbea",
+      "file_size_bytes": 3844613,
+      "pages": 222,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "Word",
+      "producer_raw": "Microsoft® Word für Microsoft 365",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/e0a70a84-9c27-4942-872f-3ecbc7fe313e/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115628",
+      "title": "Organisationen der postmigrantischen Gesellschaft",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115628",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "efe3dcbaa0399a7e8980ede97fbee5abe5630820b5743b938c34851bf251e371",
+      "file_size_bytes": 2928116,
+      "pages": 308,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "unknown",
+      "producer_raw": "Microsoft: Print To PDF",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/eeeb0052-d343-4126-9601-aaabf794e1bc/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115629",
+      "title": "Studium als biographischer Übergang",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115629",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "b0dfac14839d552b8e50b1b617a3e5b31fa6941601f2a698fbc6d2a3b3940605",
+      "file_size_bytes": 3097482,
+      "pages": 234,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Microsoft: Print To PDF",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/988fa83d-a3ff-4899-882d-b0b4c4e297e0/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115630",
+      "title": "Jugendweihe machen",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115630",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "c37e771f84d3d176603fded3ec11f69b9ebb031820b5f3247fd6b1ae66cb4b16",
+      "file_size_bytes": 2254706,
+      "pages": 170,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "Word",
+      "producer_raw": "Microsoft® Word 2016",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/3c996ca4-413c-420a-a0e3-828ae341a227/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115631",
+      "title": "Übergänge in der Lebensspanne",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115631",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "e10a05ce235cf5eff19d56c0fa6fea77f82d88033e892c7f7a5ffcc4999d21d0",
+      "file_size_bytes": 2632044,
+      "pages": 152,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Microsoft: Print To PDF",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/5f973c21-9ddd-46c5-8614-dcb002f09bb9/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115632",
+      "title": "Guter Mann, echter Mann – Wie Männer im Kontext von Arbeitszeitreduktionen Männlichkeit konstruieren",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115632",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "4ab62d264a6659b966d5078592ee4da34d28e4bcf8229a4c70ca80767bed5b46",
+      "file_size_bytes": 3554299,
+      "pages": 438,
+      "category": "difficult",
+      "difficulty": 2,
+      "producer_stratum": "Word",
+      "producer_raw": "Microsoft® Word LTSC",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/f3f5829e-0d5d-4671-a5e4-2cf453010f23/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115633",
+      "title": "Weibliche Subjektivierung im Übergang zur Moderne",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115633",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "3e245cadf293f2c7c6a6ae68ab6b52fe70795e083957726501f3b296fba901e5",
+      "file_size_bytes": 4662371,
+      "pages": 410,
+      "category": "difficult",
+      "difficulty": 2,
+      "producer_stratum": "Word",
+      "producer_raw": "Microsoft® Word 2010",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/db531072-10bb-46f9-886c-16650d5a0b19/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115650",
+      "title": "Tagebücher Band 2: 1920–1935",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115650",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "17465fdd7ac4e21e5656b260d547cba0dceb38682824a03d1471bf9d7c0278af",
+      "file_size_bytes": 15253597,
+      "pages": 913,
+      "category": "difficult",
+      "difficulty": 2,
+      "producer_stratum": "Ghostscript",
+      "producer_raw": "GPL Ghostscript 9.55.0",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/4f9c2cfc-0880-4b5e-a3ae-a911974bf2c5/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115711",
+      "title": "Solidarität kollektiv organisieren",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115711",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "5f3b1f90028427135fb8725bde791eef63f09e07190c310f454f5f5cb8ae140a",
+      "file_size_bytes": 2328206,
+      "pages": 307,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "unknown",
+      "producer_raw": "le-tex xerif with CoCoTeX v.v0.6.4",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/6e73a259-15e3-49b6-84fe-1314140b6fb6/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115716",
+      "title": "Metaromantik",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115716",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "6196e150d637511f72083d3aed052ef76f3b37e5f33e5af37cb67bc572e3bd2e",
+      "file_size_bytes": 7477935,
+      "pages": 329,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "unknown",
+      "producer_raw": "le-tex xerif with CoCoTeX v.v0.6.4",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/3f827e8d-1845-4105-bb1c-59e8c9c94ca5/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115725",
+      "title": "Migration, Imagination und Film",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115725",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "df097c5ad51e6757daff7bb10091a0d91a47a37ca36140b38a4a75ee04a3e5c0",
+      "file_size_bytes": 3232930,
+      "pages": 313,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "unknown",
+      "producer_raw": "le-tex xerif with CoCoTeX v.v0.6.4",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/383ff65e-bb32-41e9-97b8-41853a18866b/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115753",
+      "title": "Industry 4.0",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115753",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "127587a6a6149d9b6cbac01e63693853b1b1edc146c53b647eaafaa39746a944",
+      "file_size_bytes": 18938198,
+      "pages": 500,
+      "category": "difficult",
+      "difficulty": 2,
+      "producer_stratum": "InDesign",
+      "producer_raw": "Adobe PDF Library 17.0",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/b793133b-39c2-4e80-a0e5-23defa672c23/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115754",
+      "title": "Industry 4.0",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115754",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "40c19e1f704ec782d2fbd336439fe2bccbda3eb70d1fca048a077ebabc182619",
+      "file_size_bytes": 22096184,
+      "pages": 400,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "unknown",
+      "producer_raw": "iText® Core 7.2.5 (AGPL version) ©2000-2023 iText Group NV",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/325e9863-53ad-4b66-9af1-ef1cd14a2dcd/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115755",
+      "title": "Comparative Education",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115755",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "2230b8b22828c59a9c725c57d900e2de2c89cb01b65845f30e83ae9ad68bc739",
+      "file_size_bytes": 8040762,
+      "pages": 396,
+      "category": "difficult",
+      "difficulty": 2,
+      "producer_stratum": "InDesign",
+      "producer_raw": "Adobe PDF Library 17.0",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/7f09e301-7879-4061-a69e-f4d980bbaca4/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115756",
+      "title": "Metaverse, MetaIntelligence and Infinite Worlds with AI",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115756",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "0462d15cf50818e7cd2468b9186adcef226c0011994fdd971d609b38b0545220",
+      "file_size_bytes": 18590276,
+      "pages": 394,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "unknown",
+      "producer_raw": "iText® Core 7.2.5 (AGPL version) ©2000-2023 iText Group NV",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/a4dd7808-361e-4c65-a752-04d245b96dcd/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115758",
+      "title": "Bioinformatics and Medical Informatics Annual Volume 2024",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115758",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "427d6840949d7f248e886281bc78e4e25b63998ed9ac63589a3a20dd754f4dcc",
+      "file_size_bytes": 4047442,
+      "pages": 146,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "InDesign",
+      "producer_raw": "Adobe PDF Library 17.0",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/6543f971-237e-455d-9a03-c20cf9b7ce08/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115764",
+      "title": "Growth and Development in Plants and Their Medicinal and Environmental Impact",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115764",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "1adbf23c35370e6989b64f3953db93991702fb1c96e5b2134c78c945c3d4f4b0",
+      "file_size_bytes": 2292450,
+      "pages": 98,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "InDesign",
+      "producer_raw": "Adobe PDF Library 17.0",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/dbcc3c27-d0c3-4031-ba6c-37c9714614fe/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115765",
+      "title": "A Comprehensive Study of Volcanic Phenomena",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115765",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "e4e17abe85daf6500d6cce789cf533fbf3098a697e6825f305d2175e01b29cf5",
+      "file_size_bytes": 15458820,
+      "pages": 282,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "InDesign",
+      "producer_raw": "Adobe PDF Library 17.0",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/46234655-14b0-43e6-94e3-8144de17bf75/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115766",
+      "title": "Progress on Porous Media Research",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115766",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "2c6169c4091404844220f8823fa858bae712e265e5047eb346391e3348582fef",
+      "file_size_bytes": 6482322,
+      "pages": 272,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "InDesign",
+      "producer_raw": "Adobe PDF Library 17.0",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/87b5d7a1-7747-43df-9a00-e0f129e69cb4/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115769",
+      "title": "Development and Review of E-Learning",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115769",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "9a60c53b3d5597968544be834bec18a404875dd2047f770d18bbf50b6aa3e7cf",
+      "file_size_bytes": 6802377,
+      "pages": 189,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "iText® Core 7.2.5 (AGPL version) ©2000-2023 iText Group NV",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/4b2a1936-ea47-4800-a5c6-f3c69ddd6c73/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115770",
+      "title": "Graphene",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115770",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "4567c0da7979309f75cf41fdb9457ba5155f0518dd58f419df28eee55be7d3d1",
+      "file_size_bytes": 6621601,
+      "pages": 256,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "iText® Core 7.2.5 (AGPL version) ©2000-2023 iText Group NV",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/df801ed3-7199-42b6-8403-8647fe473e43/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115771",
+      "title": "Bacillus subtilis",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115771",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "de7c2ffdd376129327ae8684e86b6ee3babce52aa57625f2f93add914b471ba9",
+      "file_size_bytes": 2415655,
+      "pages": 140,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "InDesign",
+      "producer_raw": "Adobe PDF Library 17.0",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/ed45b740-4068-455f-9ed6-fead279d9158/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115772",
+      "title": "Emerging Trends in Fisheries",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115772",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "49b9bdd486a18feb427e06a8ef05af5fec7f0482fe1865b4bda721cd7e01f757",
+      "file_size_bytes": 5910524,
+      "pages": 150,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "InDesign",
+      "producer_raw": "Adobe PDF Library 17.0",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/33329ba7-9c25-4d25-927e-5885b3589622/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115773",
+      "title": "Beyond Signals",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115773",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "5ed8c50fe1fddffac04ebc74938a86d423a15ef4ef5f25d8d9a409d6ad159f50",
+      "file_size_bytes": 3747038,
+      "pages": 146,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "InDesign",
+      "producer_raw": "Adobe PDF Library 17.0",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/367126d2-a1b8-4f4b-8d80-abad7ea66e55/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115774",
+      "title": "Sustainable Built Environment for People and Society",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115774",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "a706260a913e7144d3bbd04c6b8d931efe25e062006f5bb91e045aa8c3eaf0db",
+      "file_size_bytes": 6419200,
+      "pages": 230,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "InDesign",
+      "producer_raw": "Adobe PDF Library 17.0",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/279e5035-c7e4-4543-8331-3b009750cc6b/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115775",
+      "title": "Emerging Technologies in Computational Cognitive Neuroscience",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115775",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "8dd11306664ecabc999fe124e6f995c02751282667533f600b0db1e38128af70",
+      "file_size_bytes": 3231118,
+      "pages": 117,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "iText® Core 7.2.5 (AGPL version) ©2000-2023 iText Group NV",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/f367c0c6-a575-4332-9c92-d25fd6eb21bb/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115799",
+      "title": "Nanofabrication",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115799",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "646651369cd7d6b9582368c722a2b2ae5c4ab584e3fbdb73e2c3f5af50517980",
+      "file_size_bytes": 21732585,
+      "pages": 368,
+      "category": "difficult",
+      "difficulty": 2,
+      "producer_stratum": "InDesign",
+      "producer_raw": "Adobe PDF Library 15.0",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/5a55f6ec-9467-4872-9b6a-ff22d951fd5f/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-115800",
+      "title": "Soundscape Semiotics",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/115800",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "d479a8b64c39e66ffaed26c95c6d961b7aec82fa9d9f82859f7ec9ce5ecfc994",
+      "file_size_bytes": 8785119,
+      "pages": 214,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "InDesign",
+      "producer_raw": "Adobe PDF Library 15.0",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/0806b1b0-fdfc-4092-adb9-80955e9f31d8/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-116098",
+      "title": "Umstände erzählen",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/116098",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "651f6abd063ee2f4629fab99840d99df8024368ff7a1455c7f3bb1d1b2918db0",
+      "file_size_bytes": 3755369,
+      "pages": 408,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "unknown",
+      "producer_raw": "Adobe Acrobat (64-bit) 25.1.20531; modified using iText® 5.5.6 ©2000-2015 iText Group NV (AGPL-version)",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de",
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/f515e09e-0402-4942-bad4-a016953ac12c/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-116108",
+      "title": "Schuld und Schulden",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/116108",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "6dde2878759f1fbd52c0bb5034ca829101c8f0575000f7ff72e41319184f2b9a",
+      "file_size_bytes": 1502948,
+      "pages": 77,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Adobe PDF Library 25.1.201",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/9ccb35e1-193c-4cbf-8678-927298f07cff/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-116109",
+      "title": "Schutzkoordination in elektrischen Netzen mithilfe von Metaheuristiken im Umfeld heterogener Datenquellen",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/116109",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "8ad376755b44018300ca9d20dcfc65bd444447faca53fbcb26af674190b3b1f9",
+      "file_size_bytes": 4600803,
+      "pages": 155,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Adobe PDF Library 25.1.201",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/78c6cd3b-5f6b-4a11-bee5-502b5aa5a248/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-116111",
+      "title": "Der Krieg gegen die Ukraine - War against Ukraine",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/116111",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "473d0187010f981da107899e3504154e7e4ce2c4865f1d6d629144975d997f50",
+      "file_size_bytes": 20093278,
+      "pages": 405,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "unknown",
+      "producer_raw": "Adobe PDF Library 25.1.231",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en",
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/1abae6bd-e418-4d4e-a52d-47c000ea0021/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-116114",
+      "title": "Auswirkungen unterschiedlicher Prozessparameter auf Mikrostruktur und Eigenschaften additiv hergestellter TiAl6V4-Legierung für großvolumige Luftfahrtstrukturkomponenten",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/116114",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "4a826a05164d9dfe19d9b400224525926b2b6417a6882b970416a9d8118b74a9",
+      "file_size_bytes": 7656498,
+      "pages": 211,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "Word",
+      "producer_raw": "Microsoft® Word LTSC",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/b5f8ac76-a900-4aac-8ffd-8a5aae3a39e8/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-116115",
+      "title": "Einblicke in Themen der vergleichenden Extremismusforschung",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/116115",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "bad160096bae5f51639ef1f6ce67f535aa0eb83a5297c2dfcab30c0edd0a5b0d",
+      "file_size_bytes": 2404613,
+      "pages": 273,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Adobe PDF Library 25.1.201",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/2129b3b7-863a-477d-bb53-94db6d8f423c/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-116119",
+      "title": "Verformungsmechanismen lamellarer Werkstoffe anhand mikromechanischer und mikrotribologischer Charakterisierung",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/116119",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "8991627a6bf1924d67f3502b7548e20a5b873e51def8e9d4c11a1f9b7bc20971",
+      "file_size_bytes": 12594646,
+      "pages": 138,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Adobe PDF Library 25.1.119",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/942ae96c-2efe-4152-9397-64c14e20bcf1/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-116120",
+      "title": "Soziale Kompetenz und soziale Integration von Grundschulkindern",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/116120",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "da7e9d25152d978518069158ad48028bb17d568eabe7686aa289b6110f81b647",
+      "file_size_bytes": 7796336,
+      "pages": 704,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "unknown",
+      "producer_raw": "Adobe PDF Library 25.1.40",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/812c34a0-4a10-485e-86dc-a4446c609c32/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-116121",
+      "title": "Mikromechanische Untersuchung der Kriecheigenschaften von Ni- und Co-Basis Superlegierungen bei erhöhten Temperaturen",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/116121",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "74877721af34f90db0b568d88f3258eba3dc6752f9dea853e4503761721adb4c",
+      "file_size_bytes": 32428971,
+      "pages": 226,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Adobe PDF Library 25.1.20",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/c3a3c953-bc84-4b56-89de-b35b53eeb6a1/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-116123",
+      "title": "Informelle Sport- und Bewegungsräume: Chancen und Herausforderungen",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/116123",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "219bbb3d248e55932a5e4d1dc93442337ec768ab35a6198ec64f5679779fd92b",
+      "file_size_bytes": 1193479,
+      "pages": 60,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Adobe PDF Library 26.1.158",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/da109414-5ec1-459c-af0d-7472f63d8d44/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-117097",
+      "title": "Business and Human Rights in den USA und in Deutschland",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/117097",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "f25ba6fe14d60b279c97eea3169c817d94786db933b9abfd20ea630976c43e0a",
+      "file_size_bytes": 2024190,
+      "pages": 387,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "unknown",
+      "producer_raw": "iTextSharp™ 5.5.11 ©2000-2017 iText Group NV (AGPL-version); modified using iTextSharp™ 5.5.11 ©2000-2017 iText Group NV (AGPL-version)",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/bde8c7f4-1539-434c-ae7d-01f2a3e810f3/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-117098",
+      "title": "Massenüberwachung von Finanzdaten",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/117098",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "4ed269147039f4d3652502dba0ac7591d668e3c6b23df5365dc44720eb61fa0e",
+      "file_size_bytes": 3079929,
+      "pages": 556,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "unknown",
+      "producer_raw": "iTextSharp™ 5.5.11 ©2000-2017 iText Group NV (AGPL-version); modified using iTextSharp™ 5.5.11 ©2000-2017 iText Group NV (AGPL-version)",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/e3bc10df-589c-4995-9b3b-a4c394dc3e7e/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-117099",
+      "title": "Softwareverträge aus urheberrechtlicher und vertragsrechtlicher Perspektive",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/117099",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "32ba70930a39051ad9bdaa2aa6371bcc459c604404c986a93cb4ce5be8b9a3f3",
+      "file_size_bytes": 4404785,
+      "pages": 409,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "unknown",
+      "producer_raw": "iText® Core 9.2.0 (AGPL version) ©2000-2025 Apryse Group NV",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/6bec2cc1-32b8-4093-87a5-cb4022bb79c7/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-117101",
+      "title": "Die Ausbürgerung von Terroristen",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/117101",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "39532723127f3c1324aeb9eefe3ef87d777714d80c59bfd09482e436b26756b6",
+      "file_size_bytes": 3348007,
+      "pages": 353,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "unknown",
+      "producer_raw": "iText® Core 9.2.0 (AGPL version) ©2000-2025 Apryse Group NV",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/e714c3d2-83e8-4122-84d0-0171b55e8d86/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-117202",
+      "title": "Humanität als Vehikel",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/117202",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "f59fa49e44e1a3dfc48f48ba001021fddea7c33ed3cc8677db1a46e3f30b32e3",
+      "file_size_bytes": 6631615,
+      "pages": 974,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "unknown",
+      "producer_raw": "iTextSharp™ 5.5.11 ©2000-2017 iText Group NV (AGPL-version); modified using iTextSharp™ 5.5.11 ©2000-2017 iText Group NV (AGPL-version)",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/732460cd-3e62-4414-ad77-e99b28f29ce3/retrieve"
+    },
+    {
+      "id": "oapen-20-500-12657-117206",
+      "title": "Lebensweltliche Alltagspragmatik und islamische Normativität",
+      "source": {
+        "name": "OAPEN",
+        "url": "https://library.oapen.org/handle/20.500.12657/117206",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://library.oapen.org/rest/filtered-items?expand=metadata%2Cbitstreams&limit=100&offset=0&query_field%5B%5D=dc.rights.uri&query_op%5B%5D=contains&query_val%5B%5D=creativecommons.org%2Flicenses%2Fby%2F4.0&query_field%5B%5D=dc.language&query_op%5B%5D=contains&query_val%5B%5D=German"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "fa8fe9b67e22c2d9c8c42c1d22620d3ae82b10320af409e63123a90723ad8d65",
+      "file_size_bytes": 2885341,
+      "pages": 253,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "iTextSharp™ 5.5.11 ©2000-2017 iText Group NV (AGPL-version); modified using iTextSharp™ 5.5.11 ©2000-2017 iText Group NV (AGPL-version)",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://library.oapen.org/rest/bitstreams/a7d2a180-7878-4546-acbe-e6ba7f804fcb/retrieve"
+    },
+    {
+      "id": "tr-tr-download-article-file-1645756",
+      "title": "ÇAĞRI MERKEZLERİNİN BANKA TERCİHİNE ETKİSİ : RİZE ÖRNEĞİ / The Impact of Call Centers on Bank Preferences : Rize Case",
+      "source": {
+        "name": "DergiPark",
+        "url": "https://dergipark.org.tr/tr/download/article-file/1645756",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "bibjson.publisher.country:TR / issn 2587-2559"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "101c8d1f2953649be49ef3cac8aa8c5c2e0d1cb05050dcfffdb0067c43d3d22a",
+      "file_size_bytes": 519440,
+      "pages": 19,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "Word",
+      "producer_raw": "Microsoft® Word Microsoft 365 için",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "tr"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://dergipark.org.tr/tr/download/article-file/1645756"
+    },
+    {
+      "id": "tr-tr-download-article-file-2201587",
+      "title": "TÜRKİYE’DE YÜKSEK PERFORMANSLI ÇALIŞMA SİSTEMLERİ (YPÇS): SİSTEMATİK LİTERATÜR ANALİZİ / High Performance Work Systems (HPWS) In Turkey: A Systematic Literature Analysis",
+      "source": {
+        "name": "DergiPark",
+        "url": "https://dergipark.org.tr/tr/download/article-file/2201587",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "bibjson.publisher.country:TR / issn 2587-2559"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "4f16156161bf2b2fe8df3447bd879e927ed90d6ff3902efd962af8634483ef74",
+      "file_size_bytes": 967148,
+      "pages": 22,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "Word",
+      "producer_raw": "Microsoft® Word 2016",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "tr"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://dergipark.org.tr/tr/download/article-file/2201587"
+    },
+    {
+      "id": "tr-tr-download-article-file-4073491",
+      "title": "Fen bilimleri öğretmenlerinin kaynaştırma öğrencilerine yönelik özyeterliklerinin incelenmesi",
+      "source": {
+        "name": "DergiPark",
+        "url": "https://dergipark.org.tr/tr/download/article-file/4073491",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "bibjson.publisher.country:TR / issn 2146-5983"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "a55fa40fa17672b7f7774ea7169a68dd4d00fa2306d50d78ef7b35f2f4e7bed2",
+      "file_size_bytes": 453589,
+      "pages": 15,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "Word",
+      "producer_raw": "Microsoft Word",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "tr"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://dergipark.org.tr/tr/download/article-file/4073491"
+    },
+    {
+      "id": "tr-tr-download-article-file-455941",
+      "title": "GIDA REJİMİ ÇERÇEVESİNDE TÜRKİYE’NİN TARIMSAL DIŞ TİCARETİ ÜZERİNE BİR DEĞERLENDİRME / An Evaluation on Turkish Agricultural Foreign Trade within the Framework of Food Regime",
+      "source": {
+        "name": "DergiPark",
+        "url": "https://dergipark.org.tr/tr/download/article-file/455941",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "bibjson.publisher.country:TR / issn 2587-2559"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "e7d011119ff90581716fe806fa0cd68c58a1580b3bb13a01389489d5adabbba7",
+      "file_size_bytes": 471730,
+      "pages": 20,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "Word",
+      "producer_raw": "Microsoft® Word 2013",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "tr"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://dergipark.org.tr/tr/download/article-file/455941"
+    },
+    {
+      "id": "tr-tr-download-article-file-5474395",
+      "title": "First Mediterranean Record of the Tintinnid, Leprotintinnus simplex (Schmidt, 1902) from İzmir Bay (Aegean Sea, Türkiye)",
+      "source": {
+        "name": "DergiPark",
+        "url": "https://dergipark.org.tr/tr/download/article-file/5474395",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "bibjson.publisher.country:TR / issn 2651-5326"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "57ffc86a9147416a6bb814a0a9ed39e318e2cdfa055c775bf7001bd298a80051",
+      "file_size_bytes": 1319439,
+      "pages": 13,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "Word",
+      "producer_raw": "Microsoft® Word 2016",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "tr"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://dergipark.org.tr/tr/download/article-file/5474395"
+    },
+    {
+      "id": "tr-tr-download-article-file-5494065",
+      "title": "A comparison of secondary education English curricula of Türkiye and Germany in the context of inclusive education",
+      "source": {
+        "name": "DergiPark",
+        "url": "https://dergipark.org.tr/tr/download/article-file/5494065",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "bibjson.publisher.country:TR / issn 2146-5983"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "11c2ffdd4861a1e8a1dc7cbd50284f4d575605dd3807160a5410fa72da1f93dd",
+      "file_size_bytes": 521738,
+      "pages": 20,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "Word",
+      "producer_raw": "Microsoft Word",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "tr"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://dergipark.org.tr/tr/download/article-file/5494065"
+    },
+    {
+      "id": "tr-tr-download-article-file-5676862",
+      "title": "Exploring the interaction between self-esteem, grit, and resilience in pre-service teachers: A mediation analysis",
+      "source": {
+        "name": "DergiPark",
+        "url": "https://dergipark.org.tr/tr/download/article-file/5676862",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "bibjson.publisher.country:TR / issn 2146-5983"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "f6c5a85c919aa639bfbde7a480d48235183351bac596cf1e26c61818c776d644",
+      "file_size_bytes": 677557,
+      "pages": 19,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "Word",
+      "producer_raw": "Microsoft Word",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "tr"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://dergipark.org.tr/tr/download/article-file/5676862"
+    },
+    {
+      "id": "tr-tr-download-article-file-5736264",
+      "title": "Yaşlı Bireyler İçin İyileştirici Mekânlar: Antalya’da Bedensel ve Ruhsal Sağlığı Destekleyen Yaklaşımlar",
+      "source": {
+        "name": "DergiPark",
+        "url": "https://dergipark.org.tr/tr/download/article-file/5736264",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "bibjson.publisher.country:TR / issn 1302-9622"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "6c7e06054a2c97fcd2ed693579c1941c870dddcf92ad591714facbf8a2dac933",
+      "file_size_bytes": 2343201,
+      "pages": 23,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Microsoft: Print To PDF",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "tr"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://dergipark.org.tr/tr/download/article-file/5736264"
+    },
+    {
+      "id": "tr-tr-download-article-file-607884",
+      "title": "Signature of Anthropogenic Impacts in Detritus Decomposition and the Freshwater Snail Melanopsis buccinoidea",
+      "source": {
+        "name": "DergiPark",
+        "url": "https://dergipark.org.tr/tr/download/article-file/607884",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "bibjson.publisher.country:TR / issn 2651-5326"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "afb81d529dc1aed500fc86e55e2bec700c84c111558b529453b67625f1b30f5b",
+      "file_size_bytes": 554578,
+      "pages": 9,
+      "category": "simple",
+      "difficulty": 1,
+      "producer_stratum": "Word",
+      "producer_raw": "Microsoft® Word 2016",
+      "tagged": true,
+      "holdout": true,
+      "expected_problems": [
+        "tagged-pdf"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "tr"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://dergipark.org.tr/tr/download/article-file/607884"
+    },
+    {
+      "id": "usgov-ntrs-19740009451",
+      "title": "IMP J summary technical report",
+      "source": {
+        "name": "US-Gov",
+        "url": "https://ntrs.nasa.gov/citations/19740009451",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://ntrs.nasa.gov/api/citations/search?q=technical+report&page.size=100&page.from=0"
+      },
+      "license": {
+        "name": "PD-US-Gov",
+        "url": "https://www.usa.gov/government-works",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "fb1696777cee3cb24a61e577d97b939b8a2282b0f2ead0e86d87006eee000155",
+      "file_size_bytes": 597270,
+      "pages": 29,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "www.adlibsoftware.com:EXS3210-Windows XP:TNG",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://ntrs.nasa.gov/api/citations/19740009451/downloads/19740009451.pdf"
+    },
+    {
+      "id": "usgov-ntrs-19820020337",
+      "title": "A review and evaluation of the Langley Research Center's Scientific and Technical Information Program: Results of phase 6: The technical report. A survey and analysis",
+      "source": {
+        "name": "US-Gov",
+        "url": "https://ntrs.nasa.gov/citations/19820020337",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://ntrs.nasa.gov/api/citations/search?q=technical+report&page.size=100&page.from=0"
+      },
+      "license": {
+        "name": "PD-US-Gov",
+        "url": "https://www.usa.gov/government-works",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "4715b59b5e64233643f868a218473d3df0a3aca1f11937b13aceac54ab926d4a",
+      "file_size_bytes": 5881328,
+      "pages": 140,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Adobe Acrobat 8.12 Paper Capture Plug-in",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://ntrs.nasa.gov/api/citations/19820020337/downloads/19820020337.pdf"
+    },
+    {
+      "id": "usgov-ntrs-19890007335",
+      "title": "Exploration Studies Technical Report - Volume 1: Technical Summary",
+      "source": {
+        "name": "US-Gov",
+        "url": "https://ntrs.nasa.gov/citations/19890007335",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://ntrs.nasa.gov/api/citations/search?q=technical+report&page.size=100&page.from=0"
+      },
+      "license": {
+        "name": "PD-US-Gov",
+        "url": "https://www.usa.gov/government-works",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "2ebfa8753543ebb88a695a863350ae40399f588b19b7d599644dc56413d3ac2e",
+      "file_size_bytes": 3958004,
+      "pages": 48,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Adobe PDF Library 4.0",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://ntrs.nasa.gov/api/citations/19890007335/downloads/19890007335.pdf"
+    },
+    {
+      "id": "usgov-ntrs-19890007336",
+      "title": "Exploration Studies Technical Report - Volume 2: Studies Approach and Results",
+      "source": {
+        "name": "US-Gov",
+        "url": "https://ntrs.nasa.gov/citations/19890007336",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://ntrs.nasa.gov/api/citations/search?q=technical+report&page.size=100&page.from=0"
+      },
+      "license": {
+        "name": "PD-US-Gov",
+        "url": "https://www.usa.gov/government-works",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "c43a24b52645cbc6a420ee0e5287bede27a52d4561027bc8e5b3063eb2f71790",
+      "file_size_bytes": 38465193,
+      "pages": 355,
+      "category": "difficult",
+      "difficulty": 3,
+      "producer_stratum": "unknown",
+      "producer_raw": "www.adlibsoftware.com:EXS3221-Windows 2003:TNG",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://ntrs.nasa.gov/api/citations/19890007336/downloads/19890007336.pdf"
+    },
+    {
+      "id": "usgov-ntrs-19900016326",
+      "title": "Center for Space Microelectronics Technology 1988-1989 technical report",
+      "source": {
+        "name": "US-Gov",
+        "url": "https://ntrs.nasa.gov/citations/19900016326",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://ntrs.nasa.gov/api/citations/search?q=technical+report&page.size=100&page.from=0"
+      },
+      "license": {
+        "name": "PD-US-Gov",
+        "url": "https://www.usa.gov/government-works",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "b83bcc4f368d7f0dc60f8f877f0e0f347708fe8b32a757395b481cb8b216ea30",
+      "file_size_bytes": 4733335,
+      "pages": 124,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Pdf.Capture version 5.2",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://ntrs.nasa.gov/api/citations/19900016326/downloads/19900016326.pdf"
+    },
+    {
+      "id": "usgov-ntrs-19930013813",
+      "title": "Technical report writing",
+      "source": {
+        "name": "US-Gov",
+        "url": "https://ntrs.nasa.gov/citations/19930013813",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://ntrs.nasa.gov/api/citations/search?q=technical+report&page.size=100&page.from=0"
+      },
+      "license": {
+        "name": "PD-US-Gov",
+        "url": "https://www.usa.gov/government-works",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "6db10d3ab4a351e22300011ad99cd0ff7032c4a48ca45eee6e45085bbc1bf159",
+      "file_size_bytes": 4070338,
+      "pages": 34,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Pdf.Capture version 5.2",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://ntrs.nasa.gov/api/citations/19930013813/downloads/19930013813.pdf"
+    },
+    {
+      "id": "usgov-ntrs-19940020187",
+      "title": "NADA/DOD Aerospace Knowledge Diffusion Research Project. Report number 19: The US government technical report and the transfer of federally funded aerospace R/D: An analysis of five studies",
+      "source": {
+        "name": "US-Gov",
+        "url": "https://ntrs.nasa.gov/citations/19940020187",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://ntrs.nasa.gov/api/citations/search?q=technical+report&page.size=100&page.from=0"
+      },
+      "license": {
+        "name": "PD-US-Gov",
+        "url": "https://www.usa.gov/government-works",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "55af10e188b88756d8a3f43c36eb01ee40f8f50c87f0797b4125622abc699609",
+      "file_size_bytes": 4917830,
+      "pages": 118,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Pdf.Capture version 5.2",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://ntrs.nasa.gov/api/citations/19940020187/downloads/19940020187.pdf"
+    },
+    {
+      "id": "usgov-ntrs-19940023070",
+      "title": "Electronic document distribution: Design of the anonymous FTP Langley Technical Report Server",
+      "source": {
+        "name": "US-Gov",
+        "url": "https://ntrs.nasa.gov/citations/19940023070",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://ntrs.nasa.gov/api/citations/search?q=technical+report&page.size=100&page.from=0"
+      },
+      "license": {
+        "name": "PD-US-Gov",
+        "url": "https://www.usa.gov/government-works",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "c5ae3e2b0b4bbae2b38f10839696347591b7d906e52f64175695ada16d41b80f",
+      "file_size_bytes": 984250,
+      "pages": 20,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Pdf.Capture version 5.2",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://ntrs.nasa.gov/api/citations/19940023070/downloads/19940023070.pdf"
+    },
+    {
+      "id": "usgov-ntrs-19950006785",
+      "title": "World wide web implementation of the Langley technical report server",
+      "source": {
+        "name": "US-Gov",
+        "url": "https://ntrs.nasa.gov/citations/19950006785",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://ntrs.nasa.gov/api/citations/search?q=technical+report&page.size=100&page.from=0"
+      },
+      "license": {
+        "name": "PD-US-Gov",
+        "url": "https://www.usa.gov/government-works",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "123a9fd90ac86c11c770ba137570beaa4e6370524d46937ba8d4d02e8fbe849d",
+      "file_size_bytes": 1906165,
+      "pages": 34,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Pdf.Capture version 5.2",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://ntrs.nasa.gov/api/citations/19950006785/downloads/19950006785.pdf"
+    },
+    {
+      "id": "usgov-ntrs-19960008027",
+      "title": "Recent improvements in the NASA technical report server",
+      "source": {
+        "name": "US-Gov",
+        "url": "https://ntrs.nasa.gov/citations/19960008027",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://ntrs.nasa.gov/api/citations/search?q=technical+report&page.size=100&page.from=0"
+      },
+      "license": {
+        "name": "PD-US-Gov",
+        "url": "https://www.usa.gov/government-works",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "668702c0a40944545df877110cf5df5ced3368f86271bfeaadddba5edd3cdd0d",
+      "file_size_bytes": 34272,
+      "pages": 10,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Acrobat Distiller Command 3.0 for Solaris 2.3 and later (SPARC)",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://ntrs.nasa.gov/api/citations/19960008027/downloads/19960008027.pdf"
+    },
+    {
+      "id": "usgov-ntrs-19960045292",
+      "title": "International Space Station ECLSS Technical Task Agreement Summary Report",
+      "source": {
+        "name": "US-Gov",
+        "url": "https://ntrs.nasa.gov/citations/19960045292",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://ntrs.nasa.gov/api/citations/search?q=technical+report&page.size=100&page.from=0"
+      },
+      "license": {
+        "name": "PD-US-Gov",
+        "url": "https://www.usa.gov/government-works",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "715cbd9ace80c1cd2892f6bd6434c4d13256a5234f859c24dfe60acb94a39f15",
+      "file_size_bytes": 5739635,
+      "pages": 108,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Pdf.Capture version 5.2",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://ntrs.nasa.gov/api/citations/19960045292/downloads/19960045292.pdf"
+    },
+    {
+      "id": "usgov-ntrs-19970014917",
+      "title": "Center for Space Microelectronics Technology. 1993 Technical Report",
+      "source": {
+        "name": "US-Gov",
+        "url": "https://ntrs.nasa.gov/citations/19970014917",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://ntrs.nasa.gov/api/citations/search?q=technical+report&page.size=100&page.from=0"
+      },
+      "license": {
+        "name": "PD-US-Gov",
+        "url": "https://www.usa.gov/government-works",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "0190e79bc3cdfb05944dbacee57b173d368fa1e47a1f8540408acf170f1c66be",
+      "file_size_bytes": 5063820,
+      "pages": 138,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Pdf.Capture version 5.2",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://ntrs.nasa.gov/api/citations/19970014917/downloads/19970014917.pdf"
+    },
+    {
+      "id": "usgov-ntrs-20010072241",
+      "title": "SeaWiFS Postlaunch Technical Report Series Cumulative Index",
+      "source": {
+        "name": "US-Gov",
+        "url": "https://ntrs.nasa.gov/citations/20010072241",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://ntrs.nasa.gov/api/citations/search?q=technical+report&page.size=100&page.from=0"
+      },
+      "license": {
+        "name": "PD-US-Gov",
+        "url": "https://www.usa.gov/government-works",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "4240c829e053504a7ac333d6fc4dfa2901b7d70ae3e3ac6b9371f3badbbb96f7",
+      "file_size_bytes": 2234059,
+      "pages": 32,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Pdf.Capture version 5.2",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://ntrs.nasa.gov/api/citations/20010072241/downloads/20010072241.pdf"
+    },
+    {
+      "id": "usgov-ntrs-20040139753",
+      "title": "Optimizing the NASA Technical Report Server",
+      "source": {
+        "name": "US-Gov",
+        "url": "https://ntrs.nasa.gov/citations/20040139753",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://ntrs.nasa.gov/api/citations/search?q=technical+report&page.size=100&page.from=0"
+      },
+      "license": {
+        "name": "PD-US-Gov",
+        "url": "https://www.usa.gov/government-works",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "adccd02235798b1431695b1c2286b9d549de1602e00da551dd187cf0b4217f9f",
+      "file_size_bytes": 1026857,
+      "pages": 12,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Adobe PDF Library 4.0",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://ntrs.nasa.gov/api/citations/20040139753/downloads/20040139753.pdf"
+    },
+    {
+      "id": "usgov-ntrs-20060010177",
+      "title": "Joint Technical Architecture for Robotic Systems (JTARS)-Final Report",
+      "source": {
+        "name": "US-Gov",
+        "url": "https://ntrs.nasa.gov/citations/20060010177",
+        "retrieved_date": "2026-09-20",
+        "selection_query": "https://ntrs.nasa.gov/api/citations/search?q=technical+report&page.size=100&page.from=0"
+      },
+      "license": {
+        "name": "PD-US-Gov",
+        "url": "https://www.usa.gov/government-works",
+        "verified_by": "oc-eval corpus harvest",
+        "verified_date": "2026-09-20"
+      },
+      "sha256": "d6aa8684fe5b60c9f1be5c85aee77ab8d3ee6db0c70ae1358cc5b762bdf093db",
+      "file_size_bytes": 537995,
+      "pages": 15,
+      "category": "simple",
+      "difficulty": 2,
+      "producer_stratum": "unknown",
+      "producer_raw": "Acrobat Distiller 7.0.5 (Windows)",
+      "tagged": false,
+      "holdout": true,
+      "expected_problems": [],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "none",
+      "generator": "n/a-real-world",
+      "defect_injection": [],
+      "download_url": "https://ntrs.nasa.gov/api/citations/20060010177/downloads/20060010177.pdf"
     }
   ]
 }

@@ -70,6 +70,64 @@ def corpus_lint(
     typer.echo("corpus lint: clean", err=True)
 
 
+@corpus_app.command("harvest")
+def corpus_harvest(
+    manifest: Path = typer.Option(DEFAULT_MANIFEST, help="Manifest to merge admissions into."),
+    dest: Path = typer.Option(DEFAULT_DOWNLOAD_DIR, help="Where admitted files are kept."),
+    plan: str = typer.Option("", help="source=count pairs; empty means TEST_CORPUS §7.6."),
+    write: bool = typer.Option(False, help="Write the manifest. Without it, nothing is saved."),
+    max_file_mb: int = typer.Option(40, help="Skip any single file larger than this."),
+) -> None:
+    """Fetch, probe and admit real-world documents into the frozen holdout (TEST_CORPUS §7.6).
+
+    Reaches the network. Without `--write` it downloads, probes and reports, and leaves the
+    manifest alone — which is how a sourcing run is inspected before it is committed to.
+    """
+    from oc_eval.corpus import harvest as harvest_mod
+    from oc_eval.corpus.sources import registry
+
+    existing = manifest_mod.load(manifest)
+    known = {item.id for item in existing.entries}
+    report = harvest_mod.HarvestReport()
+
+    for source_name, want in harvest_mod.plan_from(plan or registry.DEFAULT_PLAN):
+        source = registry.SOURCES.get(source_name)
+        if source is None:
+            typer.echo(f"unknown source {source_name!r}", err=True)
+            raise typer.Exit(code=2)
+        before = len(report.admitted)
+        held = known | {str(e["id"]) for e in report.admitted}
+        harvest_mod.admit(
+            # Over-ask. A source generator is lazy and `admit` stops at `want`, so the extra
+            # costs nothing on a first run and is the only thing that lets a top-up reach past
+            # the documents an earlier harvest already took.
+            source(harvest_mod.ask_for(want, already_held=len(held))),
+            dest_dir=dest,
+            known_ids=held,
+            report=report,
+            max_file_bytes=max_file_mb * 1024 * 1024,
+            want=want,
+        )
+        typer.echo(f"{source_name:12} admitted {len(report.admitted) - before}/{want}", err=True)
+
+    typer.echo(
+        f"admitted {len(report.admitted)}, rejected {len(report.rejected)} "
+        f"({report.reasons}), {report.bytes_downloaded / 1e6:.1f} MB",
+        err=True,
+    )
+
+    merged = harvest_mod.merge(existing, report.admitted)
+    typer.echo(
+        f"manifest would hold {len(merged.entries)} entries, "
+        f"{merged.holdout_document_count} holdout documents, "
+        f"ours share {merged.ours_share:.3f}",
+        err=True,
+    )
+    if write:
+        manifest_mod.dump(merged, manifest)
+        typer.echo(f"wrote {manifest}", err=True)
+
+
 @corpus_app.command("stats")
 def corpus_stats(
     manifest: Path = typer.Option(DEFAULT_MANIFEST, help="Manifest to summarise."),

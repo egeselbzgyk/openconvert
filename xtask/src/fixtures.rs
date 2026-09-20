@@ -8,7 +8,9 @@
 //! Struct trees are stripped by default (D18). Typst tags its PDFs, and the real world is
 //! 12.6 % tagged — a fixture that hands the pipeline a structure tree tests a path most
 //! books will never take. `--keep-structtree` emits the tagged variants instead, named
-//! `<fixture>__tagged.pdf`, for the Phase 4 bucket that wants them.
+//! `<fixture>__tagged.pdf`, for the Phase 4 bucket that wants them — and only for the
+//! fixtures [`TAGGED_FIXTURES`] names, so that the bucket stays the ~12.6 % share D18 asks
+//! for rather than becoming half the synthetic corpus.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -32,6 +34,18 @@ const OUTPUT_DIR: &str = "target/fixtures";
 
 /// Suffix for the tagged variants (D18's separate bucket).
 const TAGGED_SUFFIX: &str = "__tagged";
+
+/// The fixtures that get a tagged variant, and the only ones.
+///
+/// D18 keeps tagged files a *separate ~12.6 % bucket* because Typst tags every PDF it writes
+/// and the real world does not. Emitting a tagged variant of every fixture, which is what this
+/// task used to do, makes the synthetic bucket 50 % tagged — the opposite of what the decision
+/// asks for, and a corpus that teaches the pipeline a struct tree is the normal case.
+///
+/// Two names, out of ten sources, is 2/12 = 0.167: the widest coverage that still lands inside
+/// `corpus.tagged_share_target` +/- `corpus.tagged_share_tolerance`. They are one English and
+/// one German fixture, so the tagged path is exercised in both scripts the tagging affects.
+const TAGGED_FIXTURES: &[&str] = &["f01_prose_single_column", "f04_german_prose"];
 
 /// The corpus stratum every fixture this task produces belongs to (D18).
 const STRATUM: &str = "ours(Typst)";
@@ -130,6 +144,9 @@ pub fn run(root: &Path, keep_structtree: bool) -> Result<()> {
     let mut entries = BTreeMap::new();
     for source in &sources {
         let stem = fixture_stem(source)?;
+        if keep_structtree && !TAGGED_FIXTURES.contains(&stem.as_str()) {
+            continue;
+        }
         let name = if keep_structtree {
             format!("{stem}{TAGGED_SUFFIX}")
         } else {
@@ -372,6 +389,48 @@ fn typst_fixtures_are_reproducible() {
             first.starts_with(b"%PDF-"),
             "{} did not produce a PDF",
             source.display()
+        );
+    }
+}
+
+#[test]
+fn the_tagged_bucket_is_the_share_the_real_world_has() {
+    use crate::fixtures::{source_paths, workspace_root_for_test, TAGGED_FIXTURES};
+    use oc_core::thresholds::T;
+
+    let root = workspace_root_for_test();
+    let sources = source_paths(&root).expect("the fixture sources are readable");
+
+    // Every source is emitted untagged; TAGGED_FIXTURES are emitted a second time with their
+    // struct tree kept. The synthetic bucket is therefore both together.
+    let bucket = sources.len() + TAGGED_FIXTURES.len();
+    let share = TAGGED_FIXTURES.len() as f64 / bucket as f64;
+
+    assert!(
+        (share - T.corpus.tagged_share_target).abs() <= T.corpus.tagged_share_tolerance,
+        "the synthetic bucket would be {share:.3} tagged; D18 wants \
+         {target} +/- {tolerance}. Typst tags every PDF it writes, so a fixture set that keeps \
+         every struct tree teaches the pipeline that tagged is the normal case",
+        target = T.corpus.tagged_share_target,
+        tolerance = T.corpus.tagged_share_tolerance,
+    );
+}
+
+#[test]
+fn every_named_tagged_fixture_is_a_fixture_that_exists() {
+    use crate::fixtures::{fixture_stem, source_paths, workspace_root_for_test, TAGGED_FIXTURES};
+
+    let root = workspace_root_for_test();
+    let stems: Vec<String> = source_paths(&root)
+        .expect("the fixture sources are readable")
+        .iter()
+        .map(|source| fixture_stem(source).expect("a fixture has a stem"))
+        .collect();
+
+    for name in TAGGED_FIXTURES {
+        assert!(
+            stems.iter().any(|stem| stem == name),
+            "TAGGED_FIXTURES names {name:?}, which is not among {stems:?}"
         );
     }
 }

@@ -17,10 +17,6 @@ from oc_eval.corpus import manifest as mf
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
-# The share of the synthetic bucket that carries a struct tree. D18 strips them by default and
-# keeps a tagged variant bucket at roughly the real-world rate; ±5 points is §1.8's tolerance.
-TAGGED_SHARE_TOLERANCE = 0.05
-
 
 @dataclass(frozen=True)
 class Finding:
@@ -120,7 +116,9 @@ def _target_is_expressible(size: int, target: float) -> bool:
     """Can a bucket of `size` files land within tolerance of `target` at all?"""
     if size == 0:
         return False
-    return any(abs(tagged / size - target) <= TAGGED_SHARE_TOLERANCE for tagged in range(size + 1))
+    return any(
+        abs(tagged / size - target) <= mf.tagged_share_tolerance() for tagged in range(size + 1)
+    )
 
 
 def _is_blocked(name: str) -> bool:
@@ -171,12 +169,13 @@ def tagged_share_off_target(manifest: mf.Manifest) -> Iterator[Finding]:
         # within five points of 0.126 however it is built. Reporting that as a finding would
         # be reporting arithmetic, not a corpus defect.
         return
+    tolerance = mf.tagged_share_tolerance()
     share = sum(1 for item in synthetic if item.tagged) / len(synthetic)
-    if abs(share - target) > TAGGED_SHARE_TOLERANCE:
+    if abs(share - target) > tolerance:
         yield Finding(
             "tagged-share-off-target",
             None,
-            f"synthetic bucket is {share:.3f} tagged, target {target} +/-{TAGGED_SHARE_TOLERANCE}",
+            f"synthetic bucket is {share:.3f} tagged, target {target} +/-{tolerance}",
         )
 
 

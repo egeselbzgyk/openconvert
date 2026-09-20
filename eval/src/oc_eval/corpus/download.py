@@ -154,6 +154,23 @@ def _stream_to(url: str, partial: Path, opener: Opener) -> int | None:
     return written
 
 
+def fetch_unverified(url: str, target: Path, *, opener: Opener = default_opener) -> int:
+    """Fetch a file whose digest is not yet known, and return the bytes written.
+
+    This is the harvest's first sight of a candidate and the only place a file is written
+    without being checked against a digest first — there is nothing to check it against yet.
+    The digest computed from what arrives becomes the manifest's, and every fetch after this
+    one goes through `fetch_entry`, which does check.
+    """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_suffix(target.suffix + ".part")
+    written = _stream_to(url, partial, opener)
+    if written is None:
+        raise NoSourceAvailable(f"{url}: unavailable")
+    partial.replace(target)
+    return written
+
+
 def fetch_all(
     entries: Iterable[Mapping[str, Any]],
     dest_dir: Path,

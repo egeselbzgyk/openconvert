@@ -99,6 +99,10 @@ def tagged_share_target() -> float:
     return float(thresholds.value("corpus.tagged_share_target"))
 
 
+def tagged_share_tolerance() -> float:
+    return float(thresholds.value("corpus.tagged_share_tolerance"))
+
+
 @dataclass(frozen=True)
 class Entry:
     """One manifest entry, with the questions the rules ask it."""
