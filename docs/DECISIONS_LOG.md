@@ -2807,3 +2807,43 @@ Evidence: 2 of 17 admitted under the Phase 7 rule, 16 of 17 under the corrected 
 being the in-copyright translation.
 Affects: IMPLEMENTATION_PLAN PHASE 7.5 implementation item 1 and rows 7.5.0x-z, TEST_CORPUS §7.1,
 `eval/src/oc_eval/corpus/stratify.py`.
+
+## 2026-09-20 · The reading corpus's three languages are not equally available · Phase 7.5
+Context: three subagents produced candidate lists for the reading corpus, one per language. Each list
+was then run through the corrected `PD-old-work` admission — author death year + 70, not in a lending
+collection, item holds a PDF, a translation dated by its translator.
+Results: **English 16 of 17 admitted. German 23 of 24. Turkish 4 of 10.**
+The Turkish rejections are not a sourcing failure, they are a fact about the language, and it is worth
+writing down because it will not change by searching harder:
+
+| Work | Author | Died | Public domain in |
+|---|---|---|---|
+| Çalıkuşu | Reşat Nuri Güntekin | 1956 | **2027** — misses by one year |
+| Yeni Turan | Halide Edib Adıvar | 1964 | 2035 |
+| Yorgun Savaşçı | Kemal Tahir | 1973 | 2044 |
+| İstanbul'un Bir Gecesi (İthaki, 2018) | Suat Derviş | 1972 | 2043 |
+| Başakların Sesi (1968) | Müjgan Cunbur | 2005 | 2076 |
+
+Turkish copyright runs life + 70, and the alphabet reform was **1928**. A Latin-script Turkish novel is
+therefore public domain only if its author both wrote after 1928 and died before 1956 — a window of
+twenty-eight years. Everything older is in Ottoman Arabic script, which is a different extraction
+problem and not what `--preset novel` is for; everything newer is in copyright. The four admitted
+entries sit on the wrong side of that: Namık Kemal (d. 1888) and Tevfik Fikret (d. 1915) are
+Ottoman-script or verse, and the two Halit Ziya Uşaklıgil works (d. 1945) straddle the reform.
+Decision: the Turkish slice is sourced from the window rather than from a general search. The authors
+who fall inside it and are widely read are **Sabahattin Ali (d. 1948)** and **Sait Faik Abasıyanık
+(d. 1954)**; both wrote in Latin script, both are in every Turkish school curriculum, and both are
+public domain now. Reşat Nuri Güntekin enters on 1 January 2027 and the manifest should carry the
+entry with its date so it can be admitted then rather than rediscovered.
+If the window cannot supply forty documents — and it may not — the Turkish slice is **reported short
+with its reason** rather than padded with Ottoman-script scans that answer a different question. A
+slice that reaches its count by changing what it contains has not met the target; TEST_CORPUS §7.6
+already says this about the holdout and it applies here.
+A second process note, sharper than the first: the Turkish subagent labelled **every** entry
+`PD-old-work` or `CC0`, including Kemal Tahir's *Yorgun Savaşçı* — which is the same file
+`docs/TEST_CORPUS.md` §7.5a already lists in `example_pdfs/` with the note "**Assume in copyright**
+(Kemal Tahir, 1965) … Local use only." The project's own documentation contradicted the agent's
+licence claim, and only the admission check caught it. Redistributing that file would have been an
+infringement committed by a corpus built to be redistributable.
+Evidence: `corpus/reading/candidates_{en,de,tr}.json` against the death-year admission.
+Affects: IMPLEMENTATION_PLAN PHASE 7.5 item 1 and A7.5.0, TEST_CORPUS §7.6.

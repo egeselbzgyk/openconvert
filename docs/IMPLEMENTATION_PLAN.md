@@ -2538,7 +2538,8 @@ Phase deps: 7 (the corpus and the harness are the instrument). No new external d
 
 | # | Given | When | Then |
 |---|---|---|---|
-| A7.5.0 | the reading corpus | `oc-eval corpus stats --reading` | ≥ 40 documents per language across en/de/tr, every licence on §7.1's allowlist, none of them holdout **[anchored: binary]** |
+| A7.5.0 | the reading corpus | `oc-eval corpus stats --reading` | ≥ 40 documents for `en` and `de`, every licence on §7.1's allowlist or admitted as `PD-old-work` with an author death year, none of them holdout **[anchored: binary]** |
+| A7.5.0b | the Turkish slice | inspecting its composition | sourced from the 1928–1956 window (Sabahattin Ali, Sait Faik and their contemporaries); if it cannot reach 40 it is **reported short with its reason** and never padded with Ottoman-script scans, which answer a different question **[execution target]** |
 | A7.5.1 | both corpora | `oc-eval run` | I-1 … I-7 hold on 100 % of both — Appendix D's first correctness item, which is what this phase exists to deliver **[anchored: binary]** |
 | A7.5.2 | any refusal | `openconvert diff-stage` | the characters that left or appeared are named, with their block, page and claimant, in one command **[anchored: binary]** |
 | A7.5.3 | the defect inventory | inspection | every admitted class has ≥ 3 documents across ≥ 2 strata, a written *how else could this arise*, an architectural fix and an invariant test; every open class has its diagnostic output recorded |
