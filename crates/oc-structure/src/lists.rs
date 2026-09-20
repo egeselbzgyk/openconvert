@@ -137,9 +137,10 @@ pub fn detect_lists(
             end += 1;
         }
         let run = &marked[start..=last_marked];
-        if let Some(list) = build_list(
+        if let Some((list, placed)) = build_list(
             run,
             &lines,
+            last_marked,
             minimum,
             tolerance,
             &mut Build {
@@ -150,8 +151,10 @@ pub fn detect_lists(
             &mut warnings,
         ) {
             lists.push(list);
-            // Every line of the run, marked or continuation, is inside the list now.
-            consumed_lines.extend(start..=last_marked);
+            // Exactly the lines the builder placed into items — not the range they came
+            // from. A line the builder skipped stays in the flow, where the reader can still
+            // see it, instead of being claimed by a list that never emitted it.
+            consumed_lines.extend(placed);
         }
         start = last_marked + 1;
     }
@@ -202,14 +205,22 @@ struct Build<'a> {
     minter: &'a mut Minter,
 }
 
+/// Build one list, and report **which lines it actually placed into items**.
+///
+/// The second half of the return is the whole point (PHASE 7.5). A caller that recorded the
+/// run as consumed and then asked this function to build it was asserting a claim about work
+/// it had not seen done; every line the builder skipped — a continuation line, a level past
+/// `list.max_depth` — was claimed and then silently dropped. The placed set is derived by the
+/// same code that builds the paragraphs, so the two cannot drift apart.
 fn build_list(
     run: &[Option<Marked>],
     lines: &[(&BlockView, &LineView)],
+    run_end: usize,
     minimum: usize,
     tolerance: f32,
     build: &mut Build<'_>,
     warnings: &mut Vec<Warning>,
-) -> Option<List> {
+) -> Option<(List, std::collections::BTreeSet<usize>)> {
     let markers: Vec<&Marked> = run.iter().flatten().collect();
     if markers.len() < minimum {
         return None;
@@ -232,37 +243,67 @@ fn build_list(
         return None;
     }
 
-    let items = build_level(&markers, top, tolerance, 1, build, lines);
+    // Where each item's lines stop, computed once over the run's *global* marker order.
+    // A nested level sees only its own markers, so a boundary computed from that slice would
+    // run past the parent's next item and place the same lines in two items at once — which
+    // is a conservation failure in the other direction, and how this was found.
+    let boundaries: std::collections::BTreeMap<usize, usize> = markers
+        .iter()
+        .enumerate()
+        .map(|(position, marker)| {
+            let next = markers
+                .get(position + 1)
+                .map(|next| next.line)
+                .unwrap_or(run_end.saturating_add(1));
+            (marker.line, next)
+        })
+        .collect();
+
+    let mut placed: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
+    let items = build_level(
+        &markers,
+        top,
+        tolerance,
+        1,
+        build,
+        lines,
+        &boundaries,
+        &mut placed,
+    );
     check_numbering(&siblings, warnings);
 
-    Some(List {
-        id: build.minter.mint(
-            siblings.first()?.page,
-            lines
-                .get(siblings.first()?.line)
-                .map(|(_, line)| line.bbox())
-                .unwrap_or(oc_model::geom::Rect {
-                    x0: 0.0,
-                    y0: 0.0,
-                    x1: 0.0,
-                    y1: 0.0,
-                }),
-            "list",
-        ),
-        ordered: kind.is_ordered(),
-        start: siblings
-            .first()
-            .and_then(|marker| marker.value)
-            .filter(|value| *value != 1),
-        items,
-        confidence: Confidence::deterministic(vec![
-            Signal::new("siblings", siblings.len() as f32),
-            Signal::new("depth", 1.0),
-        ]),
-    })
+    Some((
+        List {
+            id: build.minter.mint(
+                siblings.first()?.page,
+                lines
+                    .get(siblings.first()?.line)
+                    .map(|(_, line)| line.bbox())
+                    .unwrap_or(oc_model::geom::Rect {
+                        x0: 0.0,
+                        y0: 0.0,
+                        x1: 0.0,
+                        y1: 0.0,
+                    }),
+                "list",
+            ),
+            ordered: kind.is_ordered(),
+            start: siblings
+                .first()
+                .and_then(|marker| marker.value)
+                .filter(|value| *value != 1),
+            items,
+            confidence: Confidence::deterministic(vec![
+                Signal::new("siblings", siblings.len() as f32),
+                Signal::new("depth", 1.0),
+            ]),
+        },
+        placed,
+    ))
 }
 
 /// Build the items at one indent level, recursing into the deeper ones.
+#[allow(clippy::too_many_arguments)]
 fn build_level(
     markers: &[&Marked],
     indent: f32,
@@ -270,6 +311,8 @@ fn build_level(
     depth: u8,
     build: &mut Build<'_>,
     lines: &[(&BlockView, &LineView)],
+    boundaries: &std::collections::BTreeMap<usize, usize>,
+    placed: &mut std::collections::BTreeSet<usize>,
 ) -> Vec<ListItem> {
     let max_depth = u8::try_from(build.t.list.max_depth).unwrap_or(5);
     let at_level: Vec<usize> = markers
@@ -293,16 +336,35 @@ fn build_level(
                 .collect();
 
             // The item's own lines: its marked line and every unmarked line beneath it
-            // before the next marker.
-            let own = lines.get(marker.line).map(|(_, line)| *line)?;
+            // before the next marker — which is what this comment has always said and what
+            // the code did not do. Taking only `marker.line` dropped every continuation line
+            // in the book's lists, and the caller had already recorded them as consumed
+            // (PHASE 7.5, `structure/lost/claim-without-emission`).
+            //
+            // The next marker is the next one at *any* level: a deeper marker opens a nested
+            // item, and its lines belong to that item rather than to this one.
+            let next = boundaries.get(&marker.line).copied()?;
+            let own: Vec<&LineView> = (marker.line..next)
+                .filter_map(|index| lines.get(index).map(|(_, line)| *line))
+                .collect();
+            if own.is_empty() {
+                return None;
+            }
+            let mut source: Vec<BlockId> = (marker.line..next)
+                .filter_map(|index| lines.get(index).map(|(block, _)| block.id))
+                .collect();
+            source.dedup();
             let para = para_of(
                 build.minter,
                 marker.page,
-                &[marker.block],
-                &[own],
+                &source,
+                &own,
                 build.noterefs,
                 build.t,
             );
+            // Recorded here, beside the paragraph that carries them, so that the claim and
+            // the emission are written by the same statement.
+            placed.extend(marker.line..next);
 
             let nested = if deeper.is_empty() || depth >= max_depth {
                 None
@@ -316,7 +378,7 @@ fn build_level(
                 Some(Box::new(List {
                     id: build
                         .minter
-                        .mint(owned.first()?.page, own.bbox(), "nested list"),
+                        .mint(owned.first()?.page, own.first()?.bbox(), "nested list"),
                     ordered: kind.is_ordered(),
                     start: owned.first().and_then(|m| m.value).filter(|v| *v != 1),
                     items: build_level(
@@ -326,6 +388,8 @@ fn build_level(
                         depth.saturating_add(1),
                         build,
                         lines,
+                        boundaries,
+                        placed,
                     ),
                     confidence: Confidence::deterministic(vec![Signal::new(
                         "depth",

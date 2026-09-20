@@ -2847,3 +2847,124 @@ licence claim, and only the admission check caught it. Redistributing that file 
 infringement committed by a corpus built to be redistributable.
 Evidence: `corpus/reading/candidates_{en,de,tr}.json` against the death-year admission.
 Affects: IMPLEMENTATION_PLAN PHASE 7.5 item 1 and A7.5.0, TEST_CORPUS §7.6.
+
+## 2026-09-20 · Defect class `structure/lost/claim-without-emission`, admitted and worked · Phase 7.5
+Context: `openconvert diff-stage structure` (row 7.5.1) was pointed at the corpus. Of the first 22
+documents, **7 across 2 producer strata** report blocks claimed by a structure that never emitted
+them, which meets this phase's admission rule (≥ 3 documents, ≥ 2 strata). The diagnostic names the
+claimant `(unnamed)` when *no* container even covers the block, which is the signature: a claim was
+recorded for a block that nothing built.
+
+```
+arxiv-2305-09065  pdfTeX   23 894 lost  list:322 note:1 table:64   22 776 characters under `list (unnamed)`
+arxiv-2309-01261  pdfTeX   16 703 lost  list:38  note:1 table:95
+arxiv-2303-09565  unknown   2 855 lost  list:17  table:10
+arxiv-2201-05139  pdfTeX      458 lost  list:12
+arxiv-2109-08745  pdfTeX      451 lost  list:4   table:62
+arxiv-1902-00488  pdfTeX      200 lost  list:4   table:9
+ia-152017-20170505 unknown      29 lost  table:17
+```
+
+Mechanism: **the claim is computed from a predicate over the input, not from what the claimant
+built.** Two independent instances, both of that one shape.
+
+- `lists::detect_lists` does `consumed_lines.extend(start..=last_marked)` — every line of the marked
+  run, marked or continuation. `build_level` then emits `lines.get(marker.line)` — the marked line
+  **only**. Its own comment says "its marked line and every unmarked line beneath it before the next
+  marker" and the code takes one line. Every continuation line inside a list run is therefore claimed
+  and never emitted.
+- `tables::extract_tables` does `outcome.consumed.extend(blocks inside region.bbox)` — every block
+  geometrically inside the region, whether or not `build_table` put its text in a cell.
+
+*How else could this arise?* — answered before the fix, because the answer is what makes the fix
+architectural rather than two patches:
+
+1. **Any claimant whose claim is a predicate over its input.** Both instances above. A geometric
+   test and a line range are guesses about what the builder will do, made before it does it.
+2. **A builder that abstains after the claim is recorded.** `build_list` returns `None` below
+   `list.min_siblings`; today the claim happens after, so this is safe *by accident of statement
+   order* rather than by construction.
+3. **A builder that emits less than it claimed because of a cap.** `build_level` stops at
+   `list.max_depth` and returns `nested: None`; markers deeper than that are inside the claimed run
+   and appear nowhere.
+4. **A container built and then never referenced from the flow** — the reverse face of the same
+   fault. A figure whose image was dropped as an ornament keeps its bound caption claimed; a table
+   whose `first_block_of` returns `None` is never pushed into the flow. `emitted_text` counts both,
+   so the stage balances and the book is short. `ia-2003-nov` shows it: 179 characters lost against
+   the declared output and **559** against the reachable one.
+5. **The same shape in three later stages.** `document` moves blocks into chapters, `epub` moves a
+   document into XHTML files, `repair` edits a `Document` in place. Each keeps bookkeeping about
+   what it has handled, and none of them is checked either.
+
+Decision: **a claim may not be asserted; it is derived from what the claimant emitted.** The
+builders return the units they actually placed, `consumed` is exactly that set, and `structure`
+asserts before returning that every claim's text is contained in the text its claimant emitted *and*
+that the claimant is reachable from the flow. Stated in `oc-core` over the IR rather than inside
+`oc-structure`, so points 5's three stages get it without being changed.
+
+Rejected: fixing `build_level` to include continuation lines and stopping there. It closes the
+instance and leaves the class — the table instance, the `max_depth` instance and the three later
+stages would all still be able to happen, and the obvious symptom would be gone.
+
+Evidence: `openconvert diff-stage structure corpus/downloads/*.pdf`; tests
+`a_claimed_block_must_be_accounted_for_by_its_claimant`,
+`every_container_the_conservation_check_counts_is_reachable_from_the_flow`.
+Affects: `oc-structure::{lists,tables,stage,claims}`, `oc-core::conservation_diff`, PHASE 7.5 items 4-5.
+
+## 2026-09-20 · The fixture suite could not have found this, and that is a finding · Phase 7.5
+Context: `every_container_the_conservation_check_counts_is_reachable_from_the_flow` passes on **all
+ten Typst fixtures** and fails on real documents. So does the claim/emission gap: `structure` is
+conserving on every fixture and loses 23 894 characters on an arXiv paper.
+Decision: recorded, not fixed. The fixtures are authored, so their lists are well formed, their
+tables are ruled, and every container they build is referenced. That is what a fixture is for and it
+is also its limit: **a synthetic corpus cannot exhibit the defects of a producer nobody wrote.**
+This is the argument for the reading corpus (item 7.5.0) stated as a measurement rather than as an
+expectation, and it is why the phase's closure criterion is "against both corpora" rather than
+"against the fast subset".
+Evidence: `cargo nextest run -p openconvert --test diff_stage` green; the sweep above.
+Affects: PHASE 7.5 item 1, TEST_CORPUS §7, Appendix D.
+
+## 2026-09-20 · Class `structure/lost/claim-without-emission` closed, and what it cost · Phase 7.5
+Context: the fix decided in the entry above, measured on the eleven real documents the class was
+admitted from. `diff-stage structure`, reachable output, before and after.
+
+```
+document              before lost/dup    after lost/dup
+arxiv-2309-01261        17 769 /   1      13 370 /   0
+arxiv-2305-09065        24 072 /   2      23 228 /   0
+arxiv-2303-09565         2 855 /   1         620 /  18
+arxiv-2201-05139           458 /  17         152 /   9
+arxiv-2109-08745           451 /  14           0 /  77
+arxiv-1902-00488           200 /   9          48 /  66
+ia-152017-20170505          29 /   0           3 /   0
+arxiv-2305-14528            20 / 424           0 / 424
+ia-2003-nov                559 /   0         559 /   0
+TOTAL                   46 413 / 544      37 980 / 681
+```
+
+**Every `(unnamed)` claimant is gone** — 62 blocks across the set were claimed by a structure that
+did not exist, and none is now. 18 % of the loss went with it, and no document lost more than
+before.
+
+Two findings came out of doing it, and both changed the fix:
+
+1. **The first attempt made two documents worse.** Deriving the table's claim from the runs it took
+   consumed blocks that only *partly* overlap the region, so their outside text left the flow and
+   nothing put it back. Corrected to the rule list detection already states: a block is claimed only
+   when **every** one of its non-empty units went to the claimant.
+2. **That correction traded loss for duplication** — 544 → 2 015 characters emitted twice — because
+   a straddling block then stayed in the flow while its inside runs were still in the cells. The
+   answer is the statement the class is really about: **the unit of taking and the unit of claiming
+   must be the same unit.** The table reads text at *run* granularity and claims it at *block*
+   granularity, and every block straddling the edge falls in that gap — one way it is lost, the
+   other way it is duplicated. A straddling block is now left alone entirely.
+
+Open, and deliberately not closed here: **the same unit mismatch on the list side**, which is why
+duplication still rose from 544 to 681. `detect_lists` takes at *line* granularity and claims at
+*block* granularity, and a block mixing introductory prose with a list item now has its list lines
+in the item and its prose in the flow. That is a distinct class with its own evidence, and closing
+it inside this one would be fitting a fix to the documents that happened to be on the bench —
+precisely what this phase's rule forbids. Recorded as `structure/appeared/claim-unit-mismatch-list`.
+
+Evidence: `cargo nextest run --workspace` 480 green; the table above.
+Affects: `oc-structure::{lists,tables,stage}`, PHASE 7.5 items 4-5.

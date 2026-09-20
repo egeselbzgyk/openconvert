@@ -352,21 +352,13 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
         }
     }
     for &block in &tables.consumed {
-        // Which table, by the region the block sits inside. `consumed` is flat, so this is
-        // the only place the association exists; a block no region contains is recorded as
-        // claimed by an unnamed table rather than silently attributed to the first one.
+        // Which table, as recorded where the text was taken. Re-deriving it here from the
+        // region geometry would be the same mistake this class is about: a second predicate
+        // that agrees with the first until it does not.
         let named = tables
-            .regions
-            .iter()
-            .find(|region| {
-                blocks.iter().any(|view| {
-                    view.id == block
-                        && view.page == region.page
-                        && view.bbox.y0 >= region.bbox.y0 - 1.0
-                        && view.bbox.y1 <= region.bbox.y1 + 1.0
-                })
-            })
-            .map(|region| Claimant::new(ClaimKind::Table, format!("t{}", region.id.0)));
+            .claimed_by
+            .get(&block)
+            .map(|id| Claimant::new(ClaimKind::Table, format!("t{}", id.0)));
         claims.push(Claim {
             block,
             page: page_of(block),

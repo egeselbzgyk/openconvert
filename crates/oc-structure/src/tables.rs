@@ -41,6 +41,9 @@ pub struct TableOutcome {
     pub regions: Vec<TableRegion>,
     /// The blocks whose text is inside a table, so the flow does not emit them twice.
     pub consumed: Vec<BlockId>,
+    /// Which table took each consumed block. Derived where the text was taken, so it cannot
+    /// disagree with `consumed` (PHASE 7.5).
+    pub claimed_by: std::collections::BTreeMap<BlockId, TableId>,
     pub warnings: Vec<Warning>,
 }
 
@@ -70,6 +73,7 @@ pub fn extract_tables(
         tables: Vec::new(),
         regions: Vec::new(),
         consumed: Vec::new(),
+        claimed_by: std::collections::BTreeMap::new(),
         warnings: Vec::new(),
     };
     let mut pages: Vec<u32> = vectors.iter().map(|rule| rule.page.index).collect();
@@ -79,7 +83,7 @@ pub fn extract_tables(
     for page in pages {
         for region in regions_on(vectors, page, t) {
             let id = TableId(u32::try_from(outcome.tables.len()).unwrap_or(u32::MAX));
-            let (table, gridded) = build_table(
+            let (table, gridded, took) = build_table(
                 id,
                 &region,
                 blocks,
@@ -88,12 +92,13 @@ pub fn extract_tables(
                 t,
                 &mut outcome.warnings,
             );
-            outcome.consumed.extend(
-                blocks
-                    .iter()
-                    .filter(|block| block.page == page && inside(block.bbox, region.bbox))
-                    .map(|block| block.id),
-            );
+            // Exactly the blocks whose text went into this table — not every block whose
+            // box sits inside the region. The two predicates were different, and the blocks
+            // in the gap were claimed and never emitted (PHASE 7.5).
+            outcome.consumed.extend(took.iter().copied());
+            outcome
+                .claimed_by
+                .extend(took.into_iter().map(|block| (block, id)));
             outcome.regions.push(TableRegion {
                 id,
                 page,
@@ -202,7 +207,11 @@ fn build_table(
     fallback_image: u32,
     t: &Thresholds,
     warnings: &mut Vec<Warning>,
-) -> (Table, bool) {
+) -> (
+    Table,
+    bool,
+    std::collections::BTreeSet<oc_model::ids::BlockId>,
+) {
     // Everything printed inside the table's box, in reading order.
     //
     // *Runs*, not lines. A table row is one baseline, so `text` assembles its cells into a
@@ -210,7 +219,36 @@ fn build_table(
     // row in whichever cell its midpoint happens to fall in. The cells are separate runs,
     // because `words` breaks a run at a gap of `text.line_split_gap_em` and a column gutter
     // is many times that.
-    let source: Vec<String> = runs_inside(blocks, page, lattice.bbox);
+    // **The unit of taking and the unit of claiming must be the same unit.** The table used
+    // to read text at *run* granularity and claim it at *block* granularity, and every block
+    // that straddled the region's edge fell in the gap: claimed and half-emitted (text lost),
+    // or emitted and not claimed (text duplicated). Both directions of
+    // `structure/lost/claim-without-emission` come from that one mismatch.
+    //
+    // So a straddling block is left alone entirely. The table is built from the blocks that
+    // are wholly inside it, and a block with a foot outside stays in the flow with all of its
+    // text. The grid check below still has to pass on what remains, and the fallback still
+    // keeps every character when it does not.
+    let whole: std::collections::BTreeSet<oc_model::ids::BlockId> = blocks
+        .iter()
+        .filter(|block| block.page == page)
+        .filter(|block| {
+            let runs: Vec<_> = block
+                .runs()
+                .filter(|run| !run.text.trim().is_empty())
+                .collect();
+            !runs.is_empty() && runs.iter().all(|run| inside(run.bbox, lattice.bbox))
+        })
+        .map(|block| block.id)
+        .collect();
+    let attributed: Vec<(oc_model::ids::BlockId, String)> =
+        runs_inside_attributed(blocks, page, lattice.bbox)
+            .into_iter()
+            .filter(|(block, _)| whole.contains(block))
+            .collect();
+    let took: std::collections::BTreeSet<oc_model::ids::BlockId> =
+        attributed.iter().map(|(block, _)| *block).collect();
+    let source: Vec<String> = attributed.into_iter().map(|(_, text)| text).collect();
 
     let enough_columns =
         i64::try_from(lattice.columns.len()).unwrap_or(0) >= t.table.min_column_rules;
@@ -270,6 +308,7 @@ fn build_table(
                 confidence: Confidence::deterministic(signals),
             },
             true,
+            took,
         );
     }
 
@@ -305,19 +344,35 @@ fn build_table(
             confidence: Confidence::fallback(signals),
         },
         false,
+        took,
     )
 }
 
 /// Every run printed inside a box, in reading order, non-empty.
-fn runs_inside(blocks: &[BlockView], page: u32, bbox: Rect) -> Vec<String> {
-    blocks
-        .iter()
-        .filter(|block| block.page == page)
-        .flat_map(BlockView::runs)
-        .filter(|run| inside(run.bbox, bbox))
-        .map(|run| run.text.trim().to_owned())
-        .filter(|text| !text.is_empty())
-        .collect()
+/// The text inside a region, and **which block each piece came from**.
+///
+/// The block travels with the text because that is what lets the caller claim exactly the
+/// blocks whose text the table took, instead of claiming every block that happens to sit
+/// inside the region's box and hoping the two sets agree (PHASE 7.5,
+/// `structure/lost/claim-without-emission`).
+fn runs_inside_attributed(
+    blocks: &[BlockView],
+    page: u32,
+    bbox: Rect,
+) -> Vec<(oc_model::ids::BlockId, String)> {
+    let mut out = Vec::new();
+    for block in blocks.iter().filter(|block| block.page == page) {
+        for run in block.runs() {
+            if !inside(run.bbox, bbox) {
+                continue;
+            }
+            let text = run.text.trim().to_owned();
+            if !text.is_empty() {
+                out.push((block.id, text));
+            }
+        }
+    }
+    out
 }
 
 /// Put every run into the cell whose box contains its centre.
