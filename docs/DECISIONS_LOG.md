@@ -2968,3 +2968,58 @@ precisely what this phase's rule forbids. Recorded as `structure/appeared/claim-
 
 Evidence: `cargo nextest run --workspace` 480 green; the table above.
 Affects: `oc-structure::{lists,tables,stage}`, PHASE 7.5 items 4-5.
+
+## 2026-09-20 · The "timeout class" did not exist; silence invented it · Phase 7.5
+Context: PROGRESS recorded a timeout class — 13 corpus documents producing no output within
+180 s across three producer strata — and set it as the next work item. It was wrong.
+
+Nine of the thirteen fail in **200-740 ms**. One is a `furniture` I-4 budget refusal. Two are
+genuinely slow (32 s and 67 s) and complete; they were killed by the sweep's own timeout while
+the sweep was being stopped. A 9-page, 0.9 MB document was among the "timeouts" and takes a
+quarter of a second to fail.
+
+Cause: `EventSink::emit` returns early when `--progress json` is off, and `fatal` went through
+it. `inspect`, `validate`, `dump-stage` and `diff-stage` all report errors only through the
+sink, so they exited non-zero having printed nothing. The sweep captured an empty file and a
+non-zero exit and I labelled it `TIMEOUT_OR_FAIL` — a guess that then travelled into PROGRESS
+as a fact, with a stratum count attached to make it look measured.
+
+Decision: a `fatal` is not telemetry a caller may decline. It is the program's answer to what
+it was asked to do, and it now always reaches the user — as an NDJSON event when that channel
+is on, as one prose line on stderr when it is not, which is the rule `--locale` already follows
+for warnings. Ordinary events stay silent; the exemption is for the fatal alone.
+
+Two lessons kept, because both will recur:
+- **An empty output and a non-zero exit are not evidence of a hang.** The harness must record
+  the *reason*, and where there is no reason the correct entry is "no reason was reported",
+  not a guess at one.
+- **A label written in a throwaway script becomes a fact.** `|| echo "TIMEOUT_OR_FAIL $name"`
+  was shorthand in a shell loop and it ended up as a defect class with a stratum breakdown in
+  the project's live state file. The inventory (item 7.5.3) must be generated from the
+  diagnostic's own output, never from an exit code.
+
+Evidence: `a_fatal_reaches_the_user_without_progress_json`; timings above.
+Affects: `oc-core::events`, PHASE 7.5 item 3 and item 6, D13.2 §2.3.
+
+## 2026-09-20 · Class `text/substituted/nfc-singleton`, recorded and BLOCKED · Phase 7.5
+Context: with fatals visible, the nine sub-second failures resolve to two mechanisms. Seven of
+them are one: `openconvert diff-stage text` names it as U+2126 OHM SIGN leaving and U+03A9
+GREEK CAPITAL LETTER OMEGA appearing, 1 to 58 times per document.
+
+`N`'s third component is NFC, U+2126 has a canonical singleton decomposition to U+03A9, and
+D13.4's `Reason` enum is closed with no variant for canonical composition — while ARCHITECTURE
+§5.2 defines `C(D)` over Unicode *scalars*, which U+2126 and U+03A9 are two of. The law
+therefore refuses a document in which nothing was lost, and the refusal cannot be ledgered away
+because there is nothing honest to ledger it as.
+
+Decision: **none taken.** This changes the definition of `C(D)`, which CLAUDE.md §1 reserves to
+`DECISIONS.md`. Three options, their costs, and a recommendation (state `C(·)` over canonically
+composed scalars, so NFC is invisible to the law by construction) are written under PROGRESS
+`## Blocked`. `STATUS: BLOCKED`.
+
+Also recorded: the class is **not admitted** under this phase's own rule — seven documents but
+one producer stratum. Even with a ruling it waits on the full-corpus inventory, because a
+mechanism seen only in pdfTeX output might be a pdfTeX habit.
+
+Evidence: `openconvert diff-stage text corpus/downloads/arxiv-22*.pdf`.
+Affects: D13.4, ARCHITECTURE §5.2, `oc-text::normalize`, `oc-model::ledger::c_of`.
