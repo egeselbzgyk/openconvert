@@ -352,7 +352,7 @@ impl typst::World for FixtureWorld {
 /// The workspace root, from this crate's manifest directory, so the test does not depend on
 /// the working directory a runner happens to choose.
 #[cfg(test)]
-fn workspace_root_for_test() -> std::path::PathBuf {
+pub(crate) fn workspace_root_for_test() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .map(std::path::Path::to_path_buf)

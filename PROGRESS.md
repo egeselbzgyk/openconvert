@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 7
-CURRENT_ITEM: 7.4 — the mutation catalogue, one reviewable recipe per failure mode (row 7.6)
+CURRENT_ITEM: 7.5 — ground truth: Standard Ebooks XHTML, struct trees, arXiv LaTeX (row 7.7)
 LAST_UPDATED: 2026-09-20
 
 ---
@@ -59,6 +59,34 @@ LAST_UPDATED: 2026-09-20
   the held count, so the generator is drawn further down the catalogue and stops as soon as it
   has enough.
 
+### Item 7.4 — the mutation catalogue
+
+Ten recipes in `oc-testkit::mutate`, listed as data in `xtask::mutations::catalogue()` so that
+row 7.6's "every recipe" has one place to be asked. Five are new: `strip_structtree`,
+`double_draw`, `ocr_sandwich`, `jitter_spacing`, `damage_xref`.
+
+Each recipe declares two things the tests hold it to.
+
+- **`Reproducibility`.** Running `xtask mutations` twice showed the three encrypted mutants
+  rewritten with different bytes every time — 902 bytes on one run, 903 on the next — because
+  AES-128 draws a fresh initialisation vector per string and stream. Row 7.6's byte-for-byte
+  assertion holds for the seven `Deterministic` recipes; the three `Randomised` ones are
+  asserted on the property that makes byte-equality impossible, that two applications differ.
+  `xtask mutations` now leaves an existing randomised mutant alone, because regenerating it
+  replaced a regression artefact with noise.
+- **`Effect`** — what the recipe does to the characters on the page, checked through PDFium
+  against the parent. `Preserves` (cropbox offset, struct-tree strip, jitter, damaged xref),
+  `Duplicates` (double draw, OCR sandwich — exactly twice the characters, the original first),
+  `BreaksTextMapping` (ToUnicode strip), `Unopenable` (encrypted with a user password).
+  Flipping one declared effect turns the test red, which is how it is known not to be vacuous.
+
+**Type 3 re-encoding is the one item of PHASE 7 §4's list that is not done.** Re-encoding an
+embedded font as Type 3 while keeping its outlines needs a glyph-outline extractor `lopdf` does
+not have, and a Type 3 font whose CharProcs draw rectangles would change what the page looks
+like rather than only how it is encoded. It belongs with the handmade fixtures — a small PDF
+authored as Type 3 with a `/ToUnicode` map — and is a gap, not a mutation.
+`docs/DECISIONS_LOG.md`, 2026-09-20.
+
 ## Blocked` and stop.
 - Tick a phase box only when its full Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3) passes.
 - Keep `## Notes` short: what a fresh session needs in order to resume, nothing else.
@@ -96,10 +124,11 @@ LAST_UPDATED: 2026-09-20
 
 ## Current work item
 
-**Phase 7, item 7.4 — the mutation catalogue** (plan row 7.6).
+**Phase 7, item 7.5 — ground truth** (plan row 7.7).
 
-**The corpus exists.** `corpus/manifest.json` holds 116 entries: 104 frozen holdout documents
-across 17 291 pages, and 12 synthetic fixtures. `oc-eval corpus lint` is clean.
+**The corpus exists** and **the mutation catalogue is complete.** `corpus/manifest.json` holds
+116 entries: 104 frozen holdout documents across 17 291 pages, and 12 synthetic fixtures.
+`oc-eval corpus lint` is clean.
 
 ```
 ABBYY-scanner  n=16  holdout=16   InDesign  n=12  holdout=12   Word     n=14  holdout=14
@@ -120,7 +149,7 @@ Work items for Phase 7, in order. Each is one TDD loop and one commit:
 - [x] **7.2** `oc_eval.corpus.{manifest,lint}` + `oc-eval corpus lint|stats` (rows 7.1, 7.3b)
 - [x] **7.3** corpus v1: 104 holdout documents to TEST_CORPUS §7.6's shape; rows 7.2 and 7.3
       are gates over the real manifest and the whole lint is clean (A7.1, A7.1b)
-- [ ] **7.4** the mutation catalogue, one reviewable recipe per failure mode (row 7.6)
+- [x] **7.4** the mutation catalogue: ten recipes, each with a declared effect (row 7.6)
 - [ ] **7.5** ground truth: Standard Ebooks XHTML, tagged-PDF struct trees, arXiv LaTeX (row 7.7)
 - [ ] **7.6** the metric suite and the per-stratum report (rows 7.8, 7.9)
 - [ ] **7.7** the ours-vs-real gap, written to `eval/out/trend.json` (row 7.10)
@@ -414,6 +443,34 @@ Carried forward, in the order a fresh session needs them:
   duplicates and nothing else. `admit(want=…)` caps what one call admits and `ask_for` clears
   the held count, so the generator is drawn further down the catalogue and stops as soon as it
   has enough.
+
+### Item 7.4 — the mutation catalogue
+
+Ten recipes in `oc-testkit::mutate`, listed as data in `xtask::mutations::catalogue()` so that
+row 7.6's "every recipe" has one place to be asked. Five are new: `strip_structtree`,
+`double_draw`, `ocr_sandwich`, `jitter_spacing`, `damage_xref`.
+
+Each recipe declares two things the tests hold it to.
+
+- **`Reproducibility`.** Running `xtask mutations` twice showed the three encrypted mutants
+  rewritten with different bytes every time — 902 bytes on one run, 903 on the next — because
+  AES-128 draws a fresh initialisation vector per string and stream. Row 7.6's byte-for-byte
+  assertion holds for the seven `Deterministic` recipes; the three `Randomised` ones are
+  asserted on the property that makes byte-equality impossible, that two applications differ.
+  `xtask mutations` now leaves an existing randomised mutant alone, because regenerating it
+  replaced a regression artefact with noise.
+- **`Effect`** — what the recipe does to the characters on the page, checked through PDFium
+  against the parent. `Preserves` (cropbox offset, struct-tree strip, jitter, damaged xref),
+  `Duplicates` (double draw, OCR sandwich — exactly twice the characters, the original first),
+  `BreaksTextMapping` (ToUnicode strip), `Unopenable` (encrypted with a user password).
+  Flipping one declared effect turns the test red, which is how it is known not to be vacuous.
+
+**Type 3 re-encoding is the one item of PHASE 7 §4's list that is not done.** Re-encoding an
+embedded font as Type 3 while keeping its outlines needs a glyph-outline extractor `lopdf` does
+not have, and a Type 3 font whose CharProcs draw rectangles would change what the page looks
+like rather than only how it is encoded. It belongs with the handmade fixtures — a small PDF
+authored as Type 3 with a `/ToUnicode` map — and is a gap, not a mutation.
+`docs/DECISIONS_LOG.md`, 2026-09-20.
 
 ## Blocked
 
@@ -848,3 +905,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-19  P6.ci     seven defects CI found: cross-OS bytes, Ace a11y x3, disk, tar/zip     23c7064
 2026-09-20  P7.1      corpus: sha256 before use, mirror-then-source, the LOCAL_EVAL boundary (9)   3bf9c1c
 2026-09-20  P7.2      corpus: the manifest vocabulary and fourteen lint rules (7.1, 7.3b + 21)     5281b83
+2026-09-20  P7.3      corpus: the frozen holdout, 104 real documents, five sources (7.2, 7.3 + 50)  86848f8

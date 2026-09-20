@@ -2625,3 +2625,41 @@ annual re-verification remains a human job and is what would change this field.
 Evidence: `eval/tests/test_corpus_harvest.py::test_a_candidate_whose_licence_is_not_acceptable_is_rejected_by_name`,
 `eval/tests/test_corpus_sources.py` (one refusal test per source).
 Affects: TEST_CORPUS §7.1 §7.4, `corpus/manifest.json`, `eval/src/oc_eval/corpus/harvest.py`.
+
+## 2026-09-20 · Two mutation recipes are not reproducible, and the catalogue says so · Phase 7
+Context: PHASE 7 row 7.6 asks that each mutation recipe applied to its parent reproduce the committed
+mutant byte-for-byte. Running `cargo xtask mutations` twice showed the three encrypted mutants
+rewritten with different bytes each time — 902 bytes on one run and 903 on the next. AES-128 draws a
+fresh initialisation vector for every string and stream, so encrypting the same file twice cannot give
+the same file twice. That is the cipher working, not a defect.
+Decision: the catalogue carries `Reproducibility` per recipe. `Deterministic` recipes are asserted
+byte-for-byte against the committed mutant, which is row 7.6 as written. `Randomised` recipes are
+asserted on the property that makes byte-equality impossible — two applications to the same parent
+must differ — so a recipe that quietly became deterministic, which would mean a broken cipher, fails
+the same test. `xtask mutations` no longer rewrites an existing randomised mutant: regenerating it
+replaced a regression artefact with noise and put an unreviewable diff in front of whoever ran the
+task. `--regenerate` is deliberately absent; deleting the file is the way to ask for a new one.
+Evidence: `xtask::mutations::tests::every_mutation_recipe_replays`.
+Affects: IMPLEMENTATION_PLAN PHASE 7 row 7.6, `xtask/src/mutations.rs`.
+
+## 2026-09-20 · The Phase 7 mutation catalogue is Rust, not the Python of §1.7 · Phase 7
+Context: IMPLEMENTATION_PLAN §1.7 lists the mutation recipes as Python modules under
+`eval/src/oc_eval/mutate/` and PHASE 7 §4 calls for `pikepdf`/qpdf-QDF recipes. `oc-testkit::mutate`
+already held four of them in Rust, with the reason written in its module docstring in Phase 1: a
+metamorphic test has to apply the mutation and compare in one process, and a Python step in the middle
+would make `cargo nextest` — the gate — depend on an interpreter, a virtualenv and a wheel.
+Decision: the five recipes the failure taxonomy was missing (`strip_structtree`, `double_draw`,
+`ocr_sandwich`, `jitter_spacing`, `damage_xref`) are Rust, beside the four that were already there.
+Row 7.6's test walks one catalogue rather than two, the fast tier keeps them, and `xtask mutations`
+can apply the same recipes to a corpus document when the eval harness wants one. The plan's intent —
+a recipe committed as a reviewable diff — is met by the recipe being committed source with the
+mutant's bytes committed beside it, which is what a reviewer reads either way.
+Not done: **Type 3 re-encoding**, the sixth item in PHASE 7 §4's list. Re-encoding an embedded font as
+Type 3 while preserving its outlines needs a glyph-outline extractor that `lopdf` does not have, and a
+Type 3 font whose CharProcs draw rectangles would change what the page looks like rather than only how
+it is encoded. It belongs with the handmade fixtures — a small PDF authored as Type 3 with a
+`/ToUnicode` map — and is recorded in `PROGRESS.md` as a gap rather than faked here.
+Evidence: `xtask::mutations::tests::every_mutation_does_what_its_effect_promises`, which holds each
+recipe to a declared `Effect` through PDFium; flipping one declared effect turns it red.
+Affects: IMPLEMENTATION_PLAN §1.7 and PHASE 7 §4, `crates/oc-testkit/src/mutate.rs`,
+`xtask/src/mutations.rs`.
