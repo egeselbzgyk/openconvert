@@ -322,18 +322,20 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
     // each one. Four independent claimants feed this, and until the claim carried its
     // claimant there was no way to ask any of them whether it kept its word (PHASE 7.5).
     let mut claims = Claims::new();
-    let page_of = |id: BlockId| -> u32 {
-        blocks
-            .iter()
-            .find(|block| block.id == id)
-            .map(|block| block.page)
-            .unwrap_or_default()
-    };
+    // Built once. Looking a block up by scanning `blocks` is linear, and every claim asks
+    // twice, so on a book with thousands of blocks and thousands of claims the stage stops
+    // returning — measured at over four minutes on a 368-page InDesign volume where `ingest`,
+    // `text` and `layout` together take twenty-seven seconds.
+    let by_id: std::collections::BTreeMap<BlockId, (u32, &str)> = blocks
+        .iter()
+        .map(|block| (block.id, (block.page, block.text.as_str())))
+        .collect();
+    let page_of =
+        |id: BlockId| -> u32 { by_id.get(&id).map(|(page, _)| *page).unwrap_or_default() };
     let text_of = |id: BlockId| -> String {
-        blocks
-            .iter()
-            .find(|block| block.id == id)
-            .map(|block| block.text.clone())
+        by_id
+            .get(&id)
+            .map(|(_, text)| (*text).to_owned())
             .unwrap_or_default()
     };
 
@@ -366,11 +368,22 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
             text: text_of(block),
         });
     }
+    // Same reasoning: `list_covers` walks a list's items, and asking it for every consumed
+    // block walks every list for every block. Inverted once instead.
+    let list_of: std::collections::BTreeMap<BlockId, &List> = lists
+        .lists
+        .iter()
+        .flat_map(|list| {
+            lists
+                .consumed
+                .iter()
+                .filter(|block| list_covers(list, **block))
+                .map(move |block| (*block, list))
+        })
+        .collect();
     for &block in &lists.consumed {
-        let named = lists
-            .lists
-            .iter()
-            .find(|list| list_covers(list, block))
+        let named = list_of
+            .get(&block)
             .map(|list| Claimant::new(ClaimKind::List, list.id.as_str().to_owned()));
         claims.push(Claim {
             block,

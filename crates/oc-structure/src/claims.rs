@@ -98,6 +98,13 @@ pub struct Claim {
 #[derive(Clone, Debug, Default)]
 pub struct Claims {
     claims: Vec<Claim>,
+    /// Which blocks are claimed, for the question the flow loop asks once per block.
+    ///
+    /// An index and not a convenience: `structure` walks every block and asks whether it is
+    /// claimed, so a linear scan here is quadratic in the size of the book — which on a
+    /// 368-page InDesign volume is the difference between a stage that returns and one that
+    /// does not.
+    index: std::collections::BTreeSet<BlockId>,
 }
 
 impl Claims {
@@ -106,6 +113,7 @@ impl Claims {
     }
 
     pub fn push(&mut self, claim: Claim) {
+        self.index.insert(claim.block);
         self.claims.push(claim);
     }
 
@@ -123,7 +131,7 @@ impl Claims {
 
     /// Whether any claimant has undertaken to emit this block.
     pub fn contains(&self, block: BlockId) -> bool {
-        self.claims.iter().any(|claim| claim.block == block)
+        self.index.contains(&block)
     }
 
     /// The claimant that took this block, if one did.
