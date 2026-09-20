@@ -1211,3 +1211,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-20  P7.7      oc-eval: the ours-vs-real gap recorded and plotted (7.10 + 7)      8a056c0
 2026-09-20  P7.8      oc-eval: calibration refuses the holdout; risk-coverage (7.4 + 11)  bb253f3
 2026-09-20  P7.9      openconvert: the perf budget, 0.0217 s/page on 300 pages (7.11, 7.12 + 14)  1f94be4
+2026-09-20  P7.10     ci: the python job, corpus lint, and four nightly bodies (7.13, 7.14 + 16)  61edb1d
