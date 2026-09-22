@@ -1,0 +1,20 @@
+---
+source: crates/oc-ai/tests/prompts.rs
+assertion_line: 234
+expression: rendered
+---
+=== metadata
+[LARGE][CENTERED] Die Verwandlung
+[MEDIUM][CENTERED] Erzählung
+[SMALL][CENTERED] von Franz Kafka
+[SMALL] Kurt Wolff Verlag · Leipzig · 1915
+Extract title, subtitle, authors, translator, publisher and date. Copy exactly. Null if absent.
+=== heading_roles
+Give each style cluster in "clusters" one role, and each line in "holdout" one role.
+{"language":"de","clusters":[{"c":0,"size_z":3.1,"weight":"bold","italic":false,"align":"centered","count":24,"starts_page_ratio":0.9,"examples":["Kapitel Eins","Kapitel Zwei","Kapitel Drei"]},{"c":1,"size_z":0.0,"weight":"regular","italic":false,"align":"justified","count":1840,"starts_page_ratio":0.02,"examples":["Als Gregor Samsa eines Morgens…"]},{"c":2,"size_z":-0.6,"weight":"regular","italic":true,"align":"centered","count":312,"starts_page_ratio":0.99,"examples":["Die Verwandlung"]}],"holdout":[{"i":0,"text":"Kapitel Vier","size_z":3.1,"weight":"bold","italic":false,"align":"centered"},{"i":1,"text":"Er lag auf seinem panzerartig harten Rücken","size_z":0.0,"weight":"regular","italic":false,"align":"justified"}]}
+=== book_structure
+Give the index of the first heading after the front matter (0 if there is none), the index of every heading that starts a part, and the index of the first heading of the back matter (the number of headings if there is none).
+{"language":"tr","headings":[{"idx":0,"text":"Önsöz","page":3,"c":1},{"idx":1,"text":"Birinci Bölüm","page":7,"c":0},{"idx":2,"text":"İkinci Bölüm","page":41,"c":0},{"idx":3,"text":"Sonuç","page":398,"c":0},{"idx":4,"text":"Dizin","page":410,"c":1}]}
+=== verse_quote
+Say for each block whether it is verse, a block quotation, preformatted text or an ordinary paragraph.
+{"blocks":[{"id":"KOPDKWH2DA","text":"Two roads diverged in a yellow wood,\nAnd sorry I could not travel both","indent":"deep","lines":4,"avg_line_words":7,"centered":false,"monospace":false}]}

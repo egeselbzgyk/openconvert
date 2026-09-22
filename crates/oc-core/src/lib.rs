@@ -6,6 +6,7 @@
 
 pub mod cancel;
 pub mod conservation_diff;
+pub mod escalation;
 pub mod events;
 pub mod exit;
 pub mod ledger_check;

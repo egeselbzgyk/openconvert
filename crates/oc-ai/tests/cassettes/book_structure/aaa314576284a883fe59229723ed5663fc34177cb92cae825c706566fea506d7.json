@@ -1,0 +1,34 @@
+{
+  "cassette_version": 1,
+  "task": "book_structure",
+  "fixture": "a3",
+  "prompt_sha256": "57fe6dc9aa76b599752a60005437baee5faa7731c70914e88b6d4729ea62b7b0",
+  "prompt_version": 1,
+  "grammar_sha256": "86b33ec1bfa1add35ede6e7b6b15503662b654a4b82280eb63f85b74701d24f4",
+  "model_id": "stub",
+  "params": {
+    "temperature": 0.0,
+    "max_tokens": 1500,
+    "enable_thinking": false,
+    "top_p": null,
+    "seed": null,
+    "n_ctx": null,
+    "n_parallel": null
+  },
+  "request": {
+    "system_sha256": "e1ab692d8fcf406006ad51129b6054c6f1952cbafc7a00a03f6540615d56f9bf",
+    "user": "Give the index of the first heading after the front matter (0 if there is none), the index of every heading that starts a part, and the index of the first heading of the back matter (the number of headings if there is none).\n{\"language\":\"tr\",\"headings\":[{\"idx\":0,\"text\":\"Önsöz\",\"page\":3,\"c\":1},{\"idx\":1,\"text\":\"Birinci Bölüm\",\"page\":7,\"c\":0},{\"idx\":2,\"text\":\"İkinci Bölüm\",\"page\":41,\"c\":0},{\"idx\":3,\"text\":\"Sonuç\",\"page\":398,\"c\":0},{\"idx\":4,\"text\":\"Dizin\",\"page\":410,\"c\":1}]}\n"
+  },
+  "response": {
+    "content": "{\"frontmatter_end_idx\":1,\"part_boundaries\":[],\"backmatter_start_idx\":4}",
+    "reasoning": null,
+    "finish_reason": "stop",
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "cached_prefix": null
+  },
+  "recorded_at": "2026-09-22T00:00:00Z",
+  "llama_cpp_build": null,
+  "threads": null,
+  "machine": "stub"
+}

@@ -184,7 +184,8 @@ expression: value
         "slides/other"
       ],
       "method": "deterministic",
-      "llm": null
+      "llm": null,
+      "fallback": null
     },
     {
       "stage": "document",
@@ -195,8 +196,9 @@ expression: value
         "auto"
       ],
       "method": "deterministic",
-      "llm": null
+      "llm": null,
+      "fallback": null
     }
   ],
-  "thresholds": "[164 entries, redacted]"
+  "thresholds": "[168 entries, redacted]"
 }

@@ -1,0 +1,34 @@
+{
+  "cassette_version": 1,
+  "task": "heading_roles",
+  "fixture": "a3",
+  "prompt_sha256": "cdc0344b262651add3bced8a1219cc0d206d536cb501b1d5f7a82e98efc8aa43",
+  "prompt_version": 1,
+  "grammar_sha256": "d1a0d6762b54658766662a8f6cb776484e7b3f97a3e0379df4343c9193d1efe6",
+  "model_id": "stub",
+  "params": {
+    "temperature": 0.0,
+    "max_tokens": 1500,
+    "enable_thinking": false,
+    "top_p": null,
+    "seed": null,
+    "n_ctx": null,
+    "n_parallel": null
+  },
+  "request": {
+    "system_sha256": "e1ab692d8fcf406006ad51129b6054c6f1952cbafc7a00a03f6540615d56f9bf",
+    "user": "Give each style cluster in \"clusters\" one role, and each line in \"holdout\" one role.\n{\"language\":\"de\",\"clusters\":[{\"c\":0,\"size_z\":3.1,\"weight\":\"bold\",\"italic\":false,\"align\":\"centered\",\"count\":24,\"starts_page_ratio\":0.9,\"examples\":[\"Kapitel Eins\",\"Kapitel Zwei\",\"Kapitel Drei\"]},{\"c\":1,\"size_z\":0.0,\"weight\":\"regular\",\"italic\":false,\"align\":\"justified\",\"count\":1840,\"starts_page_ratio\":0.02,\"examples\":[\"Als Gregor Samsa eines Morgens…\"]},{\"c\":2,\"size_z\":-0.6,\"weight\":\"regular\",\"italic\":true,\"align\":\"centered\",\"count\":312,\"starts_page_ratio\":0.99,\"examples\":[\"Die Verwandlung\"]}],\"holdout\":[{\"i\":0,\"text\":\"Kapitel Vier\",\"size_z\":3.1,\"weight\":\"bold\",\"italic\":false,\"align\":\"centered\"},{\"i\":1,\"text\":\"Er lag auf seinem panzerartig harten Rücken\",\"size_z\":0.0,\"weight\":\"regular\",\"italic\":false,\"align\":\"justified\"}]}\n"
+  },
+  "response": {
+    "content": "{\"m\":[{\"c\":0,\"r\":\"chapter_heading\"},{\"c\":1,\"r\":\"body\"},{\"c\":2,\"r\":\"running_head\"}],\"h\":[{\"i\":0,\"r\":\"chapter_heading\"},{\"i\":1,\"r\":\"body\"}]}",
+    "reasoning": null,
+    "finish_reason": "stop",
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "cached_prefix": null
+  },
+  "recorded_at": "2026-09-22T00:00:00Z",
+  "llama_cpp_build": null,
+  "threads": null,
+  "machine": "stub"
+}

@@ -1,0 +1,17 @@
+# crates/oc-ai/prompts/book_structure/v1/grammar.gbnf
+# Output: {"frontmatter_end_idx":<int>,"part_boundaries":[<int>,...],"backmatter_start_idx":<int>}
+#
+# Boundaries, not one object per heading (RT A8.4): a reference work with 1 200 headings would
+# otherwise cost ~10 K output tokens and make an id-bijection failure near-certain. Indices are
+# 0-9999 and there are at most 64 part boundaries (IMPLEMENTATION_PLAN Appendix A.3). That they
+# are strictly increasing and in range is checked after parsing; a grammar cannot compare two
+# numbers.
+
+root  ::= (
+    "{\"frontmatter_end_idx\":" int
+    ",\"part_boundaries\":" parts
+    ",\"backmatter_start_idx\":" int
+    "}"
+  )
+parts ::= "[" ( int ( "," int ){0,63} )? "]"
+int   ::= [0-9] | [1-9] [0-9]{1,3}

@@ -913,3 +913,81 @@ repository, because a *widening* gap is the signal and that is a statement about
   `convert` is there and `oc-core` cannot depend on it without a cycle.
 - **The Phase 7 CI jobs are unverified until this branch merges** — the same shape of deferral
   Phases 0–6 made and cashed.
+
+## Phase 8 — AI abstraction (no real model yet)
+
+Everything about the LLM path except the model. `oc-ai` was an empty crate; it now holds the
+question a model is asked, the four gates an answer must pass, the call budget, the cache, one
+client for every provider, and cassettes. **`ai.enabled` stays `false`, and nothing in the
+pipeline calls a model yet** — wiring the four tasks in is Phase 10's. Built on its own branch,
+`worktree-phase8`, while Phase 7.5 continued on `main`.
+
+### The question
+
+- **Sixteen prompt artifacts** at `crates/oc-ai/prompts/<task>/v1/` — `system.md`, `user.tmpl`,
+  `grammar.gbnf`, `schema.json` for `metadata`, `heading_roles`, `book_structure` and
+  `verse_quote` — with the Rust modules reduced to `include_str!` wrappers and typed payloads.
+  The shared prefix is byte-identical across the four (test 8.1), and **v1 is frozen**:
+  `prompts/v1.sha256` pins every artifact, because the cache key carries the prompt version and
+  not the prefix's hash.
+- **A GBNF parser that is llama.cpp's**, rule for rule, and a set-based matcher over it. It
+  found that **Appendix A.2's grammar does not load**: llama.cpp ends a top-level rule at its
+  newline, so A.2's continuation lines beginning with `|` are a syntax error. The committed
+  grammar parenthesises the choice.
+- The held-out probe rides **in** the `heading_roles` call (ARCHITECTURE §9.6, PIPELINE §8), not
+  in a second call as Appendix A.3 has it.
+
+### The gates
+
+- **S** — no thinking block anywhere, JSON of the task's exact shape (a key said twice is
+  refused, not resolved), closed enums, identifiers bijective. Any failure rejects the whole
+  answer.
+- **L** — `C` unchanged, compared *without* the ledger so a ledgered deletion is still refused,
+  then the text in the same reading order. 5 000 generated edits that change `C` are all refused
+  and 1 000 renames are all admitted.
+- **V** — ARCHITECTURE §6.2's fixed ordered tuple (duplicate-line, top-2/3-gram, non-alpha-word
+  ratios, heading-tree violations), undefined skipped rather than defaulted (RT B13). The text
+  statistics restate `oc-text`'s and a test holds the two equal.
+- **D** — the deterministic answer stands and the `Decision` says why.
+
+### New IR field
+
+- **`Decision.fallback: Option<&'static str>`** — the code of what made the deterministic answer
+  stand after an escalation: the refusing gate (`S.enum`, `S.bijection`, `L.characters`,
+  `V.worsened`, …) or `budget.calls`. A code, never the failure's text, which may quote the
+  model. `Decision::fallback_used()` reads it. Additive; `ir_version` unchanged.
+
+### New warning code
+
+- **`W_LLM_BUDGET_EXHAUSTED`** `{task, calls}` — a call refused because the book's
+  `llm.max_calls_per_book` are spent. Templates in en, de and tr.
+
+### New `thresholds.toml` entries
+
+- `llm.verse_quote_blocks_per_call = 10` (provisional) — ratified note N-4, held equal to the
+  `verse_quote` grammar's bound.
+- `llm.gate_v_ratio_eps = 0.01` (provisional) and `llm.gate_v_violations_eps = 0` (binary).
+- `llm.temperature = 0.0` (binary) — greedy decoding, without which a cache hit is a coincidence.
+
+### Also
+
+- **The cache key length-prefixes the model id** (ARCHITECTURE's bare `‖` is ambiguous) and is
+  shared by the file cache and the cassettes. A damaged cache entry is an error, never a miss.
+- **One OpenAI-compatible client over a `Transport`** is every provider; the grammar goes out as
+  GBNF, JSON Schema or not at all, and thinking is turned off in each provider's own words (D10).
+  A stub server answers in all six adversarial ways the plan names.
+- **Cassettes replay at the provider seam**, from files, with no transport to reach anything.
+  Four seeds — A.3's answers recorded through the stub, `model_id = "stub"` — are committed.
+- **The six escalation predicates** of RT C4 are `oc_core::escalation`, pure and table-tested.
+- **CI:** the `no-network` job now runs the whole `oc-ai` suite under `unshare -n`.
+
+### Known gaps, carried forward
+
+- **"One cassette per task per fixture"** is one per task per *named payload* for now: rendering
+  a Typst fixture into a task payload needs Phase 10's inventory builders.
+- **`oc-structure::quotes::classify_indented`** reads a block exactly on
+  `verse.short_line_ratio_min` as a quotation rather than ambiguous — an `f32` ratio widened to
+  `f64` — found while writing the predicates and left for Phase 10, which replaces the comparison.
+- The unbounded-repetition grammar form for GBNF engines without `{m,n}` (Appendix A.2's arity
+  note) belongs with the BYO providers of Phase 11.
+- **The Phase 8 CI steps are unverified until this branch merges.**

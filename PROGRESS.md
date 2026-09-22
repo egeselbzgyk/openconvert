@@ -3,9 +3,9 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 8
-CURRENT_ITEM: 8.1 — `system_prefix_is_byte_identical_across_purposes`, and the crate skeleton
-              it needs (Phase 7.5 is parked: see its section below)
+CURRENT_PHASE: 9
+CURRENT_ITEM: 9.1 — not started. Phase 8 is complete and merged (2026-09-23); the maintainer
+              asked to stop at the merge. Phase 7.5 is parked: see its section below.
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -48,7 +48,12 @@ LAST_UPDATED: 2026-09-23
       by the maintainer's decision, to resume once every phase is implemented. Parked at: 79 of
       104 corpus documents clean, 2 869 characters lost across 13, duplication zero, 11 not
       finishing in 90 s. Six defect classes closed, each with an invariant.)*
-- [ ] **Phase 8** — AI abstraction (no real model yet)
+- [x] **Phase 8** — AI abstraction (no real model yet)
+      *(all 16 named tests green, plus 52 additions; built on `worktree-phase8` and merged into
+      `main` 2026-09-23. The four gates, the call budget, the cache, one OpenAI-compatible client
+      over a `Transport`, cassettes and the six escalation predicates. `ai.enabled` stays `false`
+      and nothing in the pipeline calls a model yet. The CI steps it added are unverified until
+      CI runs.)*
 - [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
 - [ ] **Phase 10** — AI-assisted decisions (the four tasks)
 - [ ] **Phase 11** — BYO providers
@@ -155,6 +160,114 @@ session is idle. Run the inventory **in the foreground, in chunks** under the 10
 packed by each document's previous run time; strip `\r` from Python-written chunk files (Windows
 writes CRLF, and every name carries it), and give the child `< /dev/null` or it swallows the list.
 Check `rc` and output sizes before believing a run: one "complete" run here had never executed.
+
+## Phase 8 — built on `worktree-phase8`, merged 2026-09-23
+
+Phase 8 (AI abstraction, no real model) was built on its own branch while Phase 7.5 ran on
+`main`, and merged into `main` on 2026-09-23 after 7.5 was parked. It is almost entirely new code
+in `oc-ai`, which was an empty crate; outside it, it adds threshold entries, one additive field on
+`oc_model::decision::Decision` (P8.2), warning templates, and the escalation predicates in
+`oc-core` (P8.9). The merge conflicted only in this file's header and the end of
+`docs/DECISIONS_LOG.md`, both resolved by keeping both sides.
+
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P8.1** prompt artifacts, the GBNF parser, the request — rows 8.1, 8.14 (+ 19)
+- [x] **P8.2** gate S, and gate D's record — rows 8.2, 8.3, 8.4, 8.9, 8.12 (+ 6)
+- [x] **P8.3** gate L — rows 8.5, 8.6 (+ 3)
+- [x] **P8.4** gate V — rows 8.7, 8.8 (+ 5)
+- [x] **P8.5** the call budget — row 8.13 (+ 2)
+- [x] **P8.6** the cache key and the file cache — row 8.10 (+ 5)
+- [x] **P8.7** transport, the OpenAI-compatible client, the stub server — A8.1 end to end (+ 7)
+- [x] **P8.8** cassettes and replay — row 8.11 (+ 5)
+- [x] **P8.9** the six escalation predicates, in `oc-core` — row 8.16
+- [x] **P8.10** no socket dependency, the CI wiring, the Definition of Done — row 8.15
+
+What a fresh session needs, in the order it matters:
+
+- **`oc-ai` depends on `oc-model` alone** (DECISIONS.md Appendix A; `oc-net → oc-ai` must not
+  reach `oc-core`). Every number it needs is a parameter its caller reads from `T`; `oc-core` is a
+  *dev*-dependency so the tests use the real values. Gate V's statistics will therefore live in
+  `oc-ai` rather than be borrowed from `oc-text` — `docs/DECISIONS_LOG.md`, 2026-09-22.
+- **Prompt v1 is frozen.** `crates/oc-ai/prompts/v1.sha256` pins all sixteen artifacts; an edit is
+  a `v2` directory and a `PROMPT_VERSION` bump, because the cache key carries the version and not
+  the system prefix's hash.
+- **Appendix A is not followed in three places**, each logged 2026-09-22: A.2's grammar does not
+  load in llama.cpp (a top-level rule ends at its newline, so the role list is parenthesised); the
+  held-out probe rides in the `heading_roles` call as ARCHITECTURE §9.6 and PIPELINE §8 say, not in
+  a second call as A.3 says; and `system.md` is four byte-identical files, per ARCHITECTURE §9.2.
+- **Gate S judges the whole answer** and deserialises straight into each task's wire type — never
+  through `serde_json::Value`, which would let a key said twice silently win. Task-level semantics
+  (metadata's verbatim check, book-structure index order, verse's line count) are Phase 10's, run
+  after gate S. **`Decision.fallback`** is the new field that records why the deterministic answer
+  stood — a gate code such as `S.enum`, never the failure's text (D13.9).
+- **Gate L compares `C` without the ledger, then reading order.** A ledgered deletion balances
+  I-1 and is still a deletion no task may make; a rename cannot reorder or re-encode text either.
+  Test 8.5 runs 5 000 generated edits and has a converse, `gate_l_admits_every_rename`, so the
+  gate cannot pass by refusing everything. `tests/common/book.rs` builds small `Document`s.
+- **Gate V restates oc-text's Gopher statistics** (dup-line, top-2/3-gram, non-alpha words) plus
+  heading-tree violations, as ARCHITECTURE §6.2's fixed tuple; undefined is `None` and skipped.
+  `gate_v_statistics_are_oc_texts` (oc-text is a dev-dependency) holds the two definitions equal.
+  `gates::gate_edit` runs L then V over an applied edit; the caller keeps `before` on `Err`.
+  Epsilons: `llm.gate_v_ratio_eps = 0.01` (provisional), `llm.gate_v_violations_eps = 0`.
+- **The budget counts requests, cached or not**, so a warm and a cold cache decide the same things
+  (D13.8). One budget for all tasks; the degradation order is Phase 10's (test 10.22). A refusal
+  is `W_LLM_BUDGET_EXHAUSTED` (registered, en/de/tr templates) and, via `fallback::unasked`, a
+  `Decision` with `fallback = "budget.calls"` and no trace.
+- **The cache key length-prefixes the model id** — ARCHITECTURE's bare `‖` is ambiguous — and
+  the worked example's key is pinned in `the_key_is_the_documented_layout`, because cassettes are
+  named by it. `FileCache` reports a damaged or misfiled entry as an error, never as a miss.
+- **One client, `openai::OpenAiCompatible<T: Transport>`**, is every model provider: the grammar
+  goes out as `grammar` (GBNF), `response_format` (JSON Schema) or not at all, and thinking is
+  turned off by `chat_template_kwargs`, `think: false` or `/no_think` on the prefix (D10). A
+  separated `reasoning_content` still fails gate S (`gate_response`). The stub in
+  `tests/stub_server.rs` answers in all six adversarial ways the plan names, plus that one.
+  `llm.temperature = 0.0` (binary) is new.
+- **Cassettes replay at the provider seam** — `cassette::Replay` is an `LlmProvider` with no
+  transport — because the key carries the prompt version, which never travels on the wire.
+  The four committed seeds (`tests/cassettes/<task>/`) are A.3's answers recorded through the
+  stub, `model_id = "stub"`; regenerate with `OC_AI_RECORD_SEEDS=1 cargo nextest run -p oc-ai -E
+  'test(seeds)'` only after a prompt-version bump, and review the diff. A miss names the nearest
+  recording and the byte where the questions diverge.
+- **The six escalation predicates are `oc_core::escalation`** (pure: evidence struct + `T` →
+  `Verdict::{Fires, Abstains}`), where `oc-structure` and `oc-text` can call them in Phase 10.
+  **Open, for Phase 10:** `oc-structure::quotes::classify_indented` widens the `f32` short-line
+  ratio to `f64` and so reads a block exactly on `verse.short_line_ratio_min` as a quotation
+  instead of ambiguous (`docs/DECISIONS_LOG.md`, 2026-09-22).
+- **Test 8.15 walks `Cargo.lock`** from `oc-ai` (a superset of every build's graph), holds its
+  socket-crate list equal to `deny.toml`'s `oc-net`-only bans, and scans `oc-ai`'s own sources for
+  `std::net` — which no dependency ban can see. CI's `no-network` job runs the whole `oc-ai` suite
+  under `unshare -n`.
+
+### Phase 8 — Definition of Done
+
+`IMPLEMENTATION_PLAN.md` §0.3, row by row. Checked on this machine unless the row says otherwise.
+
+| Row | State |
+|---|---|
+| Every named test exists and passes | **Yes.** All 16 rows, 8.1–8.16, plus 52 additions. 8.16 is in `oc-core`, the other fifteen in `oc-ai`. |
+| `cargo nextest run --workspace` green | **Yes**, 559 tests. |
+| Green on Linux/macOS/Windows CI | **Not verifiable here.** Windows only; the branch is not pushed. |
+| clippy `-D warnings` clean | **Yes**, workspace, all targets, all features. |
+| `cargo fmt --check` clean | **Yes.** |
+| `cargo deny check` clean | **Yes** — advisories, bans, licences, sources, and the tooling config. No new dependency in a shipped crate's normal graph: `oc-ai`'s is `oc-model` and four crates already in the workspace; `toml`, `proptest`, `oc-core` and `oc-text` are dev-dependencies. |
+| `cargo xtask thresholds-lint` clean | **Yes.** Four thresholds added, each with source, evidence, owner and `review_by`. |
+| Every Given/When/Then demonstrated | **A8.1–A8.4 yes** (below). A8.3's `unshare -n` step is CI's and unverified until it runs. |
+| `docs/CHANGELOG.md` entry | **Yes.** |
+| No `TODO`/`FIXME` without an issue number | **Yes**, `xtask ci-lint` clean. |
+
+- **A8.1** — `every_adversarial_answer_leaves_the_deterministic_answer_standing`: the stub's six
+  adversarial answers and a separated `reasoning_content`, through the real client and the real
+  gates, each leave the deterministic answer and a `Decision` naming the gate. Rows 8.2–8.4, 8.9
+  and 8.12 state the same per gate.
+- **A8.2** — `gate_l_rejects_any_character_change` over 5 000 generated edits, with its converse
+  `gate_l_admits_every_rename`.
+- **A8.3** — `cassette_replay_is_offline`: the replay provider holds no transport, so the test
+  tiers cannot make a live call; the `no-network` CI job runs the suite where no socket opens.
+- **A8.4** — `oc_ai_has_no_socket_dependency`, and `cargo deny check bans` clean.
+- **The worked examples of A.3 are `crates/oc-ai/tests/common/mod.rs`** and are the seeds for the
+  committed cassettes (P8.8). "One cassette per task per fixture" is read as one per task per
+  *named payload*: a payload rendered from a Typst fixture needs Phase 10's inventory builders.
 
 ## Phase 6 — what it built
 
@@ -1062,3 +1175,14 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-20  P7.8      oc-eval: calibration refuses the holdout; risk-coverage (7.4 + 11)  bb253f3
 2026-09-20  P7.9      openconvert: the perf budget, 0.0217 s/page on 300 pages (7.11, 7.12 + 14)  1f94be4
 2026-09-20  P7.10     ci: the python job, corpus lint, and four nightly bodies (7.13, 7.14 + 16)  61edb1d
+2026-09-22  P8.1      oc-ai: v1 prompts, a llama.cpp GBNF parser, the request (8.1, 8.14 + 19)  42807c2
+2026-09-22  P8.2      oc-ai: gate S, and gate D's record in Decision.fallback (8.2-8.4, 8.9, 8.12 + 6)  6c47025
+2026-09-22  P8.3      oc-ai: gate L - C unchanged without the ledger, then reading order (8.5, 8.6 + 3)  7b83a2a
+2026-09-22  P8.4      oc-ai: gate V - the fixed tuple, undefined skipped, oc-text's statistics (8.7, 8.8 + 5)  e635630
+2026-09-22  P8.5      oc-ai: one call budget per book, W_LLM_BUDGET_EXHAUSTED, unasked decisions (8.13 + 2)  3af6cef
+2026-09-22  P8.6      oc-ai: the cache key - one rule for cache and cassettes - and the file cache (8.10 + 5)  e1a7b8a
+2026-09-22  P8.7      oc-ai: one OpenAI-compatible client over a Transport; the adversarial stub (+ 7)  cc95e87
+2026-09-22  P8.8      oc-ai: cassettes at the provider seam, replay exact, four seeds (8.11 + 5)  6294cc6
+2026-09-22  P8.9      oc-core: the six escalation predicates, pure, table-tested (8.16)  1074970
+2026-09-22  P8.10     oc-ai: no socket by dependency or by std; CI unshare step; the DoD (8.15)  e5ad4ef
+2026-09-22  PHASE 8   COMPLETE on worktree-phase8 - Definition of Done checked; Linux/macOS CI and the unshare step unverified until merge

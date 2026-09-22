@@ -727,6 +727,34 @@ evidence = "RT C4; RT A7 notes R10 §6.13 offered 30 as illustrative, not measur
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[llm.verse_quote_blocks_per_call]
+value = 10
+source = "provisional"
+evidence = "Ratified note N-4 (ARCHITECTURE 6.3, D13.6): task 4 is batched at exactly 10 blocks per call, so llm.max_blocks_per_book = 30 costs at most 3 of the 8 calls. The verse_quote grammar admits exactly this many answers per call, and a test holds the two equal"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.temperature]
+value = 0.0
+source = "binary"
+evidence = "ARCHITECTURE 9.1, D13.8: every request decodes greedily. A cached answer and a cassette are only the answer to their question if the same question always gets the same answer; sampling would make a cache hit a coincidence"
+owner = "maintainer"
+review_by = "2099-01-01"
+
+[llm.gate_v_ratio_eps]
+value = 0.01
+source = "provisional"
+evidence = "ARCHITECTURE 6.2 / RT B13: the epsilon each ratio component of gate V's tuple (duplicate-line, top-2-gram, top-3-gram, non-alpha-word) may worsen by before an edit is reverted. As invented as the tuple itself; first measured against a real model's edits in Phase 10"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.gate_v_violations_eps]
+value = 0
+source = "binary"
+evidence = "ARCHITECTURE 6.2: heading_tree_violations is an integer count - level skips plus page-order inversions - and its epsilon is 0: an edit may not add a single one"
+owner = "maintainer"
+review_by = "2099-01-01"
+
 [llm.max_wallclock_share]
 value = 0.25
 source = "provisional"

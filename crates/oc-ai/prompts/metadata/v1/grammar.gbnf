@@ -1,0 +1,24 @@
+# crates/oc-ai/prompts/metadata/v1/grammar.gbnf
+# Output: {"title":..,"subtitle":..,"authors":[..],"translator":..,"publisher":..,"date":..}
+#
+# Every field is a JSON string or null, and authors is a list of strings. A string holds at
+# least one character: an absent field is null, never "". No optional whitespace is admitted
+# anywhere, so there is one canonical byte sequence per answer.
+#
+# The grammar bounds the shape and nothing else. Whether a string is true is the verbatim-
+# substring check against pages 1-3 (ARCHITECTURE 9.6): a fabricated author cannot be a
+# substring of a title page it was not on.
+
+root    ::= (
+    "{\"title\":" field
+    ",\"subtitle\":" field
+    ",\"authors\":" authors
+    ",\"translator\":" field
+    ",\"publisher\":" field
+    ",\"date\":" field
+    "}"
+  )
+field   ::= string | "null"
+authors ::= "[" ( string ( "," string )* )? "]"
+string  ::= "\"" char+ "\""
+char    ::= [^"\\\x00-\x1F] | "\\" ( ["\\/bfnrt] | "u" [0-9a-fA-F]{4} )

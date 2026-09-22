@@ -1,0 +1,18 @@
+# crates/oc-ai/prompts/verse_quote/v1/grammar.gbnf
+# Output: {"b":[{"id":"<block id>","k":<kind>},...]}
+#
+# One entry per block of the batch, at most 10: task 4 is batched at exactly ten blocks per
+# call (ratified note N-4), so the last batch of a book may be shorter and none is longer.
+# An id is a block id as oc-model derives it - ten characters of the RFC 4648 base32
+# alphabet - so the model cannot write an identifier that is not shaped like one of ours.
+# That it is one of *this batch's* ids, each exactly once, is gate S's check.
+
+root  ::= "{\"b\":[" entry ( "," entry ){0,9} "]}"
+entry ::= "{\"id\":\"" id "\",\"k\":" kind "}"
+id    ::= [A-Z2-7]{10}
+kind  ::= (
+      "\"verse\""
+    | "\"blockquote\""
+    | "\"preformatted\""
+    | "\"paragraph\""
+  )

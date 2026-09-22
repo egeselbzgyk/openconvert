@@ -3452,3 +3452,100 @@ from `emitted_text` to `reachable_text`; `dergipark-1113748` over the furniture 
 the reading corpus; `docs/LLM_BOUNDARY.md`. Recorded as quality and not worked: the runaway list,
 the running head that reached `structure`, the arXiv datestamp panic.
 Affects: PROGRESS.md, PHASE 7.5, PHASE 10's baseline.
+## 2026-09-22 · The v1 prompt artifacts, and three places Appendix A is not followed · Phase 8
+Context: Phase 8 commits the four tasks' `system.md`, `user.tmpl`, `grammar.gbnf` and
+`schema.json` under `crates/oc-ai/prompts/<task>/v1/`, as ratified R-7 lays them out. Writing
+them against llama.cpp's actual grammar parser found that the appendix they are copied from
+cannot be followed literally in three places.
+
+1. **Appendix A.2's `heading_roles` grammar does not load.** llama.cpp's `parse_sequence` skips
+   newlines only inside parentheses (`parse_space(pos, is_nested)`), so a top-level rule ends at
+   the end of its line, and A.2's choice — continuation lines beginning with `|` — is a syntax
+   error at the first `|`. The committed grammar puts the role list in parentheses. This is the
+   case for test 8.14 needing a parser that implements the dialect rather than one that accepts
+   anything grammar-shaped: a grammar the server refuses makes every call fail, every failure
+   falls back to the deterministic answer, and the whole AI path would look like a model that is
+   never needed. `oc_ai::gbnf` follows `llama-grammar.cpp` rule for rule (names are
+   `[a-zA-Z0-9-]`, `\x`/`\u`/`\U` take exactly 2/4/8 digits) and is stricter in two places — a
+   rule defined twice, and a bound whose maximum is below its minimum — so a grammar that passes
+   here passes there.
+2. **The held-out probe rides in the same call.** A.3 sends the 8–10 held-out runs as a second
+   call. ARCHITECTURE §9.6 (whose example answer carries `clusters` and `holdout` together) and
+   PIPELINE §8 ("ride along in the same call") both put it in the first, they outrank the plan,
+   and a second call would spend one of the book's eight on a question the first could carry.
+   The grammar is therefore A.2's plus an `"h"` array of at most 10 `{"i":<index>,"r":<role>}`,
+   where `i` is the probe's index in the payload: a run id is page-local (2026-09-14) and would
+   not name one line of a book.
+3. **`system.md` is four files, not one.** Appendix A calls the prefix "one physical file,
+   symlink-free, `include_str!`-ed by every task module"; ARCHITECTURE §9.2's layout — and the
+   Phase 8 file list — put a `system.md` in every task directory. ARCHITECTURE wins by the
+   authority order. The four copies are held byte-identical by test 8.1, which is then a test of
+   something rather than of one file's equality with itself.
+
+Decision, also: **a released prompt version is frozen, and a manifest says so.** The cache key is
+`sha256(model_id ‖ prompt_version ‖ grammar_hash ‖ user message)` (ARCHITECTURE §9.4). A
+template edit changes the user message and a grammar edit changes the grammar hash, but an edit to
+`system.md` changes neither: under an unchanged `PROMPT_VERSION` it would be answered from cache
+entries recorded against the old prefix. `crates/oc-ai/prompts/v1.sha256` pins every v1
+artifact, and `prompt_artifacts_are_pinned_to_their_version` fails on any edit. A change is a
+`v2` directory and a version bump.
+
+**`llm.verse_quote_blocks_per_call = 10`** is new: ratified note N-4's "exactly 10 blocks per
+call", which the `verse_quote` grammar states as a repetition bound. A test holds the bound and
+the threshold equal, as another holds the `heading_roles` bound equal to
+`inventory.max_clusters`.
+Evidence: `grammar_files_parse_as_gbnf` fails with `line 28: expecting a rule name` on A.2's
+printed form (mutation-checked); `system_prefix_is_byte_identical_across_purposes` and the pin
+test both fail on one appended byte in one copy.
+Affects: IMPLEMENTATION_PLAN Appendix A.1–A.3, `oc-ai::{gbnf,prompt,provider}`, `thresholds.toml`.
+
+## 2026-09-22 · `oc-ai` depends on `oc-model` alone, and takes its numbers from its caller · Phase 8
+Context: CLAUDE.md requires every constant to come from `thresholds.toml` through
+`oc_core::thresholds`, and `oc-ai` needs several — the call budget, gate V's epsilons, the token
+cap. The obvious edge, `oc-ai → oc-core`, is the one the crate map forbids in effect: DECISIONS.md
+Appendix A lists `oc-model` as `oc-ai`'s only workspace dependency, and ARCHITECTURE §3.1 says
+`oc-net` must not depend on `oc-core` — which it would, through `oc-ai`, the moment `oc-ai` did.
+`oc-validate` took the `oc-text`/`oc-core` edge on 2026-09-18, but no "must not" stood in its way.
+Decision: `oc-ai`'s normal dependencies stay `oc-model` and four external crates. Every number is
+a parameter its caller supplies, and the caller reads `T`. `oc-core` is a **dev**-dependency, so
+the tests exercise the real values; a dev-dependency does not reach `oc-net`. The same reasoning
+keeps gate V's statistics inside `oc-ai` rather than borrowed from `oc-text`.
+Evidence: `crates/oc-ai/Cargo.toml`.
+Affects: DECISIONS.md Appendix A (upheld), ARCHITECTURE §3.1, `oc-ai`.
+
+## 2026-09-22 · `Decision` records why the deterministic answer stood: a code, not a flag · Phase 8
+Context: A8.1 wants "a `Decision` records the failure" for any refused model answer, test 8.9
+asserts `fallback_used == true` on it, and ARCHITECTURE §9.1 records `fallback_used` "on the
+`Decision`". IR_SKETCH's `Decision` has no such field — only `Confidence` does, and a confidence
+is about how well a label is evidenced, not about whether a model was overruled.
+Decision: `Decision` gains `fallback: Option<&'static str>`, the code of what made the
+deterministic answer stand after an escalation — the refusing gate (`S.enum`, `S.bijection`, …)
+or, in P8.5, the budget — and `fallback_used()` is `fallback.is_some()`. A code and not a boolean,
+because "the model was contradicted" and "the model was never asked" are different findings a
+calibration corpus has to tell apart; a code and not the `GateFailure` itself, because a failure's
+detail may quote the model, the model may have quoted the book, and the report must carry none of
+it (D13.9). A refused call keeps its `LlmTrace`: the report can say a model was asked, under which
+prompt, and what it answered, by hash. Additive, so `ir_version` does not move (ARCHITECTURE
+§4.5); the only snapshot that serialises a decision, `report__report_f07.snap`, gains
+`"fallback": null` twice.
+Evidence: `gate_d_records_fallback_in_decision_log`, `an_accepted_answer_is_recorded_as_the_models`.
+Affects: IR_SKETCH (`Decision`, elaborated), `oc-model::decision`, `oc-ai::gates::fallback`.
+
+## 2026-09-22 · The escalation predicates live in `oc-core`, and one bound is already wrong · Phase 8
+Context: test 8.16 wants RT C4's six predicates pure and table-tested; Phase 10 plans
+`oc-structure/src/escalate.rs` to call them with the evidence `structure` measures, and the
+dehyphenation predicate belongs to `oc-text`. Neither crate may depend on `oc-ai`.
+Decision: the predicates are `oc_core::escalation` — the crate ARCHITECTURE §3.1 already gives
+"escalation" to, and one every evidence-owning stage already depends on. Each is a pure function
+of an evidence struct and the thresholds, returning `Verdict::{Fires, Abstains}` with a reason a
+report can carry. Gathering the evidence stays with the stage; judging it is this module's.
+Found on the way: comparing the `f32` short-line ratio against the `f64` threshold by widening
+the ratio puts a block exactly on the closed lower bound outside it — `f64::from(0.35f32)` is
+0.3499999… — so a block with 7 of 20 short lines reads as "full lines". The predicate compares in
+`f32`, and the table's lower-bound row fails with the widening restored (mutation-checked).
+**`oc-structure::quotes::classify_indented` has the same widening and so the same off-by-one-ulp
+bound**: at exactly `verse.short_line_ratio_min` it resolves `BlockQuote` instead of
+`Ambiguous`. Recorded, not fixed — Phase 4 code outside this item; Phase 10 replaces that
+comparison with a call to `oc_core::escalation::verse_quote`.
+Evidence: `escalation_predicates_are_pure_and_unit_tested`.
+Affects: ARCHITECTURE §3.1 and §6.1, `oc-core::escalation`, `oc-structure::quotes` (open).
