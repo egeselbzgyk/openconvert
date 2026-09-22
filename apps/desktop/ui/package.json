@@ -5,15 +5,20 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "test": "vitest run",
-    "lint": "tsc --noEmit"
+    "build": "vite build",
+    "check": "svelte-check --fail-on-warnings",
+    "lint": "node scripts/lint.mjs",
+    "test": "vitest run"
   },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.1.1",
     "@tauri-apps/api": "^2.11.1",
-    "@tauri-apps/plugin-shell": "^2.3.6",
+    "@types/node": "^22.20.4",
+    "jsdom": "^26.1.0",
+    "svelte": "^5.57.1",
+    "svelte-check": "^4.7.6",
     "typescript": "^5.7.2",
     "vite": "^6.0.7",
-    "vitest": "^3.0.2"
+    "vitest": "^5.0.1"
   }
 }

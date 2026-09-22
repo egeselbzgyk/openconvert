@@ -3628,3 +3628,22 @@ part B threads them in, a Unix engine gets its own process group and the supervi
 engine itself, which orphans nothing while AI is off.
 Evidence: `engine_is_spawned_with_exactly_one_argument`, `job_spec_is_validated_before_spawn`.
 Affects: RT B15, D13.2, Phase 12 detail 1, `apps/desktop/src-tauri`.
+
+## 2026-09-23 · The UI's warning sentences are the engine's templates · Phase 12
+Context: the design's string inventory carries `warn.*` drafts in EN/DE/TR, two of them for codes
+the engine does not have and several with arguments the engine does not send
+(`W_TABLE_AS_IMAGE` with `{n}`, where the engine sends `{rows}`, `{columns}`, `{reason}`). The engine
+already has a template for every registered code in all three locales
+(`crates/oc-core/src/warnings/templates_*.toml`), held to the registry by `xtask ci-lint` and by
+four tests, and the CLI renders from them.
+Decision: the UI renders warnings from **those same files**, compiled into the bundle at build time
+(`ui/src/lib/warnings.ts`), and the locale JSON files carry no `warn.*` keys. One sentence per code
+per locale in the repository, so the argument names cannot drift between the two front ends, and a
+new code needs its three templates exactly once. The design's warning copy is therefore not used;
+its phrasing can be adopted by editing the TOML templates, where it will also reach the CLI. Test
+12.9 reads the registry and asserts every code has a template in every locale with the English slot
+set, and that the UI's three JSON files have identical key and slot sets. Test 12.8 uses the real
+arguments of `W_TABLE_AS_IMAGE` rather than the plan's illustrative `{count:3}`. There is no
+English fallback anywhere: a missing key renders as a visible `⟦key⟧` marker (A12.3).
+Evidence: `warnings_are_localised_from_code_and_args`, `every_warning_code_has_every_locale`.
+Affects: docs/design/handoff/docs/strings.md (`warn.*` rows superseded), Phase 12 rows 12.8, 12.9.

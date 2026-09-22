@@ -196,8 +196,14 @@ Work items, in order, with the plan's test rows against each:
       `'unsafe-inline'` anywhere, so dynamic values must go through `style:` (CSSOM). Tauri's IPC
       falls back from its `ipc:` fetch to `postMessage` under `connect-src 'none'` (to be seen in
       a real window — unverified here, no display)
-- [ ] **P12.6** UI foundation: Svelte 5, the ported styles, inlined icons, EN/DE/TR, warnings from
-      the engine's templates — rows 12.3, 12.8, 12.9
+- [x] **P12.6** UI foundation: Svelte 5, the ported styles, inlined icons, EN/DE/TR, warnings from
+      the engine's templates — rows **12.8, 12.9** (+ 6 tests; 12.3 moved to P12.7, where the
+      blocking screen is). `npm test` (vitest 5, jsdom), `npm run check` (svelte-check
+      `--fail-on-warnings`), `npm run lint` (`scripts/lint.mjs`: CSP, privacy, colour, casing,
+      tabindex, string-key rules) and `npm run build`. Warnings render from
+      `crates/oc-core/src/warnings/templates_*.toml` compiled into the bundle — the design's
+      `warn.*` drafts are not used. Lucide/Svelte/Tauri notices: `apps/desktop/THIRD-PARTY-NOTICES.txt`.
+      `xtask ci-lint` now also reads `.svelte`/`.mjs` and skips `dist/`
 - [ ] **P12.7** the job store: events → rows, heartbeat watchdog, cancel states — rows 12.4, 12.5
 - [ ] **P12.8** the screens: queue, result, report, preview, settings, first run, blocking errors
 - [ ] **P12.9** metadata and TOC overrides — rows 12.10, 12.11
