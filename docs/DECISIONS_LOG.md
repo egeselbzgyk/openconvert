@@ -3673,3 +3673,31 @@ the hook and the handler, the panic and SIGTERM tests fail and the exit test (`D
 before it ends). `cargo check -p oc-core` passes for `x86_64-pc-windows-msvc` and
 `aarch64-apple-darwin`. The tests themselves have run on Linux only.
 Affects: D8, D13.2, ARCHITECTURE §8.2, SECURITY §3, PHASE 9 detail 5, Phase 14.
+
+## 2026-09-23 · `openconvert model`: what it reads and what a first-run screen gets · Phase 9
+Context: PHASE 9 details 6–7 and §2.1 specify `model pull|list|remove` and a `ModelReadiness` per
+registry entry with "a CPU expectation string ("first call ~5–15 s on a 4-core laptop")". UI_UX §2
+words the same field as "fast" / "moderate" / "slower, higher quality".
+Decision:
+1. The registry is **compiled into the binary** (`include_str!` of `models.toml`), per D9's "a hash
+   compiled into the app's model registry". `--registry` replaces it for tests and for a maintainer.
+2. `cpu_expectation` is a new optional `models.toml` field, written in UI_UX §2's categories:
+   default "moderate", 0.6B "fast", 4B "slower, higher quality", the experimental entry "not yet
+   measured". No timing is shipped, because none has been measured on machine L. The plan's
+   seconds are G4's to establish.
+3. `ModelReadiness` is in `oc_core::sidecar::readiness` (types only, as the plan places it) and
+   carries the plan's seven fields plus four the registry already has and a model manager row
+   shows (UI_UX §2): `display_name`, `tier`, `is_default`, `warn`.
+4. `remove` reads no registry, so whatever is on disk can always be deleted. An absent model is
+   exit 0 with "not installed; nothing to remove" (row 9.19). A registry that does not load is
+   exit 2 (`E_MODEL_REGISTRY`), an unknown id exit 2 (`E_MODEL_UNKNOWN`), and a failed download
+   exit 1 (`E_MODEL_DOWNLOAD`). Download progress is a `progress{stage:"download", unit:"bytes"}`
+   event at most once per percent.
+**PROVISIONAL — needs maintainer ratification:** the shipped `models.toml` still has its `TODO_`
+pins, because this sandbox cannot reach huggingface.co (see the registry entry below). Until they
+are filled, `model list` and `model pull` on the bundled registry exit 2 naming the placeholder.
+That is the refusal row 9.1 asks for, applied to the real file.
+Evidence: `model_list_json_shape` (snapshot), `model_remove_absent_exits_zero_with_a_message`,
+`model_pull_refuses_a_host_off_the_allowlist`, `an_unresolved_registry_is_a_usage_error`,
+`an_unknown_model_id_is_a_usage_error`.
+Affects: D9, UI_UX §2, IMPLEMENTATION_PLAN §1.6 and §2.1, `crates/openconvert/src/cmd_model.rs`.

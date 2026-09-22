@@ -52,6 +52,9 @@ pub struct ModelEntry {
     pub context: u32,
     pub parallel: u32,
     pub min_ram_bytes: u64,
+    /// What the first-run screen says about speed on a CPU, in UI_UX §2's words: "fast",
+    /// "moderate", "slower, higher quality" — or that it has not been measured.
+    pub cpu_expectation: Option<String>,
     pub prompt_profile: String,
     pub cache_reuse: bool,
     pub context_checkpoints: Option<u32>,

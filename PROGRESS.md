@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 9
-CURRENT_ITEM: P9.7 — `openconvert model pull|list|remove` (row 9.18).
+CURRENT_ITEM: P9.8 — live tests behind `live-llm`, `W_LLM_PREFIX_COLD` (rows 9.15, 9.16).
               Built on branch `phase/09-local-model`.
 LAST_UPDATED: 2026-09-23
 
@@ -72,7 +72,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P9.4** `oc-core` has no net dependency — row 9.7
 - [x] **P9.5** sidecar arguments and port picking — rows 9.12, 9.14
 - [x] **P9.6** the owned server's lifecycle — rows 9.8–9.11, 9.13
-- [ ] **P9.7** `openconvert model pull|list|remove` — row 9.18
+- [x] **P9.7** `openconvert model pull|list|remove` — row 9.18
 - [ ] **P9.8** live tests behind `live-llm`, `W_LLM_PREFIX_COLD` — rows 9.15, 9.16
 - [ ] **P9.9** `eval/model_gate.py`, the default-model gate, `docs/MODEL_GATE.md` — rows 9.17, 9.20
 - [ ] **P9.10** the Definition of Done, CHANGELOG, merge
@@ -106,6 +106,9 @@ What a fresh session needs:
   `oc-stub-llama-server` and `oc-sidecar-engine`. PDEATHSIG and Windows job objects need `unsafe`
   and are deferred to Phase 14 (PROVISIONAL, DECISIONS_LOG 2026-09-23). The idle-kill *loop* is
   Phase 10's.
+- **`openconvert model`** is `crates/openconvert/src/cmd_model.rs`, with the registry compiled
+  in. The bundled `models.toml` still has `TODO_` pins, so on it `list`/`pull` exit 2. That is
+  correct until the fill (Blocked).
 - **Disk is shared with a parallel worker** (`/home/user/wt/phase12`, ~11 GB). Build with
   `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` (env only, no repo change); prune stale duplicates in `target/debug/deps` when free space drops under
   ~5 GB (keep the newest artefact per crate name).

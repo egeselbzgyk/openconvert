@@ -24,6 +24,7 @@ pub enum Command {
     Inspect(InspectArgs),
     DumpStage(DumpStageArgs),
     DiffStage(DiffStageArgs),
+    Model(ModelArgs),
     /// `--help` or `--version`: print and exit successfully.
     Print(String),
 }
@@ -109,6 +110,28 @@ pub struct DumpStageArgs {
     pub limits: oc_core::limits::Limits,
 }
 
+/// What `model` is asked to do (§2.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ModelAction {
+    Pull,
+    List,
+    Remove,
+}
+
+/// `model <pull|list|remove> [ID]`: the model manager (PHASE 9 details 6–7).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ModelArgs {
+    pub action: ModelAction,
+    /// Required by `pull` and `remove`, refused by `list`.
+    pub id: Option<String>,
+    /// The bundled `models.toml` when absent.
+    pub registry: Option<PathBuf>,
+    /// The per-OS data directory when absent.
+    pub dir: Option<PathBuf>,
+    pub json: bool,
+    pub progress: Progress,
+}
+
 /// Why a command line was rejected. Every one of these is exit code 2 (§2.4).
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum CliError {
@@ -132,6 +155,8 @@ pub enum CliError {
     ConvertArgs,
     #[error("validate needs exactly one input file")]
     ValidateArgs,
+    #[error("model needs pull <ID>, list, or remove <ID>")]
+    ModelArgs,
 }
 
 pub const USAGE: &str = "\
@@ -149,6 +174,9 @@ usage:
                                   [--progress none|json] [--max-pages <N>]
   openconvert diff-stage <STAGE> <INPUT.pdf> [--password <STRING>]
                                   [--progress none|json] [--max-pages <N>]
+  openconvert model pull <ID> [--registry <PATH>] [--dir <PATH>] [--progress none|json]
+  openconvert model list [--json] [--registry <PATH>] [--dir <PATH>]
+  openconvert model remove <ID> [--dir <PATH>]
   openconvert --version
   openconvert --help
 
@@ -165,6 +193,8 @@ usage:
   --report <PATH>      where report.json goes; default <output>.report.json
   --locale <TAG>       en|de|tr; which language the warnings are printed in (default en)
   --tier <1|2>         1 = the internal validator (default), 2 = plus EPUBCheck
+  --registry <PATH>    a models.toml to use instead of the one built into the engine
+  --dir <PATH>         the model store; default the per-OS data directory
 
   dump-stage writes one canonical-JSON object per line: a header, then one per page.
   <STAGE> is one of the twelve stage names; `ingest` and `text` are implemented so far.
@@ -193,6 +223,7 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, CliErro
         "validate" => return parse_validate(args),
         "dump-stage" => return parse_dump_stage(args),
         "diff-stage" => return parse_diff_stage(args),
+        "model" => return parse_model(args),
         other => return Err(CliError::UnknownSubcommand(other.to_owned())),
     }
 
@@ -374,6 +405,58 @@ fn parse_validate<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cl
         }
         _ => Err(CliError::ValidateArgs),
     }
+}
+
+/// Parse `model <pull|list|remove> [ID]`, having already consumed the subcommand.
+fn parse_model<I: Iterator<Item = String>>(mut args: I) -> Result<Command, CliError> {
+    let mut positional = Vec::new();
+    let mut registry = None;
+    let mut dir = None;
+    let mut json = false;
+    let mut progress = Progress::None;
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--registry" => {
+                registry = Some(PathBuf::from(
+                    args.next().ok_or(CliError::MissingValue("--registry"))?,
+                ));
+            }
+            "--dir" => {
+                dir = Some(PathBuf::from(
+                    args.next().ok_or(CliError::MissingValue("--dir"))?,
+                ));
+            }
+            "--json" => json = true,
+            "--progress" => {
+                let value = args.next().ok_or(CliError::MissingValue("--progress"))?;
+                progress = parse_progress(&value)?;
+            }
+            "--help" | "-h" => return Ok(Command::Print(USAGE.to_owned())),
+            other if other.starts_with('-') => {
+                return Err(CliError::UnknownOption(other.to_owned()))
+            }
+            other => positional.push(other.to_owned()),
+        }
+    }
+    let mut positional = positional.into_iter();
+    let action = match positional.next().as_deref() {
+        Some("pull") => ModelAction::Pull,
+        Some("list") => ModelAction::List,
+        Some("remove") => ModelAction::Remove,
+        _ => return Err(CliError::ModelArgs),
+    };
+    let id = positional.next();
+    if positional.next().is_some() || (action == ModelAction::List) != id.is_none() {
+        return Err(CliError::ModelArgs);
+    }
+    Ok(Command::Model(ModelArgs {
+        action,
+        id,
+        registry,
+        dir,
+        json,
+        progress,
+    }))
 }
 
 /// A document preset by name (D13.11).

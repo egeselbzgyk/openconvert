@@ -6,5 +6,6 @@
 
 pub mod endpoint;
 pub mod llama;
+pub mod readiness;
 pub mod server;
 pub mod supervise;

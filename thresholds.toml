@@ -907,6 +907,21 @@ evidence = "D13.11 and IMPLEMENTATION_PLAN PHASE 7 row 7.11 state the budget for
 owner = "maintainer"
 review_by = "2027-06-30"
 
+# ---------- model downloads (PHASE 9 detail 6) ----------
+[net.max_redirects]
+value = 5
+source = "provisional"
+evidence = "PHASE 9 detail 6: a Hugging Face resolve URL answers with one redirect to its CDN. The downloader follows each hop itself so every hop meets the allowlist; five leaves room for a CDN that redirects once more and stops a loop long before it matters. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[net.connect_timeout_secs]
+value = 30
+source = "provisional"
+evidence = "PHASE 9 detail 6: how long `model pull` waits for a TCP and TLS connection before it gives up. Only the connection is bounded: a 1-3 GB transfer on a slow line legitimately takes longer than any fixed total would allow. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 # ---------- model promotion gate (D9 G1-G9) ----------
 [model_gate.g4_max_seconds_on_l]           # "L" = D9 reference machine L (4c/8t AVX2 x86, 16 GB)
 value = 50
