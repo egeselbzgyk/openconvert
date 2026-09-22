@@ -7,8 +7,8 @@ CURRENT_PHASE: 7.5 — and 8, in parallel, on the `worktree-phase8` branch
 CURRENT_ITEM: 7.5.3 — the defect inventory over the whole corpus, and the timeout class
               it found. 9 of 104 documents are unmeasured; the inventory run was
               stopped by system memory pressure.
-              P8.8 — cassettes and replay (Phase 8, `worktree-phase8`; see "Phase 8 — in
-              parallel")
+              P8.9 — the six escalation predicates, in `oc-core` (Phase 8, `worktree-phase8`;
+              see "Phase 8 — in parallel")
 LAST_UPDATED: 2026-09-22
 
 ---
@@ -266,7 +266,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P8.5** the call budget — row 8.13 (+ 2)
 - [x] **P8.6** the cache key and the file cache — row 8.10 (+ 5)
 - [x] **P8.7** transport, the OpenAI-compatible client, the stub server — A8.1 end to end (+ 7)
-- [ ] **P8.8** cassettes and replay — row 8.11
+- [x] **P8.8** cassettes and replay — row 8.11 (+ 5)
 - [ ] **P8.9** the six escalation predicates, in `oc-core` — row 8.16
 - [ ] **P8.10** no socket dependency, the CI wiring, the Definition of Done — row 8.15
 
@@ -310,6 +310,12 @@ What a fresh session needs, in the order it matters:
   separated `reasoning_content` still fails gate S (`gate_response`). The stub in
   `tests/stub_server.rs` answers in all six adversarial ways the plan names, plus that one.
   `llm.temperature = 0.0` (binary) is new.
+- **Cassettes replay at the provider seam** — `cassette::Replay` is an `LlmProvider` with no
+  transport — because the key carries the prompt version, which never travels on the wire.
+  The four committed seeds (`tests/cassettes/<task>/`) are A.3's answers recorded through the
+  stub, `model_id = "stub"`; regenerate with `OC_AI_RECORD_SEEDS=1 cargo nextest run -p oc-ai -E
+  'test(seeds)'` only after a prompt-version bump, and review the diff. A miss names the nearest
+  recording and the byte where the questions diverge.
 - **The worked examples of A.3 are `crates/oc-ai/tests/common/mod.rs`** and are the seeds for the
   committed cassettes (P8.8). "One cassette per task per fixture" is read as one per task per
   *named payload*: a payload rendered from a Typst fixture needs Phase 10's inventory builders.
@@ -1226,3 +1232,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-22  P8.4      oc-ai: gate V - the fixed tuple, undefined skipped, oc-text's statistics (8.7, 8.8 + 5)  e635630
 2026-09-22  P8.5      oc-ai: one call budget per book, W_LLM_BUDGET_EXHAUSTED, unasked decisions (8.13 + 2)  3af6cef
 2026-09-22  P8.6      oc-ai: the cache key - one rule for cache and cassettes - and the file cache (8.10 + 5)  e1a7b8a
+2026-09-22  P8.7      oc-ai: one OpenAI-compatible client over a Transport; the adversarial stub (+ 7)  cc95e87

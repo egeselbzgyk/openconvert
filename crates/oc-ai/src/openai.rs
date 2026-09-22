@@ -148,6 +148,7 @@ struct Completion {
 #[derive(Deserialize)]
 struct Choice {
     message: Message,
+    finish_reason: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -185,5 +186,6 @@ fn read_completion(reply: &str) -> Result<LlmResponse, LlmError> {
         tokens_in,
         tokens_out,
         cached: false,
+        finish_reason: choice.finish_reason,
     })
 }

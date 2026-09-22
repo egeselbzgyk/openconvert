@@ -22,6 +22,21 @@ pub fn hex(bytes: &[u8]) -> String {
     out
 }
 
+/// The 32 bytes a 64-digit hex string spells, or `None` when it spells anything else.
+pub fn unhex32(text: &str) -> Option<[u8; 32]> {
+    let digits = text.as_bytes();
+    let mut out = [0u8; 32];
+    if digits.len() != out.len() * 2 {
+        return None;
+    }
+    for (index, pair) in digits.chunks(2).enumerate() {
+        let high = char::from(pair[0]).to_digit(16)?;
+        let low = char::from(pair[1]).to_digit(16)?;
+        out[index] = u8::try_from((high << 4) | low).ok()?;
+    }
+    Some(out)
+}
+
 /// The empty string's hash is the one every SHA-256 implementation agrees on, and the hex is the
 /// form every artifact carries.
 #[test]
@@ -31,4 +46,9 @@ fn sha256_hex_is_the_standard_digest_in_lowercase() {
         "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     );
     assert_eq!(hex(&[0x00, 0x0f, 0xf0, 0xff]), "000ff0ff");
+
+    let digest = sha256(b"abc");
+    assert_eq!(unhex32(&hex(&digest)), Some(digest));
+    assert_eq!(unhex32("00"), None);
+    assert_eq!(unhex32(&"g".repeat(64)), None);
 }

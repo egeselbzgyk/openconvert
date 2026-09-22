@@ -74,6 +74,9 @@ pub struct LlmResponse {
     pub tokens_out: u32,
     /// Whether the answer came from the cache or a cassette rather than from a model.
     pub cached: bool,
+    /// Why the model stopped: `stop` at the end of an answer, `length` when `max_tokens` cut it
+    /// off — in which case gate S will find it unparseable.
+    pub finish_reason: Option<String>,
 }
 
 /// Why a question got no answer. Distinct from a gate failure, where an answer came back and was
@@ -85,6 +88,20 @@ pub enum LlmError {
     /// The endpoint replied with something that is not a chat completion.
     #[error("the endpoint's reply is not a chat completion: {0}")]
     Protocol(String),
+    /// Replay has no recording of this question (Appendix B.3 rule 2). Never a fallback to a real
+    /// call, and never the closest recording's answer.
+    #[error("no cassette is recorded under key {key}; nearest recording: {nearest:?}")]
+    CassetteMiss {
+        key: String,
+        nearest: Option<crate::cassette::Nearest>,
+    },
+    /// A recording exists under the key and disagrees with the current prompt artifacts — a
+    /// hand-edited cassette, or a prompt edited without a version bump (Appendix B.3 rule 3).
+    #[error("the cassette under key {key} is stale: {reason}")]
+    StaleCassette { key: String, reason: String },
+    /// A cassette file could not be read or written.
+    #[error("cassette I/O: {0}")]
+    Cassette(String),
 }
 
 /// The four v1 tasks (D13.6), named as ARCHITECTURE §9.6 names them.

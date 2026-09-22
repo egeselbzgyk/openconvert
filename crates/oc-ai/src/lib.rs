@@ -11,6 +11,7 @@
 
 pub mod budget;
 pub mod cache;
+pub mod cassette;
 pub mod digest;
 pub mod gates;
 pub mod gbnf;

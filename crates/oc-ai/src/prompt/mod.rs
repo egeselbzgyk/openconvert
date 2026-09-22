@@ -47,6 +47,18 @@ pub struct Artifacts {
 }
 
 impl Artifacts {
+    /// The hash a cassette records as `prompt_sha256` (Appendix B.2): the prefix and the template,
+    /// each length-prefixed. A cassette recorded under other prompt text is stale even when its key
+    /// matches, and this is how replay tells (Appendix B.3 rule 3).
+    pub fn prompt_sha256(&self) -> [u8; 32] {
+        let mut bytes = Vec::new();
+        for part in [self.system, self.user_template] {
+            bytes.extend_from_slice(&u64::try_from(part.len()).unwrap_or(u64::MAX).to_le_bytes());
+            bytes.extend_from_slice(part.as_bytes());
+        }
+        crate::digest::sha256(&bytes)
+    }
+
     /// A request for this task, around a user message already rendered from `user_template`.
     pub(crate) fn request(&self, user: String, max_tokens: u32) -> LlmRequest {
         LlmRequest {
