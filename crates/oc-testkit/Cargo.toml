@@ -21,6 +21,14 @@ name = "oc-sidecar-engine"
 path = "src/bin/oc-sidecar-engine.rs"
 test = false
 
+[features]
+default = []
+# Rows 9.15 and 9.16 need a real llama-server and a real model, named by `OC_LLAMA_SERVER` and
+# `OC_LIVE_MODEL`. Gated rather than ignored (§0.2): the nightly `live-llm-cassette-refresh` job turns
+# it on, and a developer with a model can too. With the feature on and either variable unset, the
+# tests fail — a live test that quietly passes without a model is not a live test.
+live-llm = []
+
 [dependencies]
 oc-model = { path = "../oc-model", version = "0.1.0" }
 oc-core = { path = "../oc-core", version = "0.1.0" }

@@ -144,9 +144,28 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: criterion, path: target/criterion }
 
+  # Rows 9.15 and 9.16: the live tests, against the pinned llama-server and the default model, both
+  # fetched and verified before anything runs. This job fails while `xtask/llama.lock` and
+  # `models.toml` still carry `TODO_` placeholders, and that is deliberate: a live gate that passes
+  # without a model is not a gate. Re-recording the cassettes against the live model lands with
+  # Phase 10's inventories, which are what a cassette is recorded from.
   live-llm-cassette-refresh:   # Phase 9
     runs-on: ubuntu-latest
-    steps: [{ run: 'echo "not yet implemented (Phase 9)"' }]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+      - name: fetch the pinned llama-server
+        run: echo "OC_LLAMA_SERVER=$(cargo run -q -p xtask -- fetch-llama-server)" >> "$GITHUB_ENV"
+      - name: pull the default model through the engine's own verified download
+        run: |
+          cargo run -q -p openconvert --locked -- model pull qwen3-1.7b-q4_k_m --dir "$RUNNER_TEMP/models"
+          echo "OC_LIVE_MODEL=$RUNNER_TEMP/models/qwen3-1.7b-q4_k_m/Qwen3-1.7B-Q4_K_M.gguf" >> "$GITHUB_ENV"
+      - name: rows 9.15 and 9.16
+        run: cargo nextest run -p oc-testkit --features live-llm --locked -E 'binary(live_llm)'
+
 
   # Tier 3 (D6, PIPELINE §11): zero serious violations, and every required accessibility metadata
   # field present. Ace is a Node application, so the gate is behind the `ace` cargo feature — a

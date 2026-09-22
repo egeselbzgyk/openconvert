@@ -3701,3 +3701,33 @@ Evidence: `model_list_json_shape` (snapshot), `model_remove_absent_exits_zero_wi
 `model_pull_refuses_a_host_off_the_allowlist`, `an_unresolved_registry_is_a_usage_error`,
 `an_unknown_model_id_is_a_usage_error`.
 Affects: D9, UI_UX §2, IMPLEMENTATION_PLAN §1.6 and §2.1, `crates/openconvert/src/cmd_model.rs`.
+
+## 2026-09-23 · llama.cpp pinned at `b10456`, digests unfilled; live tests in `oc-testkit` · Phase 9
+Context: PHASE 9 detail 1 asks for `xtask fetch-llama-server` to download a pinned `b<N>` release
+asset and check it against a SHA-256 in `xtask/llama.lock`. Rows 9.15 and 9.16 are live tests,
+nightly, behind `--features live-llm`.
+Decision:
+1. `xtask/llama.lock` pins **`b10456`**, the release V1 §3 read on 2026-08-17 and whose asset list
+   it recorded (ubuntu-x64 and macos tarballs, win-cpu-x64 zip, one CPU build per arch).
+   **PROVISIONAL — needs maintainer ratification:** the digests and sizes are `TODO_SHA256` / `0`.
+   This sandbox's egress policy refuses github.com release downloads (HTTP 403), so no asset could
+   be hashed here, and a digest copied from anywhere but the asset itself would make the check
+   circular. `fetch-llama-server` refuses an unfilled entry by name. Until someone hashes the three
+   assets, the nightly live job fails at its first step, which is the honest state of the gate.
+2. The archive is unpacked whole and `llama-server` is found by name, because a release carries its
+   backend shared libraries beside the binary (`GGML_BACKEND_DL`) and V1 could not confirm the path
+   inside the archive. Staging it as a Tauri `externalBin` is packaging (Phase 15).
+3. The live tests are `crates/oc-testkit/tests/live_llm.rs`, not `oc-ai`'s: they need `oc-net`'s
+   `HttpTransport`, and test 8.15 walks `oc-ai`'s dev-dependencies too. They reuse Appendix A.3's
+   worked examples from `crates/oc-ai/tests/common/` through `#[path]`. With the feature on and
+   `OC_LLAMA_SERVER`/`OC_LIVE_MODEL` unset they fail, never skip. Pointed at the stub server here,
+   9.15 passed and 9.16 failed with `W_LLM_PREFIX_COLD` (the stub reports `cache_n: 0`). So the
+   harness runs end to end and the cold path fires; neither says anything about a real model.
+4. `W_LLM_PREFIX_COLD` (Warn, args `call` and `task`) is `oc_ai::prefix::check`: calls after a
+   book's first must report cached prompt tokens (`timings.cache_n`, or
+   `usage.prompt_tokens_details.cached_tokens`), and a reply that reports neither counts as cold.
+   Re-checking the wall-clock share when it fires is the call loop's job, Phase 10.
+Evidence: `an_unfilled_digest_is_refused_before_anything_is_fetched`,
+`prefix_cold_is_warned_after_the_first_call`, `cached_prompt_tokens_are_read_from_the_reply`,
+`test_the_live_llm_job_runs_the_live_tests_against_a_fetched_server_and_model`.
+Affects: D8, D9, PHASE 9 details 1 and 4, `.github/workflows/nightly.yml`.
