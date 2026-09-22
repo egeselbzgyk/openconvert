@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 9
-CURRENT_ITEM: P9.3 — the store (`list`, `remove`) and `HttpTransport` (row 9.19).
+CURRENT_ITEM: P9.4 — `oc-core` has no net dependency (row 9.7).
               Built on branch `phase/09-local-model`.
 LAST_UPDATED: 2026-09-23
 
@@ -68,7 +68,7 @@ Work items, in order, with the plan's test rows against each:
 
 - [x] **P9.1** the registry: `oc_net::registry` — rows 9.1, 9.2
 - [x] **P9.2** the downloader: allowlist, streaming SHA-256, LICENSE/NOTICE, atomic — rows 9.3–9.6
-- [ ] **P9.3** the store (`list`, `remove`) and `HttpTransport` — row 9.19
+- [x] **P9.3** the store (`list`, `remove`) and `HttpTransport` — row 9.19
 - [ ] **P9.4** `oc-core` has no net dependency — row 9.7
 - [ ] **P9.5** sidecar arguments and port picking — rows 9.12, 9.14
 - [ ] **P9.6** the owned server's lifecycle — rows 9.8–9.11, 9.13

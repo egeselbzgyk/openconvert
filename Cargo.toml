@@ -68,6 +68,9 @@ rayon = "1"
 # is named beside `ureq` only to pick its crypto provider, `ring`, without reaching for ureq's
 # private `_ring` feature.
 ureq   = { version = "3", default-features = false, features = ["rustls-no-provider", "platform-verifier"] }
+# A key read from `--llm-api-key-file`, or minted per run for the sidecar: zeroed on drop and
+# redacted from `Debug`, so it cannot reach a log line by accident (PHASE 9 detail 3).
+secrecy = "0.10"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 # --- fixtures (xtask only; never shipped) ---
 # Typst-sourced fixtures are compiled in-process so regeneration needs no external tool

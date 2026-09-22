@@ -3593,3 +3593,16 @@ entry's `notice_text` (or `<display_name>, <license>.`) followed by the URL, rep
 file and SHA-256 that were installed.
 Evidence: `download_writes_license_and_notice`.
 Affects: D9, LICENSE_AND_DEPENDENCIES §5, `crates/oc-net/src/download.rs`.
+
+## 2026-09-23 · `HttpTransport` never uses a proxy · Phase 9
+Context: `ureq` reads `HTTPS_PROXY`/`ALL_PROXY` from the environment by default. The model
+downloader should honour that, because a user behind a corporate proxy cannot otherwise download
+anything. `HttpTransport`, the `oc_ai::Transport` that carries a book's inventories to a model,
+is a different case.
+Decision: `HttpTransport` sets `proxy(None)`. The engine-owned sidecar is on loopback, and a proxy
+configured for downloads is not a party that may read a book's text: D13.9's privacy claim is that
+text never leaves the machine unless the user sends it to an endpoint they named. The downloader
+(`HttpFetch`) keeps the environment's proxy, since what it sends is a pinned public URL. Whether a
+non-loopback endpoint may be used at all is D10's consent question and Phase 11's.
+Evidence: `crates/oc-net/src/transport.rs`; `http_transport_posts_json_with_the_bearer_key`.
+Affects: D10, D13.9, SECURITY §8.

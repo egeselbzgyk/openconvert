@@ -10,6 +10,7 @@ pub mod allowlist;
 pub mod download;
 pub mod registry;
 pub mod store;
+pub mod transport;
 pub mod verify;
 
 /// Why a download, or a change to the model store, did not happen.
