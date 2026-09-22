@@ -7,8 +7,8 @@ CURRENT_PHASE: 7.5 — and 8, in parallel, on the `worktree-phase8` branch
 CURRENT_ITEM: 7.5.3 — the defect inventory over the whole corpus, and the timeout class
               it found. 9 of 104 documents are unmeasured; the inventory run was
               stopped by system memory pressure.
-              P8.7 — transport, the OpenAI-compatible client, the stub server (Phase 8,
-              `worktree-phase8`; see "Phase 8 — in parallel")
+              P8.8 — cassettes and replay (Phase 8, `worktree-phase8`; see "Phase 8 — in
+              parallel")
 LAST_UPDATED: 2026-09-22
 
 ---
@@ -265,7 +265,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P8.4** gate V — rows 8.7, 8.8 (+ 5)
 - [x] **P8.5** the call budget — row 8.13 (+ 2)
 - [x] **P8.6** the cache key and the file cache — row 8.10 (+ 5)
-- [ ] **P8.7** transport, the OpenAI-compatible client, the stub server
+- [x] **P8.7** transport, the OpenAI-compatible client, the stub server — A8.1 end to end (+ 7)
 - [ ] **P8.8** cassettes and replay — row 8.11
 - [ ] **P8.9** the six escalation predicates, in `oc-core` — row 8.16
 - [ ] **P8.10** no socket dependency, the CI wiring, the Definition of Done — row 8.15
@@ -304,6 +304,12 @@ What a fresh session needs, in the order it matters:
 - **The cache key length-prefixes the model id** — ARCHITECTURE's bare `‖` is ambiguous — and
   the worked example's key is pinned in `the_key_is_the_documented_layout`, because cassettes are
   named by it. `FileCache` reports a damaged or misfiled entry as an error, never as a miss.
+- **One client, `openai::OpenAiCompatible<T: Transport>`**, is every model provider: the grammar
+  goes out as `grammar` (GBNF), `response_format` (JSON Schema) or not at all, and thinking is
+  turned off by `chat_template_kwargs`, `think: false` or `/no_think` on the prefix (D10). A
+  separated `reasoning_content` still fails gate S (`gate_response`). The stub in
+  `tests/stub_server.rs` answers in all six adversarial ways the plan names, plus that one.
+  `llm.temperature = 0.0` (binary) is new.
 - **The worked examples of A.3 are `crates/oc-ai/tests/common/mod.rs`** and are the seeds for the
   committed cassettes (P8.8). "One cassette per task per fixture" is read as one per task per
   *named payload*: a payload rendered from a Typst fixture needs Phase 10's inventory builders.
@@ -1219,3 +1225,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-22  P8.3      oc-ai: gate L - C unchanged without the ledger, then reading order (8.5, 8.6 + 3)  7b83a2a
 2026-09-22  P8.4      oc-ai: gate V - the fixed tuple, undefined skipped, oc-text's statistics (8.7, 8.8 + 5)  e635630
 2026-09-22  P8.5      oc-ai: one call budget per book, W_LLM_BUDGET_EXHAUSTED, unasked decisions (8.13 + 2)  3af6cef
+2026-09-22  P8.6      oc-ai: the cache key - one rule for cache and cassettes - and the file cache (8.10 + 5)  e1a7b8a

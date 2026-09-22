@@ -9,6 +9,83 @@ use oc_model::decision::LlmTrace;
 use serde::Serialize;
 
 use crate::digest::{hex, sha256};
+use crate::transport::TransportError;
+
+/// Something that answers requests: a model behind an endpoint, or a cassette (D10).
+///
+/// Two v1 implementations answer from a model — the sidecar the engine or the app owns, and a
+/// BYO OpenAI-compatible endpoint — and both are [`crate::openai::OpenAiCompatible`] over a
+/// different `Transport` and a different [`ThinkingControl`]. The test tiers answer from
+/// cassettes and never from a model (A8.3).
+pub trait LlmProvider: Send + Sync {
+    /// The model's id, as the cache key and every trace carry it.
+    fn id(&self) -> &str;
+
+    /// How the provider constrains an answer's shape.
+    fn capabilities(&self) -> ProviderCaps;
+
+    /// How the provider is told not to think (D10). The one place providers genuinely differ;
+    /// whatever it does, gate S asserts the result.
+    fn thinking_control(&self) -> ThinkingControl;
+
+    /// Ask the question.
+    fn complete(&self, request: &LlmRequest) -> Result<LlmResponse, LlmError>;
+}
+
+/// What a provider can do to bound an answer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProviderCaps {
+    pub constraint: Constraint,
+}
+
+/// How an answer's shape is constrained at decoding time (ARCHITECTURE §9.2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Constraint {
+    /// The GBNF grammar, in the request body — llama-server.
+    Gbnf,
+    /// The JSON Schema, as `response_format` — a server that prefers it.
+    JsonSchema,
+    /// Neither: the answer is unconstrained, and gate S carries the whole burden.
+    None,
+}
+
+/// How a provider is told not to think (D10).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ThinkingControl {
+    /// `chat_template_kwargs: {"enable_thinking": false}` — the sidecar we own.
+    ChatTemplateKwargs,
+    /// `think: false` — Ollama.
+    OllamaThink,
+    /// `/no_think` appended to the shared prefix — a generic endpoint serving a Qwen-family model.
+    NoThinkSuffix,
+    /// Nothing is sent. Gate S still refuses any thinking that comes back.
+    None,
+}
+
+/// A provider's answer, before any gate has seen it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LlmResponse {
+    /// What the model said, verbatim.
+    pub text: String,
+    /// Reasoning the server separated out of the answer — llama-server's `reasoning_content`. Its
+    /// presence is a thinking block, wherever the server put it.
+    pub reasoning: Option<String>,
+    pub tokens_in: u32,
+    pub tokens_out: u32,
+    /// Whether the answer came from the cache or a cassette rather than from a model.
+    pub cached: bool,
+}
+
+/// Why a question got no answer. Distinct from a gate failure, where an answer came back and was
+/// refused: here there is nothing to refuse, and the caller converts deterministically (RT D20).
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum LlmError {
+    #[error(transparent)]
+    Transport(#[from] TransportError),
+    /// The endpoint replied with something that is not a chat completion.
+    #[error("the endpoint's reply is not a chat completion: {0}")]
+    Protocol(String),
+}
 
 /// The four v1 tasks (D13.6), named as ARCHITECTURE §9.6 names them.
 ///

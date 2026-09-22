@@ -734,6 +734,13 @@ evidence = "Ratified note N-4 (ARCHITECTURE 6.3, D13.6): task 4 is batched at ex
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[llm.temperature]
+value = 0.0
+source = "binary"
+evidence = "ARCHITECTURE 9.1, D13.8: every request decodes greedily. A cached answer and a cassette are only the answer to their question if the same question always gets the same answer; sampling would make a cache hit a coincidence"
+owner = "maintainer"
+review_by = "2099-01-01"
+
 [llm.gate_v_ratio_eps]
 value = 0.01
 source = "provisional"

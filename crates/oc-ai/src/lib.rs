@@ -14,5 +14,7 @@ pub mod cache;
 pub mod digest;
 pub mod gates;
 pub mod gbnf;
+pub mod openai;
 pub mod prompt;
 pub mod provider;
+pub mod transport;

@@ -25,6 +25,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::de::DeserializeOwned;
 
 use super::GateFailure;
+use crate::provider::LlmResponse;
 
 /// A task's answer, as gate S admits it.
 pub trait Answer: Sized {
@@ -50,6 +51,19 @@ pub fn gate_schema<A: Answer>(raw: &str, context: &A::Context) -> Result<A, Gate
         }
     })?;
     A::check(wire, context)
+}
+
+/// Gate S over a provider's response. A server that separated the model's reasoning out of the
+/// answer — llama-server's `reasoning_content` — has still returned a thinking block, and the
+/// answer is refused however clean its JSON.
+pub fn gate_response<A: Answer>(
+    response: &LlmResponse,
+    context: &A::Context,
+) -> Result<A, GateFailure> {
+    if response.reasoning.is_some() {
+        return Err(GateFailure::ThinkingPresent);
+    }
+    gate_schema(&response.text, context)
 }
 
 /// Check that `answered` names each identifier of `asked` exactly once and nothing else.
