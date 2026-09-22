@@ -3,10 +3,10 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 7.5
-CURRENT_ITEM: 7.5.4 — the timeout class: 11 long books do not finish structure in 90 s
-              (see ## Current work item, open item 1)
-LAST_UPDATED: 2026-09-22
+CURRENT_PHASE: 8
+CURRENT_ITEM: 8.1 — `system_prefix_is_byte_identical_across_purposes`, and the crate skeleton
+              it needs (Phase 7.5 is parked: see its section below)
+LAST_UPDATED: 2026-09-23
 
 ---
 
@@ -44,10 +44,10 @@ LAST_UPDATED: 2026-09-22
       across 17 291 pages and seven producer strata, `ours(*)` at 0.103, corpus lint clean,
       and 0.0217 s/page against D13.11's 0.5 budget.** The CI jobs this phase wrote cannot be
       verified on one machine and are unverified until the branch merges.)*
-- [ ] **Phase 7.5** — Reading corpus and conservation defect closure  *(added 2026-09-20,
-      after Phase 7's first corpus run converted 0 of 14 sampled documents. Appendix D's
-      "I-1 … I-7 hold on 100 % of the corpus" is a v1.0 release gate and does not hold —
-      and Phase 7's corpus is monographs and papers, not the novels this product is for.)*
+- [ ] **Phase 7.5** — Reading corpus and conservation defect closure  *(**parked 2026-09-23**
+      by the maintainer's decision, to resume once every phase is implemented. Parked at: 79 of
+      104 corpus documents clean, 2 869 characters lost across 13, duplication zero, 11 not
+      finishing in 90 s. Six defect classes closed, each with an invariant.)*
 - [ ] **Phase 8** — AI abstraction (no real model yet)
 - [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
 - [ ] **Phase 10** — AI-assisted decisions (the four tasks)
@@ -58,6 +58,19 @@ LAST_UPDATED: 2026-09-22
 - [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
 
 ## Current work item
+
+**Phase 8 — AI abstraction (no real model yet).** The `LlmProvider` trait, an OpenAI-compatible
+client over an injected transport, versioned prompts and GBNF grammars, the content-addressed
+cache, the four gates, cassette record/replay, and a stub server. `ai.enabled` stays `false`.
+`oc-ai` is a five-line stub today. Sixteen named tests (rows 8.1–8.16), estimated size M.
+
+Phase 7.5 is **parked, not done** — its section below is the resume point. The deterministic
+baseline Phase 10 will be compared against is the parked one: 79 of 104 corpus documents clean,
+2 869 characters lost across 13, 11 not finishing in 90 s.
+
+## Phase 7.5 — parked 2026-09-23, resume here
+
+**Parked by the maintainer's decision** until every phase is implemented (`docs/DECISIONS_LOG.md`, 2026-09-23). Everything below is the state it was parked in.
 
 **Phase 7.5 is in progress, and its conservation gate is close.** Everything below is measured on
 the full 104-document corpus with one binary, via `openconvert diff-stage structure`.
@@ -106,13 +119,16 @@ read that record. It is worth looking for first in any new class.
 
 ### Open, in the order it matters
 
-1. **The timeout class — 11 documents, all long books** (123–974 pages; ABBYY-scanner 4, InDesign
-   3, unknown 4). Localised on a 368-page InDesign volume to `structure` alone (`ingest` 14.6 s,
-   `text` 5.4 s, `layout` 6.7 s, `structure` > 280 s). The claim lookups were indexed and were not
-   it. `extract_tables` is the first suspect, unverified. A scaling probe was written and twice
-   reaped by memory pressure before measuring. D13.2's `limits.stage_deadline_secs` should make
-   this fail legibly and does not. **Timings on this machine are unstable** — the test suite has
-   run at half speed under memory pressure — so every number here is a range, not a point.
+1. **The timeout class — 11 documents, all long books — is image decoding, not `structure`.**
+   An earlier note here said `structure` > 280 s; timed directly, `structure` takes **167 ms**
+   on that 368-page volume and every detector is under 40 ms. The volume draws **10 613 images,
+   5 846 of them small enough to be ornament candidates**, and hashing costs **~237 ms per image**
+   — per *call*, not per pixel. Next on resuming: time a page load, `get_processed_image` and the
+   hash separately on one heavy page. A batched decoder (one page load per page) was written and
+   **reverted unmeasured** — its one run was slower than the old code's, on a machine too loaded
+   to tell a regression from noise. `get_raw_image` is the candidate if the render is the cost,
+   and changes hash values, so the ornament fixtures must be re-measured with it.
+   D13.2's `limits.stage_deadline_secs` should make this fail legibly and does not.
 2. **13 documents still lose 2 869 characters**, a mechanism not yet named: three Turkish Word
    articles (612, 612, 368) and `oapen-117097`, `-117206` (672, 420), then small ones. None of it
    is unattached note text.

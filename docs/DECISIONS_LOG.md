@@ -3416,3 +3416,39 @@ Not this class, recorded: three Turkish Word articles and four oapen books lose 
 with **zero** unattached. A different mechanism, with its own evidence to gather.
 Evidence: `diff-stage structure` over the 38 documents that lost text in the previous inventory.
 Affects: `oc-structure::notes::note_bodies`, `NoteLinkStats`.
+
+## 2026-09-23 · Phase 7.5 parked by the maintainer's decision; Phase 8 begins · Phase 7.5
+Context: the maintainer asked for Phase 7.5 to be parked at a clean point and resumed once every
+phase is implemented. Recorded here with the state it is parked in, because the plan says of this
+phase that "nothing after this phase can be trusted until it holds" — Phase 10 calibrates the
+LLM's decisions by McNemar comparison against the deterministic baseline.
+
+What that baseline is, measured on the full 104-document corpus: **79 documents clean, 13 losing
+2 869 characters in total, 11 not finishing within 90 s, 1 refused by I-4; zero duplicated
+characters.** When the phase opened it was 0 of 14 sampled. Phase 10's comparison will be against
+that baseline and must say so.
+
+**A correction to what PROGRESS and this log said about the timeout class.** It was localised to
+`structure` — "`structure` > 280 s on a 368-page InDesign volume". That was wrong. Timing
+`oc_structure::stage::structure` directly on that volume: **167 ms**. Every detector is under
+40 ms. The time was measured through `dump-stage structure`, which also runs the image hashing
+that feeds the stage, and all of the difference was attributed to the stage. The volume draws
+**10 613 images, 5 846 of them small enough to be ornament candidates**, and hashing costs
+**~237 ms per image**: the first 400 took 94.8 s, so all of them would take about 23 minutes.
+The timeout class is image decoding, not structure.
+
+An attempt to batch the decoding — load each page once rather than once per image — was
+implemented, passed every test, and was **reverted unmeasured**: on its one run it did not finish
+the same 400 images inside the time the old code took for them. Whether that was a regression or
+this machine (memory at 1.5–4.5 GB free of 15.7, suites running at half speed) could not be told
+apart without an A/B run. The next step on resuming is to time, in isolation, a page load against
+`get_processed_image` against the hash, on one heavy page — the 237 ms is per call, not per pixel.
+`get_raw_image` is the candidate if the render is the cost; it changes hash values and therefore
+needs the ornament fixtures re-measured.
+
+Still open, in order: the timeout class (image decoding); 13 documents losing 2 869 characters,
+mechanism unnamed (three Turkish Word articles and two oapen books carry most of it); switching I-1
+from `emitted_text` to `reachable_text`; `dergipark-1113748` over the furniture budget; item 7.5.0,
+the reading corpus; `docs/LLM_BOUNDARY.md`. Recorded as quality and not worked: the runaway list,
+the running head that reached `structure`, the arXiv datestamp panic.
+Affects: PROGRESS.md, PHASE 7.5, PHASE 10's baseline.
