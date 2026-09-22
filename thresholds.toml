@@ -232,6 +232,13 @@ evidence = "IMPLEMENTATION_PLAN Phase 12 detail 5: one app-owned -np 1 llama-ser
 owner = "maintainer"
 review_by = "2028-01-01"
 
+[desktop.supervisor_tick_ms]              # how often the app checks its running engines for exit and deadlines
+value = 250
+source = "provisional"
+evidence = "a quarter of a second keeps the 5 s kill deadline within 5 % and costs nothing; not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [desktop.copied_revert_secs]              # how long "Copied" shows before the button reads "Copy" again
 value = 2
 source = "binary"

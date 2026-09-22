@@ -183,7 +183,12 @@ Work items, in order, with the plan's test rows against each:
       engine and are behind the `engine-integration` feature (`cargo build -p openconvert` first).
       `openconvert --version` answers with `hello` on stderr when stderr is not a terminal — the
       startup handshake (PROVISIONAL, see Blocked)
-- [ ] **P12.4** the queue — row 12.7; drop filtering (PDFs added, every other file named)
+- [x] **P12.4** the queue — row **12.7** (+ 3 tests): `jobqueue.rs`, `desktop.max_concurrent_jobs`
+      = 1, positions counting the running job as #1, cancel of a waiting job never launches it,
+      a running cancel escalates to a kill at `ipc.kill_after_secs` (tick-driven, clock injected),
+      outputs never collide ("name (2).epub", queued outputs reserved); Tauri commands `enqueue`
+      (drop split: PDFs added, every other file named), `cancel`, `remove`, `queue_rows`,
+      `startup_status`, events `engine-line` / `job-changed`
 - [ ] **P12.5** webview privacy: `capabilities/default.json`, the shipped CSP — row 12.13
 - [ ] **P12.6** UI foundation: Svelte 5, the ported styles, inlined icons, EN/DE/TR, warnings from
       the engine's templates — rows 12.3, 12.8, 12.9

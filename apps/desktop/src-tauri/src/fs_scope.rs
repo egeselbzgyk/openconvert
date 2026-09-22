@@ -58,7 +58,14 @@ pub fn default_output_for(input: &Path) -> PathBuf {
 /// output row (design decision, `result.html` §5). The engine enforces the same rule from the other
 /// side: a job spec without `overwrite: true` refuses an existing output.
 pub fn free_output_path(desired: &Path) -> PathBuf {
-    if !desired.exists() {
+    free_output_path_among(desired, |_| false)
+}
+
+/// [`free_output_path`], also treating as taken every path `reserved` says is — the outputs of
+/// jobs already in the queue, which do not exist yet but will.
+pub fn free_output_path_among(desired: &Path, reserved: impl Fn(&Path) -> bool) -> PathBuf {
+    let taken = |path: &Path| path.exists() || reserved(path);
+    if !taken(desired) {
         return desired.to_path_buf();
     }
     let stem = desired
@@ -73,7 +80,7 @@ pub fn free_output_path(desired: &Path) -> PathBuf {
     // Counting starts at the second copy, as a person would name it.
     (2_u32..)
         .map(|n| parent.join(format!("{stem} ({n}){extension}")))
-        .find(|candidate| !candidate.exists())
+        .find(|candidate| !taken(candidate))
         .unwrap_or_else(|| desired.to_path_buf())
 }
 
