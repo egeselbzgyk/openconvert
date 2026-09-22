@@ -3408,3 +3408,21 @@ the tests exercise the real values; a dev-dependency does not reach `oc-net`. Th
 keeps gate V's statistics inside `oc-ai` rather than borrowed from `oc-text`.
 Evidence: `crates/oc-ai/Cargo.toml`.
 Affects: DECISIONS.md Appendix A (upheld), ARCHITECTURE §3.1, `oc-ai`.
+
+## 2026-09-22 · `Decision` records why the deterministic answer stood: a code, not a flag · Phase 8
+Context: A8.1 wants "a `Decision` records the failure" for any refused model answer, test 8.9
+asserts `fallback_used == true` on it, and ARCHITECTURE §9.1 records `fallback_used` "on the
+`Decision`". IR_SKETCH's `Decision` has no such field — only `Confidence` does, and a confidence
+is about how well a label is evidenced, not about whether a model was overruled.
+Decision: `Decision` gains `fallback: Option<&'static str>`, the code of what made the
+deterministic answer stand after an escalation — the refusing gate (`S.enum`, `S.bijection`, …)
+or, in P8.5, the budget — and `fallback_used()` is `fallback.is_some()`. A code and not a boolean,
+because "the model was contradicted" and "the model was never asked" are different findings a
+calibration corpus has to tell apart; a code and not the `GateFailure` itself, because a failure's
+detail may quote the model, the model may have quoted the book, and the report must carry none of
+it (D13.9). A refused call keeps its `LlmTrace`: the report can say a model was asked, under which
+prompt, and what it answered, by hash. Additive, so `ir_version` does not move (ARCHITECTURE
+§4.5); the only snapshot that serialises a decision, `report__report_f07.snap`, gains
+`"fallback": null` twice.
+Evidence: `gate_d_records_fallback_in_decision_log`, `an_accepted_answer_is_recorded_as_the_models`.
+Affects: IR_SKETCH (`Decision`, elaborated), `oc-model::decision`, `oc-ai::gates::fallback`.

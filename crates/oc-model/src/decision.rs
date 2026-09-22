@@ -48,6 +48,18 @@ pub struct Decision {
     /// Set only when a model was actually consulted. `None` is v1's default, and a report
     /// that says "deterministic" has this empty rather than absent.
     pub llm: Option<LlmTrace>,
+    /// Why the deterministic answer stands although the choice was escalated: the code of the
+    /// gate that refused the model's answer (`S.enum`, `L.characters`, `V.worsened`, …), or of
+    /// what stopped the call being made. `None` when nothing was escalated, and when the model's
+    /// answer was applied.
+    ///
+    /// IR_SKETCH's `Decision` has no such field; ARCHITECTURE §9.1 records `fallback_used` "on
+    /// the `Decision`" and acceptance criterion A8.1 wants the failure recorded there, so this
+    /// elaborates the sketch. A code rather than a flag: "a model was contradicted" and "a model
+    /// was never asked because the budget ran out" are different findings, and a boolean would
+    /// make them one. A code rather than the failure itself: it may quote the model, and the
+    /// model may have quoted the book (D13.9).
+    pub fallback: Option<&'static str>,
 }
 
 impl Decision {
@@ -65,7 +77,13 @@ impl Decision {
             alternatives: Vec::new(),
             method: Method::Deterministic,
             llm: None,
+            fallback: None,
         }
+    }
+
+    /// Whether the choice was escalated and the deterministic answer stood anyway (D13.5, gate D).
+    pub fn fallback_used(&self) -> bool {
+        self.fallback.is_some()
     }
 
     /// The options that were open when the choice was made.

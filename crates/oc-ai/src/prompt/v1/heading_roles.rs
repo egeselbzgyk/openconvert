@@ -15,8 +15,12 @@
 //! page-local (`docs/DECISIONS_LOG.md`, 2026-09-14), so it would not name one line of a book, and
 //! a payload index is exactly as small as the grammar's `index` rule.
 
-use serde::Serialize;
+use std::collections::BTreeMap;
 
+use serde::{Deserialize, Serialize};
+
+use crate::gates::schema::{bijection, closed, Answer};
+use crate::gates::GateFailure;
 use crate::prompt::render::{self, RenderError};
 use crate::prompt::Artifacts;
 use crate::provider::{LlmRequest, Purpose};
@@ -96,4 +100,116 @@ pub fn request(input: &HeadingRolesInput, max_tokens: u32) -> Result<LlmRequest,
     let payload = render::json(input)?;
     let user = render::fill(ARTIFACTS.user_template, &[("payload", &payload)])?;
     Ok(ARTIFACTS.request(user, max_tokens))
+}
+
+/// The roles a cluster or a line may be given: the taxonomy of the shared prefix (Appendix A.1).
+///
+/// `RunningHead` is a *proposal*. Label authority is not deletion authority (D13.5): only the
+/// deterministic furniture remover deletes, and only when its own cross-page repetition evidence
+/// agrees.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum HeadingRole {
+    ChapterHeading,
+    PartHeading,
+    SectionHeading,
+    SubsectionHeading,
+    RunningHead,
+    Epigraph,
+    Body,
+    Caption,
+    Other,
+}
+
+impl HeadingRole {
+    /// Every role, in the order the grammar lists them.
+    pub const ALL: [HeadingRole; 9] = [
+        HeadingRole::ChapterHeading,
+        HeadingRole::PartHeading,
+        HeadingRole::SectionHeading,
+        HeadingRole::SubsectionHeading,
+        HeadingRole::RunningHead,
+        HeadingRole::Epigraph,
+        HeadingRole::Body,
+        HeadingRole::Caption,
+        HeadingRole::Other,
+    ];
+
+    /// The role as the grammar spells it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            HeadingRole::ChapterHeading => "chapter_heading",
+            HeadingRole::PartHeading => "part_heading",
+            HeadingRole::SectionHeading => "section_heading",
+            HeadingRole::SubsectionHeading => "subsection_heading",
+            HeadingRole::RunningHead => "running_head",
+            HeadingRole::Epigraph => "epigraph",
+            HeadingRole::Body => "body",
+            HeadingRole::Caption => "caption",
+            HeadingRole::Other => "other",
+        }
+    }
+
+    /// The role a name spells, exactly — `chapter_headings` is not `chapter_heading`.
+    pub fn from_name(name: &str) -> Option<HeadingRole> {
+        HeadingRole::ALL
+            .into_iter()
+            .find(|role| role.as_str() == name)
+    }
+}
+
+/// The answer, as gate S admits it: one role per cluster and one per held-out line, each keyed by
+/// the identifier the payload gave it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HeadingRolesAnswer {
+    pub clusters: BTreeMap<u32, HeadingRole>,
+    pub probes: BTreeMap<u32, HeadingRole>,
+}
+
+/// The answer as JSON spells it.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HeadingRolesWire {
+    m: Vec<ClusterRole>,
+    h: Vec<ProbeRole>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ClusterRole {
+    c: u32,
+    r: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProbeRole {
+    i: u32,
+    r: String,
+}
+
+impl Answer for HeadingRolesAnswer {
+    type Context = HeadingRolesInput;
+    type Wire = HeadingRolesWire;
+
+    fn check(wire: HeadingRolesWire, input: &HeadingRolesInput) -> Result<Self, GateFailure> {
+        let mut clusters = BTreeMap::new();
+        for entry in &wire.m {
+            clusters.insert(entry.c, closed("r", &entry.r, HeadingRole::from_name)?);
+        }
+        let mut probes = BTreeMap::new();
+        for entry in &wire.h {
+            probes.insert(entry.i, closed("r", &entry.r, HeadingRole::from_name)?);
+        }
+        bijection(
+            "cluster",
+            input.clusters.iter().map(|cluster| cluster.c),
+            wire.m.iter().map(|entry| entry.c),
+        )?;
+        bijection(
+            "probe",
+            input.holdout.iter().map(|probe| probe.i),
+            wire.h.iter().map(|entry| entry.i),
+        )?;
+        Ok(HeadingRolesAnswer { clusters, probes })
+    }
 }

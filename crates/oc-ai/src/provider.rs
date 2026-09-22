@@ -5,9 +5,10 @@
 //! form: the system prefix of a request *is* a `system.md`, not a string something assembled, so
 //! nothing on the way to the wire can make two tasks' prefixes differ (D8, ARCHITECTURE §9.3).
 
+use oc_model::decision::LlmTrace;
 use serde::Serialize;
 
-use crate::digest::sha256;
+use crate::digest::{hex, sha256};
 
 /// The four v1 tasks (D13.6), named as ARCHITECTURE §9.6 names them.
 ///
@@ -72,5 +73,28 @@ impl LlmRequest {
     /// a grammar edit cannot be answered from a cache entry decoded under the old one.
     pub fn grammar_sha256(&self) -> [u8; 32] {
         sha256(self.grammar.as_bytes())
+    }
+}
+
+/// The trace of one call as the IR records it (D13.8): which model, which prompt version, and what
+/// it was shown and what it said — by hash, never by text, so a report or a diagnostic bundle
+/// carries no part of the book (D13.9).
+///
+/// The input hash is of the user message: the one part of a request that varies, the rest being
+/// named exactly by the prompt version.
+pub fn trace(
+    model_id: &str,
+    request: &LlmRequest,
+    output: &str,
+    cached: bool,
+    ms: u32,
+) -> LlmTrace {
+    LlmTrace {
+        model_id: model_id.to_owned(),
+        prompt_version: request.prompt_version.to_string(),
+        input_sha256: hex(&sha256(request.user.as_bytes())),
+        output_sha256: hex(&sha256(output.as_bytes())),
+        cached,
+        ms,
     }
 }
