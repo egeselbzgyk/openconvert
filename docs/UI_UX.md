@@ -2,6 +2,7 @@
 
 **Status:** Draft for v1 planning, written against `DECISIONS.md` (final for v1 planning) and `IR_SKETCH.md`. Never contradicts `DECISIONS.md`; disagreements are collected at the end.
 **Date:** 2026-09-09
+**Visual design:** `docs/design/` holds the adopted design system and mockups (direction "Quiet workshop", 2026-09-23). This document governs behaviour and the design governs appearance. Where they disagree, this document wins.
 
 ---
 

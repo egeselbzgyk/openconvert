@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OpenConvert · Design system (2b Quiet workshop)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="oc.css">
+<link rel="stylesheet" href="gallery.css">
+</head>
+<body class="gx-body">
+<nav class="gx-top" aria-label="Handoff pages"><b>OpenConvert handoff</b><a href="index.html">Index</a><a href="design-system.html" aria-current="page">Design system</a><a href="queue.html">Queue</a><a href="result.html">Result &amp; editing</a><a href="report.html">Report &amp; preview</a><a href="settings.html">Settings &amp; dialogs</a><a href="firstrun.html">First run &amp; startup</a><a href="i18n.html">DE / TR · 200 % · a11y</a></nav>
+<div class="gx-wrap">
+
+<header><h1 class="gx-h1">Design system: foundations and components</h1>
+<p class="gx-lead">Every component below uses only <code>tokens.css</code> and <code>oc.css</code>. Each light pane is mirrored as dark by setting <code>data-theme="dark"</code>. In the app, dark mode comes from <code>prefers-color-scheme</code> alone. States that normally need a pointer are forced with <code>.is-hover</code>, <code>.is-active</code> and <code>.is-focus</code>.</p></header>
+
+<!-- FOUNDATIONS -->
+<section class="gx-section"><h2 class="gx-h2">Color · semantic tokens</h2>
+<div class="gx-pair" data-mirror=""><div class="gx-pane"><span class="gx-cap">Light</span>
+<div class="gx-swatches">
+<span class="gx-swatch"><i style="background:var(--oc-surface-page)"></i><b>surface-page</b>window</span>
+<span class="gx-swatch"><i style="background:var(--oc-surface)"></i><b>surface</b>rows, cards</span>
+<span class="gx-swatch"><i style="background:var(--oc-surface-raised)"></i><b>surface-raised</b>insets, chips</span>
+<span class="gx-swatch"><i style="background:var(--oc-border)"></i><b>border</b>dividers</span>
+<span class="gx-swatch"><i style="background:var(--oc-border-control)"></i><b>border-control</b>≥ 3:1</span>
+<span class="gx-swatch"><i style="background:var(--oc-text)"></i><b>text</b>primary</span>
+<span class="gx-swatch"><i style="background:var(--oc-text-secondary)"></i><b>text-secondary</b></span>
+<span class="gx-swatch"><i style="background:var(--oc-text-tertiary)"></i><b>text-tertiary</b></span>
+<span class="gx-swatch"><i style="background:var(--oc-text-disabled)"></i><b>text-disabled</b></span>
+<span class="gx-swatch"><i style="background:var(--oc-accent)"></i><b>accent</b>primary action</span>
+<span class="gx-swatch"><i style="background:var(--oc-accent-subtle)"></i><b>accent-subtle</b>drag-over</span>
+<span class="gx-swatch"><i style="background:var(--oc-focus)"></i><b>focus</b>ring</span>
+<span class="gx-swatch"><i style="background:var(--oc-status-success)"></i><b>status-success</b></span>
+<span class="gx-swatch"><i style="background:var(--oc-status-warning)"></i><b>status-warning</b></span>
+<span class="gx-swatch"><i style="background:var(--oc-status-danger)"></i><b>status-danger</b></span>
+<span class="gx-swatch"><i style="background:var(--oc-status-info)"></i><b>status-info</b></span>
+<span class="gx-swatch"><i style="background:var(--oc-status-warning-subtle)"></i><b>…-subtle</b>status blocks</span>
+<span class="gx-swatch"><i style="background:var(--oc-progress-track)"></i><b>progress-track</b></span>
+<span class="gx-swatch"><i style="background:var(--oc-progress-fill)"></i><b>progress-fill</b>4.8:1 on track</span>
+</div></div></div>
+<p class="gx-note">Measured contrast (light / dark): text on page 13.0 / 14.6 · text-secondary 6.9 / 9.4 · text-tertiary on surface 5.5 / 5.8 · on-accent 6.3 / 8.2 · status text on surface ≥ 6.2 / ≥ 7.2 · status text on its subtle tint ≥ 5.3 / ≥ 6.7 · focus on page 5.4 / 8.8 · border-control 3.3 / 3.7.</p>
+</section>
+
+<section class="gx-section"><h2 class="gx-h2">Type · spacing · radii · elevation · icons · focus</h2>
+<div class="gx-pair" data-mirror=""><div class="gx-pane"><span class="gx-cap">Light</span>
+<div class="gx-grid">
+<div class="gx-state"><span class="gx-cap">Type scale (rem), system stack: ui-rounded → Segoe UI → system-ui → Cantarell</span>
+<div style="font-size:var(--oc-text-2xl);font-weight:600;line-height:1.3">Drop PDF here · 2xl 1.5</div>
+<div style="font-size:var(--oc-text-xl);font-weight:700">Dialog title · xl 1.25</div>
+<div style="font-size:var(--oc-text-lg);font-weight:600">the-wheels-of-chance.pdf · lg 1.0625</div>
+<div>Body text · base 1</div>
+<div style="font-size:var(--oc-text-md)">Buttons, list text · md 0.9375</div>
+<div style="font-size:var(--oc-text-sm);color:var(--oc-text-secondary)">Secondary lines · sm 0.875</div>
+<div style="font-size:var(--oc-text-xs);color:var(--oc-text-secondary)">Tags, captions · xs 0.8125</div>
+<div class="oc-num" style="font-size:var(--oc-text-md)">Tabular: 132 of 214 pages · 62 % · 1.39 of 2.4 GB</div>
+<div class="oc-mono">Mono: ~/Books/the-wheels-of-chance.epub</div></div>
+<div class="gx-state"><span class="gx-cap">Spacing (4 px steps) and radii</span>
+<div class="gx-row" style="align-items:flex-end"><i style="display:block;width:.25rem;height:1rem;background:var(--oc-accent)"></i><i style="display:block;width:.5rem;height:1rem;background:var(--oc-accent)"></i><i style="display:block;width:.75rem;height:1rem;background:var(--oc-accent)"></i><i style="display:block;width:1rem;height:1rem;background:var(--oc-accent)"></i><i style="display:block;width:1.25rem;height:1rem;background:var(--oc-accent)"></i><i style="display:block;width:1.5rem;height:1rem;background:var(--oc-accent)"></i><i style="display:block;width:2rem;height:1rem;background:var(--oc-accent)"></i><i style="display:block;width:2.5rem;height:1rem;background:var(--oc-accent)"></i></div>
+<span style="font-size:var(--oc-text-xs);color:var(--oc-text-secondary)">space-1 … space-10: 0.25 · 0.5 · 0.75 · 1 · 1.25 · 1.5 · 2 · 2.5 rem</span>
+<div class="gx-row"><span style="width:3rem;height:2rem;border:1px solid var(--oc-border-control);border-radius:var(--oc-radius-sm)"></span><span style="width:3rem;height:2rem;border:1px solid var(--oc-border-control);border-radius:var(--oc-radius-md)"></span><span style="width:3rem;height:2rem;border:1px solid var(--oc-border-control);border-radius:var(--oc-radius-lg)"></span><span style="width:3rem;height:2rem;border:1px solid var(--oc-border-control);border-radius:var(--oc-radius-xl)"></span><span style="width:4rem;height:2rem;border:1px solid var(--oc-border-control);border-radius:var(--oc-radius-pill)"></span></div>
+<span style="font-size:var(--oc-text-xs);color:var(--oc-text-secondary)">radius sm 0.5 inputs · md 0.875 insets · lg 1.25 rows/cards · xl 1.5 drop zone/dialogs · pill buttons</span></div>
+<div class="gx-state"><span class="gx-cap">Separation and elevation</span>
+<div class="oc-card" style="padding:var(--oc-space-3) var(--oc-space-4)"><span style="font-size:var(--oc-text-sm)">Separation comes from the 1 px border and one step of surface colour. The 1 px shadow is decoration only (none in dark), so nothing depends on it. There is no blur or backdrop-filter anywhere.</span></div>
+<span class="gx-cap">Icons: Lucide (ISC), stroke 1.75, 1 / 1.125 / 1.25 / 1.75 rem</span>
+<div class="gx-row"><svg class="oc-icon"><use href="#i-gear"></use></svg><svg class="oc-icon oc-icon--md"><use href="#i-fileplus"></use></svg><svg class="oc-icon oc-icon--lg"><use href="#i-book"></use></svg><svg class="oc-icon oc-icon--xl"><use href="#i-ccheck"></use></svg><svg class="oc-icon oc-icon--md"><use href="#i-alert"></use></svg><svg class="oc-icon oc-icon--md"><use href="#i-xcircle"></use></svg><svg class="oc-icon oc-icon--md"><use href="#i-info"></use></svg><svg class="oc-icon oc-icon--md"><use href="#i-lock"></use></svg><svg class="oc-icon oc-icon--md"><use href="#i-download"></use></svg><svg class="oc-icon oc-icon--md"><use href="#i-copy"></use></svg></div>
+<span class="gx-cap">Focus: 2 px solid focus, 2 px offset, follows the radius. <code>:focus-visible</code> only.</span>
+<div class="gx-row"><button class="oc-btn oc-btn--primary is-focus">Focused</button><span class="oc-pagelink is-focus">p. 34</span></div></div>
+</div></div></div>
+</section>
+
+<section class="gx-section"><h2 class="gx-h2">Motion tokens</h2>
+<table class="gx-table"><thead><tr><th>Token</th><th>Default</th><th>Used for</th><th>prefers-reduced-motion</th></tr></thead><tbody>
+<tr><td><code>--oc-dur-fast</code></td><td>120 ms</td><td>hover and press colour changes</td><td>0 ms (instant)</td></tr>
+<tr><td><code>--oc-dur-base</code></td><td>200 ms</td><td>progress fill moving between two real values; row expanding into the result</td><td>0 ms: the bar jumps to the new real value</td></tr>
+<tr><td><code>--oc-dur-slow</code></td><td>320 ms</td><td>first-run card and dialog appearing (opacity only)</td><td>0 ms: shown at once</td></tr>
+<tr><td><code>--oc-dur-heartbeat</code></td><td>900 ms</td><td>one halo pulse per heartbeat event (every ~2 s)</td><td>0 ms: the static ring changes shade per heartbeat</td></tr>
+<tr><td><code>--oc-dur-spin</code></td><td>1000 ms</td><td>spinner turn on uncounted stages; stops when heartbeats stop</td><td>no rotation: a static ring and the words "still working"</td></tr>
+</tbody></table>
+</section>
+
+<!-- COMPONENTS -->
+<section class="gx-section"><h2 class="gx-h2">AppHeader · DropZone</h2>
+<div class="gx-pair" data-mirror=""><div class="gx-pane"><span class="gx-cap">Light</span>
+<header class="oc-header" style="padding:0"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header>
+<div class="gx-grid">
+<div class="gx-state"><span class="gx-cap">Idle</span><div class="oc-dropzone" role="group" aria-label="Add PDFs" style="min-height:10rem"><span class="oc-dropzone__title">Drop PDF here</span><span class="oc-dropzone__or">or <button class="oc-btn oc-btn--primary">Select PDF…</button></span></div></div>
+<div class="gx-state"><span class="gx-cap">Drag-over, all PDFs</span><div class="oc-dropzone is-dragover" style="min-height:10rem"><span class="oc-dropzone__title">Release to add 3 PDFs</span><span style="color:var(--oc-text-secondary)">Each one becomes a job in the queue.</span></div></div>
+<div class="gx-state"><span class="gx-cap">Drag-over, includes a non-PDF</span><div class="oc-dropzone is-dragover-mixed" style="min-height:10rem"><span class="oc-dropzone__title">Release to add 2 PDFs</span><span class="gx-row" style="gap:6px"><svg class="oc-icon" style="color:var(--oc-status-warning)"><use href="#i-alert"></use></svg>notes.docx is not a PDF and will be skipped.</span></div></div>
+<div class="gx-state"><span class="gx-cap">Keyboard focus (focus-within)</span><div class="oc-dropzone is-focus-within" style="min-height:10rem"><span class="oc-dropzone__title">Drop PDF here</span><span class="oc-dropzone__or">or <button class="oc-btn oc-btn--primary is-focus">Select PDF…</button></span></div></div>
+</div>
+<div class="gx-state"><span class="gx-cap">Strip (once jobs exist): idle · drag-over</span>
+<div class="oc-dropzone oc-dropzone--strip" role="group" aria-label="Add PDFs"><span class="oc-tile oc-tile--accent"><svg class="oc-icon oc-icon--md"><use href="#i-fileplus"></use></svg></span><span class="oc-dropzone__title">Drop more PDFs here</span><button class="oc-btn oc-btn--sm">Select PDF…</button></div>
+<div class="oc-dropzone oc-dropzone--strip is-dragover"><span class="oc-tile oc-tile--accent"><svg class="oc-icon oc-icon--md"><use href="#i-fileplus"></use></svg></span><span class="oc-dropzone__title">Release to add 40 PDFs</span></div></div>
+</div></div></section>
+
+<section class="gx-section"><h2 class="gx-h2">Button · every kind and state</h2>
+<div class="gx-pair" data-mirror=""><div class="gx-pane"><span class="gx-cap">Light</span>
+<div class="gx-row"><span style="width:6.5rem;font-size:var(--oc-text-xs);color:var(--oc-text-secondary)">Primary</span><button class="oc-btn oc-btn--primary">Open in reader</button><button class="oc-btn oc-btn--primary is-hover">Hover</button><button class="oc-btn oc-btn--primary is-active">Active</button><button class="oc-btn oc-btn--primary is-focus">Focus</button><button class="oc-btn oc-btn--primary" disabled="">Disabled</button><button class="oc-btn oc-btn--primary is-loading" aria-busy="true"><svg class="oc-spinner" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M8 2a6 6 0 0 1 6 6"></path></svg>Rebuilding…</button></div>
+<div class="gx-row"><span style="width:6.5rem;font-size:var(--oc-text-xs);color:var(--oc-text-secondary)">Secondary</span><button class="oc-btn">Show in folder</button><button class="oc-btn is-hover">Hover</button><button class="oc-btn is-active">Active</button><button class="oc-btn is-focus">Focus</button><button class="oc-btn" disabled="">Disabled</button></div>
+<div class="gx-row"><span style="width:6.5rem;font-size:var(--oc-text-xs);color:var(--oc-text-secondary)">Quiet</span><button class="oc-btn oc-btn--quiet">Not now</button><button class="oc-btn oc-btn--quiet is-hover">Hover</button><button class="oc-btn oc-btn--quiet is-active">Active</button><button class="oc-btn oc-btn--quiet is-focus">Focus</button><button class="oc-btn oc-btn--quiet" disabled="">Disabled</button></div>
+<div class="gx-row"><span style="width:6.5rem;font-size:var(--oc-text-xs);color:var(--oc-text-secondary)">Destructive</span><button class="oc-btn oc-btn--danger">Delete</button><button class="oc-btn oc-btn--danger is-hover">Hover</button><button class="oc-btn oc-btn--danger is-active">Active</button><button class="oc-btn oc-btn--danger is-focus">Focus</button><button class="oc-btn oc-btn--danger" disabled="">Disabled</button></div>
+<div class="gx-row"><span style="width:6.5rem;font-size:var(--oc-text-xs);color:var(--oc-text-secondary)">Icon</span><button class="oc-btn oc-btn--icon" aria-label="Collapse result"><svg class="oc-icon oc-icon--md"><use href="#i-chevup"></use></svg></button><button class="oc-btn oc-btn--icon is-hover" aria-label="Collapse result"><svg class="oc-icon oc-icon--md"><use href="#i-chevup"></use></svg></button><button class="oc-btn oc-btn--icon is-active" aria-label="Collapse result"><svg class="oc-icon oc-icon--md"><use href="#i-chevup"></use></svg></button><button class="oc-btn oc-btn--icon is-focus" aria-label="Collapse result"><svg class="oc-icon oc-icon--md"><use href="#i-chevup"></use></svg></button><button class="oc-btn oc-btn--icon" disabled="" aria-label="Collapse result"><svg class="oc-icon oc-icon--md"><use href="#i-chevup"></use></svg></button><span style="font-size:var(--oc-text-xs);color:var(--oc-text-secondary)">40 px; always has aria-label</span></div>
+</div></div></section>
+
+<section class="gx-section"><h2 class="gx-h2">QueueRow · every state</h2>
+<div class="gx-pair" data-mirror=""><div class="gx-pane"><span class="gx-cap">Light</span>
+<ul class="oc-queue" style="max-width:none">
+<li class="oc-row oc-row--queued"><div class="oc-row__line"><span class="oc-tile"><svg class="oc-icon oc-icon--md"><use href="#i-clock"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">moby-dick.pdf</span><span class="oc-row__status"><span class="oc-row__position">Queued (#2)</span>· starts after the file above</span></div><button class="oc-btn oc-btn--quiet oc-btn--sm">Remove</button></div></li>
+<li class="oc-row oc-row--running"><div class="oc-row__line"><span class="oc-tile oc-tile--accent"><svg class="oc-icon oc-icon--md"><use href="#i-file"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">the-wheels-of-chance.pdf</span><span class="oc-row__status"><b>Reconstructing</b><span class="oc-num">132 of 214 pages · 62 %</span></span></div><button class="oc-btn oc-btn--sm">Cancel</button></div><div class="oc-row__detail"><div class="oc-progress" role="progressbar" aria-label="Reconstructing" aria-valuemin="0" aria-valuemax="214" aria-valuenow="132" aria-valuetext="132 of 214 pages"><div class="oc-progress__fill" style="width:62%"></div></div></div></li>
+<li class="oc-row oc-row--running"><div class="oc-row__line"><span class="oc-tile oc-tile--accent oc-pulse is-static"><svg class="oc-icon oc-icon--md"><use href="#i-file"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">moby-dick.pdf</span><span class="oc-row__status"><svg class="oc-spinner is-spinning" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M8 2a6 6 0 0 1 6 6"></path></svg><b>Analyzing</b>· step 1 of 5 · still working</span></div><button class="oc-btn oc-btn--sm">Cancel</button></div></li>
+<li class="oc-row oc-row--stalled"><div class="oc-row__line"><span class="oc-tile oc-tile--warn"><svg class="oc-icon oc-icon--md"><use href="#i-alert"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">moby-dick.pdf</span><span class="oc-row__status"><b>Not responding</b>· no signal from the converter for 8 seconds. It may recover on its own.</span></div><button class="oc-btn oc-btn--sm">Cancel</button></div></li>
+<li class="oc-row oc-row--cancelling"><div class="oc-row__line"><span class="oc-tile"><svg class="oc-spinner is-spinning" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M8 2a6 6 0 0 1 6 6"></path></svg></span><div class="oc-row__text"><span class="oc-row__name">moby-dick.pdf</span><span class="oc-row__status"><b>Cancelling…</b></span></div><button class="oc-btn oc-btn--sm" disabled="">Cancelling…</button></div></li>
+<li class="oc-row oc-row--cancelled"><div class="oc-row__line"><span class="oc-tile"><svg class="oc-icon oc-icon--md"><use href="#i-ban"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">moby-dick.pdf</span><span class="oc-row__status"><b>Cancelled</b>· no file was written</span></div><button class="oc-btn oc-btn--sm">Convert again</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Remove</button></div></li>
+<li class="oc-row oc-row--failed"><div class="oc-row__line"><span class="oc-tile oc-tile--err"><svg class="oc-icon oc-icon--md"><use href="#i-x"></use></svg></span><div class="oc-row__text" role="alert"><span class="oc-row__name">download (3).pdf</span><span class="oc-row__status"><b>This file doesn't look like a valid PDF.</b>Converting it again would give the same result.</span></div><button class="oc-btn oc-btn--sm">Export diagnostic bundle</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Remove</button></div></li>
+<li class="oc-row oc-row--locked"><div class="oc-row__line"><span class="oc-tile"><svg class="oc-icon oc-icon--md"><use href="#i-lock"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">annual-report-locked.pdf</span><span class="oc-row__status"><b>This PDF is password-protected.</b>An empty password was tried first.</span></div><button class="oc-btn oc-btn--quiet oc-btn--sm">Remove</button></div>
+<div class="oc-row__detail"><div class="oc-filepick" style="flex-wrap:wrap"><label class="oc-sr-only" for="pw1">Password for annual-report-locked.pdf</label><input id="pw1" class="oc-input is-focus" type="password" value="hunter22" style="max-width:16rem"><button class="oc-btn oc-btn--primary">Unlock</button><span class="oc-field__help">Used for this job only, never saved.</span></div></div></li>
+<li class="oc-row oc-row--locked"><div class="oc-row__line"><span class="oc-tile oc-tile--err"><svg class="oc-icon oc-icon--md"><use href="#i-lock"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">annual-report-locked.pdf</span><span class="oc-row__status"><b>This PDF is password-protected.</b></span></div><button class="oc-btn oc-btn--quiet oc-btn--sm">Remove</button></div>
+<div class="oc-row__detail"><div class="oc-filepick" style="flex-wrap:wrap"><input class="oc-input" type="password" aria-invalid="true" aria-describedby="pw2e" value="wrongpass" style="max-width:16rem" aria-label="Password"><button class="oc-btn oc-btn--primary">Unlock</button></div><span class="oc-field__error" id="pw2e"><svg class="oc-icon"><use href="#i-xcircle"></use></svg>That password didn't open the file. Try again.</span></div></li>
+<li class="oc-row oc-row--complete"><div class="oc-row__line"><span class="oc-tile oc-tile--ok"><svg class="oc-icon oc-icon--md"><use href="#i-check"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">die-verwandlung.pdf</span><span class="oc-row__status"><b>Complete</b>· Validation: passed</span></div><button class="oc-btn oc-btn--sm">Open in reader</button><button class="oc-btn oc-btn--icon oc-btn--sm" aria-label="Expand result" aria-expanded="false"><svg class="oc-icon oc-icon--md"><use href="#i-chevdown"></use></svg></button></div></li>
+<li class="oc-row oc-row--complete"><div class="oc-row__line"><span class="oc-tile oc-tile--err"><svg class="oc-icon oc-icon--md"><use href="#i-x"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">araba-sevdasi.pdf</span><span class="oc-row__status"><b>Complete</b>· Validation: invalid · saved</span></div><button class="oc-btn oc-btn--sm">Open in reader</button><button class="oc-btn oc-btn--icon oc-btn--sm" aria-label="Expand result" aria-expanded="false"><svg class="oc-icon oc-icon--md"><use href="#i-chevdown"></use></svg></button></div></li>
+<li class="oc-row oc-row--running"><div class="oc-row__line"><span class="oc-tile oc-tile--accent"><svg class="oc-icon oc-icon--md"><use href="#i-refresh"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">the-wheels-of-chance.pdf</span><span class="oc-row__status"><b>Fix and rebuild · Building</b>· from cache, a few seconds</span></div></div></li>
+</ul>
+<p style="margin:0;font-size:var(--oc-text-sm);color:var(--oc-text-secondary)">Complete, expanded: see result.html. Every other failure type (memory limit, OCR missing, font, image) is on queue.html.</p>
+</div></div></section>
+
+<section class="gx-section"><h2 class="gx-h2">StageList · ProgressBar · Spinner · heartbeat</h2>
+<div class="gx-pair" data-mirror=""><div class="gx-pane"><span class="gx-cap">Light</span>
+<div class="gx-grid">
+<div class="gx-state"><span class="gx-cap">Determinate, count + unit</span><ol class="oc-steps" aria-label="Stages"><li class="oc-step oc-step--done"><div class="oc-step__line"><span class="oc-step__mark"><svg class="oc-icon" style="width:.875rem;height:.875rem;stroke-width:2.5"><use href="#i-check"></use></svg></span><span class="oc-step__label">Analyzing</span></div></li><li class="oc-step oc-step--done"><div class="oc-step__line"><span class="oc-step__mark"><svg class="oc-icon" style="width:.875rem;height:.875rem;stroke-width:2.5"><use href="#i-check"></use></svg></span><span class="oc-step__label">Extracting</span></div></li><li class="oc-step oc-step--current" aria-current="step"><div class="oc-step__line"><span class="oc-step__mark oc-pulse is-static"></span><span class="oc-step__label">Reconstructing</span><span class="oc-step__count">132 of 214 pages · 62 %</span></div><div class="oc-progress"><div class="oc-progress__fill" style="width:62%"></div></div></li><li class="oc-step oc-step--pending"><div class="oc-step__line"><span class="oc-step__mark"></span><span class="oc-step__label">Building</span></div></li><li class="oc-step oc-step--pending"><div class="oc-step__line"><span class="oc-step__mark"></span><span class="oc-step__label">Checking</span></div></li></ol></div>
+<div class="gx-state"><span class="gx-cap">Indeterminate (no count): spinner, no bar</span><ol class="oc-steps"><li class="oc-step oc-step--done"><div class="oc-step__line"><span class="oc-step__mark"><svg class="oc-icon" style="width:.875rem;height:.875rem;stroke-width:2.5"><use href="#i-check"></use></svg></span><span class="oc-step__label">Building</span></div></li><li class="oc-step oc-step--current"><div class="oc-step__line"><svg class="oc-spinner is-spinning" viewBox="0 0 16 16" style="width:1.375rem;height:1.375rem" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M8 2a6 6 0 0 1 6 6"></path></svg><span class="oc-step__label">Checking</span><span class="oc-step__count">still working</span></div></li></ol>
+<span class="gx-cap" style="margin-top:8px">Heartbeat stopped for more than 6 s: spinner freezes and turns warning</span><div class="gx-row" style="gap:8px"><svg class="oc-spinner is-stopped" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M8 2a6 6 0 0 1 6 6"></path></svg><b>Not responding</b></div></div>
+<div class="gx-state"><span class="gx-cap">Repairing (appears only when it runs)</span><ol class="oc-steps"><li class="oc-step oc-step--done"><div class="oc-step__line"><span class="oc-step__mark"><svg class="oc-icon" style="width:.875rem;height:.875rem;stroke-width:2.5"><use href="#i-check"></use></svg></span><span class="oc-step__label">Checking</span></div></li><li class="oc-step oc-step--current oc-step--repair"><div class="oc-step__line"><span class="oc-step__mark"></span><span class="oc-step__label">Repairing</span><span class="oc-step__count">attempt 1 of 3</span></div></li></ol>
+<span class="gx-cap" style="margin-top:8px">Fix and rebuild: only the stages that run</span><ol class="oc-steps"><li class="oc-step oc-step--done"><div class="oc-step__line"><span class="oc-step__mark"><svg class="oc-icon" style="width:.875rem;height:.875rem;stroke-width:2.5"><use href="#i-check"></use></svg></span><span class="oc-step__label">Reconstructing</span></div></li><li class="oc-step oc-step--current"><div class="oc-step__line"><span class="oc-step__mark"></span><span class="oc-step__label">Building</span></div></li><li class="oc-step oc-step--pending"><div class="oc-step__line"><span class="oc-step__mark"></span><span class="oc-step__label">Checking</span></div></li></ol></div>
+</div></div></div></section>
+
+<section class="gx-section"><h2 class="gx-h2">ValidationLine · ProcessingLine · QualityFacts · WarningLine</h2>
+<div class="gx-pair" data-mirror=""><div class="gx-pane"><span class="gx-cap">Light</span>
+<div class="gx-grid">
+<div class="oc-validation oc-validation--passed"><span class="oc-validation__head"><svg class="oc-icon oc-icon--md"><use href="#i-ccheck"></use></svg>Validation: passed</span></div>
+<div class="oc-validation oc-validation--warn"><span class="oc-validation__head"><svg class="oc-icon oc-icon--md"><use href="#i-alert"></use></svg>Validation: passed with warnings (2)</span></div>
+<div class="oc-validation oc-validation--invalid"><span class="oc-validation__head"><svg class="oc-icon oc-icon--md"><use href="#i-xcircle"></use></svg>Validation: invalid</span><span class="oc-validation__note">Saved and can still be opened. Some readers may refuse it.</span></div>
+</div>
+<div class="oc-summary"><span class="oc-summary__counts">214 pages · 1,842 blocks · 12 images · 0 tables · 11 chapters</span><span>Deterministic processing</span></div>
+<div class="oc-summary"><span class="oc-summary__counts">214 pages · 1,842 blocks · 12 images · 0 tables · 11 chapters</span><span>Deterministic processing · AI-assisted decisions: 4</span></div>
+<div class="oc-facts"><div class="oc-fact"><div class="oc-fact__value">99.6 %</div><div class="oc-fact__label">Character retention</div></div><div class="oc-fact"><div class="oc-fact__value">12 of 12</div><div class="oc-fact__label">Images</div></div><div class="oc-fact"><div class="oc-fact__value">38 of 38</div><div class="oc-fact__label">Notes linked</div></div><div class="oc-fact oc-fact--wide"><div class="oc-fact__value">Not run</div><div class="oc-fact__label">EPUBCheck · validation pack not installed</div></div><div class="oc-fact oc-fact--wide"><div class="oc-fact__value">0 errors, 0 warnings</div><div class="oc-fact__label">EPUBCheck · ran</div></div></div>
+<ul class="oc-validation__list" style="padding:0">
+<li class="oc-warning oc-warning--info"><svg class="oc-icon" aria-label="Information" role="img"><use href="#i-info"></use></svg><button class="oc-pagelink">p. 140</button><span class="oc-warning__text">2 tables were kept as images because their structure could not be recovered reliably.</span></li>
+<li class="oc-warning oc-warning--warn"><svg class="oc-icon" aria-label="Warning" role="img"><use href="#i-alert"></use></svg><button class="oc-pagelink is-hover">p. 88</button><span class="oc-warning__text">Heading levels jump from 1 to 3 on p. 88.</span></li>
+<li class="oc-warning oc-warning--error"><svg class="oc-icon" aria-label="Error" role="img"><use href="#i-xcircle"></use></svg><span class="oc-warning__text">The EPUB did not pass validation after 3 repair attempts. It was saved and marked invalid.</span></li>
+<li class="oc-warning oc-warning--warn"><svg class="oc-icon" aria-label="Warning" role="img"><use href="#i-alert"></use></svg><button class="oc-pagelink" disabled="" aria-describedby="nopv">p. 57</button><span class="oc-warning__text">1 footnote on p. 57 has no matching reference in the text. <span id="nopv" style="color:var(--oc-text-secondary)">(No preview available, so the page link is off.)</span></span></li>
+</ul>
+</div></div></section>
+
+<section class="gx-section"><h2 class="gx-h2">Banner · CopyCommand · FirstRunCard</h2>
+<div class="gx-pair" data-mirror=""><div class="gx-pane"><span class="gx-cap">Light</span>
+<div class="oc-banner oc-banner--info" role="status"><svg class="oc-icon oc-icon--md"><use href="#i-info"></use></svg><span class="oc-banner__text">AI assistance unavailable this run — converted deterministically.</span><button class="oc-btn oc-btn--sm">Details</button></div>
+<div class="oc-banner oc-banner--warn" role="status"><svg class="oc-icon oc-icon--md"><use href="#i-alert"></use></svg><span class="oc-banner__text">Qwen3-4B could not be loaded on this computer. Qwen3-1.7B was used instead.</span><button class="oc-btn oc-btn--sm">Model settings</button></div>
+<div class="gx-grid">
+<div class="gx-state"><span class="gx-cap">Copy command · default</span><div class="oc-command"><code class="oc-command__code">brew install tesseract tesseract-lang</code><button class="oc-btn oc-btn--sm"><svg class="oc-icon"><use href="#i-copy"></use></svg>Copy</button></div></div>
+<div class="gx-state"><span class="gx-cap">Copy command · copied (for 2 s)</span><div class="oc-command is-copied"><code class="oc-command__code">brew install tesseract tesseract-lang</code><button class="oc-btn oc-btn--sm" aria-live="polite"><svg class="oc-icon"><use href="#i-check"></use></svg>Copied</button></div></div>
+</div>
+<div class="gx-grid">
+<div class="gx-state"><span class="gx-cap">First-run card · collapsed</span><div class="oc-card oc-card--firstrun"><p>AI-assisted structure detection is available and off by default. It can improve heading and chapter detection on ambiguous documents.</p><div class="oc-card__costs"><span>Costs:</span><span class="oc-chip">~1,100 MB download</span><span class="oc-chip">~1–2 GB RAM while converting</span><span class="oc-chip">a few extra seconds per book</span></div><div class="oc-card__actions"><button class="oc-btn">Set up AI assistance</button><button class="oc-btn oc-btn--quiet">Not now</button></div></div></div>
+<div class="gx-state"><span class="gx-cap">First-run card · expanded, downloading</span><div class="oc-card oc-card--firstrun"><div class="oc-card__title">Set up AI assistance</div><p style="font-size:var(--oc-text-md)">Downloads Qwen3-1.7B (Apache-2.0). ~1,100 MB · ~1.5–2 GB RAM while converting · a few extra seconds per book. Conversion works fully without this.</p><div class="gx-row" style="gap:8px"><svg class="oc-icon" style="color:var(--oc-status-success)"><use href="#i-check"></use></svg><span style="font-size:var(--oc-text-sm)">License accepted: Apache License 2.0</span></div><div class="gx-row" style="gap:12px"><div class="oc-progress" style="flex:1" role="progressbar" aria-valuemin="0" aria-valuemax="1100" aria-valuenow="638" aria-valuetext="638 of 1,100 MB"><div class="oc-progress__fill" style="width:58%"></div></div><span class="oc-num" style="font-size:var(--oc-text-sm);font-weight:600">638 of 1,100 MB · 58 %</span><button class="oc-btn oc-btn--sm">Cancel</button></div></div></div>
+</div>
+</div></div></section>
+
+<section class="gx-section"><h2 class="gx-h2">Form controls</h2>
+<div class="gx-pair" data-mirror=""><div class="gx-pane"><span class="gx-cap">Light</span>
+<div class="gx-grid">
+<div class="gx-state"><span class="gx-cap">Toggle: off · on · focus · disabled</span>
+<button class="oc-toggle" role="switch" aria-checked="false"><span class="oc-toggle__track"><span class="oc-toggle__thumb"></span></span>Off</button>
+<button class="oc-toggle" role="switch" aria-checked="true"><span class="oc-toggle__track"><span class="oc-toggle__thumb"></span></span>On</button>
+<button class="oc-toggle is-focus" role="switch" aria-checked="true"><span class="oc-toggle__track"><span class="oc-toggle__thumb"></span></span>On, focused</button>
+<button class="oc-toggle" role="switch" aria-checked="false" disabled=""><span class="oc-toggle__track"><span class="oc-toggle__thumb"></span></span>Off, disabled</button></div>
+<div class="gx-state"><span class="gx-cap">Radio group (provider)</span><div class="oc-radios" role="radiogroup" aria-label="Provider">
+<div class="oc-radio" role="radio" aria-checked="true" tabindex="0"><span class="oc-radio__dot"></span>Built-in</div>
+<div class="oc-radio is-focus" role="radio" aria-checked="false" tabindex="-1"><span class="oc-radio__dot"></span>Ollama <span class="oc-tag oc-tag--detected">Detected</span></div>
+<div class="oc-radio" role="radio" aria-checked="false" tabindex="-1"><span class="oc-radio__dot"></span>Custom endpoint…</div></div></div>
+<div class="gx-state"><span class="gx-cap">Segmented (quality) · select (document type)</span>
+<div class="oc-segmented" role="radiogroup" aria-label="Quality"><button class="oc-segmented__item" role="radio" aria-checked="false">Fast</button><button class="oc-segmented__item" role="radio" aria-checked="true">Balanced</button><button class="oc-segmented__item" role="radio" aria-checked="false">Thorough</button></div>
+<select class="oc-select" aria-label="Document type"><option>Automatic (recommended)</option><option>Novel</option><option>Academic</option><option>Textbook</option><option>Poetry</option><option>Scanned</option></select></div>
+</div>
+<div class="gx-grid">
+<label class="oc-field"><span class="oc-field__label">Base URL</span><input class="oc-input oc-input--mono" value="http://localhost:8080/v1"></label>
+<label class="oc-field"><span class="oc-field__label">Base URL · focused</span><input class="oc-input oc-input--mono is-focus" value="https://llm.example.org/v1"></label>
+<div class="oc-field"><label class="oc-field__label" for="bu3">Base URL · invalid</label><input id="bu3" class="oc-input oc-input--mono" aria-invalid="true" aria-describedby="bu3e" value="llm.example.org"><span class="oc-field__error" id="bu3e"><svg class="oc-icon"><use href="#i-xcircle"></use></svg>Enter a URL that starts with http:// or https://</span></div>
+<label class="oc-field"><span class="oc-field__label">Model name · disabled</span><input class="oc-input" disabled="" value="qwen3-8b-instruct"></label>
+</div>
+<div class="gx-grid">
+<div class="oc-field"><span class="oc-field__label">API key file</span><div class="oc-filepick"><span class="oc-filepick__value">No file chosen</span><button class="oc-btn oc-btn--sm"><svg class="oc-icon"><use href="#i-folder"></use></svg>Choose file…</button></div><span class="oc-field__help">The key is read from this file when needed. It is never typed here or stored in settings.</span></div>
+<div class="oc-field"><span class="oc-field__label">API key file · chosen</span><div class="oc-filepick"><span class="oc-filepick__value is-set">~/keys/llm.key</span><button class="oc-btn oc-btn--sm">Change…</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Clear</button></div></div>
+<div class="oc-field"><label class="oc-field__label" for="pw9">PDF password (this job only)</label><input id="pw9" class="oc-input" type="password" value="secret12" aria-describedby="pw9h"><span class="oc-field__help" id="pw9h">Kept in memory for one job. Never saved.</span></div>
+</div>
+<div class="gx-row" style="gap:24px;align-items:flex-start">
+<div class="oc-field"><label class="oc-field__label" for="th">Threads</label><div class="oc-unit"><input id="th" class="oc-input" type="number" value="4"><span class="oc-unit__label">of 8 cores</span></div></div>
+<div class="oc-field"><label class="oc-field__label" for="mp">Max pages</label><div class="oc-unit"><input id="mp" class="oc-input" type="number" value="2000"><span class="oc-unit__label">pages</span></div></div>
+<div class="oc-field"><label class="oc-field__label" for="mm">Max memory</label><div class="oc-unit"><input id="mm" class="oc-input" type="number" value="4" aria-invalid="true" aria-describedby="mme"><span class="oc-unit__label">GB</span></div><span class="oc-field__error" id="mme"><svg class="oc-icon"><use href="#i-xcircle"></use></svg>Enter a value between 1 and 32 GB.</span></div>
+</div>
+</div></div></section>
+
+<section class="gx-section"><h2 class="gx-h2">ModelRow / PackRow · every state</h2>
+<div class="gx-pair" data-mirror=""><div class="gx-pane"><span class="gx-cap">Light</span>
+<div class="oc-model"><div class="oc-model__head"><span class="oc-model__name">Qwen3-0.6B</span><span class="oc-model__tier">low RAM</span><span class="oc-model__spacer"></span><span class="oc-model__state">Not installed</span><button class="oc-btn oc-btn--sm"><svg class="oc-icon"><use href="#i-download"></use></svg>Download…</button></div><div class="oc-model__facts"><span>~0.5 GB</span><span>RAM ~1 GB</span><span>CPU: fast</span><span>Apache-2.0</span><span class="oc-mono">models/qwen3-0.6b/LICENSE</span></div></div>
+<div class="oc-model"><div class="oc-model__head"><span class="oc-model__name">Qwen3-4B</span><span class="oc-model__tier">quality</span><span class="oc-model__spacer"></span><span class="oc-model__state">License shown · waiting for your acceptance</span></div><div class="oc-license" tabindex="0" aria-label="Apache License 2.0 text">Apache License
+Version 2.0, January 2004
+http://www.apache.org/licenses/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION …</div><div class="oc-actions"><button class="oc-btn oc-btn--primary oc-btn--sm">Accept license and download 2.4 GB</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Cancel</button></div></div>
+<div class="oc-model"><div class="oc-model__head"><span class="oc-model__name">Qwen3-4B</span><span class="oc-model__tier">quality</span><span class="oc-model__spacer"></span><span class="oc-model__state">1.39 of 2.4 GB · 58 %</span><button class="oc-btn oc-btn--sm">Cancel</button></div><div class="oc-progress" role="progressbar" aria-label="Downloading Qwen3-4B" aria-valuemin="0" aria-valuemax="2400" aria-valuenow="1390" aria-valuetext="1.39 of 2.4 GB"><div class="oc-progress__fill" style="width:58%"></div></div><div class="oc-model__facts"><span>2.4 GB</span><span>RAM ~3 GB</span><span>CPU: slower, higher quality</span><span>Apache-2.0, accepted</span><span class="oc-mono">models/qwen3-4b/LICENSE</span></div></div>
+<div class="oc-model oc-model--failed"><div class="oc-model__head"><span class="oc-model__name">Qwen3-4B</span><span class="oc-model__tier">quality</span><span class="oc-model__spacer"></span><span class="oc-model__state oc-model__state--err"><svg class="oc-icon"><use href="#i-xcircle"></use></svg>Download stopped at 1.39 of 2.4 GB</span><button class="oc-btn oc-btn--sm"><svg class="oc-icon"><use href="#i-refresh"></use></svg>Retry (resumes)</button></div><div class="oc-model__facts"><span>The connection closed. Retry continues from 1.39 GB.</span></div></div>
+<div class="oc-model"><div class="oc-model__head"><span class="oc-model__name">Qwen3-1.7B</span><span class="oc-tag oc-tag--default">Default</span><span class="oc-model__spacer"></span><span class="oc-model__state oc-model__state--ok"><svg class="oc-icon"><use href="#i-ccheck"></use></svg>Installed</span><button class="oc-btn oc-btn--danger oc-btn--sm">Delete</button></div><div class="oc-model__facts"><span>1.1 GB</span><span>RAM ~1.5–2 GB</span><span>CPU: moderate · first call ~5–15 s on a 4-core laptop</span><span>Apache-2.0</span><span class="oc-mono">models/qwen3-1.7b/LICENSE</span></div></div>
+<div class="oc-model"><div class="oc-model__head"><span class="oc-model__name">Qwen3-4B</span><span class="oc-model__tier">quality</span><span class="oc-model__spacer"></span><span class="oc-model__state" style="color:var(--oc-status-warning)"><svg class="oc-icon"><use href="#i-alert"></use></svg>Installed, but failed its health check here</span><button class="oc-btn oc-btn--danger oc-btn--sm">Delete</button></div><div class="oc-model__facts"><span>Qwen3-1.7B is used instead until this is resolved.</span></div></div>
+<div class="oc-model"><div class="oc-model__head"><span class="oc-model__name">Qwen3.5-2B</span><span class="oc-tag oc-tag--experimental">Experimental</span><span class="oc-model__spacer"></span><span class="oc-model__state">Not installed</span><button class="oc-btn oc-btn--sm"><svg class="oc-icon"><use href="#i-download"></use></svg>Download…</button></div><div class="oc-model__facts"><span>1.3 GB</span><span>RAM —</span><span>CPU —</span><span>Apache-2.0</span><span class="oc-mono">models/qwen3.5-2b/LICENSE</span></div></div>
+<div class="oc-model oc-model--unavailable"><div class="oc-model__head"><span class="oc-model__name">OCR pack</span><span class="oc-model__spacer"></span><span class="oc-model__state">Not available in this version</span></div><div class="oc-model__facts"><span>This version uses Tesseract installed on your system, if present. The pack arrives in a later version.</span></div></div>
+</div></div></section>
+
+<section class="gx-section"><h2 class="gx-h2">SectionNav · Table · Tooltip · EmptyState · Dialog shell</h2>
+<div class="gx-pair" data-mirror=""><div class="gx-pane"><span class="gx-cap">Light</span>
+<div class="gx-row" style="align-items:flex-start;gap:24px">
+<nav class="oc-nav" aria-label="Settings sections"><a class="oc-nav__item" href="#">AI assistance</a><a class="oc-nav__item" aria-current="page" href="#">Models</a><a class="oc-nav__item is-hover" href="#">Provider</a><a class="oc-nav__item" href="#">Presets</a><a class="oc-nav__item" href="#">Advanced</a><a class="oc-nav__item" href="#">Packs</a><a class="oc-nav__item is-focus" href="#">Language</a></nav>
+<div style="flex:1;min-width:18rem;display:flex;flex-direction:column;gap:16px">
+<table class="oc-table"><thead><tr><th>Reason</th><th class="is-num">Characters</th><th class="is-num">Share</th></tr></thead><tbody><tr><td>Running headers, footers, page numbers</td><td class="is-num">1,204</td><td class="is-num">2.1 %</td></tr><tr><td>Dehyphenation</td><td class="is-num">89</td><td class="is-num">0.16 %</td></tr><tr><td>Ligature expansion</td><td class="is-num">41</td><td class="is-num">paired</td></tr></tbody></table>
+<div style="position:relative;height:4.5rem"><button class="oc-btn oc-btn--sm is-focus" aria-describedby="tt1">Dump stages</button><div class="oc-tooltip" role="tooltip" id="tt1" style="left:0;top:2.75rem">Writes each stage's output to a folder, for bug reports.</div></div>
+<div class="oc-empty"><svg class="oc-icon oc-icon--xl"><use href="#i-list"></use></svg><span class="oc-empty__title">No warnings</span><span>This conversion finished without anything to report.</span></div>
+</div></div>
+</div></div></section>
+
+</div>
+<script src="gallery.js"></script>
+</body>
+</html>

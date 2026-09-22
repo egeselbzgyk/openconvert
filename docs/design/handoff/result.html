@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OpenConvert · Result and editing</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="oc.css">
+<link rel="stylesheet" href="gallery.css">
+</head>
+<body class="gx-body">
+<nav class="gx-top" aria-label="Handoff pages"><b>OpenConvert handoff</b><a href="index.html">Index</a><a href="design-system.html">Design system</a><a href="queue.html">Queue</a><a href="result.html" aria-current="page">Result &amp; editing</a><a href="report.html">Report &amp; preview</a><a href="settings.html">Settings &amp; dialogs</a><a href="firstrun.html">First run &amp; startup</a><a href="i18n.html">DE / TR · 200 % · a11y</a></nav>
+<div class="gx-wrap">
+<header><h1 class="gx-h1">Result panel · route <code>result</code> (a queue row, expanded)</h1>
+<p class="gx-lead">A completed row expands in place. Its <code>aria-expanded</code> button moves focus to the panel heading. Collapsed, it keeps the status line and Open in reader. All counts are placeholders.</p></header>
+
+<section class="gx-section"><h2 class="gx-h2">1 · Validation states and AI variants</h2>
+<div class="gx-frames">
+
+<div class="gx-frame" data-dark=""><span class="gx-cap">Passed with warnings · AI off (default)</span><div class="gx-window"><div class="oc-app" lang="en"><main class="oc-main">
+<div class="oc-dropzone oc-dropzone--strip" role="group" aria-label="Add PDFs"><span class="oc-tile oc-tile--accent"><svg class="oc-icon oc-icon--md"><use href="#i-fileplus"></use></svg></span><span class="oc-dropzone__title">Drop more PDFs here</span><button class="oc-btn oc-btn--sm">Select PDF…</button></div>
+<ul class="oc-queue" aria-label="Queue">
+<li class="oc-row oc-row--expanded" aria-labelledby="r1"><div class="oc-row__line"><span class="oc-tile oc-tile--ok"><svg class="oc-icon oc-icon--md"><use href="#i-check"></use></svg></span><div class="oc-row__text"><span class="oc-row__name" id="r1">the-wheels-of-chance.pdf</span><span class="oc-row__status"><b>Complete</b></span></div><button class="oc-btn oc-btn--icon" aria-label="Collapse result" aria-expanded="true"><svg class="oc-icon oc-icon--md"><use href="#i-chevup"></use></svg></button></div>
+<div class="oc-output"><svg class="oc-icon oc-icon--lg" style="color:var(--oc-text-secondary)"><use href="#i-book"></use></svg><div class="oc-output__file"><span class="oc-output__name">the-wheels-of-chance.epub</span><span class="oc-output__path">~/Books</span></div><button class="oc-btn oc-btn--primary">Open in reader</button><button class="oc-btn">Show in folder</button></div>
+<div class="oc-summary"><span class="oc-summary__counts">214 pages · 1,842 blocks · 12 images · 0 tables · 11 chapters</span><span>Deterministic processing</span></div>
+<div class="oc-validation oc-validation--warn"><span class="oc-validation__head"><svg class="oc-icon oc-icon--md"><use href="#i-alert"></use></svg>Validation: passed with warnings (2)</span>
+<ul class="oc-validation__list"><li class="oc-warning oc-warning--warn"><button class="oc-pagelink" aria-label="Go to page 34 in the preview">p. 34</button><span class="oc-warning__text">Low-confidence hyphenation join kept as hyphenated</span></li><li class="oc-warning oc-warning--warn"><button class="oc-pagelink" aria-label="Go to page 201 in the preview">p. 201</button><span class="oc-warning__text">1 image below minimum resolution</span></li></ul></div>
+<div class="oc-facts"><div class="oc-fact"><div class="oc-fact__value">99.6 %</div><div class="oc-fact__label">Character retention</div></div><div class="oc-fact"><div class="oc-fact__value">12 of 12</div><div class="oc-fact__label">Images</div></div><div class="oc-fact"><div class="oc-fact__value">38 of 38</div><div class="oc-fact__label">Notes linked</div></div><div class="oc-fact oc-fact--wide"><div class="oc-fact__value">Not run</div><div class="oc-fact__label">EPUBCheck · validation pack not installed</div></div></div>
+<div class="oc-actions"><button class="oc-btn oc-btn--sm">Details</button><button class="oc-btn oc-btn--sm">Preview</button><button class="oc-btn oc-btn--sm">Edit metadata</button><button class="oc-btn oc-btn--sm">Review TOC</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Export diagnostic bundle</button></div>
+</li>
+<li class="oc-row oc-row--running oc-row--compact"><div class="oc-row__line"><span class="oc-tile oc-tile--accent oc-pulse is-static"><svg class="oc-icon oc-icon--md"><use href="#i-file"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">moby-dick.pdf</span><span class="oc-row__status"><svg class="oc-spinner is-spinning" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M8 2a6 6 0 0 1 6 6"></path></svg><b>Analyzing</b>· step 1 of 5</span></div><button class="oc-btn oc-btn--sm">Cancel</button></div></li>
+</ul></main>
+<header class="oc-header"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header></div></div></div>
+
+<div class="gx-frame"><span class="gx-cap">Passed · EPUBCheck ran (validation pack installed)</span><div class="gx-window"><div class="oc-app" lang="en"><main class="oc-main">
+<ul class="oc-queue" aria-label="Queue">
+<li class="oc-row oc-row--expanded"><div class="oc-row__line"><span class="oc-tile oc-tile--ok"><svg class="oc-icon oc-icon--md"><use href="#i-check"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">die-verwandlung.pdf</span><span class="oc-row__status"><b>Complete</b></span></div><button class="oc-btn oc-btn--icon" aria-label="Collapse result" aria-expanded="true"><svg class="oc-icon oc-icon--md"><use href="#i-chevup"></use></svg></button></div>
+<div class="oc-output"><svg class="oc-icon oc-icon--lg" style="color:var(--oc-text-secondary)"><use href="#i-book"></use></svg><div class="oc-output__file"><span class="oc-output__name">die-verwandlung.epub</span><span class="oc-output__path">~/Books</span></div><button class="oc-btn oc-btn--primary">Open in reader</button><button class="oc-btn">Show in folder</button></div>
+<div class="oc-summary"><span class="oc-summary__counts">96 pages · 598 blocks · 1 image · 0 tables · 3 chapters</span><span>Deterministic processing</span></div>
+<div class="oc-validation oc-validation--passed"><span class="oc-validation__head"><svg class="oc-icon oc-icon--md"><use href="#i-ccheck"></use></svg>Validation: passed</span></div>
+<div class="oc-facts"><div class="oc-fact"><div class="oc-fact__value">99.9 %</div><div class="oc-fact__label">Character retention</div></div><div class="oc-fact"><div class="oc-fact__value">1 of 1</div><div class="oc-fact__label">Images</div></div><div class="oc-fact"><div class="oc-fact__value">None</div><div class="oc-fact__label">Notes in this book</div></div><div class="oc-fact oc-fact--wide"><div class="oc-fact__value">0 errors, 0 warnings</div><div class="oc-fact__label">EPUBCheck</div></div></div>
+<div class="oc-actions"><button class="oc-btn oc-btn--sm">Details</button><button class="oc-btn oc-btn--sm">Preview</button><button class="oc-btn oc-btn--sm">Edit metadata</button><button class="oc-btn oc-btn--sm">Review TOC</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Export diagnostic bundle</button></div>
+</li></ul></main>
+<header class="oc-header"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header></div></div></div>
+
+<div class="gx-frame" data-dark=""><span class="gx-cap">Invalid · still saved and openable (repair cap reached)</span><div class="gx-window"><div class="oc-app" lang="en"><main class="oc-main">
+<ul class="oc-queue" aria-label="Queue">
+<li class="oc-row oc-row--expanded"><div class="oc-row__line"><span class="oc-tile oc-tile--err"><svg class="oc-icon oc-icon--md"><use href="#i-x"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">araba-sevdasi.pdf</span><span class="oc-row__status"><b>Complete</b>· saved, marked invalid</span></div><button class="oc-btn oc-btn--icon" aria-label="Collapse result" aria-expanded="true"><svg class="oc-icon oc-icon--md"><use href="#i-chevup"></use></svg></button></div>
+<div class="oc-output"><svg class="oc-icon oc-icon--lg" style="color:var(--oc-text-secondary)"><use href="#i-book"></use></svg><div class="oc-output__file"><span class="oc-output__name">araba-sevdasi.epub</span><span class="oc-output__path">~/Books</span></div><button class="oc-btn oc-btn--primary">Open in reader</button><button class="oc-btn">Show in folder</button></div>
+<div class="oc-summary"><span class="oc-summary__counts">188 pages · 1,406 blocks · 4 images · 0 tables · 27 chapters</span><span>Deterministic processing</span></div>
+<div class="oc-validation oc-validation--invalid"><span class="oc-validation__head"><svg class="oc-icon oc-icon--md"><use href="#i-xcircle"></use></svg>Validation: invalid</span><span class="oc-validation__note">The EPUB was saved and can still be opened. Some readers may refuse it.</span>
+<ul class="oc-validation__list"><li class="oc-warning oc-warning--error"><svg class="oc-icon" role="img" aria-label="Error"><use href="#i-xcircle"></use></svg><span class="oc-warning__text">The EPUB did not pass validation after 3 repair attempts. It was saved and marked invalid.</span></li><li class="oc-warning oc-warning--warn"><svg class="oc-icon" role="img" aria-label="Warning"><use href="#i-alert"></use></svg><button class="oc-pagelink">p. 112</button><span class="oc-warning__text">Heading levels jump from 1 to 3 on p. 112.</span></li><li class="oc-warning oc-warning--info"><svg class="oc-icon" role="img" aria-label="Information"><use href="#i-info"></use></svg><button class="oc-pagelink">p. 140</button><span class="oc-warning__text">2 tables were kept as images because their structure could not be recovered reliably.</span></li></ul></div>
+<div class="oc-facts"><div class="oc-fact"><div class="oc-fact__value">99.2 %</div><div class="oc-fact__label">Character retention</div></div><div class="oc-fact"><div class="oc-fact__value">4 of 4</div><div class="oc-fact__label">Images</div></div><div class="oc-fact"><div class="oc-fact__value">61 of 62</div><div class="oc-fact__label">Notes linked</div></div><div class="oc-fact oc-fact--wide"><div class="oc-fact__value">2 errors, 1 warning</div><div class="oc-fact__label">EPUBCheck</div></div></div>
+<div class="oc-actions"><button class="oc-btn oc-btn--sm">Details</button><button class="oc-btn oc-btn--sm">Preview</button><button class="oc-btn oc-btn--sm">Edit metadata</button><button class="oc-btn oc-btn--sm">Review TOC</button><button class="oc-btn oc-btn--sm">Export diagnostic bundle</button></div>
+</li></ul></main>
+<header class="oc-header"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header></div></div></div>
+
+<div class="gx-frame"><span class="gx-cap">AI on · AI-assisted decisions next to deterministic processing, never above it</span><div class="gx-window"><div class="oc-app" lang="en"><main class="oc-main">
+<ul class="oc-queue" aria-label="Queue">
+<li class="oc-row oc-row--expanded"><div class="oc-row__line"><span class="oc-tile oc-tile--ok"><svg class="oc-icon oc-icon--md"><use href="#i-check"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">the-wheels-of-chance.pdf</span><span class="oc-row__status"><b>Complete</b></span></div><button class="oc-btn oc-btn--icon" aria-label="Collapse result" aria-expanded="true"><svg class="oc-icon oc-icon--md"><use href="#i-chevup"></use></svg></button></div>
+<div class="oc-output"><svg class="oc-icon oc-icon--lg" style="color:var(--oc-text-secondary)"><use href="#i-book"></use></svg><div class="oc-output__file"><span class="oc-output__name">the-wheels-of-chance.epub</span><span class="oc-output__path">~/Books</span></div><button class="oc-btn oc-btn--primary">Open in reader</button><button class="oc-btn">Show in folder</button></div>
+<div class="oc-summary"><span class="oc-summary__counts">214 pages · 1,842 blocks · 12 images · 0 tables · 11 chapters</span><span>Deterministic processing · AI-assisted decisions: 4</span></div>
+<div class="oc-validation oc-validation--warn"><span class="oc-validation__head"><svg class="oc-icon oc-icon--md"><use href="#i-alert"></use></svg>Validation: passed with warnings (2)</span>
+<ul class="oc-validation__list"><li class="oc-warning oc-warning--warn"><button class="oc-pagelink">p. 34</button><span class="oc-warning__text">Low-confidence hyphenation join kept as hyphenated</span></li><li class="oc-warning oc-warning--warn"><button class="oc-pagelink">p. 201</button><span class="oc-warning__text">1 image below minimum resolution</span></li></ul></div>
+<div class="oc-facts"><div class="oc-fact"><div class="oc-fact__value">99.6 %</div><div class="oc-fact__label">Character retention</div></div><div class="oc-fact"><div class="oc-fact__value">12 of 12</div><div class="oc-fact__label">Images</div></div><div class="oc-fact"><div class="oc-fact__value">38 of 38</div><div class="oc-fact__label">Notes linked</div></div><div class="oc-fact oc-fact--wide"><div class="oc-fact__value">Not run</div><div class="oc-fact__label">EPUBCheck · validation pack not installed</div></div></div>
+<div class="oc-actions"><button class="oc-btn oc-btn--sm">Details</button><button class="oc-btn oc-btn--sm">Preview</button><button class="oc-btn oc-btn--sm">Edit metadata</button><button class="oc-btn oc-btn--sm">Review TOC</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Export diagnostic bundle</button></div>
+</li></ul></main>
+<header class="oc-header"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header></div></div></div>
+
+<div class="gx-frame"><span class="gx-cap">AI enabled but unavailable · non-modal banner, converted deterministically</span><div class="gx-window"><div class="oc-app" lang="en"><main class="oc-main">
+<div class="oc-banner oc-banner--info" role="status" style="max-width:var(--oc-content-max)"><svg class="oc-icon oc-icon--md"><use href="#i-info"></use></svg><span class="oc-banner__text">AI assistance unavailable this run — converted deterministically.</span><button class="oc-btn oc-btn--sm">Model settings</button><button class="oc-btn oc-btn--icon oc-btn--sm" aria-label="Dismiss"><svg class="oc-icon"><use href="#i-x"></use></svg></button></div>
+<ul class="oc-queue" aria-label="Queue">
+<li class="oc-row oc-row--expanded"><div class="oc-row__line"><span class="oc-tile oc-tile--ok"><svg class="oc-icon oc-icon--md"><use href="#i-check"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">the-wheels-of-chance.pdf</span><span class="oc-row__status"><b>Complete</b></span></div><button class="oc-btn oc-btn--icon" aria-label="Collapse result" aria-expanded="true"><svg class="oc-icon oc-icon--md"><use href="#i-chevup"></use></svg></button></div>
+<div class="oc-output"><svg class="oc-icon oc-icon--lg" style="color:var(--oc-text-secondary)"><use href="#i-book"></use></svg><div class="oc-output__file"><span class="oc-output__name">the-wheels-of-chance.epub</span><span class="oc-output__path">~/Books</span></div><button class="oc-btn oc-btn--primary">Open in reader</button><button class="oc-btn">Show in folder</button></div>
+<div class="oc-summary"><span class="oc-summary__counts">214 pages · 1,842 blocks · 12 images · 0 tables · 11 chapters</span><span>Deterministic processing · AI was on but unavailable, so no AI-assisted decisions</span></div>
+<div class="oc-validation oc-validation--warn"><span class="oc-validation__head"><svg class="oc-icon oc-icon--md"><use href="#i-alert"></use></svg>Validation: passed with warnings (2)</span>
+<ul class="oc-validation__list"><li class="oc-warning oc-warning--warn"><button class="oc-pagelink">p. 34</button><span class="oc-warning__text">Low-confidence hyphenation join kept as hyphenated</span></li><li class="oc-warning oc-warning--warn"><button class="oc-pagelink">p. 201</button><span class="oc-warning__text">1 image below minimum resolution</span></li></ul></div>
+<div class="oc-actions"><button class="oc-btn oc-btn--sm">Details</button><button class="oc-btn oc-btn--sm">Preview</button><button class="oc-btn oc-btn--sm">Edit metadata</button><button class="oc-btn oc-btn--sm">Review TOC</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Export diagnostic bundle</button></div>
+</li></ul></main>
+<header class="oc-header"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header></div></div></div>
+</div></section>
+
+<section class="gx-section"><h2 class="gx-h2">2 · Edit metadata → Fix and rebuild → partial rebuild → updated result</h2>
+<div class="gx-frames">
+<div class="gx-frame" data-dark=""><span class="gx-cap">Edit metadata (authors are a list)</span><div class="gx-window"><div class="oc-app" lang="en">
+<div class="oc-editor"><h2 class="oc-settings__title">Edit metadata · the-wheels-of-chance.epub</h2>
+<p class="oc-field__help" style="margin:0">Changes are saved as corrections for this book. Fix and rebuild re-runs only the last steps, from cache. It takes a few seconds and does not re-read the PDF.</p>
+<label class="oc-field"><span class="oc-field__label">Title</span><input class="oc-input" value="The Wheels of Chance: A Bicycling Idyll"></label>
+<div class="oc-field"><span class="oc-field__label" id="au">Authors</span><ul class="oc-authors" aria-labelledby="au"><li><input class="oc-input" value="H. G. Wells" aria-label="Author 1"><button class="oc-btn oc-btn--icon oc-btn--sm" aria-label="Remove author 1"><svg class="oc-icon"><use href="#i-x"></use></svg></button></li><li><input class="oc-input is-focus" value="J. Ayton Symington (illustrator)" aria-label="Author 2"><button class="oc-btn oc-btn--icon oc-btn--sm" aria-label="Remove author 2"><svg class="oc-icon"><use href="#i-x"></use></svg></button></li></ul><button class="oc-btn oc-btn--quiet oc-btn--sm" style="align-self:flex-start"><svg class="oc-icon"><use href="#i-plus"></use></svg>Add author</button></div>
+<div class="oc-field"><label class="oc-field__label" for="lng">Language</label><select id="lng" class="oc-select" style="max-width:20rem"><option>English (en), detected</option><option>German (de)</option><option>Turkish (tr)</option></select></div>
+<div class="oc-actions"><button class="oc-btn oc-btn--primary">Fix and rebuild</button><button class="oc-btn oc-btn--quiet">Cancel</button></div>
+</div>
+<header class="oc-header"><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-back"></use></svg>Queue</button><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>Edit metadata</span></header></div></div></div>
+
+<div class="gx-frame"><span class="gx-cap">Partial rebuild in progress (only the stages that run)</span><div class="gx-window"><div class="oc-app" lang="en"><main class="oc-main">
+<ul class="oc-queue" aria-label="Queue">
+<li class="oc-row oc-row--running"><div class="oc-row__line"><span class="oc-tile oc-tile--accent"><svg class="oc-icon oc-icon--md"><use href="#i-refresh"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">the-wheels-of-chance.pdf</span><span class="oc-row__status"><b>Fix and rebuild</b>· new title and authors, from cache</span></div><button class="oc-btn oc-btn--sm">Cancel</button></div>
+<ol class="oc-steps" aria-label="Rebuild stages"><li class="oc-step oc-step--done"><div class="oc-step__line"><span class="oc-step__mark"><svg class="oc-icon" style="width:.875rem;height:.875rem;stroke-width:2.5"><use href="#i-check"></use></svg></span><span class="oc-step__label">Reconstructing</span></div></li><li class="oc-step oc-step--current" aria-current="step"><div class="oc-step__line"><svg class="oc-spinner is-spinning" viewBox="0 0 16 16" style="width:1.375rem;height:1.375rem" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M8 2a6 6 0 0 1 6 6"></path></svg><span class="oc-step__label">Building</span></div></li><li class="oc-step oc-step--pending"><div class="oc-step__line"><span class="oc-step__mark"></span><span class="oc-step__label">Checking</span></div></li></ol></li>
+</ul></main>
+<header class="oc-header"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header></div></div></div>
+
+<div class="gx-frame"><span class="gx-cap">Updated result · shows what changed</span><div class="gx-window"><div class="oc-app" lang="en"><main class="oc-main">
+<ul class="oc-queue" aria-label="Queue">
+<li class="oc-row oc-row--expanded"><div class="oc-row__line"><span class="oc-tile oc-tile--ok"><svg class="oc-icon oc-icon--md"><use href="#i-check"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">the-wheels-of-chance.pdf</span><span class="oc-row__status"><b>Complete</b>· rebuilt in 2.1 s with your corrections</span></div><button class="oc-btn oc-btn--icon" aria-label="Collapse result" aria-expanded="true"><svg class="oc-icon oc-icon--md"><use href="#i-chevup"></use></svg></button></div>
+<div class="oc-banner oc-banner--info" role="status"><svg class="oc-icon oc-icon--md"><use href="#i-info"></use></svg><span class="oc-banner__text">Applied: title, 2 authors. The rest of the book is unchanged.</span></div>
+<div class="oc-output"><svg class="oc-icon oc-icon--lg" style="color:var(--oc-text-secondary)"><use href="#i-book"></use></svg><div class="oc-output__file"><span class="oc-output__name">the-wheels-of-chance.epub</span><span class="oc-output__path">~/Books · replaced the previous version</span></div><button class="oc-btn oc-btn--primary">Open in reader</button><button class="oc-btn">Show in folder</button></div>
+<div class="oc-summary"><span class="oc-summary__counts">214 pages · 1,842 blocks · 12 images · 0 tables · 11 chapters</span><span>Deterministic processing</span></div>
+<div class="oc-validation oc-validation--warn"><span class="oc-validation__head"><svg class="oc-icon oc-icon--md"><use href="#i-alert"></use></svg>Validation: passed with warnings (2)</span></div>
+<div class="oc-actions"><button class="oc-btn oc-btn--sm">Details</button><button class="oc-btn oc-btn--sm">Preview</button><button class="oc-btn oc-btn--sm">Edit metadata</button><button class="oc-btn oc-btn--sm">Review TOC</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Export diagnostic bundle</button></div>
+</li></ul></main>
+<header class="oc-header"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header></div></div></div>
+
+<div class="gx-frame"><span class="gx-cap">Stale corrections refused (made for an older engine IR version)</span><div class="gx-window"><div class="oc-app" lang="en"><main class="oc-main">
+<ul class="oc-queue" aria-label="Queue">
+<li class="oc-row oc-row--expanded"><div class="oc-row__line"><span class="oc-tile oc-tile--ok"><svg class="oc-icon oc-icon--md"><use href="#i-check"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">the-wheels-of-chance.pdf</span><span class="oc-row__status"><b>Complete</b>· converted without your saved corrections</span></div><button class="oc-btn oc-btn--icon" aria-label="Collapse result" aria-expanded="true"><svg class="oc-icon oc-icon--md"><use href="#i-chevup"></use></svg></button></div>
+<div class="oc-banner oc-banner--warn" role="alert"><svg class="oc-icon oc-icon--md"><use href="#i-alert"></use></svg><span class="oc-banner__text"><b>Saved corrections were not applied.</b> They were made with an older version of the converter (IR 3; this version uses IR 4) and could land on the wrong headings. Your earlier title, authors and TOC changes are kept in the file below. Re-enter them to apply them to this version.</span></div>
+<div class="oc-command"><code class="oc-command__code">~/Books/.openconvert/the-wheels-of-chance/overrides.ir3.json</code><button class="oc-btn oc-btn--sm"><svg class="oc-icon"><use href="#i-folder"></use></svg>Show file</button></div>
+<div class="oc-actions"><button class="oc-btn oc-btn--sm">Edit metadata</button><button class="oc-btn oc-btn--sm">Review TOC</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Details</button></div>
+</li></ul></main>
+<header class="oc-header"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header></div></div></div>
+</div></section>
+
+<section class="gx-section"><h2 class="gx-h2">3 · Review TOC → Fix and rebuild</h2>
+<div class="gx-frames">
+<div class="gx-frame" data-dark=""><span class="gx-cap">Rename and change level are applied. Any other change becomes a proposal.</span><div class="gx-window"><div class="oc-app" lang="en">
+<div class="oc-editor"><h2 class="oc-settings__title">Review TOC · the-wheels-of-chance.epub</h2>
+<p class="oc-field__help" style="margin:0">Rename a heading or change its level. Other changes (merge, move, delete) are saved as proposals for the report and are not applied in this version.</p>
+<ol class="oc-toc" aria-label="Table of contents">
+<li class="oc-toc__item" data-level="1"><input class="oc-input" value="Front matter" aria-label="Heading, page 1"><select class="oc-select oc-toc__level" aria-label="Level"><option>Level 1</option></select><span class="oc-toc__page">p. 1</span></li>
+<li class="oc-toc__item is-changed" data-level="1"><input class="oc-input is-focus" value="I. The Hero of This Story" aria-label="Heading, page 9"><select class="oc-select oc-toc__level" aria-label="Level"><option>Level 1</option></select><span class="oc-toc__page">p. 9</span></li>
+<li class="oc-toc__item" data-level="1"><input class="oc-input" value="II. The Pursuit" aria-label="Heading, page 27"><select class="oc-select oc-toc__level" aria-label="Level"><option>Level 1</option></select><span class="oc-toc__page">p. 27</span></li>
+<li class="oc-toc__item is-changed" data-level="2"><input class="oc-input" value="An interlude on bicycles" aria-label="Heading, page 34"><select class="oc-select oc-toc__level" aria-label="Level"><option>Level 2</option></select><span class="oc-toc__page">p. 34</span></li>
+<li class="oc-toc__item" data-level="1"><input class="oc-input" value="III. Mr. Hoopdriver's Holiday" aria-label="Heading, page 41"><select class="oc-select oc-toc__level" aria-label="Level"><option>Level 1</option></select><span class="oc-toc__page">p. 41</span></li>
+<li class="oc-toc__item" data-level="1"><input class="oc-input" value="IV. Midhurst" aria-label="Heading, page 58"><select class="oc-select oc-toc__level" aria-label="Level"><option>Level 1</option></select><span class="oc-toc__page">p. 58</span></li>
+</ol>
+<div class="oc-banner oc-banner--info"><svg class="oc-icon oc-icon--md"><use href="#i-info"></use></svg><span class="oc-banner__text">1 proposal saved, not applied: merge "IV. Midhurst" into "III". It will appear in the report.</span></div>
+<div class="oc-actions"><button class="oc-btn oc-btn--primary">Fix and rebuild (2 changes)</button><button class="oc-btn oc-btn--quiet">Cancel</button></div>
+</div>
+<header class="oc-header"><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-back"></use></svg>Queue</button><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>Review TOC</span></header></div></div></div>
+</div></section>
+
+<section class="gx-section"><h2 class="gx-h2">4 · Export diagnostic bundle: review before sharing</h2>
+<div class="gx-frames">
+<div class="gx-frame" data-dark=""><span class="gx-cap">After the native save dialog: what the bundle contains. Nothing is sent.</span><div class="gx-window"><div class="oc-app" lang="en">
+<div class="oc-editor"><h2 class="oc-settings__title">Diagnostic bundle saved</h2>
+<div class="oc-output"><svg class="oc-icon oc-icon--lg" style="color:var(--oc-text-secondary)"><use href="#i-package"></use></svg><div class="oc-output__file"><span class="oc-output__name">openconvert-diagnostics-2026-09-22.zip</span><span class="oc-output__path">~/Desktop · 184 KB</span></div><button class="oc-btn">Show in folder</button></div>
+<p class="oc-field__help" style="margin:0">OpenConvert did not send this anywhere. Check what is inside before you share it. The report and event log can contain text from your document.</p>
+<table class="oc-table"><thead><tr><th>File</th><th>What it holds</th><th class="is-num">Size</th></tr></thead><tbody>
+<tr><td class="oc-mono">report.json</td><td>The conversion report: counts, warnings, ledger, timing</td><td class="is-num">62 KB</td></tr>
+<tr><td class="oc-mono">events.ndjson</td><td>The engine's event log for this job (stages, progress, warnings)</td><td class="is-num">104 KB</td></tr>
+<tr><td class="oc-mono">versions.txt</td><td>App 1.0.0, engine 1.0.0, protocol 3</td><td class="is-num">1 KB</td></tr>
+<tr><td class="oc-mono">system.txt</td><td>macOS 15.4, 8 cores, 16 GB RAM, WebKit 20621</td><td class="is-num">1 KB</td></tr>
+</tbody></table>
+<p class="oc-field__help" style="margin:0">Not included: the PDF, the EPUB, your settings file, any API key.</p>
+<div class="oc-actions"><button class="oc-btn oc-btn--primary">Done</button><button class="oc-btn">Open bundle folder</button></div>
+</div>
+<header class="oc-header"><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-back"></use></svg>Queue</button><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>Diagnostic bundle</span></header></div></div></div>
+</div></section>
+
+<section class="gx-section"><h2 class="gx-h2">5 · Proposals for open items the spec leaves open</h2>
+<div class="gx-pair" data-mirror=""><div class="gx-pane"><span class="gx-cap">Light · proposals</span>
+<div class="gx-state"><span class="gx-cap">Output file already exists (overwrite off by default): new name, said plainly</span>
+<div class="oc-output"><svg class="oc-icon oc-icon--lg" style="color:var(--oc-text-secondary)"><use href="#i-book"></use></svg><div class="oc-output__file"><span class="oc-output__name">the-wheels-of-chance (2).epub</span><span class="oc-output__path">~/Books · the-wheels-of-chance.epub already existed and was left as it was</span></div><button class="oc-btn oc-btn--primary oc-btn--sm">Open in reader</button><button class="oc-btn oc-btn--sm">Show in folder</button></div></div>
+<div class="gx-state"><span class="gx-cap">"Open in reader" when the OS has no EPUB reader</span>
+<div class="oc-banner oc-banner--info" role="status"><svg class="oc-icon oc-icon--md"><use href="#i-info"></use></svg><span class="oc-banner__text">This computer has no app for EPUB files. The book is saved in ~/Books. Any EPUB reader can open it (for example Calibre, Thorium or Apple Books).</span><button class="oc-btn oc-btn--sm">Show in folder</button></div></div>
+</div></div>
+</section>
+
+</div>
+<script src="gallery.js"></script>
+</body>
+</html>

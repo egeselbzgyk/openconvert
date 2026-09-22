@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OpenConvert · Desktop UI handoff (2b Quiet workshop)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="oc.css">
+<link rel="stylesheet" href="gallery.css">
+</head>
+<body class="gx-body">
+<nav class="gx-top" aria-label="Handoff pages"><b>OpenConvert handoff</b><a href="index.html" aria-current="page">Index</a><a href="design-system.html">Design system</a><a href="queue.html">Queue</a><a href="result.html">Result &amp; editing</a><a href="report.html">Report &amp; preview</a><a href="settings.html">Settings &amp; dialogs</a><a href="firstrun.html">First run &amp; startup</a><a href="i18n.html">DE / TR · 200 % · a11y</a></nav>
+<div class="gx-wrap">
+<header><h1 class="gx-h1">OpenConvert desktop UI: Stage 3 handoff</h1>
+<p class="gx-lead">Direction 2b "Quiet workshop". Plain HTML + CSS custom properties, sized in rem, flexbox only. No <code>:has()</code>, container queries, subgrid or backdrop-filter. System fonts and Lucide (ISC) icons are the only assets, and nothing loads from the network. Class names map one-to-one to the planned Svelte 5 components.</p></header>
+
+<section class="gx-section"><h2 class="gx-h2">Package contents</h2>
+<table class="gx-table"><thead><tr><th>#</th><th>Deliverable (brief §9)</th><th>File</th></tr></thead><tbody>
+<tr><td>1</td><td>Tokens: light on <code>:root</code>, dark under <code>prefers-color-scheme</code>, motion with reduced-motion values</td><td><a href="tokens.css">tokens.css</a></td></tr>
+<tr><td>2</td><td>Component specs: anatomy, states, tokens, keyboard, ARIA</td><td><a href="docs/components.md">docs/components.md</a> · styles in <a href="oc.css">oc.css</a> · gallery <a href="design-system.html">design-system.html</a></td></tr>
+<tr><td>3</td><td>Screen map to Svelte routes (queue, result, report, preview, settings, models, firstrun)</td><td><a href="docs/screen-map.md">docs/screen-map.md</a></td></tr>
+<tr><td>4</td><td>Motion spec with reduced-motion equivalents</td><td><a href="docs/motion.md">docs/motion.md</a></td></tr>
+<tr><td>5</td><td>String inventory: keys, EN, DE/TR drafts (+ JSON tables)</td><td><a href="docs/strings.md">docs/strings.md</a> · <a href="strings/en.json">strings/en.json</a> · <a href="strings/de.json">de.json</a> · <a href="strings/tr.json">tr.json</a></td></tr>
+<tr><td>6</td><td>Decisions, proposals for the open items, open questions</td><td><a href="docs/decisions.md">docs/decisions.md</a></td></tr>
+<tr><td>7</td><td>HTML/CSS prototype pages</td><td>the pages in the top bar, plus <a href="scaled.html?scale=200">scaled.html</a> (text-size and window-size render) and <a href="icons.svg">icons.svg</a></td></tr>
+</tbody></table>
+<p class="gx-note"><code>gallery.css</code> and <code>gallery.js</code> exist only for these docs: frame chrome, dark mirroring, locale swapping. They are not part of the app. The <code>.is-hover</code>, <code>.is-active</code> and <code>.is-focus</code> classes in <code>oc.css</code> only exist to show states statically.</p>
+</section>
+
+<section class="gx-section"><h2 class="gx-h2">Inventory coverage (brief §8)</h2>
+<table class="gx-table"><thead><tr><th>§8 item</th><th>Page</th></tr></thead><tbody>
+<tr><td>8.1 Foundations: color, type, spacing, radii, elevation, motion, icons, focus</td><td><a href="design-system.html">design-system.html</a></td></tr>
+<tr><td>8.2 Components in every state, light + dark</td><td><a href="design-system.html">design-system.html</a></td></tr>
+<tr><td>8.3.1–4 Main window, drag-over, queue incl. 40 files, running states</td><td><a href="queue.html">queue.html</a></td></tr>
+<tr><td>8.3.5 Result panel variants</td><td><a href="result.html">result.html</a></td></tr>
+<tr><td>8.3.6 Every error-table row</td><td><a href="queue.html">queue.html</a> §5 · invalid in <a href="result.html">result.html</a> · download failed in <a href="settings.html">settings.html</a></td></tr>
+<tr><td>8.3.7–8 Report viewer (AI off/on, EPUBCheck run/not run) and preview</td><td><a href="report.html">report.html</a></td></tr>
+<tr><td>8.3.9–11 Edit metadata, Review TOC, stale corrections, diagnostic bundle</td><td><a href="result.html">result.html</a></td></tr>
+<tr><td>8.3.12 Settings, all sections</td><td><a href="settings.html">settings.html</a></td></tr>
+<tr><td>8.3.13–14 First-run AI setup, blocking startup errors</td><td><a href="firstrun.html">firstrun.html</a></td></tr>
+<tr><td>8.3.15 DE/TR, 200 % text, minimum window, focus order, screen reader, reduced motion</td><td><a href="i18n.html">i18n.html</a></td></tr>
+</tbody></table></section>
+</div>
+<script src="gallery.js"></script>
+</body>
+</html>

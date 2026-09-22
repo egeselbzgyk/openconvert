@@ -1,0 +1,198 @@
+/* OpenConvert design tokens: direction "Quiet workshop" (2b).
+   All sizes in rem so OS text scaling applies. Light values on :root, dark via
+   prefers-color-scheme. [data-theme] forces a theme (used by the docs gallery only).
+   CSS baseline: custom properties only. No :has(), container queries or subgrid. */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Surfaces */
+  --oc-surface-page: #f4ede6;      /* window background */
+  --oc-surface: #fffcf8;           /* rows, cards, dialogs */
+  --oc-surface-raised: #f3eae0;    /* insets inside a card: output row, chips */
+  --oc-surface-disabled: #f3eae0;
+
+  /* Borders */
+  --oc-border: #e2d5c8;            /* dividers, card edges (decorative) */
+  --oc-border-control: #9a8a7c;    /* control edges, 3.3:1 on surface */
+
+  /* Text */
+  --oc-text: #2b2520;              /* 13.0:1 on page */
+  --oc-text-secondary: #5a4f46;    /* 6.9:1 on page */
+  --oc-text-tertiary: #736558;     /* 5.5:1 on surface, 4.9:1 on page */
+  --oc-text-disabled: #a3978a;     /* exempt from contrast; never the only cue */
+
+  /* Accent */
+  --oc-accent: #3a6a4b;
+  --oc-accent-hover: #335e43;
+  --oc-accent-active: #2b5039;
+  --oc-on-accent: #ffffff;         /* 6.3:1 on accent */
+  --oc-accent-subtle: #e2eee4;     /* drag-over, current nav item, heartbeat halo */
+
+  /* Focus */
+  --oc-focus: #3a6a4b;             /* 5.4:1 on page */
+
+  /* Status (text/icon colour + subtle background) */
+  --oc-status-success: #2f6b3f;
+  --oc-status-success-subtle: #e2efe4;
+  --oc-status-warning: #8a5200;
+  --oc-status-warning-subtle: #fbecd6;
+  --oc-status-danger: #b0301f;
+  --oc-status-danger-subtle: #fbe6e1;
+  --oc-status-info: #2f5f8a;
+  --oc-status-info-subtle: #e4eef7;
+
+  /* Progress */
+  --oc-progress-track: #ebe0d5;
+  --oc-progress-fill: #3a6a4b;     /* 4.8:1 on track */
+
+  /* Overlay and separation */
+  --oc-scrim: rgba(43, 37, 32, 0.4);
+  --oc-shadow-card: 0 1px 2px rgba(60, 40, 20, 0.06);   /* decoration only, never structure */
+  --oc-shadow-dialog: 0 2px 6px rgba(40, 25, 10, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --oc-surface-page: #1c1916;
+    --oc-surface: #25211e;
+    --oc-surface-raised: #2e2925;
+    --oc-surface-disabled: #2e2925;
+    --oc-border: #3d3631;
+    --oc-border-control: #857769;
+    --oc-text: #f1e9e0;
+    --oc-text-secondary: #c9bcae;
+    --oc-text-tertiary: #a89a8b;
+    --oc-text-disabled: #6e645a;
+    --oc-accent: #8fc4a0;
+    --oc-accent-hover: #a3d1b2;
+    --oc-accent-active: #b6dcc2;
+    --oc-on-accent: #12241a;
+    --oc-accent-subtle: #243a2c;
+    --oc-focus: #8fc4a0;
+    --oc-status-success: #8fc4a0;
+    --oc-status-success-subtle: #1f3326;
+    --oc-status-warning: #eab65c;
+    --oc-status-warning-subtle: #342817;
+    --oc-status-danger: #f59482;
+    --oc-status-danger-subtle: #3a211c;
+    --oc-status-info: #8fb8e6;
+    --oc-status-info-subtle: #1d2a38;
+    --oc-progress-track: #3d3631;
+    --oc-progress-fill: #8fc4a0;
+    --oc-scrim: rgba(0, 0, 0, 0.55);
+    --oc-shadow-card: none;
+    --oc-shadow-dialog: 0 0 0 1px #3d3631;
+  }
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --oc-surface-page: #1c1916;
+  --oc-surface: #25211e;
+  --oc-surface-raised: #2e2925;
+  --oc-surface-disabled: #2e2925;
+  --oc-border: #3d3631;
+  --oc-border-control: #857769;
+  --oc-text: #f1e9e0;
+  --oc-text-secondary: #c9bcae;
+  --oc-text-tertiary: #a89a8b;
+  --oc-text-disabled: #6e645a;
+  --oc-accent: #8fc4a0;
+  --oc-accent-hover: #a3d1b2;
+  --oc-accent-active: #b6dcc2;
+  --oc-on-accent: #12241a;
+  --oc-accent-subtle: #243a2c;
+  --oc-focus: #8fc4a0;
+  --oc-status-success: #8fc4a0;
+  --oc-status-success-subtle: #1f3326;
+  --oc-status-warning: #eab65c;
+  --oc-status-warning-subtle: #342817;
+  --oc-status-danger: #f59482;
+  --oc-status-danger-subtle: #3a211c;
+  --oc-status-info: #8fb8e6;
+  --oc-status-info-subtle: #1d2a38;
+  --oc-progress-track: #3d3631;
+  --oc-progress-fill: #8fc4a0;
+  --oc-scrim: rgba(0, 0, 0, 0.55);
+  --oc-shadow-card: none;
+  --oc-shadow-dialog: 0 0 0 1px #3d3631;
+}
+
+:root {
+  /* Type: system stacks only, nothing bundled */
+  --oc-font: ui-rounded, "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Cantarell, "Noto Sans", sans-serif;
+  --oc-font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  --oc-text-xs: 0.8125rem;   /* tags, captions */
+  --oc-text-sm: 0.875rem;    /* secondary lines, hints */
+  --oc-text-md: 0.9375rem;   /* buttons, list text */
+  --oc-text-base: 1rem;      /* body */
+  --oc-text-lg: 1.0625rem;   /* file names, app title */
+  --oc-text-xl: 1.25rem;     /* dialog titles, drop-zone strip */
+  --oc-text-2xl: 1.5rem;     /* drop-zone headline, report title */
+  --oc-leading: 1.5;
+  --oc-leading-tight: 1.3;
+  --oc-weight-regular: 400;
+  --oc-weight-strong: 600;
+  --oc-weight-heading: 700;
+  /* Numbers that change or are compared (counts, %, sizes, times) use tabular figures */
+  --oc-numeric: tabular-nums;
+
+  /* Space: 4 px steps at the 16 px default */
+  --oc-space-1: 0.25rem;
+  --oc-space-2: 0.5rem;
+  --oc-space-3: 0.75rem;
+  --oc-space-4: 1rem;
+  --oc-space-5: 1.25rem;
+  --oc-space-6: 1.5rem;
+  --oc-space-8: 2rem;
+  --oc-space-10: 2.5rem;
+
+  /* Radii */
+  --oc-radius-sm: 0.5rem;     /* inputs, small insets */
+  --oc-radius-md: 0.875rem;   /* insets, status blocks, fact tiles */
+  --oc-radius-lg: 1.25rem;    /* rows, cards */
+  --oc-radius-xl: 1.5rem;     /* drop zone, dialogs */
+  --oc-radius-pill: 999px;    /* buttons, chips, tags, toggles */
+
+  /* Sizes */
+  --oc-control-sm: 2.25rem;   /* 36 px: secondary buttons in rows */
+  --oc-control-md: 2.5rem;    /* 40 px: default buttons, inputs */
+  --oc-target-min: 1.5rem;    /* 24 px: WCAG 2.2 floor, page links */
+  --oc-icon-sm: 1rem;
+  --oc-icon-md: 1.125rem;
+  --oc-icon-lg: 1.25rem;
+  --oc-icon-xl: 1.75rem;
+  --oc-tile-sm: 2.25rem;      /* round status tile in rows */
+  --oc-tile-lg: 3.5rem;       /* drop-zone icon tile */
+  --oc-stroke: 1.75;          /* Lucide stroke width */
+
+  /* Focus indicator */
+  --oc-focus-width: 2px;
+  --oc-focus-offset: 2px;
+
+  /* Layout */
+  --oc-content-max: 48rem;    /* queue column */
+  --oc-window-min-w: 45rem;   /* 720 px */
+  --oc-window-min-h: 32.5rem; /* 520 px */
+
+  /* Motion (every token has a reduced-motion value below) */
+  --oc-dur-fast: 120ms;       /* hover, press */
+  --oc-dur-base: 200ms;       /* progress between two real values, row expand */
+  --oc-dur-slow: 320ms;       /* first-run card appear, dialog in */
+  --oc-dur-heartbeat: 900ms;  /* one halo pulse per heartbeat event */
+  --oc-dur-spin: 1000ms;      /* one indeterminate turn; stops when heartbeats stop */
+  --oc-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --oc-dur-fast: 0ms;
+    --oc-dur-base: 0ms;
+    --oc-dur-slow: 0ms;
+    --oc-dur-heartbeat: 0ms;  /* halo shows as a static ring that changes colour per heartbeat */
+    --oc-dur-spin: 0ms;       /* spinner is replaced by a static ring + "still working" text */
+  }
+}

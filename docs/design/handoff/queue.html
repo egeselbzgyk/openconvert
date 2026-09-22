@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OpenConvert · Queue screens</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="oc.css">
+<link rel="stylesheet" href="gallery.css">
+</head>
+<body class="gx-body">
+<nav class="gx-top" aria-label="Handoff pages"><b>OpenConvert handoff</b><a href="index.html">Index</a><a href="design-system.html">Design system</a><a href="queue.html" aria-current="page">Queue</a><a href="result.html">Result &amp; editing</a><a href="report.html">Report &amp; preview</a><a href="settings.html">Settings &amp; dialogs</a><a href="firstrun.html">First run &amp; startup</a><a href="i18n.html">DE / TR · 200 % · a11y</a></nav>
+<div class="gx-wrap">
+<header><h1 class="gx-h1">Main window · route <code>queue</code></h1>
+<p class="gx-lead">1024 × 720 client area. Native window decorations are not drawn. In the DOM the header comes after <code>main</code> and is drawn first with <code>order:-1</code>, so Tab goes drop zone → queue → Settings. Frames marked "dark" are the same markup with <code>data-theme="dark"</code>.</p></header>
+
+<section class="gx-section"><h2 class="gx-h2">1 · First run and empty state</h2>
+<div class="gx-frames">
+<div class="gx-frame" data-dark=""><span class="gx-cap">Empty · first-run card</span><div class="gx-window"><div class="oc-app" lang="en">
+<main class="oc-main">
+<div class="oc-dropzone" role="group" aria-label="Add PDFs. Drop files here or use Select PDF."><span class="oc-tile oc-tile--lg oc-tile--accent"><svg class="oc-icon oc-icon--xl"><use href="#i-fileplus"></use></svg></span><span class="oc-dropzone__title">Drop PDF here</span><span class="oc-dropzone__or">or <button class="oc-btn oc-btn--primary">Select PDF…</button></span></div>
+<p class="oc-privacy"><svg class="oc-icon"><use href="#i-monitor"></use></svg>Everything runs on this computer: no account, no telemetry, no network use while converting.</p>
+<section class="oc-card oc-card--firstrun" aria-label="AI assistance"><p>AI-assisted structure detection is available and off by default. It can improve heading and chapter detection on ambiguous documents.</p><div class="oc-card__costs"><span>Costs:</span><span class="oc-chip">~1,100 MB download</span><span class="oc-chip">~1–2 GB RAM while converting</span><span class="oc-chip">a few extra seconds per book</span></div><div class="oc-card__actions"><button class="oc-btn">Set up AI assistance</button><button class="oc-btn oc-btn--quiet">Not now</button></div></section>
+</main>
+<header class="oc-header"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header>
+</div></div></div>
+<div class="gx-frame"><span class="gx-cap">Empty · card dismissed ("Not now")</span><div class="gx-window"><div class="oc-app" lang="en">
+<main class="oc-main">
+<div class="oc-dropzone" role="group" aria-label="Add PDFs. Drop files here or use Select PDF."><span class="oc-tile oc-tile--lg oc-tile--accent"><svg class="oc-icon oc-icon--xl"><use href="#i-fileplus"></use></svg></span><span class="oc-dropzone__title">Drop PDF here</span><span class="oc-dropzone__or">or <button class="oc-btn oc-btn--primary">Select PDF…</button></span><span style="font-size:var(--oc-text-sm);color:var(--oc-text-secondary)">One PDF or many. Each becomes an EPUB next to the original.</span></div>
+<p class="oc-privacy"><svg class="oc-icon"><use href="#i-monitor"></use></svg>Everything runs on this computer: no account, no telemetry, no network use while converting.</p>
+</main>
+<header class="oc-header"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header>
+</div></div></div>
+</div></section>
+
+<section class="gx-section"><h2 class="gx-h2">2 · Drag-over</h2>
+<div class="gx-frames">
+<div class="gx-frame"><span class="gx-cap">Drag-over · all PDFs</span><div class="gx-window"><div class="oc-app" lang="en">
+<main class="oc-main">
+<div class="oc-dropzone is-dragover" role="group" aria-label="Add PDFs"><span class="oc-tile oc-tile--lg oc-tile--accent"><svg class="oc-icon oc-icon--xl"><use href="#i-fileplus"></use></svg></span><span class="oc-dropzone__title">Release to add 3 PDFs</span><span style="color:var(--oc-text-secondary)">Each one becomes a job in the queue.</span></div>
+<p class="oc-privacy"><svg class="oc-icon"><use href="#i-monitor"></use></svg>Everything runs on this computer: no account, no telemetry, no network use while converting.</p>
+</main>
+<header class="oc-header"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header>
+</div></div></div>
+<div class="gx-frame"><span class="gx-cap">Drag-over · includes non-PDFs (over an existing queue)</span><div class="gx-window"><div class="oc-app" lang="en">
+<main class="oc-main">
+<div class="oc-dropzone is-dragover-mixed" role="group" aria-label="Add PDFs" style="max-width:var(--oc-content-max)"><span class="oc-dropzone__title">Release to add 2 PDFs</span><span class="gx-row" style="gap:8px;justify-content:center"><svg class="oc-icon" style="color:var(--oc-status-warning)"><use href="#i-alert"></use></svg>2 files are not PDFs and will be skipped: notes.docx, cover.jpg</span></div>
+<ul class="oc-queue" aria-label="Queue"><li class="oc-row"><div class="oc-row__line"><span class="oc-tile oc-tile--accent"><svg class="oc-icon oc-icon--md"><use href="#i-file"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">the-wheels-of-chance.pdf</span><span class="oc-row__status"><b>Reconstructing</b><span class="oc-num">132 of 214 pages · 62 %</span></span></div><button class="oc-btn oc-btn--sm">Cancel</button></div><div class="oc-row__detail"><div class="oc-progress"><div class="oc-progress__fill" style="width:62%"></div></div></div></li></ul>
+</main>
+<header class="oc-header"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header>
+</div></div></div>
+</div></section>
+
+<section class="gx-section"><h2 class="gx-h2">3 · Queue</h2>
+<div class="gx-frames">
+<div class="gx-frame" data-dark=""><span class="gx-cap">1 running + 2 queued</span><div class="gx-window"><div class="oc-app" lang="en">
+<main class="oc-main">
+<div class="oc-dropzone oc-dropzone--strip" role="group" aria-label="Add PDFs"><span class="oc-tile oc-tile--accent"><svg class="oc-icon oc-icon--md"><use href="#i-fileplus"></use></svg></span><span class="oc-dropzone__title">Drop more PDFs here</span><button class="oc-btn oc-btn--sm">Select PDF…</button></div>
+<div class="oc-queue__head"><span class="oc-queue__title">Queue</span><span class="oc-queue__count">3 files · 1 converting · 2 waiting</span></div>
+<ul class="oc-queue" aria-label="Queue">
+<li class="oc-row oc-row--running" aria-label="the-wheels-of-chance.pdf, Reconstructing"><div class="oc-row__line"><div class="oc-row__text"><span class="oc-row__name">the-wheels-of-chance.pdf</span></div><button class="oc-btn oc-btn--sm">Cancel</button></div>
+<ol class="oc-steps" aria-label="Stages"><li class="oc-step oc-step--done"><div class="oc-step__line"><span class="oc-step__mark"><svg class="oc-icon" style="width:.875rem;height:.875rem;stroke-width:2.5"><use href="#i-check"></use></svg></span><span class="oc-step__label">Analyzing</span></div></li><li class="oc-step oc-step--done"><div class="oc-step__line"><span class="oc-step__mark"><svg class="oc-icon" style="width:.875rem;height:.875rem;stroke-width:2.5"><use href="#i-check"></use></svg></span><span class="oc-step__label">Extracting</span></div></li><li class="oc-step oc-step--current" aria-current="step"><div class="oc-step__line"><span class="oc-step__mark oc-pulse is-static"></span><span class="oc-step__label">Reconstructing</span><span class="oc-step__count">132 of 214 pages · 62 %</span></div><div class="oc-progress" role="progressbar" aria-label="Reconstructing" aria-valuemin="0" aria-valuemax="214" aria-valuenow="132" aria-valuetext="132 of 214 pages"><div class="oc-progress__fill" style="width:62%"></div></div></li><li class="oc-step oc-step--pending"><div class="oc-step__line"><span class="oc-step__mark"></span><span class="oc-step__label">Building</span></div></li><li class="oc-step oc-step--pending"><div class="oc-step__line"><span class="oc-step__mark"></span><span class="oc-step__label">Checking</span></div></li></ol></li>
+<li class="oc-row oc-row--compact"><div class="oc-row__line"><span class="oc-tile"><svg class="oc-icon oc-icon--md"><use href="#i-clock"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">moby-dick.pdf</span><span class="oc-row__status">Queued (#2) · starts after the file above</span></div><button class="oc-btn oc-btn--quiet oc-btn--sm">Remove</button></div></li>
+<li class="oc-row oc-row--compact"><div class="oc-row__line"><span class="oc-tile"><svg class="oc-icon oc-icon--md"><use href="#i-clock"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">malleus-maleficarum.pdf</span><span class="oc-row__status">Queued (#3)</span></div><button class="oc-btn oc-btn--quiet oc-btn--sm">Remove</button></div></li>
+</ul>
+</main>
+<header class="oc-header"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header>
+</div></div></div>
+<div class="gx-frame"><span class="gx-cap">40 files: scrolled, one queued job being removed, "Remove all waiting" for bulk</span><div class="gx-window"><div class="oc-app" lang="en">
+<main class="oc-main" style="overflow:hidden">
+<div class="oc-dropzone oc-dropzone--strip" role="group" aria-label="Add PDFs"><span class="oc-tile oc-tile--accent"><svg class="oc-icon oc-icon--md"><use href="#i-fileplus"></use></svg></span><span class="oc-dropzone__title">Drop more PDFs here</span><button class="oc-btn oc-btn--sm">Select PDF…</button></div>
+<div class="oc-queue__head"><span class="oc-queue__title">Queue</span><span class="oc-queue__count">40 files · 1 converting · 39 waiting</span><span style="flex:1"></span><button class="oc-btn oc-btn--quiet oc-btn--sm">Remove all waiting…</button></div>
+<ul class="oc-queue" id="q40" aria-label="Queue, 40 files" style="flex:1;min-height:0;overflow:auto;padding-right:4px">
+<li class="oc-row oc-row--running oc-row--compact"><div class="oc-row__line"><span class="oc-tile oc-tile--accent"><svg class="oc-icon oc-icon--md"><use href="#i-file"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">parish-register-1861.pdf</span><span class="oc-row__status"><b>Extracting</b><span class="oc-num">41 of 388 pages · 11 %</span></span></div><button class="oc-btn oc-btn--sm">Cancel</button></div><div class="oc-row__detail"><div class="oc-progress"><div class="oc-progress__fill" style="width:11%"></div></div></div></li>
+</ul>
+</main>
+<header class="oc-header"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header>
+</div></div></div>
+</div>
+<p class="gx-note">40-file rule: exactly one job runs. Each waiting row shows its position and a Remove button. Removing a waiting job needs no confirmation; it disappears and positions renumber (announced: "parish-register-1866.pdf removed. 38 waiting."). "Remove all waiting…" asks once. Rows are one line (2.75 rem) so about 12 fit at 720 px, and the list scrolls inside <code>main</code> while the drop strip and header stay put.</p>
+</section>
+
+<section class="gx-section"><h2 class="gx-h2">4 · Running states</h2>
+<div class="gx-frames">
+<div class="gx-frame" data-dark=""><span class="gx-cap">Indeterminate + heartbeat · not responding · cancelling → cancelled</span><div class="gx-window"><div class="oc-app" lang="en">
+<main class="oc-main">
+<div class="oc-dropzone oc-dropzone--strip" role="group" aria-label="Add PDFs"><span class="oc-tile oc-tile--accent"><svg class="oc-icon oc-icon--md"><use href="#i-fileplus"></use></svg></span><span class="oc-dropzone__title">Drop more PDFs here</span><button class="oc-btn oc-btn--sm">Select PDF…</button></div>
+<ul class="oc-queue" aria-label="Queue">
+<li class="oc-row oc-row--running"><div class="oc-row__line"><span class="oc-tile oc-tile--accent oc-pulse is-static"><svg class="oc-icon oc-icon--md"><use href="#i-file"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">moby-dick.pdf</span><span class="oc-row__status"><svg class="oc-spinner is-spinning" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M8 2a6 6 0 0 1 6 6"></path></svg><b>Analyzing</b>· step 1 of 5 · still working</span></div><button class="oc-btn oc-btn--sm">Cancel</button></div></li>
+<li class="oc-row oc-row--stalled" role="alert"><div class="oc-row__line"><span class="oc-tile oc-tile--warn"><svg class="oc-icon oc-icon--md"><use href="#i-alert"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">malleus-maleficarum.pdf</span><span class="oc-row__status"><b>Not responding</b>· no signal from the converter for 8 seconds. It may recover on its own.</span></div><button class="oc-btn oc-btn--sm">Cancel</button></div></li>
+<li class="oc-row oc-row--cancelling"><div class="oc-row__line"><span class="oc-tile"><svg class="oc-spinner is-spinning" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M8 2a6 6 0 0 1 6 6"></path></svg></span><div class="oc-row__text"><span class="oc-row__name">the-wheels-of-chance.pdf</span><span class="oc-row__status"><b>Cancelling…</b></span></div><button class="oc-btn oc-btn--sm" disabled="">Cancelling…</button></div></li>
+<li class="oc-row oc-row--cancelled"><div class="oc-row__line"><span class="oc-tile"><svg class="oc-icon oc-icon--md"><use href="#i-ban"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">the-wheels-of-chance.pdf</span><span class="oc-row__status"><b>Cancelled</b>· no file was written</span></div><button class="oc-btn oc-btn--sm">Convert again</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Remove</button></div></li>
+</ul>
+</main>
+<header class="oc-header"><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>OpenConvert</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-gear"></use></svg>Settings</button></header>
+</div></div></div>
+</div>
+<p class="gx-note">Timing contract: Cancel → "Cancelling…" at once → "Cancelled" when <code>done{status:"cancelled"}</code> arrives, normally within 2 s. At 5 s the supervisor kills the job and the row turns "Cancelled" anyway. No heartbeat for more than 6 s → "Not responding". When heartbeats return, the row goes back to its stage label.</p>
+</section>
+
+<section class="gx-section"><h2 class="gx-h2">5 · Every row in the error table (Appendix A §4)</h2>
+<div class="gx-frames">
+<div class="gx-frame"><span class="gx-cap">Failures on the row: unparseable · too damaged · encrypted → password · memory limit</span><div class="gx-window gx-window--tall"><div class="oc-app" lang="en">
+<main class="oc-main">
+<ul class="oc-queue" aria-label="Queue">
+<li class="oc-row oc-row--failed"><div class="oc-row__line"><span class="oc-tile oc-tile--err"><svg class="oc-icon oc-icon--md"><use href="#i-x"></use></svg></span><div class="oc-row__text" role="alert"><span class="oc-row__name">download (3).pdf</span><span class="oc-row__status"><b>This file doesn't look like a valid PDF.</b>Converting it again would give the same result.</span></div><button class="oc-btn oc-btn--sm">Export diagnostic bundle</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Remove</button></div></li>
+<li class="oc-row oc-row--failed"><div class="oc-row__line"><span class="oc-tile oc-tile--err"><svg class="oc-icon oc-icon--md"><use href="#i-x"></use></svg></span><div class="oc-row__text" role="alert"><span class="oc-row__name">scan-0042.pdf</span><span class="oc-row__status"><b>This PDF is too damaged to read.</b>The file ends before its page table.</span></div><button class="oc-btn oc-btn--sm">Export diagnostic bundle</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Remove</button></div></li>
+<li class="oc-row oc-row--locked"><div class="oc-row__line"><span class="oc-tile"><svg class="oc-icon oc-icon--md"><use href="#i-lock"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">annual-report-locked.pdf</span><span class="oc-row__status"><b>This PDF is password-protected.</b>An empty password was tried first.</span></div><button class="oc-btn oc-btn--quiet oc-btn--sm">Remove</button></div>
+<div class="oc-row__detail"><div class="oc-filepick" style="flex-wrap:wrap"><label class="oc-sr-only" for="pwA">Password for annual-report-locked.pdf</label><input id="pwA" class="oc-input is-focus" type="password" value="hunter22" style="max-width:16rem"><button class="oc-btn oc-btn--primary">Unlock</button><span class="oc-field__help">Used for this job only, never saved.</span></div></div></li>
+<li class="oc-row oc-row--failed"><div class="oc-row__line"><span class="oc-tile oc-tile--err"><svg class="oc-icon oc-icon--md"><use href="#i-x"></use></svg></span><div class="oc-row__text" role="alert"><span class="oc-row__name">world-atlas-hires.pdf</span><span class="oc-row__status"><b>This document exceeds the memory limit for a single conversion.</b>The limit is 4 GB. You can raise "Max memory" in Settings › Advanced and convert it again.</span></div><button class="oc-btn oc-btn--sm">Open Advanced settings</button><button class="oc-btn oc-btn--sm">Convert again</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Remove</button></div></li>
+<li class="oc-row oc-row--failed"><div class="oc-row__line"><span class="oc-tile oc-tile--err"><svg class="oc-icon oc-icon--md"><use href="#i-x"></use></svg></span><div class="oc-row__text" role="alert"><span class="oc-row__name">catalogue-raisonne.pdf</span><span class="oc-row__status"><b>This document has more pages than the limit for a single conversion.</b>2,640 pages; the limit is 2,000. You can raise "Max pages" in Settings › Advanced.</span></div><button class="oc-btn oc-btn--sm">Open Advanced settings</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Remove</button></div></li>
+<li class="oc-row oc-row--cancelled"><div class="oc-row__line"><span class="oc-tile"><svg class="oc-icon oc-icon--md"><use href="#i-ban"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">moby-dick.pdf</span><span class="oc-row__status"><b>Cancelled</b>· no file was written</span></div><button class="oc-btn oc-btn--sm">Convert again</button><button class="oc-btn oc-btn--quiet oc-btn--sm">Remove</button></div></li>
+</ul>
+</main>
+</div></div></div>
+
+<div class="gx-frame"><span class="gx-cap">Completed with notices: OCR unavailable · font missing · image failed · AI unavailable · model incompatible</span><div class="gx-window gx-window--tall"><div class="oc-app" lang="en">
+<main class="oc-main">
+<div class="oc-banner oc-banner--info" role="status" style="max-width:var(--oc-content-max)"><svg class="oc-icon oc-icon--md"><use href="#i-info"></use></svg><span class="oc-banner__text">AI assistance unavailable this run — converted deterministically. The model is still downloading.</span><button class="oc-btn oc-btn--sm">Model settings</button></div>
+<div class="oc-banner oc-banner--warn" role="status" style="max-width:var(--oc-content-max)"><svg class="oc-icon oc-icon--md"><use href="#i-alert"></use></svg><span class="oc-banner__text">Qwen3-4B could not be loaded on this computer. Qwen3-1.7B was used instead.</span><button class="oc-btn oc-btn--sm">Model settings</button></div>
+<ul class="oc-queue" aria-label="Queue">
+<li class="oc-row oc-row--expanded"><div class="oc-row__line"><span class="oc-tile oc-tile--ok"><svg class="oc-icon oc-icon--md"><use href="#i-check"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">parish-register-1871.pdf</span><span class="oc-row__status"><b>Complete</b>· Validation: passed with warnings (1)</span></div><button class="oc-btn oc-btn--sm">Open in reader</button><button class="oc-btn oc-btn--icon oc-btn--sm" aria-label="Collapse result" aria-expanded="true"><svg class="oc-icon oc-icon--md"><use href="#i-chevup"></use></svg></button></div>
+<div class="oc-validation oc-validation--warn"><span class="oc-validation__head"><svg class="oc-icon oc-icon--md"><use href="#i-alert"></use></svg>48 scanned pages were kept as images</span><span class="oc-validation__note">OCR isn't installed, so the text on pages 1–48 can't be searched or resized. The rest of the book converted normally. To add OCR, install Tesseract and convert again:</span>
+<div style="padding-left:1.625rem;display:flex;flex-direction:column;gap:6px">
+<div class="oc-command"><code class="oc-command__code">brew install tesseract tesseract-lang</code><button class="oc-btn oc-btn--sm"><svg class="oc-icon"><use href="#i-copy"></use></svg>Copy</button></div>
+<span style="font-size:var(--oc-text-sm);color:var(--oc-text-secondary)">This is the command for macOS (detected). Linux: <code class="oc-mono">sudo apt install tesseract-ocr tesseract-ocr-deu tesseract-ocr-tur</code>. Windows: install "Tesseract at UB Mannheim" from its website. The OCR pack in Settings › Packs is not available in this version.</span></div></div>
+</li>
+<li class="oc-row oc-row--expanded"><div class="oc-row__line"><span class="oc-tile oc-tile--ok"><svg class="oc-icon oc-icon--md"><use href="#i-check"></use></svg></span><div class="oc-row__text"><span class="oc-row__name">travels-in-the-caucasus.pdf</span><span class="oc-row__status"><b>Complete</b>· Validation: passed with warnings (2)</span></div><button class="oc-btn oc-btn--sm">Open in reader</button><button class="oc-btn oc-btn--icon oc-btn--sm" aria-label="Collapse result" aria-expanded="true"><svg class="oc-icon oc-icon--md"><use href="#i-chevup"></use></svg></button></div>
+<ul class="oc-validation__list" style="padding-left:0">
+<li class="oc-warning oc-warning--warn"><svg class="oc-icon" role="img" aria-label="Warning"><use href="#i-alert"></use></svg><button class="oc-pagelink">p. 73</button><span class="oc-warning__text">Georgian text on pp. 73–75 has no font in the PDF. The text is kept; your reader will pick a font, which may look imperfect.</span></li>
+<li class="oc-warning oc-warning--warn"><svg class="oc-icon" role="img" aria-label="Warning"><use href="#i-alert"></use></svg><button class="oc-pagelink">p. 118</button><span class="oc-warning__text">1 image on p. 118 could not be extracted. The rest of the page converted.</span></li>
+</ul></li>
+</ul>
+</main>
+</div></div></div>
+</div>
+<p class="gx-note">The other rows of the table live elsewhere. <b>Validation failed / repair failed</b> (invalid, still saved): result.html. <b>Model download failed</b> (Retry, resumes): settings.html. <b>Cancelled</b>: above and in section 4.</p>
+</section>
+
+</div>
+<script>
+(function () {
+  const names = ['parish-register-1862','parish-register-1863','parish-register-1864','parish-register-1865','parish-register-1866','parish-register-1867','parish-register-1868','parish-register-1869','parish-register-1870','parish-register-1872','parish-register-1873','parish-register-1874','parish-register-1875'];
+  const q = document.getElementById('q40');
+  if (!q) return;
+  for (let i = 0; i < 13; i++) {
+    const li = document.createElement('li');
+    const focus = i === 4;
+    li.className = 'oc-row oc-row--compact';
+    li.innerHTML = '<div class="oc-row__line"><div class="oc-row__text"><span class="oc-row__name">' + names[i] + '.pdf</span></div><span class="oc-row__status oc-row__position">Queued (#' + (i + 2) + ')</span><button class="oc-btn oc-btn--quiet oc-btn--sm' + (focus ? ' is-focus' : '') + '" aria-label="Remove ' + names[i] + '.pdf from the queue">Remove</button></div>';
+    q.appendChild(li);
+  }
+})();
+</script>
+<script src="gallery.js"></script>
+</body>
+</html>

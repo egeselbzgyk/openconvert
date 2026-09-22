@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OpenConvert · Report and preview</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="oc.css">
+<link rel="stylesheet" href="gallery.css">
+</head>
+<body class="gx-body">
+<nav class="gx-top" aria-label="Handoff pages"><b>OpenConvert handoff</b><a href="index.html">Index</a><a href="design-system.html">Design system</a><a href="queue.html">Queue</a><a href="result.html">Result &amp; editing</a><a href="report.html" aria-current="page">Report &amp; preview</a><a href="settings.html">Settings &amp; dialogs</a><a href="firstrun.html">First run &amp; startup</a><a href="i18n.html">DE / TR · 200 % · a11y</a></nav>
+<div class="gx-wrap">
+<header><h1 class="gx-h1">Conversion report · route <code>report</code> · Preview · route <code>preview</code></h1>
+<p class="gx-lead">The report renders the engine's Document, Ledger and Decision data directly. It has no summary layer of its own. Sections that don't apply to a job are left out, not shown empty, except "Run details", which always lists its rows. Frames scroll; long pages are shown tall.</p></header>
+
+<section class="gx-section"><h2 class="gx-h2">1 · Report · AI off, EPUBCheck not run</h2>
+<div class="gx-frames">
+<div class="gx-frame" data-dark=""><span class="gx-cap">AI off (default) · EPUBCheck not run</span><div class="gx-window gx-window--tall"><div class="oc-app" lang="en">
+<div class="oc-report">
+<div class="oc-report__title"><span class="oc-report__file">the-wheels-of-chance.pdf</span><span style="color:var(--oc-text-secondary)">→ the-wheels-of-chance.epub</span></div>
+<div class="oc-report__cols">
+<div class="oc-report__col">
+<section class="oc-panel"><h2 class="oc-panel__title">What's in the book</h2>
+<div class="gx-row" style="gap:6px"><span class="oc-chip"><b>214</b>&nbsp;pages</span><span class="oc-chip"><b>1,842</b>&nbsp;blocks</span><span class="oc-chip"><b>12</b>&nbsp;images</span><span class="oc-chip"><b>0</b>&nbsp;tables</span><span class="oc-chip"><b>38</b>&nbsp;footnotes</span><span class="oc-chip"><b>11</b>&nbsp;chapters</span></div>
+<table class="oc-table"><thead><tr><th>Blocks by kind</th><th class="is-num">Count</th></tr></thead><tbody><tr><td>Paragraphs</td><td class="is-num">1,688</td></tr><tr><td>Headings</td><td class="is-num">64</td></tr><tr><td>Quotations</td><td class="is-num">38</td></tr><tr><td>Lists</td><td class="is-num">21</td></tr><tr><td>Verse</td><td class="is-num">19</td></tr><tr><td>Captions</td><td class="is-num">12</td></tr></tbody></table></section>
+<section class="oc-panel"><h2 class="oc-panel__title">How it was made</h2><div>Deterministic processing: complete</div><div class="oc-panel__muted">AI assistance was off for this job.</div></section>
+<section class="oc-panel"><h2 class="oc-panel__title">Checks</h2>
+<div class="oc-validation oc-validation--warn"><span class="oc-validation__head"><svg class="oc-icon oc-icon--md"><use href="#i-alert"></use></svg>Validation: passed with warnings (2)</span></div>
+<div class="oc-kv"><div class="oc-kv__row"><dt>Built-in check</dt><dd>passed, 2 warnings</dd></div><div class="oc-kv__row"><dt>EPUBCheck</dt><dd>not run: the validation pack isn't installed</dd></div></div></section>
+<section class="oc-panel"><h2 class="oc-panel__title">Warnings by page</h2>
+<ul class="oc-validation__list" style="padding:0"><li class="oc-warning oc-warning--warn"><svg class="oc-icon" role="img" aria-label="Warning"><use href="#i-alert"></use></svg><button class="oc-pagelink">p. 34</button><span class="oc-warning__text">Low-confidence hyphenation join kept as hyphenated</span></li><li class="oc-warning oc-warning--warn"><svg class="oc-icon" role="img" aria-label="Warning"><use href="#i-alert"></use></svg><button class="oc-pagelink">p. 201</button><span class="oc-warning__text">1 image below minimum resolution</span></li></ul></section>
+</div>
+<div class="oc-report__col">
+<section class="oc-panel"><h2 class="oc-panel__title">Time per step <span style="font-weight:400;color:var(--oc-text-secondary)">· 5.1 s in total</span></h2>
+<div class="oc-timeline" aria-hidden="true"><span class="oc-timeline__seg" style="flex:0.4"></span><span class="oc-timeline__seg" style="flex:1.1"></span><span class="oc-timeline__seg" style="flex:2.8"></span><span class="oc-timeline__seg" style="flex:0.6"></span><span class="oc-timeline__seg" style="flex:0.2"></span></div>
+<table class="oc-table"><thead><tr><th>Step</th><th class="is-num">Time</th></tr></thead><tbody><tr><td>Analyzing</td><td class="is-num">0.4 s</td></tr><tr><td>Extracting</td><td class="is-num">1.1 s</td></tr><tr><td>Reconstructing</td><td class="is-num">2.8 s</td></tr><tr><td>Building</td><td class="is-num">0.6 s</td></tr><tr><td>Checking</td><td class="is-num">0.2 s</td></tr></tbody></table></section>
+<section class="oc-panel"><h2 class="oc-panel__title">Text removed or changed <span style="font-weight:400;color:var(--oc-text-secondary)">· ledger, characters by reason</span></h2>
+<table class="oc-table"><thead><tr><th>Reason</th><th class="is-num">Characters</th><th class="is-num">Share of source text</th></tr></thead><tbody><tr><td>Running headers, footers, page numbers <span class="oc-mono" style="color:var(--oc-text-tertiary)">RunningHeader+Footer+PageNumber</span></td><td class="is-num">1,204</td><td class="is-num">2.1 % <span class="oc-mono" style="color:var(--oc-text-tertiary)">0.021 of C₀</span></td></tr><tr><td>Dehyphenation <span class="oc-mono" style="color:var(--oc-text-tertiary)">Dehyphenate</span></td><td class="is-num">89</td><td class="is-num">0.16 % <span class="oc-mono" style="color:var(--oc-text-tertiary)">0.0016 of C₀</span></td></tr><tr><td>Ligature expansion <span class="oc-mono" style="color:var(--oc-text-tertiary)">LigatureExpand</span></td><td class="is-num">41</td><td class="is-num">paired add/remove</td></tr></tbody></table></section>
+<section class="oc-panel"><h2 class="oc-panel__title">Run details</h2>
+<dl class="oc-kv"><div class="oc-kv__row"><dt>Document type</dt><dd>novel, detected automatically</dd></div><div class="oc-kv__row"><dt>Presets</dt><dd>novel · balanced</dd></div><div class="oc-kv__row"><dt>Language</dt><dd>English, detected</dd></div><div class="oc-kv__row"><dt>PDF restrictions</dt><dd>none</dd></div><div class="oc-kv__row"><dt>Kept as images</dt><dd>no pages</dd></div><div class="oc-kv__row"><dt>Sandbox</dt><dd>Landlock applied</dd></div><div class="oc-kv__row"><dt>Versions</dt><dd class="oc-mono">app 1.0.0 · engine 1.0.0 · IR 4</dd></div></dl></section>
+</div></div></div>
+<header class="oc-header"><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-back"></use></svg>Queue</button><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>Conversion report</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--quiet oc-btn--sm">Export diagnostic bundle</button></header></div></div></div>
+</div></section>
+
+<section class="gx-section"><h2 class="gx-h2">2 · Report · AI on (custom endpoint), EPUBCheck ran, every conditional note</h2>
+<div class="gx-frames">
+<div class="gx-frame"><span class="gx-cap">AI on · EPUBCheck ran · consent record · owner-password note · OCR-kept pages · sandbox unsupported</span><div class="gx-window gx-window--tall"><div class="oc-app" lang="en">
+<div class="oc-report">
+<div class="oc-report__title"><span class="oc-report__file">parish-register-1871.pdf</span><span style="color:var(--oc-text-secondary)">→ parish-register-1871.epub</span></div>
+<div class="oc-report__cols">
+<div class="oc-report__col">
+<section class="oc-panel"><h2 class="oc-panel__title">What's in the book</h2>
+<div class="gx-row" style="gap:6px"><span class="oc-chip"><b>312</b>&nbsp;pages</span><span class="oc-chip"><b>2,406</b>&nbsp;blocks</span><span class="oc-chip"><b>51</b>&nbsp;images</span><span class="oc-chip"><b>14</b>&nbsp;tables</span><span class="oc-chip"><b>0</b>&nbsp;footnotes</span><span class="oc-chip"><b>12</b>&nbsp;chapters</span></div></section>
+<section class="oc-panel"><h2 class="oc-panel__title">How it was made</h2>
+<div>Deterministic processing: complete · AI-assisted decisions: 4</div>
+<div class="oc-decision"><div class="oc-decision__kind">Heading roles · 3 decisions</div><div>Chosen: chapter heading (level 1). The rules alone would have used level 2.</div><div class="oc-panel__muted oc-mono">model qwen3-8b-instruct · prompt v3</div></div>
+<div class="oc-decision"><div class="oc-decision__kind">Book structure · 1 decision</div><div>Chosen: front matter ends on p. 6. The rules alone would have ended it on p. 4.</div><div class="oc-panel__muted oc-mono">model qwen3-8b-instruct · prompt v3</div></div>
+<div class="oc-panel__muted">Model and prompt for this job: qwen3-8b-instruct, prompt set v3.</div></section>
+<section class="oc-panel"><h2 class="oc-panel__title">Checks</h2>
+<div class="oc-validation oc-validation--warn"><span class="oc-validation__head"><svg class="oc-icon oc-icon--md"><use href="#i-alert"></use></svg>Validation: passed with warnings (1)</span></div>
+<div class="oc-kv"><div class="oc-kv__row"><dt>Built-in check</dt><dd>passed, 1 warning</dd></div><div class="oc-kv__row"><dt>EPUBCheck 5.1</dt><dd>0 errors, 1 warning</dd></div></div></section>
+<section class="oc-panel"><h2 class="oc-panel__title">Warnings by page</h2>
+<ul class="oc-validation__list" style="padding:0"><li class="oc-warning oc-warning--warn"><svg class="oc-icon" role="img" aria-label="Warning"><use href="#i-alert"></use></svg><button class="oc-pagelink">p. 1</button><span class="oc-warning__text">Pages 1–48 are scanned images. OCR isn't installed, so they were kept as images.</span></li></ul></section>
+</div>
+<div class="oc-report__col">
+<section class="oc-panel"><h2 class="oc-panel__title">Run details</h2>
+<dl class="oc-kv">
+<div class="oc-kv__row"><dt>Document type</dt><dd>scanned, detected automatically</dd></div>
+<div class="oc-kv__row"><dt>Presets</dt><dd>scanned · thorough</dd></div>
+<div class="oc-kv__row"><dt>Provider</dt><dd>Custom endpoint</dd></div>
+<div class="oc-kv__row"><dt>Network consent</dt><dd><b>llm.example.org</b>, allowed 2026-09-18 14:02. Document text was sent to this host.</dd></div>
+<div class="oc-kv__row"><dt>PDF restrictions</dt><dd>Owner password with copy and print restrictions. Conversion was not blocked.</dd></div>
+<div class="oc-kv__row"><dt>Kept as images</dt><dd>48 pages (1–48): OCR not available on this computer</dd></div>
+<div class="oc-kv__row"><dt>Sandbox</dt><dd>not supported on this kernel (Landlock needs Linux 5.13)</dd></div>
+<div class="oc-kv__row"><dt>Versions</dt><dd class="oc-mono">app 1.0.0 · engine 1.0.0 · IR 4</dd></div>
+</dl></section>
+<section class="oc-panel"><h2 class="oc-panel__title">Pages kept as images</h2><p class="oc-panel__muted" style="margin:0">1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48</p></section>
+<section class="oc-panel"><h2 class="oc-panel__title">If AI had been unavailable</h2><p class="oc-panel__muted" style="margin:0">Example of the note in another job: "AI assistance was on but unavailable (model still downloading). Converted deterministically; 0 AI-assisted decisions."</p></section>
+</div></div></div>
+<header class="oc-header"><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-back"></use></svg>Queue</button><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>Conversion report</span><span class="oc-header__spacer"></span><button class="oc-btn oc-btn--quiet oc-btn--sm">Export diagnostic bundle</button></header></div></div></div>
+</div></section>
+
+<section class="gx-section"><h2 class="gx-h2">3 · Preview window · route <code>preview</code></h2>
+<div class="gx-frames">
+<div class="gx-frame" data-dark=""><span class="gx-cap">Opened from the p. 34 warning link: jumps to the page and highlights the block</span><div class="gx-window"><div class="oc-app" lang="en">
+<div class="oc-preview">
+<nav class="oc-preview__toc" aria-label="Chapters"><a href="#">Front matter</a><a href="#">I. The Hero of This Story</a><a href="#" aria-current="true">II. The Pursuit</a><a href="#">III. Mr. Hoopdriver's Holiday</a><a href="#">IV. Midhurst</a><a href="#">V. The Journey Home</a><a href="#">VI. …</a></nav>
+<div class="oc-preview__stage">
+<div class="oc-preview__label" role="note"><svg class="oc-icon"><use href="#i-info"></use></svg>Approximate preview — your reading device may differ.</div>
+<div class="gx-row" style="gap:8px"><button class="oc-btn oc-btn--icon oc-btn--sm" aria-label="Previous page"><svg class="oc-icon oc-icon--md"><use href="#i-chevleft"></use></svg></button><span class="oc-num" style="font-size:var(--oc-text-sm);color:var(--oc-text-secondary)">p. 34 of 214 (source page)</span><button class="oc-btn oc-btn--icon oc-btn--sm" aria-label="Next page"><svg class="oc-icon oc-icon--md"><use href="#i-chevright"></use></svg></button><span style="flex:1"></span><span class="oc-warning oc-warning--warn" style="font-size:var(--oc-text-sm)"><svg class="oc-icon" role="img" aria-label="Warning"><use href="#i-alert"></use></svg>Low-confidence hyphenation join kept as hyphenated</span></div>
+<article class="oc-preview__page" lang="en" aria-label="Preview of chapter II"><h2 style="margin:0 0 1rem;font-weight:400">II. The Pursuit</h2><p style="margin:0 0 .8em">He had been riding for an hour when the road began to climb, and the young lady in grey went on ahead as though the hill were nothing to her.</p><p style="margin:0 0 .8em">Mr. Hoopdriver watched her with the <mark>well-mean­ing</mark> attention of a man who has only lately learned to balance, and who does not yet trust the machine beneath him.</p><p style="margin:0">(Sample text for the mockup.)</p></article>
+</div></div>
+<header class="oc-header"><button class="oc-btn oc-btn--sm"><svg class="oc-icon oc-icon--md"><use href="#i-back"></use></svg>Close preview</button><span class="oc-header__title"><svg class="oc-logo" aria-hidden="true"><use href="#oc-logo-sm"></use></svg>the-wheels-of-chance.epub</span></header></div></div></div>
+</div>
+<p class="gx-note">The label is fixed at the top of the stage and cannot be hidden. The preview is the same webview the OS provides, so it is labelled as approximate and never counts as a check. The page text uses the EPUB's own CSS in light colors in both themes, because that is what a reader shows. Warnings without a preview page keep their page link disabled (see design-system.html).</p>
+</section>
+
+</div>
+<script src="gallery.js"></script>
+</body>
+</html>

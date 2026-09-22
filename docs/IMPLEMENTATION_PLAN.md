@@ -2954,9 +2954,25 @@ The shipping application: drop files, watch real progress, cancel, read the repo
 
 **Not in this phase:** block-level editing (D16 — the IR supports `overrides.json` keyed by block id from day one, but v1 UI edits only metadata and TOC); automated visual QA in-app (D7 — CI only); installers and signing (Phase 15).
 
+## Visual design (binding): `docs/design/`
+
+The UI is built from the design system and mockups in `docs/design/handoff/`: direction "Quiet workshop", adopted 2026-09-23. Read `docs/design/README.md` before the first UI work item; it says what each file is, which parts are app code and which are gallery-only, and every known place where a mockup disagrees with the spec. The design governs **appearance**. `UI_UX.md`, this phase and `DECISIONS.md` govern **behaviour**, and they win wherever the two disagree. Every disagreement found so far is a placeholder value in a mockup, never a behaviour.
+
+1. **Tokens and component styles are ported, not re-invented.** `docs/design/handoff/tokens.css` becomes `apps/desktop/ui/src/styles/tokens.css` and `oc.css` becomes `apps/desktop/ui/src/styles/oc.css`, verbatim, with three exceptions:
+   - the gallery-only `[data-theme]` blocks may be dropped;
+   - the `.is-hover` / `.is-active` / `.is-focus` state mirrors may be dropped;
+   - the two preview-page colour literals move into tokens.
+
+   Each component in `docs/design/handoff/docs/components.md` becomes the Svelte 5 component of that name. It keeps its BEM class, states, keyboard behaviour and ARIA exactly as specified there.
+2. **Screens follow their mockups.** `docs/design/handoff/docs/screen-map.md` maps each route (`queue`, `result`, `report`, `preview`, `settings`, `models`, `firstrun`) to the mockup page that defines it. Motion follows `docs/design/handoff/docs/motion.md`, including every reduced-motion equivalent. Every number shown comes from an engine event, the report, `ModelReadiness` or `thresholds.toml`. None is copied from a mockup.
+3. **Strings.** The EN copy in the mockups is the starting text of `locales/en.json`, with keys following `docs/design/handoff/docs/strings.md`. The DE/TR drafts need native review: Turkish by the maintainers, German by one native reviewer before 1.0. The two illustrative warning keys in the drafts are replaced by real `WarningCode`s.
+4. **Assets.** `icons.svg` (Lucide, ISC) is inlined into the DOM at build time. The gallery's `fetch()` of it would be blocked by `connect-src 'none'`. Lucide's ISC notice goes into the app's third-party notices. `logo/openconvert-mark*.svg` are the in-app marks. `logo/app-icon.svg` is the source for `src-tauri/icons/`, which Phase 15 regenerates.
+5. **CSP.** The mockups' inline `style` attributes are gallery shortcuts and become classes in `oc.css`. Dynamic values (progress width, timeline segments) are set with Svelte's `style:` directive, which writes through the CSSOM rather than a `style` attribute. Verify this under the shipped CSP, not only in a dev server.
+6. **The design's own decisions are the default.** This covers the decisions and the proposals for the open items in `docs/design/handoff/docs/decisions.md`: the Language, Network log and About & updates sections, the output-file-exists rename, and the no-reader banner. Overturning one is a small decision recorded in `docs/DECISIONS_LOG.md`, not a redesign.
+
 ## Files
 
-`apps/desktop/src-tauri/src/{main.rs,engine.rs,jobqueue.rs,llm.rs,packs.rs,fs_scope.rs}`; `apps/desktop/src-tauri/{tauri.conf.json,capabilities/default.json}`; `apps/desktop/ui/src/{app.svelte,lib/{events.ts,i18n.ts,a11y.ts},routes/{queue,result,report,preview,settings,models,firstrun}/*.svelte}`; `apps/desktop/ui/locales/{en.json,de.json,tr.json}`; `tests/dom/specs/ui.spec.ts`.
+`apps/desktop/src-tauri/src/{main.rs,engine.rs,jobqueue.rs,llm.rs,packs.rs,fs_scope.rs}`; `apps/desktop/src-tauri/{tauri.conf.json,capabilities/default.json}`; `apps/desktop/ui/src/{app.svelte,lib/{events.ts,i18n.ts,a11y.ts,icons.ts},routes/{queue,result,report,preview,settings,models,firstrun}/*.svelte,components/*.svelte,styles/{tokens.css,oc.css}}`; `apps/desktop/ui/locales/{en.json,de.json,tr.json}`; `tests/dom/specs/ui.spec.ts`. Source of the styles, components and copy: `docs/design/handoff/`.
 
 ## Architecture
 
@@ -3023,7 +3039,7 @@ RED: 12.1 fails against the natural "just pass flags" implementation; 12.5 fails
 
 ## Dependencies
 
-Phase deps: 6 (report), 9 (model manager), 11 (providers). Tauri 2.11.x, `@tauri-apps/plugin-shell`, Svelte 5, Vite, Vitest, Playwright, `@axe-core/playwright`.
+Phase deps: 6 (report), 9 (model manager), 11 (providers). Design: `docs/design/handoff/` (adopted 2026-09-23). Tauri 2.11.x, `@tauri-apps/plugin-shell`, Svelte 5, Vite, Vitest, Playwright, `@axe-core/playwright`.
 
 ## Acceptance criteria
 
