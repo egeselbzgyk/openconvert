@@ -103,6 +103,14 @@ pub fn run<W: Write + Send>(args: &ConvertArgs, events: &EventSink<W>) -> ExitCo
     run_job(&ConvertJob::from_args(args), &backend, events)
 }
 
+/// `hello` from a freshly bound backend, or the `fatal` that says why there is none.
+pub(crate) fn announce<W: Write>(events: &EventSink<W>) {
+    match PdfiumBackend::bind() {
+        Ok(backend) => hello(&backend, events),
+        Err(error) => events.fatal(E_PDFIUM, &error.to_string()),
+    }
+}
+
 /// The `hello` event: always the first line of a run (§2.3).
 pub(crate) fn hello<W: Write>(backend: &PdfiumBackend, events: &EventSink<W>) {
     events.hello(

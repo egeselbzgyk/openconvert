@@ -14,7 +14,7 @@ mod cmd_job;
 mod cmd_validate;
 mod control;
 
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 use std::process::ExitCode as ProcessExitCode;
 
 use oc_core::events::EventSink;
@@ -41,6 +41,16 @@ fn run() -> ExitCode {
     match cli::parse(args) {
         Ok(Command::Print(text)) => {
             print!("{text}");
+            ExitCode::Ok
+        }
+        Ok(Command::Version(text)) => {
+            print!("{text}");
+            // The version handshake (RT A5.7): the desktop app runs `--version` with stderr piped
+            // and refuses a staged engine whose `hello` is not the one it was built with. A person
+            // at a terminal gets the version line and no JSON.
+            if !std::io::stderr().is_terminal() {
+                cmd_convert::announce(&EventSink::new(std::io::stderr(), true));
+            }
             ExitCode::Ok
         }
         Ok(Command::Convert(convert)) => {

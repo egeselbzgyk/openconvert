@@ -178,7 +178,11 @@ Work items, in order, with the plan's test rows against each:
       `heartbeat` thread, cancel on stdin → `done{cancelled}` exit 3, no `.oc-tmp-*` (+ 5 tests;
       `EventSink` is now `&self` and thread-safe; seven `ipc.*`/`desktop.*` thresholds, so the
       report snapshot counts 175 entries — **recount on merge** if Phase 9 adds thresholds)
-- [ ] **P12.3** the desktop supervisor: `engine.rs` / `fs_scope.rs` — rows 12.1, 12.2, 12.6, 12.17
+- [x] **P12.3** the desktop supervisor: `engine.rs` / `fs_scope.rs` — rows **12.1, 12.2, 12.6,
+      12.17** (+ 5 tests). The desktop crate is now a lib + bin; 12.6 and 12.17 drive the real
+      engine and are behind the `engine-integration` feature (`cargo build -p openconvert` first).
+      `openconvert --version` answers with `hello` on stderr when stderr is not a terminal — the
+      startup handshake (PROVISIONAL, see Blocked)
 - [ ] **P12.4** the queue — row 12.7; drop filtering (PDFs added, every other file named)
 - [ ] **P12.5** webview privacy: `capabilities/default.json`, the shipped CSP — row 12.13
 - [ ] **P12.6** UI foundation: Svelte 5, the ported styles, inlined icons, EN/DE/TR, warnings from
@@ -712,7 +716,14 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 
 ## Blocked
 
-Nothing. The NFC question raised on 2026-09-20 was ruled the same day — `C(·)` is taken after
+**Phase 12 part A — provisional decisions awaiting maintainer ratification** (each in
+`docs/DECISIONS_LOG.md` 2026-09-23; work continued on the conservative reading):
+
+- The startup version handshake spawns the engine with the one argument `--version`, which
+  answers with `hello` on stderr when stderr is not a terminal. D13.2 names only the job-spec
+  path as the GUI's argument.
+
+Otherwise nothing. The NFC question raised on 2026-09-20 was ruled the same day — `C(·)` is taken after
 canonical **de**composition — and is implemented. `docs/DECISIONS_LOG.md` 2026-09-20 and the
 D13.4 amendment in `docs/DECISIONS.md`.
 

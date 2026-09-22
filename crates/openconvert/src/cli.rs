@@ -27,8 +27,10 @@ pub enum Command {
     /// One job-spec path and nothing else: how the desktop app runs a conversion (D13.2,
     /// RT B15). Everything the job needs is in the file.
     Job(PathBuf),
-    /// `--help` or `--version`: print and exit successfully.
+    /// `--help`: print and exit successfully.
     Print(String),
+    /// `--version`: print the version, and answer a supervisor's version handshake (RT A5.7).
+    Version(String),
 }
 
 /// `convert <INPUT.pdf>`: the whole pipeline, PDF to EPUB.
@@ -199,7 +201,7 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, CliErro
     match first.as_str() {
         "--help" | "-h" => return Ok(Command::Print(USAGE.to_owned())),
         "--version" | "-V" => {
-            return Ok(Command::Print(format!(
+            return Ok(Command::Version(format!(
                 "openconvert {}\n",
                 env!("CARGO_PKG_VERSION")
             )))

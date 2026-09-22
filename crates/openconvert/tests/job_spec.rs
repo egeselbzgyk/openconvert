@@ -175,3 +175,23 @@ fn a_mistyped_subcommand_is_still_a_usage_error() {
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("unknown subcommand"));
 }
+
+/// RT A5.7: `--version`, one argument, is the desktop app's startup handshake. With stderr piped
+/// the engine answers with `hello`; stdout still carries the line a person reads.
+#[test]
+fn version_answers_the_handshake_with_hello() {
+    let output = Command::new(binary())
+        .arg("--version")
+        .output()
+        .expect("the binary runs");
+    assert_eq!(output.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&output.stdout).starts_with("openconvert "));
+    let first = String::from_utf8_lossy(&output.stderr)
+        .lines()
+        .next()
+        .map(str::to_owned)
+        .expect("a hello line");
+    let hello: serde_json::Value = serde_json::from_str(&first).expect("an event");
+    assert_eq!(hello["t"], "hello");
+    assert_eq!(hello["engine_version"], env!("CARGO_PKG_VERSION"));
+}

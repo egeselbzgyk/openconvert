@@ -3595,3 +3595,36 @@ very large book would overrun it — Phase 14's per-stage deadlines share this f
 finer checks belong.
 Evidence: `crates/openconvert/tests/progress.rs`; `events::tests::the_heartbeat_beats_while_work_runs_and_stops_before_it_returns`.
 Affects: IMPLEMENTATION_PLAN §2.3, UI_UX §2.2, `openconvert::convert`, `oc-validate::repair::host`.
+
+## 2026-09-23 · PROVISIONAL — needs maintainer ratification: the startup handshake is `--version` · Phase 12
+Context: test 12.17 and A0.7 want the app to refuse a stale staged engine **at startup**, before
+any job; D13.2 says "the GUI passes one argument: the job-spec path", and a job spec needs an input
+and an output, which startup does not have. Phase 0's window used `inspect --json --progress json`
+on a fixture, which is four arguments and a file the installed app does not ship.
+Decision (provisional, the most conservative reading): the handshake runs the engine with **one
+fixed argument, `--version`**. When stderr is not a terminal the engine answers with the `hello`
+event on stderr (the version line still goes to stdout, so a person at a terminal sees no JSON).
+The app compares `engine_version`, `protocol` and `ir_version` with its own and shows the blocking
+startup error on any difference. The command is built in Rust; the webview can add nothing to it.
+So the engine accepts exactly two one-argument shapes from the app: `--version` and a job-spec
+path. Overturning this means either a job-spec field for a no-op "hello" job (a schema change, so
+`job-spec.v2`) or checking only the first event of the first real job, which cannot block startup.
+Evidence: `stale_sidecar_is_refused_at_startup` (feature `engine-integration`),
+`the_handshake_refuses_every_mismatch_by_name`, `version_answers_the_handshake_with_hello`.
+Affects: D13.2 (interpretation), A0.7, `openconvert` `--version`, `apps/desktop/src-tauri/src/engine.rs`.
+
+## 2026-09-23 · The app spawns the engine from Rust, never from the webview · Phase 12
+Context: Phase 0's window spawned the engine from TypeScript through `@tauri-apps/plugin-shell`,
+with a capability allowing `bin/openconvert` and `"args": true` — any arguments. Phase 12's
+architecture puts `spawn_engine` and the job queue in Rust.
+Decision: every engine process is started by `openconvert_desktop::engine` in Rust, after the job
+spec has been validated by `oc_core::jobspec` and written into the app's job directory; the
+command has one argument, a path that `fs_scope::is_inside` confirms is in that directory. The
+webview reaches the engine only through the app's own Tauri commands, which take file paths and
+presets, never arguments. This makes the one-argument rule a property of code the UI cannot reach,
+rather than of a shell-scope regex; the capability change that follows (the webview loses
+`shell:allow-execute` entirely) is P12.5. Process groups and job objects remain Phase 9's; until
+part B threads them in, a Unix engine gets its own process group and the supervisor kills the
+engine itself, which orphans nothing while AI is off.
+Evidence: `engine_is_spawned_with_exactly_one_argument`, `job_spec_is_validated_before_spawn`.
+Affects: RT B15, D13.2, Phase 12 detail 1, `apps/desktop/src-tauri`.

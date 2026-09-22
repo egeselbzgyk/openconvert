@@ -8,13 +8,33 @@ repository.workspace   = true
 description  = "OpenConvert desktop app (Tauri 2): spawns the CLI engine as a supervised subprocess"
 publish      = false
 
+[lib]
+name = "openconvert_desktop"
+path = "src/lib.rs"
+
 [[bin]]
 name = "openconvert-desktop"
 path = "src/main.rs"
 
+[features]
+# Tests that drive the real engine binary: they need `cargo build -p openconvert`, the vendored
+# PDFium (`cargo run -p xtask -- vendor-pdfium`) and nothing else. Gated rather than skipped
+# (IMPLEMENTATION_PLAN §0.2); the `desktop` CI job turns it on.
+engine-integration = []
+
 [dependencies]
 tauri.workspace = true
 tauri-plugin-shell.workspace = true
+# The job-spec validator and the thresholds: the same code the engine runs (D13.1).
+oc-core = { path = "../../../crates/oc-core", version = "0.1.0" }
+oc-model = { path = "../../../crates/oc-model", version = "0.1.0" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+# The 300-page reference book for the cancel test, built where it is used.
+oc-testkit = { path = "../../../crates/oc-testkit", version = "0.1.0" }
 
 [build-dependencies]
 tauri-build.workspace = true

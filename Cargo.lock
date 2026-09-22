@@ -3727,9 +3727,15 @@ dependencies = [
 name = "openconvert-desktop"
 version = "0.1.0"
 dependencies = [
+ "oc-core",
+ "oc-model",
+ "oc-testkit",
+ "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-shell",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
