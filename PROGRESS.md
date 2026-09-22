@@ -3,12 +3,11 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 7.5 — and 8, in parallel, on the `worktree-phase8` branch
+CURRENT_PHASE: 7.5 — Phase 8 is complete on the `worktree-phase8` branch, awaiting merge
 CURRENT_ITEM: 7.5.3 — the defect inventory over the whole corpus, and the timeout class
               it found. 9 of 104 documents are unmeasured; the inventory run was
               stopped by system memory pressure.
-              P8.10 — no socket dependency, the CI wiring, the Definition of Done (Phase 8,
-              `worktree-phase8`; see "Phase 8 — in parallel")
+              (Phase 8: done. Merge `worktree-phase8` into `main`; Phase 9 builds on it.)
 LAST_UPDATED: 2026-09-22
 
 ---
@@ -51,7 +50,12 @@ LAST_UPDATED: 2026-09-22
       after Phase 7's first corpus run converted 0 of 14 sampled documents. Appendix D's
       "I-1 … I-7 hold on 100 % of the corpus" is a v1.0 release gate and does not hold —
       and Phase 7's corpus is monographs and papers, not the novels this product is for.)*
-- [ ] **Phase 8** — AI abstraction (no real model yet)
+- [x] **Phase 8** — AI abstraction (no real model yet)
+      *(all 16 named tests green, plus 52 additions, built on `worktree-phase8` in parallel
+      with 7.5. The four gates, the call budget, the cache, one OpenAI-compatible client over a
+      `Transport`, cassettes and the six escalation predicates. `ai.enabled` stays `false` and
+      nothing in the pipeline calls a model yet. The CI steps it added are unverified until the
+      branch merges.)*
 - [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
 - [ ] **Phase 10** — AI-assisted decisions (the four tasks)
 - [ ] **Phase 11** — BYO providers
@@ -268,7 +272,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P8.7** transport, the OpenAI-compatible client, the stub server — A8.1 end to end (+ 7)
 - [x] **P8.8** cassettes and replay — row 8.11 (+ 5)
 - [x] **P8.9** the six escalation predicates, in `oc-core` — row 8.16
-- [ ] **P8.10** no socket dependency, the CI wiring, the Definition of Done — row 8.15
+- [x] **P8.10** no socket dependency, the CI wiring, the Definition of Done — row 8.15
 
 What a fresh session needs, in the order it matters:
 
@@ -321,6 +325,37 @@ What a fresh session needs, in the order it matters:
   **Open, for Phase 10:** `oc-structure::quotes::classify_indented` widens the `f32` short-line
   ratio to `f64` and so reads a block exactly on `verse.short_line_ratio_min` as a quotation
   instead of ambiguous (`docs/DECISIONS_LOG.md`, 2026-09-22).
+- **Test 8.15 walks `Cargo.lock`** from `oc-ai` (a superset of every build's graph), holds its
+  socket-crate list equal to `deny.toml`'s `oc-net`-only bans, and scans `oc-ai`'s own sources for
+  `std::net` — which no dependency ban can see. CI's `no-network` job runs the whole `oc-ai` suite
+  under `unshare -n`.
+
+### Phase 8 — Definition of Done
+
+`IMPLEMENTATION_PLAN.md` §0.3, row by row. Checked on this machine unless the row says otherwise.
+
+| Row | State |
+|---|---|
+| Every named test exists and passes | **Yes.** All 16 rows, 8.1–8.16, plus 52 additions. 8.16 is in `oc-core`, the other fifteen in `oc-ai`. |
+| `cargo nextest run --workspace` green | **Yes**, 559 tests. |
+| Green on Linux/macOS/Windows CI | **Not verifiable here.** Windows only; the branch is not pushed. |
+| clippy `-D warnings` clean | **Yes**, workspace, all targets, all features. |
+| `cargo fmt --check` clean | **Yes.** |
+| `cargo deny check` clean | **Yes** — advisories, bans, licences, sources, and the tooling config. No new dependency in a shipped crate's normal graph: `oc-ai`'s is `oc-model` and four crates already in the workspace; `toml`, `proptest`, `oc-core` and `oc-text` are dev-dependencies. |
+| `cargo xtask thresholds-lint` clean | **Yes.** Four thresholds added, each with source, evidence, owner and `review_by`. |
+| Every Given/When/Then demonstrated | **A8.1–A8.4 yes** (below). A8.3's `unshare -n` step is CI's and unverified until it runs. |
+| `docs/CHANGELOG.md` entry | **Yes.** |
+| No `TODO`/`FIXME` without an issue number | **Yes**, `xtask ci-lint` clean. |
+
+- **A8.1** — `every_adversarial_answer_leaves_the_deterministic_answer_standing`: the stub's six
+  adversarial answers and a separated `reasoning_content`, through the real client and the real
+  gates, each leave the deterministic answer and a `Decision` naming the gate. Rows 8.2–8.4, 8.9
+  and 8.12 state the same per gate.
+- **A8.2** — `gate_l_rejects_any_character_change` over 5 000 generated edits, with its converse
+  `gate_l_admits_every_rename`.
+- **A8.3** — `cassette_replay_is_offline`: the replay provider holds no transport, so the test
+  tiers cannot make a live call; the `no-network` CI job runs the suite where no socket opens.
+- **A8.4** — `oc_ai_has_no_socket_dependency`, and `cargo deny check bans` clean.
 - **The worked examples of A.3 are `crates/oc-ai/tests/common/mod.rs`** and are the seeds for the
   committed cassettes (P8.8). "One cassette per task per fixture" is read as one per task per
   *named payload*: a payload rendered from a Typst fixture needs Phase 10's inventory builders.
@@ -1239,3 +1274,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-22  P8.6      oc-ai: the cache key - one rule for cache and cassettes - and the file cache (8.10 + 5)  e1a7b8a
 2026-09-22  P8.7      oc-ai: one OpenAI-compatible client over a Transport; the adversarial stub (+ 7)  cc95e87
 2026-09-22  P8.8      oc-ai: cassettes at the provider seam, replay exact, four seeds (8.11 + 5)  6294cc6
+2026-09-22  P8.9      oc-core: the six escalation predicates, pure, table-tested (8.16)  1074970

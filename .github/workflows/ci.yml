@@ -167,6 +167,14 @@ jobs:
         run: |
           sudo unshare -n -- sudo -u "$USER" env "PATH=$PATH" \
             cargo nextest run -p oc-core -p openconvert --locked -E 'test(convert_) or test(inspect_)'
+      # A8.3: every tier below nightly makes zero live model calls. `oc-ai` has no socket-capable
+      # dependency (test 8.15) and replays cassettes through a provider that holds no transport;
+      # here the whole suite — gates, stub, cassettes — also runs where a socket cannot open at
+      # all, so a call that slipped past both would fail here rather than reach a network.
+      - name: the oc-ai suite under an empty network namespace
+        run: |
+          sudo unshare -n -- sudo -u "$USER" env "PATH=$PATH" \
+            cargo nextest run -p oc-ai --locked
       # `xtask assert-no-net-deps` does not exist yet. Until it does, the socket ban is
       # enforced by `deny.toml`'s `wrappers` rule in the `deny` job, which is a build-time
       # property and not a weaker one. Phase 14 (security hardening) owns the task and turns

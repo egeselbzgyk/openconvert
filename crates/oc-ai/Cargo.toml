@@ -30,3 +30,5 @@ oc-core = { path = "../oc-core", version = "0.1.0" }
 oc-text = { path = "../oc-text", version = "0.1.0" }
 insta.workspace = true
 proptest.workspace = true
+# Test 8.15 reads Cargo.lock and deny.toml.
+toml.workspace = true
