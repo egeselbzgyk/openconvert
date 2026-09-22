@@ -3,11 +3,12 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 7.5
+CURRENT_PHASE: 7.5 — and 8, in parallel, on the `worktree-phase8` branch
 CURRENT_ITEM: 7.5.3 — the defect inventory over the whole corpus, and the timeout class
               it found. 9 of 104 documents are unmeasured; the inventory run was
               stopped by system memory pressure.
-LAST_UPDATED: 2026-09-20
+              P8.2 — gate S (Phase 8, `worktree-phase8`; see "Phase 8 — in parallel")
+LAST_UPDATED: 2026-09-22
 
 ---
 
@@ -244,6 +245,46 @@ nothing.
 **The LLM boundary is one question**, and `docs/LLM_BOUNDARY.md` is still to be written:
 *if this is answered wrongly, does the book lose or gain a character?* Yes → deterministic,
 permanently. No → it is a name, and a name may be escalated (D13.6's four tasks).
+
+## Phase 8 — in parallel, on `worktree-phase8`
+
+Phase 8 (AI abstraction, no real model) is built on its own branch while Phase 7.5 continues on
+`main`. It is almost entirely new code in `oc-ai`, which was an empty crate; outside it, it adds
+threshold entries, one additive field on `oc_model::decision::Decision` (P8.5), warning templates,
+and the escalation predicates in `oc-core` (P8.9). Nothing in it depends on 7.5's open classes.
+**When the branch merges, expect conflicts in exactly three places**: this file's header, the
+thresholds count in `crates/openconvert/tests/snapshots/report__report_f07.snap`, and the end of
+`docs/DECISIONS_LOG.md` — all three resolved by keeping both sides.
+
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P8.1** prompt artifacts, the GBNF parser, the request — rows 8.1, 8.14 (+ 19)
+- [ ] **P8.2** gate S — rows 8.2, 8.3, 8.4, 8.12
+- [ ] **P8.3** gate L — rows 8.5, 8.6
+- [ ] **P8.4** gate V — rows 8.7, 8.8
+- [ ] **P8.5** gate D and the call budget — rows 8.9, 8.13
+- [ ] **P8.6** the cache key and the file cache — row 8.10
+- [ ] **P8.7** transport, the OpenAI-compatible client, the stub server
+- [ ] **P8.8** cassettes and replay — row 8.11
+- [ ] **P8.9** the six escalation predicates, in `oc-core` — row 8.16
+- [ ] **P8.10** no socket dependency, the CI wiring, the Definition of Done — row 8.15
+
+What a fresh session needs, in the order it matters:
+
+- **`oc-ai` depends on `oc-model` alone** (DECISIONS.md Appendix A; `oc-net → oc-ai` must not
+  reach `oc-core`). Every number it needs is a parameter its caller reads from `T`; `oc-core` is a
+  *dev*-dependency so the tests use the real values. Gate V's statistics will therefore live in
+  `oc-ai` rather than be borrowed from `oc-text` — `docs/DECISIONS_LOG.md`, 2026-09-22.
+- **Prompt v1 is frozen.** `crates/oc-ai/prompts/v1.sha256` pins all sixteen artifacts; an edit is
+  a `v2` directory and a `PROMPT_VERSION` bump, because the cache key carries the version and not
+  the system prefix's hash.
+- **Appendix A is not followed in three places**, each logged 2026-09-22: A.2's grammar does not
+  load in llama.cpp (a top-level rule ends at its newline, so the role list is parenthesised); the
+  held-out probe rides in the `heading_roles` call as ARCHITECTURE §9.6 and PIPELINE §8 say, not in
+  a second call as A.3 says; and `system.md` is four byte-identical files, per ARCHITECTURE §9.2.
+- **The worked examples of A.3 are `crates/oc-ai/tests/common/mod.rs`** and are the seeds for the
+  committed cassettes (P8.8). "One cassette per task per fixture" is read as one per task per
+  *named payload*: a payload rendered from a Typst fixture needs Phase 10's inventory builders.
 
 ## Phase 6 — what it built
 

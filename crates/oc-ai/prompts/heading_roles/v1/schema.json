@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["m", "h"],
+  "properties": {
+    "m": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 24,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["c", "r"],
+        "properties": {
+          "c": { "type": "integer", "minimum": 0, "maximum": 99 },
+          "r": { "$ref": "#/$defs/role" }
+        }
+      }
+    },
+    "h": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["i", "r"],
+        "properties": {
+          "i": { "type": "integer", "minimum": 0, "maximum": 99 },
+          "r": { "$ref": "#/$defs/role" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "role": {
+      "enum": [
+        "chapter_heading",
+        "part_heading",
+        "section_heading",
+        "subsection_heading",
+        "running_head",
+        "epigraph",
+        "body",
+        "caption",
+        "other"
+      ]
+    }
+  }
+}

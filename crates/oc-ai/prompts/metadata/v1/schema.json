@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "subtitle", "authors", "translator", "publisher", "date"],
+  "properties": {
+    "title": { "$ref": "#/$defs/field" },
+    "subtitle": { "$ref": "#/$defs/field" },
+    "authors": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "translator": { "$ref": "#/$defs/field" },
+    "publisher": { "$ref": "#/$defs/field" },
+    "date": { "$ref": "#/$defs/field" }
+  },
+  "$defs": {
+    "field": {
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "null" }
+      ]
+    }
+  }
+}

@@ -1,0 +1,36 @@
+# crates/oc-ai/prompts/heading_roles/v1/grammar.gbnf
+# Output: {"m":[{"c":<cluster>,"r":<role>},...],"h":[{"i":<probe>,"r":<role>},...]}
+#
+# "m" gives every style cluster of the payload one role. "h" labels every held-out line: the
+# 8-10 runs sampled from those clusters and not shown as exemplars, which ride along in the
+# same call (ARCHITECTURE 9.6, PIPELINE 8) and are the free oracle for "the clustering was
+# wrong". No optional whitespace is admitted anywhere: the output is one canonical byte
+# sequence per answer, which makes cassette diffs meaningful and saves output tokens.
+#
+# Arity. "m" holds at most 24 entries, which is inventory.max_clusters: the pre-gate refuses
+# to call above that, so the grammar and the pre-gate agree by construction. "h" holds at
+# most 10. The grammar cannot say "exactly n entries, each id once" for a runtime n; gate S
+# checks that after parsing. `index` admits 0-99 because a two-range class is simpler to
+# keep correct than a hand-rolled 0-23; the range check belongs to gate S too.
+#
+# A rule ends at the end of its line unless it is inside parentheses, which is why the role
+# list is parenthesised. As bare continuation lines beginning with `|` - the form
+# IMPLEMENTATION_PLAN Appendix A.2 prints - llama.cpp rejects the file.
+
+root    ::= "{\"m\":" mapping ",\"h\":" holdout "}"
+mapping ::= "[" entry ( "," entry ){0,23} "]"
+entry   ::= "{\"c\":" index ",\"r\":" role "}"
+holdout ::= "[" ( probe ( "," probe ){0,9} )? "]"
+probe   ::= "{\"i\":" index ",\"r\":" role "}"
+index   ::= [0-9] | [1-9] [0-9]
+role    ::= (
+      "\"chapter_heading\""
+    | "\"part_heading\""
+    | "\"section_heading\""
+    | "\"subsection_heading\""
+    | "\"running_head\""
+    | "\"epigraph\""
+    | "\"body\""
+    | "\"caption\""
+    | "\"other\""
+  )

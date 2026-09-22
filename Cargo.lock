@@ -3503,6 +3503,7 @@ name = "oc-ai"
 version = "0.1.0"
 dependencies = [
  "insta",
+ "oc-core",
  "oc-model",
  "serde",
  "serde_json",

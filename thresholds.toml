@@ -727,6 +727,13 @@ evidence = "RT C4; RT A7 notes R10 §6.13 offered 30 as illustrative, not measur
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[llm.verse_quote_blocks_per_call]
+value = 10
+source = "provisional"
+evidence = "Ratified note N-4 (ARCHITECTURE 6.3, D13.6): task 4 is batched at exactly 10 blocks per call, so llm.max_blocks_per_book = 30 costs at most 3 of the 8 calls. The verse_quote grammar admits exactly this many answers per call, and a test holds the two equal"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [llm.max_wallclock_share]
 value = 0.25
 source = "provisional"

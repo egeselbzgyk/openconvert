@@ -3347,3 +3347,64 @@ of them behind paragraphs.
 Evidence: `no_claimant_is_orphaned`, `no_text_has_two_owners` (mutation-tested); 491 workspace
 tests green; the table above.
 Affects: `oc-structure::{stage,lists,tables,figures,claims}`, `openconvert::cmd_diff_stage`.
+
+## 2026-09-22 · The v1 prompt artifacts, and three places Appendix A is not followed · Phase 8
+Context: Phase 8 commits the four tasks' `system.md`, `user.tmpl`, `grammar.gbnf` and
+`schema.json` under `crates/oc-ai/prompts/<task>/v1/`, as ratified R-7 lays them out. Writing
+them against llama.cpp's actual grammar parser found that the appendix they are copied from
+cannot be followed literally in three places.
+
+1. **Appendix A.2's `heading_roles` grammar does not load.** llama.cpp's `parse_sequence` skips
+   newlines only inside parentheses (`parse_space(pos, is_nested)`), so a top-level rule ends at
+   the end of its line, and A.2's choice — continuation lines beginning with `|` — is a syntax
+   error at the first `|`. The committed grammar puts the role list in parentheses. This is the
+   case for test 8.14 needing a parser that implements the dialect rather than one that accepts
+   anything grammar-shaped: a grammar the server refuses makes every call fail, every failure
+   falls back to the deterministic answer, and the whole AI path would look like a model that is
+   never needed. `oc_ai::gbnf` follows `llama-grammar.cpp` rule for rule (names are
+   `[a-zA-Z0-9-]`, `\x`/`\u`/`\U` take exactly 2/4/8 digits) and is stricter in two places — a
+   rule defined twice, and a bound whose maximum is below its minimum — so a grammar that passes
+   here passes there.
+2. **The held-out probe rides in the same call.** A.3 sends the 8–10 held-out runs as a second
+   call. ARCHITECTURE §9.6 (whose example answer carries `clusters` and `holdout` together) and
+   PIPELINE §8 ("ride along in the same call") both put it in the first, they outrank the plan,
+   and a second call would spend one of the book's eight on a question the first could carry.
+   The grammar is therefore A.2's plus an `"h"` array of at most 10 `{"i":<index>,"r":<role>}`,
+   where `i` is the probe's index in the payload: a run id is page-local (2026-09-14) and would
+   not name one line of a book.
+3. **`system.md` is four files, not one.** Appendix A calls the prefix "one physical file,
+   symlink-free, `include_str!`-ed by every task module"; ARCHITECTURE §9.2's layout — and the
+   Phase 8 file list — put a `system.md` in every task directory. ARCHITECTURE wins by the
+   authority order. The four copies are held byte-identical by test 8.1, which is then a test of
+   something rather than of one file's equality with itself.
+
+Decision, also: **a released prompt version is frozen, and a manifest says so.** The cache key is
+`sha256(model_id ‖ prompt_version ‖ grammar_hash ‖ user message)` (ARCHITECTURE §9.4). A
+template edit changes the user message and a grammar edit changes the grammar hash, but an edit to
+`system.md` changes neither: under an unchanged `PROMPT_VERSION` it would be answered from cache
+entries recorded against the old prefix. `crates/oc-ai/prompts/v1.sha256` pins every v1
+artifact, and `prompt_artifacts_are_pinned_to_their_version` fails on any edit. A change is a
+`v2` directory and a version bump.
+
+**`llm.verse_quote_blocks_per_call = 10`** is new: ratified note N-4's "exactly 10 blocks per
+call", which the `verse_quote` grammar states as a repetition bound. A test holds the bound and
+the threshold equal, as another holds the `heading_roles` bound equal to
+`inventory.max_clusters`.
+Evidence: `grammar_files_parse_as_gbnf` fails with `line 28: expecting a rule name` on A.2's
+printed form (mutation-checked); `system_prefix_is_byte_identical_across_purposes` and the pin
+test both fail on one appended byte in one copy.
+Affects: IMPLEMENTATION_PLAN Appendix A.1–A.3, `oc-ai::{gbnf,prompt,provider}`, `thresholds.toml`.
+
+## 2026-09-22 · `oc-ai` depends on `oc-model` alone, and takes its numbers from its caller · Phase 8
+Context: CLAUDE.md requires every constant to come from `thresholds.toml` through
+`oc_core::thresholds`, and `oc-ai` needs several — the call budget, gate V's epsilons, the token
+cap. The obvious edge, `oc-ai → oc-core`, is the one the crate map forbids in effect: DECISIONS.md
+Appendix A lists `oc-model` as `oc-ai`'s only workspace dependency, and ARCHITECTURE §3.1 says
+`oc-net` must not depend on `oc-core` — which it would, through `oc-ai`, the moment `oc-ai` did.
+`oc-validate` took the `oc-text`/`oc-core` edge on 2026-09-18, but no "must not" stood in its way.
+Decision: `oc-ai`'s normal dependencies stay `oc-model` and four external crates. Every number is
+a parameter its caller supplies, and the caller reads `T`. `oc-core` is a **dev**-dependency, so
+the tests exercise the real values; a dev-dependency does not reach `oc-net`. The same reasoning
+keeps gate V's statistics inside `oc-ai` rather than borrowed from `oc-text`.
+Evidence: `crates/oc-ai/Cargo.toml`.
+Affects: DECISIONS.md Appendix A (upheld), ARCHITECTURE §3.1, `oc-ai`.

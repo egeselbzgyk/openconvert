@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["b"],
+  "properties": {
+    "b": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "k"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Z2-7]{10}$" },
+          "k": { "enum": ["verse", "blockquote", "preformatted", "paragraph"] }
+        }
+      }
+    }
+  }
+}
