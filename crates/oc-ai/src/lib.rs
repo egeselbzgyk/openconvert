@@ -10,6 +10,7 @@
 //! considered at all (`gbnf`), and the name every piece of it hashes to (`digest`).
 
 pub mod budget;
+pub mod cache;
 pub mod digest;
 pub mod gates;
 pub mod gbnf;
