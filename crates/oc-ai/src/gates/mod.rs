@@ -14,6 +14,7 @@
 //! What is here is the other half of D: the fallback, and its record ([`fallback`]).
 
 pub mod fallback;
+pub mod locality;
 pub mod schema;
 
 /// Why a model's answer was not applied.
@@ -48,6 +49,13 @@ pub enum GateFailure {
         missing: Vec<String>,
         invented: Vec<String>,
     },
+    /// Gate L: the edit changed the book's characters — the one thing an LLM edit may never do.
+    /// Counted over `C`, so `lost` and `gained` are characters the conservation law counts.
+    #[error("the edit changed the book's characters: {lost} lost, {gained} gained")]
+    CharactersChanged { lost: u64, gained: u64 },
+    /// Gate L: every character is still there, and the book no longer reads in the same order.
+    #[error("the edit moved text: every character is present, and not in the order it was")]
+    TextReordered,
 }
 
 impl GateFailure {
@@ -59,6 +67,8 @@ impl GateFailure {
             GateFailure::WrongShape(_) => "S.shape",
             GateFailure::OutOfEnum { .. } => "S.enum",
             GateFailure::NotBijective { .. } => "S.bijection",
+            GateFailure::CharactersChanged { .. } => "L.characters",
+            GateFailure::TextReordered => "L.order",
         }
     }
 }

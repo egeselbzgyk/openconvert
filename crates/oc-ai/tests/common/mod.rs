@@ -9,6 +9,8 @@
 
 #![allow(dead_code)]
 
+pub mod book;
+
 use oc_ai::prompt::v1::{book_structure, heading_roles, metadata, verse_quote};
 use oc_ai::provider::LlmRequest;
 use oc_model::geom::Rect;

@@ -27,3 +27,4 @@ thiserror.workspace = true
 [dev-dependencies]
 oc-core = { path = "../oc-core", version = "0.1.0" }
 insta.workspace = true
+proptest.workspace = true

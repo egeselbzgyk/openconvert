@@ -3505,6 +3505,7 @@ dependencies = [
  "insta",
  "oc-core",
  "oc-model",
+ "proptest",
  "serde",
  "serde_json",
  "sha2 0.10.9",
