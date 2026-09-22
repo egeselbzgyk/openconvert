@@ -3426,3 +3426,22 @@ prompt, and what it answered, by hash. Additive, so `ir_version` does not move (
 `"fallback": null` twice.
 Evidence: `gate_d_records_fallback_in_decision_log`, `an_accepted_answer_is_recorded_as_the_models`.
 Affects: IR_SKETCH (`Decision`, elaborated), `oc-model::decision`, `oc-ai::gates::fallback`.
+
+## 2026-09-22 · The escalation predicates live in `oc-core`, and one bound is already wrong · Phase 8
+Context: test 8.16 wants RT C4's six predicates pure and table-tested; Phase 10 plans
+`oc-structure/src/escalate.rs` to call them with the evidence `structure` measures, and the
+dehyphenation predicate belongs to `oc-text`. Neither crate may depend on `oc-ai`.
+Decision: the predicates are `oc_core::escalation` — the crate ARCHITECTURE §3.1 already gives
+"escalation" to, and one every evidence-owning stage already depends on. Each is a pure function
+of an evidence struct and the thresholds, returning `Verdict::{Fires, Abstains}` with a reason a
+report can carry. Gathering the evidence stays with the stage; judging it is this module's.
+Found on the way: comparing the `f32` short-line ratio against the `f64` threshold by widening
+the ratio puts a block exactly on the closed lower bound outside it — `f64::from(0.35f32)` is
+0.3499999… — so a block with 7 of 20 short lines reads as "full lines". The predicate compares in
+`f32`, and the table's lower-bound row fails with the widening restored (mutation-checked).
+**`oc-structure::quotes::classify_indented` has the same widening and so the same off-by-one-ulp
+bound**: at exactly `verse.short_line_ratio_min` it resolves `BlockQuote` instead of
+`Ambiguous`. Recorded, not fixed — Phase 4 code outside this item; Phase 10 replaces that
+comparison with a call to `oc_core::escalation::verse_quote`.
+Evidence: `escalation_predicates_are_pure_and_unit_tested`.
+Affects: ARCHITECTURE §3.1 and §6.1, `oc-core::escalation`, `oc-structure::quotes` (open).

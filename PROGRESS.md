@@ -7,8 +7,8 @@ CURRENT_PHASE: 7.5 — and 8, in parallel, on the `worktree-phase8` branch
 CURRENT_ITEM: 7.5.3 — the defect inventory over the whole corpus, and the timeout class
               it found. 9 of 104 documents are unmeasured; the inventory run was
               stopped by system memory pressure.
-              P8.9 — the six escalation predicates, in `oc-core` (Phase 8, `worktree-phase8`;
-              see "Phase 8 — in parallel")
+              P8.10 — no socket dependency, the CI wiring, the Definition of Done (Phase 8,
+              `worktree-phase8`; see "Phase 8 — in parallel")
 LAST_UPDATED: 2026-09-22
 
 ---
@@ -267,7 +267,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P8.6** the cache key and the file cache — row 8.10 (+ 5)
 - [x] **P8.7** transport, the OpenAI-compatible client, the stub server — A8.1 end to end (+ 7)
 - [x] **P8.8** cassettes and replay — row 8.11 (+ 5)
-- [ ] **P8.9** the six escalation predicates, in `oc-core` — row 8.16
+- [x] **P8.9** the six escalation predicates, in `oc-core` — row 8.16
 - [ ] **P8.10** no socket dependency, the CI wiring, the Definition of Done — row 8.15
 
 What a fresh session needs, in the order it matters:
@@ -316,6 +316,11 @@ What a fresh session needs, in the order it matters:
   stub, `model_id = "stub"`; regenerate with `OC_AI_RECORD_SEEDS=1 cargo nextest run -p oc-ai -E
   'test(seeds)'` only after a prompt-version bump, and review the diff. A miss names the nearest
   recording and the byte where the questions diverge.
+- **The six escalation predicates are `oc_core::escalation`** (pure: evidence struct + `T` →
+  `Verdict::{Fires, Abstains}`), where `oc-structure` and `oc-text` can call them in Phase 10.
+  **Open, for Phase 10:** `oc-structure::quotes::classify_indented` widens the `f32` short-line
+  ratio to `f64` and so reads a block exactly on `verse.short_line_ratio_min` as a quotation
+  instead of ambiguous (`docs/DECISIONS_LOG.md`, 2026-09-22).
 - **The worked examples of A.3 are `crates/oc-ai/tests/common/mod.rs`** and are the seeds for the
   committed cassettes (P8.8). "One cassette per task per fixture" is read as one per task per
   *named payload*: a payload rendered from a Typst fixture needs Phase 10's inventory builders.
@@ -1233,3 +1238,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-22  P8.5      oc-ai: one call budget per book, W_LLM_BUDGET_EXHAUSTED, unasked decisions (8.13 + 2)  3af6cef
 2026-09-22  P8.6      oc-ai: the cache key - one rule for cache and cassettes - and the file cache (8.10 + 5)  e1a7b8a
 2026-09-22  P8.7      oc-ai: one OpenAI-compatible client over a Transport; the adversarial stub (+ 7)  cc95e87
+2026-09-22  P8.8      oc-ai: cassettes at the provider seam, replay exact, four seeds (8.11 + 5)  6294cc6
