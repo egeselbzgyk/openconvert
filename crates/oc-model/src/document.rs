@@ -10,7 +10,7 @@
 //! [`Document::dangling_references`] is that check, stated once here rather than separately
 //! in `document`, in the Tier-1 validator and in the emitter.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::decision::Decision;
 use crate::doc::{Content, Figure, Metadata, Note, PageBreak, Section, Table, Warning};
@@ -49,7 +49,7 @@ impl DocClass {
 }
 
 /// A document preset: a named partial override map over `thresholds.toml` keys (D13.11).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PresetName {
     /// Resolved from [`DocClass`] at the `document` stage. Never the value a finished

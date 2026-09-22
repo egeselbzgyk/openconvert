@@ -161,6 +161,32 @@ packed by each document's previous run time; strip `\r` from Python-written chun
 writes CRLF, and every name carries it), and give the child `< /dev/null` or it swallows the list.
 Check `rc` and output sizes before believing a run: one "complete" run here had never executed.
 
+## Phase 12 — in progress (part A)
+
+Built on branch `phase/12-desktop-ui` (worktree `/home/user/wt/phase12`) while Phase 9 runs on its
+own branch. **Part A** is every Phase 12 item that does not need Phase 9 (model manager,
+`ModelReadiness`, process groups/job objects) or Phase 11 (BYO providers). **Part B**, after 9 and
+11 merge, is listed at the end of this section. Phase 12 is **not** done until part B is.
+
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P12.1** the engine takes one argument: `oc_core::jobspec` validates against the committed
+      `schemas/job-spec.v1.json` (walked, not transcribed; fails closed on an unknown keyword);
+      `openconvert <JOB.json>` resolves to the same `ConvertJob` as `convert`; `E_JOBSPEC` exit 2,
+      `E_OUTPUT_EXISTS`, `E_INPUT_CHANGED`; `job` and `done{report_path}` events (+ 15 tests)
+- [ ] **P12.2** real progress from the engine: the twelve stage names, `progress` coalesced, a
+      `heartbeat` thread, cancel on stdin → `done{cancelled}` exit 3, no `.oc-tmp-*`
+- [ ] **P12.3** the desktop supervisor: `engine.rs` / `fs_scope.rs` — rows 12.1, 12.2, 12.6, 12.17
+- [ ] **P12.4** the queue — row 12.7; drop filtering (PDFs added, every other file named)
+- [ ] **P12.5** webview privacy: `capabilities/default.json`, the shipped CSP — row 12.13
+- [ ] **P12.6** UI foundation: Svelte 5, the ported styles, inlined icons, EN/DE/TR, warnings from
+      the engine's templates — rows 12.3, 12.8, 12.9
+- [ ] **P12.7** the job store: events → rows, heartbeat watchdog, cancel states — rows 12.4, 12.5
+- [ ] **P12.8** the screens: queue, result, report, preview, settings, first run, blocking errors
+- [ ] **P12.9** metadata and TOC overrides — rows 12.10, 12.11
+- [ ] **P12.10** Playwright under the shipped CSP — rows 12.14 (keyboard), 12.15, 12.16
+- [ ] **P12.11** CI wiring, the signing dry-run workflow (row 12.14 signing, unverified here)
+
 ## Phase 8 — built on `worktree-phase8`, merged 2026-09-23
 
 Phase 8 (AI abstraction, no real model) was built on its own branch while Phase 7.5 ran on

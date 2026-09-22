@@ -10,6 +10,7 @@ mod cmd_convert;
 mod cmd_diff_stage;
 mod cmd_dump_stage;
 mod cmd_inspect;
+mod cmd_job;
 mod cmd_validate;
 mod control;
 
@@ -46,6 +47,11 @@ fn run() -> ExitCode {
             let mut events =
                 EventSink::new(std::io::stderr().lock(), convert.progress == Progress::Json);
             cmd_convert::run(&convert, &mut events)
+        }
+        Ok(Command::Job(path)) => {
+            // A job spec's only reader is a supervisor, so the channel is always on.
+            let mut events = EventSink::new(std::io::stderr().lock(), true);
+            cmd_job::run(&path, &mut events)
         }
         Ok(Command::Validate(validate)) => {
             let mut events = EventSink::new(

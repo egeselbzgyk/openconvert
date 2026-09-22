@@ -13,17 +13,78 @@ use oc_core::exit::ExitCode;
 use oc_core::thresholds::T;
 use oc_epub::EpubOptions;
 use oc_pdf::backend::PdfBackend;
+use oc_pdf::inspect::PdfOpen;
 use oc_pdf::pdfium::PdfiumBackend;
 
-use crate::cli::ConvertArgs;
-use openconvert::convert::{convert_bytes, ConvertOptions};
+use crate::cli::{ConvertArgs, Progress};
+use openconvert::convert::{convert, ConvertOptions};
 
-const E_PDFIUM: &str = "E_PDFIUM_ABI";
+pub(crate) const E_PDFIUM: &str = "E_PDFIUM_ABI";
 const E_INPUT: &str = "E_INPUT";
+/// The job spec named an input whose bytes are not the ones it hashed.
+const E_INPUT_CHANGED: &str = "E_INPUT_CHANGED";
 const E_PDF: &str = "E_PDF";
+const E_PASSWORD: &str = "E_PASSWORD_REQUIRED";
+const E_LIMIT: &str = "E_LIMIT_EXCEEDED";
 const E_OUTPUT: &str = "E_OUTPUT";
+/// The output exists and the job did not ask for it to be replaced.
+const E_OUTPUT_EXISTS: &str = "E_OUTPUT_EXISTS";
 const E_CONVERT: &str = "E_CONVERT";
 const E_REPORT: &str = "E_REPORT";
+
+/// One conversion, however it was asked for: from `convert`'s flags or from a job spec.
+///
+/// The two front ends resolve to this and nothing downstream knows which one it was — which is
+/// what "one code path serves GUI, CLI, CI and benchmarks" means in practice (D13.1).
+#[derive(Clone, Debug)]
+pub struct ConvertJob {
+    pub input: PathBuf,
+    pub output: PathBuf,
+    pub report: PathBuf,
+    /// Replace an existing output. The CLI always has; a job spec says so explicitly, and the
+    /// app never does — it picks a free name instead (the design's "never overwrite" rule).
+    pub overwrite: bool,
+    /// The input's SHA-256 as the job writer saw it; a mismatch means the file changed between
+    /// the drop and the conversion.
+    pub expected_sha256: Option<String>,
+    pub preset: oc_model::document::PresetName,
+    pub language: Option<oc_model::lang::LangTag>,
+    pub password: Option<String>,
+    pub modified: Option<String>,
+    pub locale: oc_core::warnings::Locale,
+    pub limits: oc_core::limits::Limits,
+    pub job_id: Option<String>,
+    /// NDJSON events on stderr. Always true for a job spec, whose only reader is a supervisor.
+    pub json_events: bool,
+}
+
+impl ConvertJob {
+    /// `convert`'s flags, resolved against the documented defaults (§2.1).
+    pub fn from_args(args: &ConvertArgs) -> Self {
+        let output = args
+            .output
+            .clone()
+            .unwrap_or_else(|| default_output(&args.input));
+        Self {
+            input: args.input.clone(),
+            report: args
+                .report
+                .clone()
+                .unwrap_or_else(|| default_report(&output)),
+            output,
+            overwrite: true,
+            expected_sha256: None,
+            preset: args.preset,
+            language: args.language.clone(),
+            password: args.password.clone(),
+            modified: args.modified.clone(),
+            locale: args.locale,
+            limits: oc_core::limits::Limits::default(),
+            job_id: None,
+            json_events: args.progress == Progress::Json,
+        }
+    }
+}
 
 /// Run the subcommand, returning the process exit code.
 pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode {
@@ -34,7 +95,26 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
             return ExitCode::Usage;
         }
     };
+    hello(&backend, events);
+    run_job(&ConvertJob::from_args(args), &backend, events)
+}
 
+/// The `hello` event: always the first line of a run (§2.3).
+pub(crate) fn hello<W: Write>(backend: &PdfiumBackend, events: &mut EventSink<W>) {
+    events.hello(
+        env!("CARGO_PKG_VERSION"),
+        oc_model::IR_VERSION,
+        &backend.version().version,
+    );
+}
+
+/// Convert one resolved job with a bound backend. `hello` has already been sent.
+pub(crate) fn run_job<W: Write>(
+    job: &ConvertJob,
+    backend: &PdfiumBackend,
+    events: &mut EventSink<W>,
+) -> ExitCode {
+    let args = job;
     let bytes = match std::fs::read(&args.input) {
         Ok(bytes) => bytes,
         Err(error) => {
@@ -42,11 +122,31 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
             return ExitCode::Usage;
         }
     };
+    if let Some(expected) = &job.expected_sha256 {
+        let actual = openconvert::convert::sha256_hex(&bytes);
+        if &actual != expected {
+            events.fatal(
+                E_INPUT_CHANGED,
+                &format!(
+                    "{} has SHA-256 {actual}, the job spec expected {expected}",
+                    args.input.display()
+                ),
+            );
+            return ExitCode::Usage;
+        }
+    }
 
-    let output = args
-        .output
-        .clone()
-        .unwrap_or_else(|| default_output(&args.input));
+    let output = job.output.clone();
+    if !job.overwrite && output.exists() {
+        events.fatal(
+            E_OUTPUT_EXISTS,
+            &format!(
+                "{} exists and the job does not allow replacing it",
+                output.display()
+            ),
+        );
+        return ExitCode::Usage;
+    }
 
     let options = ConvertOptions {
         filename: args
@@ -65,8 +165,27 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
         },
     };
 
+    let sha256 = openconvert::convert::sha256_hex(&bytes);
+    let pdf = match backend.open_with_limits(&bytes, args.password.as_deref(), &job.limits) {
+        Ok(pdf) => pdf,
+        Err(error) => {
+            let (code, exit) = open_failure(&error);
+            events.fatal(code, &error.to_string());
+            return exit;
+        }
+    };
+    events.emit(
+        "job",
+        serde_json::json!({
+            "job_id": job.job_id,
+            "input_sha256": sha256,
+            "pages": pdf.page_count(),
+            "phase": "started",
+        }),
+    );
+
     events.stage("convert", "begin");
-    let conversion = match convert_bytes(&backend, &bytes, args.password.as_deref(), &options, &T) {
+    let conversion = match convert(pdf.as_ref(), &sha256, &options, &T) {
         Ok(conversion) => conversion,
         Err(error) => {
             let code = match &error {
@@ -74,7 +193,6 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
                 _ => E_CONVERT,
             };
             events.fatal(code, &error.to_string());
-            eprintln!("error: {error}");
             return ExitCode::Failed;
         }
     };
@@ -91,10 +209,7 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
 
     // The report is written **before** the atomic rename, so a report exists even for a conversion
     // that then fails to place its output (PIPELINE §13).
-    let report_path = args
-        .report
-        .clone()
-        .unwrap_or_else(|| default_report(&output));
+    let report_path = job.report.clone();
     let report = openconvert::report::report(
         &conversion,
         openconvert::report::ReportInput {
@@ -109,20 +224,17 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
         Ok(json) => {
             if let Err(error) = std::fs::write(&report_path, json) {
                 events.fatal(E_REPORT, &format!("{}: {error}", report_path.display()));
-                eprintln!("error: {}: {error}", report_path.display());
                 return ExitCode::Failed;
             }
         }
         Err(error) => {
             events.fatal(E_REPORT, &error.to_string());
-            eprintln!("error: the report could not be serialised: {error}");
             return ExitCode::Failed;
         }
     }
 
     if let Err(error) = write_atomically(&output, conversion.built.bytes.as_slice()) {
         events.fatal(E_OUTPUT, &format!("{}: {error}", output.display()));
-        eprintln!("error: {}: {error}", output.display());
         return ExitCode::Failed;
     }
 
@@ -130,7 +242,7 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
     // NDJSON channel: with `--progress json` stderr is one JSON object per line and a line of prose
     // in it would break every reader (§2.3). The GUI localises the codes itself (R10 §6.20); this
     // is the same templates serving the other front end.
-    if !matches!(args.progress, crate::cli::Progress::Json) {
+    if !job.json_events {
         for warning in &conversion.document.warnings {
             match oc_core::warnings::render(args.locale, warning.code, &warning.args) {
                 Some(text) => eprintln!("{}: {text}", severity_name(warning.severity)),
@@ -145,15 +257,32 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
     // too rather than reporting success (D13.7). Still exit 0: the book exists and the report is
     // where the verdict lives, and a script that treated "slightly invalid" as "no output" would
     // throw away a usable book.
-    if report.status == openconvert::report::Status::Invalid {
+    if report.status == openconvert::report::Status::Invalid && !job.json_events {
         eprintln!(
             "warning: the container is not valid: see {}",
             report_path.display()
         );
     }
 
-    events.done_with("ok", Some(&output.to_string_lossy()));
+    events.done_job(
+        "ok",
+        &report_path.to_string_lossy(),
+        Some(&output.to_string_lossy()),
+    );
     ExitCode::Ok
+}
+
+/// The fatal code and exit status for a document that would not open.
+///
+/// A password and a limit are both things the user can act on — the app prompts for the one and
+/// names the other — so they get codes of their own, the same ones `inspect` and `dump-stage`
+/// use, and exit 2: nothing was attempted. Anything else is a PDF this engine cannot read.
+fn open_failure(error: &oc_pdf::error::PdfError) -> (&'static str, ExitCode) {
+    match error {
+        oc_pdf::error::PdfError::PasswordRequired => (E_PASSWORD, ExitCode::Usage),
+        oc_pdf::error::PdfError::LimitExceeded(_) => (E_LIMIT, ExitCode::Usage),
+        _ => (E_PDF, ExitCode::Failed),
+    }
 }
 
 /// `<output>.report.json` (§2.1).

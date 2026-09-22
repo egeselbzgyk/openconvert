@@ -3549,3 +3549,26 @@ bound**: at exactly `verse.short_line_ratio_min` it resolves `BlockQuote` instea
 comparison with a call to `oc_core::escalation::verse_quote`.
 Evidence: `escalation_predicates_are_pure_and_unit_tested`.
 Affects: ARCHITECTURE §3.1 and §6.1, `oc-core::escalation`, `oc-structure::quotes` (open).
+
+## 2026-09-23 · The engine's one-argument form, and what it refuses · Phase 12
+Context: DECISIONS D13.2 says "the GUI passes one argument: the job-spec path"; §2.1 of the plan
+also lists `convert --job <PATH>` "when present it is the ONLY other arg allowed", which is three
+arguments. §2.2 says the engine validates the spec against `schemas/job-spec.v1.json`.
+Decision: the engine recognises **a lone argument naming a `.json` file** as a job spec
+(`openconvert <JOB.json>`); DECISIONS wins over the plan's `--job` spelling, which is not
+implemented. The lone-argument rule keeps a mistyped subcommand a usage error rather than a spec
+that could not be read. The spec is validated by `oc_core::jobspec`, which **walks the committed
+schema file** (compiled in) rather than re-stating its patterns and minimums in Rust, and fails
+closed on a schema keyword it does not implement; the app and the engine run the same function.
+A valid spec field the engine does not act on yet (`ai.enabled`, `threshold_overrides`,
+`dump_stages`, and `overrides_path` until P12.9) is **refused by name**, never ignored: ignoring it
+would report success on a conversion the user asked for differently. `output.overwrite = false`
+(the schema default) refuses an existing output with `E_OUTPUT_EXISTS`, exit 2 — the app picks a
+free "name (2).epub" before writing the spec (design decision, `result.html` §5); the CLI keeps
+replacing as it always has. `input.sha256`, when given, must match (`E_INPUT_CHANGED`, exit 2).
+A document that needs a password or exceeds a limit is `E_PASSWORD_REQUIRED` / `E_LIMIT_EXCEEDED`
+with exit 2 from `convert` too, the codes `inspect` and `dump-stage` already use, so the app can
+prompt or name the limit. `done` now carries `report_path` (§2.3), and prose no longer follows a
+`fatal` on stderr when stderr is the NDJSON channel.
+Evidence: `crates/oc-core/src/jobspec.rs` tests; `crates/openconvert/tests/job_spec.rs`.
+Affects: IMPLEMENTATION_PLAN §2.1 (`--job` not implemented), §2.2, `oc-core::jobspec`, `openconvert`.

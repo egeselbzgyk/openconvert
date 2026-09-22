@@ -71,6 +71,19 @@ impl<W: Write> EventSink<W> {
         );
     }
 
+    /// The `done` event of a conversion: its status, where the report is, and the output when
+    /// one was written (§2.3). Bulk data never crosses the pipe; its paths do.
+    pub fn done_job(&mut self, status: &str, report_path: &str, output_path: Option<&str>) {
+        self.emit(
+            "done",
+            serde_json::json!({
+                "status": status,
+                "report_path": report_path,
+                "output_path": output_path,
+            }),
+        );
+    }
+
     /// A `stage` event. `phase` is `begin` or `end`.
     pub fn stage(&mut self, name: &str, phase: &str) {
         self.emit("stage", serde_json::json!({ "name": name, "phase": phase }));

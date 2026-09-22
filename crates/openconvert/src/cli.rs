@@ -24,6 +24,9 @@ pub enum Command {
     Inspect(InspectArgs),
     DumpStage(DumpStageArgs),
     DiffStage(DiffStageArgs),
+    /// One job-spec path and nothing else: how the desktop app runs a conversion (D13.2,
+    /// RT B15). Everything the job needs is in the file.
+    Job(PathBuf),
     /// `--help` or `--version`: print and exit successfully.
     Print(String),
 }
@@ -149,8 +152,12 @@ usage:
                                   [--progress none|json] [--max-pages <N>]
   openconvert diff-stage <STAGE> <INPUT.pdf> [--password <STRING>]
                                   [--progress none|json] [--max-pages <N>]
+  openconvert <JOB.json>
   openconvert --version
   openconvert --help
+
+  <JOB.json>           a job spec (schemas/job-spec.v1.json) as the only argument: how the
+                       desktop app runs a conversion. Events are always NDJSON on stderr.
 
   --json               machine-readable report on stdout
   --pages <RANGE>      e.g. 1-10,20 (one-based, as printed)
@@ -177,6 +184,15 @@ usage:
 
 /// Parse the arguments after the program name.
 pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, CliError> {
+    let args: Vec<String> = args.into_iter().collect();
+    // The GUI's form: exactly one argument, a job spec (D13.2). Recognised by being the only
+    // argument and naming a `.json` file, so that a mistyped subcommand is still reported as
+    // one rather than as a job spec that could not be read.
+    if let [only] = args.as_slice() {
+        if is_job_spec_path(only) {
+            return Ok(Command::Job(PathBuf::from(only)));
+        }
+    }
     let mut args = args.into_iter().peekable();
 
     let first = args.next().ok_or(CliError::NoSubcommand)?;
@@ -251,6 +267,14 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, CliErro
         }
         _ => Err(CliError::InputCount),
     }
+}
+
+/// Whether a lone argument names a job spec rather than a subcommand or a flag.
+fn is_job_spec_path(arg: &str) -> bool {
+    !arg.starts_with('-')
+        && std::path::Path::new(arg)
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
 }
 
 /// Parse `convert <INPUT.pdf>`, having already consumed the subcommand.

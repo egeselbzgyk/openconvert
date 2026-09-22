@@ -9,6 +9,7 @@ pub mod conservation_diff;
 pub mod escalation;
 pub mod events;
 pub mod exit;
+pub mod jobspec;
 pub mod ledger_check;
 pub mod limits;
 pub mod progress;
