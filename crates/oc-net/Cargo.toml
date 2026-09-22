@@ -14,5 +14,6 @@ oc-ai = { path = "../oc-ai", version = "0.1.0" }
 # CDLA-Permissive-2.0 licence is not on D15's allow-list - see docs/DECISIONS_LOG.md.
 sha2.workspace = true
 serde.workspace = true
+toml.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

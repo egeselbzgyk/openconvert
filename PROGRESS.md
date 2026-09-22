@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 9
-CURRENT_ITEM: 9.1 — not started. Phase 8 is complete and merged (2026-09-23); the maintainer
-              asked to stop at the merge. Phase 7.5 is parked: see its section below.
+CURRENT_ITEM: P9.2 — the downloader: allowlist, streaming SHA-256, LICENSE/NOTICE, atomic
+              rename (rows 9.3–9.6). Built on branch `phase/09-local-model`.
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -61,6 +61,32 @@ LAST_UPDATED: 2026-09-23
 - [ ] **Phase 13** — OCR  *(VD-g must close)*
 - [ ] **Phase 14** — Security hardening
 - [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
+
+## Phase 9 — on branch `phase/09-local-model`
+
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P9.1** the registry: `oc_net::registry` — rows 9.1, 9.2
+- [ ] **P9.2** the downloader: allowlist, streaming SHA-256, LICENSE/NOTICE, atomic — rows 9.3–9.6
+- [ ] **P9.3** the store (`list`, `remove`) and `HttpTransport` — row 9.19
+- [ ] **P9.4** `oc-core` has no net dependency — row 9.7
+- [ ] **P9.5** sidecar arguments and port picking — rows 9.12, 9.14
+- [ ] **P9.6** the owned server's lifecycle — rows 9.8–9.11, 9.13
+- [ ] **P9.7** `openconvert model pull|list|remove` — row 9.18
+- [ ] **P9.8** live tests behind `live-llm`, `W_LLM_PREFIX_COLD` — rows 9.15, 9.16
+- [ ] **P9.9** `eval/model_gate.py`, the default-model gate, `docs/MODEL_GATE.md` — rows 9.17, 9.20
+- [ ] **P9.10** the Definition of Done, CHANGELOG, merge
+
+What a fresh session needs:
+
+- **This sandbox's egress policy refuses `huggingface.co` and `github.com` release downloads
+  (HTTP 403 on CONNECT).** The proxy's README says not to route around a blocked host, so this
+  phase does not read Hugging Face's API or fetch any model file or llama.cpp release. That means
+  the registry fill (real `revision`/`sha256`/`size_bytes`), the pinned llama-server asset hash, the
+  A9.1 download and the live tests 9.15/9.16 are **unverified here**. Tests use synthetic hashes.
+- **TLS roots are option (a):** `ureq` with `rustls-no-provider` + `platform-verifier`, and
+  `rustls` with the `ring` provider. `cargo deny --all-features check` is clean and `webpki-roots`
+  is in no target's graph (P9.2 adds the dependency).
 
 ## Current work item
 
