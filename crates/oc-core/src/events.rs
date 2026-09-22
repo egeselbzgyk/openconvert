@@ -8,6 +8,8 @@
 
 use std::io::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
+use std::time::Duration;
 
 use serde::Serialize;
 
@@ -25,10 +27,12 @@ const TRUNCATION_NOTICE: &str = "event truncated";
 /// Emits events to a writer, numbering them as it goes.
 ///
 /// `seq` is strictly monotone from zero across the whole run, so a consumer can detect a
-/// dropped line. The counter is atomic because progress will be reported from `rayon`
-/// workers once per-page parallelism arrives.
+/// dropped line. The counter is atomic and the writer is behind a lock because events come from
+/// more than one thread: the heartbeat has a thread of its own (§2.3), and progress will be
+/// reported from `rayon` workers once per-page parallelism arrives. Numbering and writing happen
+/// under the same lock, so the lines appear in `seq` order.
 pub struct EventSink<W: Write> {
-    writer: W,
+    writer: Mutex<W>,
     seq: AtomicU64,
     enabled: bool,
 }
@@ -38,14 +42,19 @@ impl<W: Write> EventSink<W> {
     /// a no-op, so call sites do not have to ask.
     pub fn new(writer: W, enabled: bool) -> Self {
         Self {
-            writer,
+            writer: Mutex::new(writer),
             seq: AtomicU64::new(0),
             enabled,
         }
     }
 
+    /// Whether events are written at all (`--progress json`, or a job spec).
+    pub fn enabled(&self) -> bool {
+        self.enabled
+    }
+
     /// The `hello` event. Always the first line (§2.3).
-    pub fn hello(&mut self, engine_version: &str, ir_version: u32, pdfium_version: &str) {
+    pub fn hello(&self, engine_version: &str, ir_version: u32, pdfium_version: &str) {
         self.emit(
             "hello",
             serde_json::json!({
@@ -59,12 +68,12 @@ impl<W: Write> EventSink<W> {
     }
 
     /// The `done` event. Always the last line of a run that reaches an end.
-    pub fn done(&mut self, status: &str) {
+    pub fn done(&self, status: &str) {
         self.emit("done", serde_json::json!({ "status": status }));
     }
 
     /// The `done` event of a run that produced a file (D13.2).
-    pub fn done_with(&mut self, status: &str, output_path: Option<&str>) {
+    pub fn done_with(&self, status: &str, output_path: Option<&str>) {
         self.emit(
             "done",
             serde_json::json!({ "status": status, "output_path": output_path }),
@@ -73,7 +82,7 @@ impl<W: Write> EventSink<W> {
 
     /// The `done` event of a conversion: its status, where the report is, and the output when
     /// one was written (§2.3). Bulk data never crosses the pipe; its paths do.
-    pub fn done_job(&mut self, status: &str, report_path: &str, output_path: Option<&str>) {
+    pub fn done_job(&self, status: &str, report_path: &str, output_path: Option<&str>) {
         self.emit(
             "done",
             serde_json::json!({
@@ -85,12 +94,12 @@ impl<W: Write> EventSink<W> {
     }
 
     /// A `stage` event. `phase` is `begin` or `end`.
-    pub fn stage(&mut self, name: &str, phase: &str) {
+    pub fn stage(&self, name: &str, phase: &str) {
         self.emit("stage", serde_json::json!({ "name": name, "phase": phase }));
     }
 
     /// A `warning` event: a code and its arguments, never a sentence — the GUI localises.
-    pub fn warning(&mut self, code: &str, severity: &str, args: serde_json::Value) {
+    pub fn warning(&self, code: &str, severity: &str, args: serde_json::Value) {
         self.emit(
             "warning",
             serde_json::json!({ "code": code, "severity": severity, "args": args }),
@@ -110,7 +119,7 @@ impl<W: Write> EventSink<W> {
     /// When the NDJSON channel is off the same code and message go out as one human line,
     /// on the same stream, because stderr is not the NDJSON channel then and is free to
     /// carry prose. That is the rule `--locale` already follows for warnings.
-    pub fn fatal(&mut self, code: &str, message: &str) {
+    pub fn fatal(&self, code: &str, message: &str) {
         if self.enabled {
             self.emit(
                 "fatal",
@@ -121,15 +130,49 @@ impl<W: Write> EventSink<W> {
         // Deliberately not through `emit`: this is not an event, and it must not be
         // numbered, truncated at `MAX_EVENT_BYTES`, or silenced by the `enabled` flag that
         // is the whole reason it was invisible.
-        let _ = writeln!(self.writer, "error [{code}]: {message}");
-        let _ = self.writer.flush();
+        let mut writer = self.lock();
+        let _ = writeln!(writer, "error [{code}]: {message}");
+        let _ = writer.flush();
+    }
+
+    /// A `stage` event that ends a stage, with its wall-clock (§2.3's `elapsed_ms`).
+    pub fn stage_end(&self, name: &str, elapsed_ms: u64) {
+        self.emit(
+            "stage",
+            serde_json::json!({ "name": name, "phase": "end", "elapsed_ms": elapsed_ms }),
+        );
+    }
+
+    /// A `progress` event: `done` of `total` `unit`s of `stage` (§2.3).
+    pub fn progress(&self, stage: &str, done: u32, total: u32, unit: &str) {
+        self.emit(
+            "progress",
+            serde_json::json!({ "stage": stage, "done": done, "total": total, "unit": unit }),
+        );
+    }
+
+    /// A `heartbeat` event: "still alive", and nothing else (§2.3).
+    pub fn heartbeat(&self) {
+        self.emit("heartbeat", serde_json::json!({}));
+    }
+
+    /// The writer, recovering it from a thread that panicked while holding it.
+    ///
+    /// A poisoned lock means some thread died mid-line; the line may be torn, but refusing to
+    /// write the `fatal` or `done` that explains the death would be worse than a torn line.
+    fn lock(&self) -> std::sync::MutexGuard<'_, W> {
+        self.writer
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     /// Emit one event with the common envelope.
-    pub fn emit(&mut self, kind: &str, payload: serde_json::Value) {
+    pub fn emit(&self, kind: &str, payload: serde_json::Value) {
         if !self.enabled {
             return;
         }
+        // Numbered under the writer's lock, so `seq` order is line order.
+        let mut writer = self.lock();
         let seq = self.seq.fetch_add(1, Ordering::SeqCst);
         let mut line = serde_json::json!({
             "v": PROTOCOL_VERSION,
@@ -159,8 +202,40 @@ impl<W: Write> EventSink<W> {
         }
         // A consumer that has gone away is not this process's problem to report: the run
         // continues and the exit code still says what happened.
-        let _ = writeln!(self.writer, "{text}");
-        let _ = self.writer.flush();
+        let _ = writeln!(writer, "{text}");
+        let _ = writer.flush();
+    }
+}
+
+impl<W: Write + Send> EventSink<W> {
+    /// Run `work` while a heartbeat goes out every `interval` (§2.3, RT C2).
+    ///
+    /// The heartbeat is what lets a supervisor tell a slow stage from a hung process: a stage with
+    /// no natural count says nothing for as long as it runs, and silence is only a signal if
+    /// something is guaranteed to break it. It runs on its own thread for exactly that reason — a
+    /// heartbeat sent from the working thread would stop when the work hung, which is when it is
+    /// needed.
+    ///
+    /// **It stops before this returns**, so the caller's `done` or `fatal` is always the last
+    /// line. Stopping does not wait out the interval: the thread sleeps on a channel, and the
+    /// channel closing wakes it at once.
+    pub fn with_heartbeat<R>(&self, interval: Duration, work: impl FnOnce() -> R) -> R {
+        if !self.enabled {
+            return work();
+        }
+        let (stop, stopped) = std::sync::mpsc::channel::<()>();
+        std::thread::scope(|scope| {
+            scope.spawn(move || {
+                while let Err(std::sync::mpsc::RecvTimeoutError::Timeout) =
+                    stopped.recv_timeout(interval)
+                {
+                    self.heartbeat();
+                }
+            });
+            let result = work();
+            drop(stop);
+            result
+        })
     }
 }
 
@@ -216,12 +291,52 @@ mod tests {
         assert_eq!(event["v"], PROTOCOL_VERSION);
     }
 
+    /// RT C2: a heartbeat goes out while the work runs, and none after it returns, so `done`
+    /// stays the last line.
+    #[test]
+    fn the_heartbeat_beats_while_work_runs_and_stops_before_it_returns() {
+        let sink = EventSink::new(Vec::new(), true);
+        let answer = sink.with_heartbeat(Duration::from_millis(10), || {
+            std::thread::sleep(Duration::from_millis(80));
+            42
+        });
+        sink.done("ok");
+        assert_eq!(answer, 42);
+
+        let written = sink.writer.into_inner().expect("not poisoned");
+        let lines: Vec<serde_json::Value> = String::from_utf8(written)
+            .expect("UTF-8")
+            .lines()
+            .map(|line| serde_json::from_str(line).expect("JSON"))
+            .collect();
+        let beats = lines.iter().filter(|l| l["t"] == "heartbeat").count();
+        assert!(
+            beats >= 2,
+            "{beats} heartbeats in 80 ms at a 10 ms interval"
+        );
+        assert_eq!(lines.last().expect("lines")["t"], "done", "done is last");
+        for (expected, line) in lines.iter().enumerate() {
+            assert_eq!(
+                line["seq"], expected as u64,
+                "seq is line order across threads"
+            );
+        }
+    }
+
+    /// No channel, no thread: a silent sink's heartbeat is free.
+    #[test]
+    fn a_silent_sink_runs_the_work_without_a_heartbeat() {
+        let sink = EventSink::new(Vec::new(), false);
+        assert_eq!(sink.with_heartbeat(Duration::from_millis(1), || 7), 7);
+        assert!(sink.writer.into_inner().expect("not poisoned").is_empty());
+    }
+
     /// Telemetry stays optional. A `stage` event with the channel off writes nothing — the
     /// exemption is for the fatal alone, not a licence for every event to print.
     #[test]
     fn an_ordinary_event_stays_silent_when_the_channel_is_off() {
         let mut out = Vec::new();
-        let mut sink = EventSink::new(&mut out, false);
+        let sink = EventSink::new(&mut out, false);
         sink.stage("text", "begin");
         sink.done("ok");
 

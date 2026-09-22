@@ -3572,3 +3572,26 @@ prompt or name the limit. `done` now carries `report_path` (§2.3), and prose no
 `fatal` on stderr when stderr is the NDJSON channel.
 Evidence: `crates/oc-core/src/jobspec.rs` tests; `crates/openconvert/tests/job_spec.rs`.
 Affects: IMPLEMENTATION_PLAN §2.1 (`--job` not implemented), §2.2, `oc-core::jobspec`, `openconvert`.
+
+## 2026-09-23 · What the engine's `stage` events cover, and where cancel is checked · Phase 12
+Context: Phase 12 detail 3 has the app render only what the engine reports, and UI_UX §2.2 maps
+the twelve stage names to six labels. `convert` emitted one pseudo-stage, `convert`, and nothing
+else; it did not listen on stdin at all, so a cancel from the app could not have worked.
+Decision: `convert_observed` reports the stages it runs, by their IR names, and only those —
+`inspect` and `paragraphs` are not run by the conversion driver today and are not invented. Two
+attributions are choices: the ornament rule's image hashes are reported as `structure`'s work
+(they are its evidence), and image decoding as `epub`'s (the first thing "Building" does). The
+repair host reports `epub`, `validate` and `repair` itself, so the loop's single call is three
+stages to the user, and `repair` appears only when a repair runs (UI_UX §2.2). Writing
+`report.json` is the `report` stage. `progress` is coalesced in the CLI's sink, not in the stages
+(ARCHITECTURE §8.3), at most `ipc.progress_max_per_sec` per stage and always including the last
+unit. The heartbeat runs on its own thread for the whole run and is stopped before `done`/`fatal`
+is written, so the final event stays the last line. A cancel is honoured at every stage boundary,
+between pages in `ingest`, between images when hashing and decoding, and once more before anything
+is written to the destination; past that point the answer is the book. Not yet checked inside
+`text`/`layout`/`structure` or inside one `build_epub` call: on the 300-page reference book the
+cancel lands in well under the 2 s deadline, but a single stage that runs longer than 2 s on a
+very large book would overrun it — Phase 14's per-stage deadlines share this flag and are where
+finer checks belong.
+Evidence: `crates/openconvert/tests/progress.rs`; `events::tests::the_heartbeat_beats_while_work_runs_and_stops_before_it_returns`.
+Affects: IMPLEMENTATION_PLAN §2.3, UI_UX §2.2, `openconvert::convert`, `oc-validate::repair::host`.

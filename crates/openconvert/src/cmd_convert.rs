@@ -7,6 +7,10 @@
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
+use oc_core::cancel::{Cancel, Outcome};
+use oc_core::progress::StagePhase;
 
 use oc_core::events::EventSink;
 use oc_core::exit::ExitCode;
@@ -17,7 +21,7 @@ use oc_pdf::inspect::PdfOpen;
 use oc_pdf::pdfium::PdfiumBackend;
 
 use crate::cli::{ConvertArgs, Progress};
-use openconvert::convert::{convert, ConvertOptions};
+use openconvert::convert::{convert_observed, ConvertError, ConvertOptions, Observe};
 
 pub(crate) const E_PDFIUM: &str = "E_PDFIUM_ABI";
 const E_INPUT: &str = "E_INPUT";
@@ -87,7 +91,7 @@ impl ConvertJob {
 }
 
 /// Run the subcommand, returning the process exit code.
-pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode {
+pub fn run<W: Write + Send>(args: &ConvertArgs, events: &EventSink<W>) -> ExitCode {
     let backend = match PdfiumBackend::bind() {
         Ok(backend) => backend,
         Err(error) => {
@@ -100,7 +104,7 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
 }
 
 /// The `hello` event: always the first line of a run (§2.3).
-pub(crate) fn hello<W: Write>(backend: &PdfiumBackend, events: &mut EventSink<W>) {
+pub(crate) fn hello<W: Write>(backend: &PdfiumBackend, events: &EventSink<W>) {
     events.hello(
         env!("CARGO_PKG_VERSION"),
         oc_model::IR_VERSION,
@@ -108,44 +112,112 @@ pub(crate) fn hello<W: Write>(backend: &PdfiumBackend, events: &mut EventSink<W>
     );
 }
 
+/// How a run ended, decided before the final event is written.
+///
+/// The final line — `done` or `fatal` — is written only after the heartbeat has stopped, so that it
+/// is always the last line on the channel (§2.3). The steps therefore return this instead of
+/// writing it.
+enum Ending {
+    Done {
+        report: PathBuf,
+        output: PathBuf,
+    },
+    Cancelled,
+    Fatal {
+        code: &'static str,
+        message: String,
+        exit: ExitCode,
+    },
+}
+
+fn fatal(code: &'static str, message: String, exit: ExitCode) -> Ending {
+    Ending::Fatal {
+        code,
+        message,
+        exit,
+    }
+}
+
 /// Convert one resolved job with a bound backend. `hello` has already been sent.
-pub(crate) fn run_job<W: Write>(
+///
+/// Listens on stdin for a cancel for the whole run, and sends a heartbeat every
+/// `ipc.heartbeat_secs` until the run has decided how it ends (D13.2).
+pub(crate) fn run_job<W: Write + Send>(
     job: &ConvertJob,
     backend: &PdfiumBackend,
-    events: &mut EventSink<W>,
+    events: &EventSink<W>,
 ) -> ExitCode {
+    let cancel = Cancel::new();
+    crate::control::listen(cancel.clone());
+    let interval = Duration::from_secs(u64::try_from(T.ipc.heartbeat_secs).unwrap_or(u64::MAX));
+
+    let ending = events.with_heartbeat(interval, || steps(job, backend, events, &cancel));
+    match ending {
+        Ending::Done { report, output } => {
+            events.done_job(
+                Outcome::Completed.status(),
+                &report.to_string_lossy(),
+                Some(&output.to_string_lossy()),
+            );
+            ExitCode::Ok
+        }
+        Ending::Cancelled => {
+            events.done(Outcome::Cancelled.status());
+            ExitCode::Cancelled
+        }
+        Ending::Fatal {
+            code,
+            message,
+            exit,
+        } => {
+            events.fatal(code, &message);
+            exit
+        }
+    }
+}
+
+/// Everything between `hello` and the final event.
+fn steps<W: Write + Send>(
+    job: &ConvertJob,
+    backend: &PdfiumBackend,
+    events: &EventSink<W>,
+    cancel: &Cancel,
+) -> Ending {
     let args = job;
     let bytes = match std::fs::read(&args.input) {
         Ok(bytes) => bytes,
         Err(error) => {
-            events.fatal(E_INPUT, &format!("{}: {error}", args.input.display()));
-            return ExitCode::Usage;
+            return fatal(
+                E_INPUT,
+                format!("{}: {error}", args.input.display()),
+                ExitCode::Usage,
+            )
         }
     };
+    let sha256 = openconvert::convert::sha256_hex(&bytes);
     if let Some(expected) = &job.expected_sha256 {
-        let actual = openconvert::convert::sha256_hex(&bytes);
-        if &actual != expected {
-            events.fatal(
+        if &sha256 != expected {
+            return fatal(
                 E_INPUT_CHANGED,
-                &format!(
-                    "{} has SHA-256 {actual}, the job spec expected {expected}",
+                format!(
+                    "{} has SHA-256 {sha256}, the job spec expected {expected}",
                     args.input.display()
                 ),
+                ExitCode::Usage,
             );
-            return ExitCode::Usage;
         }
     }
 
     let output = job.output.clone();
     if !job.overwrite && output.exists() {
-        events.fatal(
+        return fatal(
             E_OUTPUT_EXISTS,
-            &format!(
+            format!(
                 "{} exists and the job does not allow replacing it",
                 output.display()
             ),
+            ExitCode::Usage,
         );
-        return ExitCode::Usage;
     }
 
     let options = ConvertOptions {
@@ -165,13 +237,11 @@ pub(crate) fn run_job<W: Write>(
         },
     };
 
-    let sha256 = openconvert::convert::sha256_hex(&bytes);
     let pdf = match backend.open_with_limits(&bytes, args.password.as_deref(), &job.limits) {
         Ok(pdf) => pdf,
         Err(error) => {
             let (code, exit) = open_failure(&error);
-            events.fatal(code, &error.to_string());
-            return exit;
+            return fatal(code, error.to_string(), exit);
         }
     };
     events.emit(
@@ -184,19 +254,22 @@ pub(crate) fn run_job<W: Write>(
         }),
     );
 
-    events.stage("convert", "begin");
-    let conversion = match convert(pdf.as_ref(), &sha256, &options, &T) {
+    let progress = EventProgress::new(events);
+    let observe = Observe {
+        progress: &progress,
+        cancel,
+    };
+    let conversion = match convert_observed(pdf.as_ref(), &sha256, &options, &T, observe) {
         Ok(conversion) => conversion,
+        Err(ConvertError::Cancelled) => return Ending::Cancelled,
         Err(error) => {
             let code = match &error {
-                openconvert::convert::ConvertError::Pdf(_) => E_PDF,
+                ConvertError::Pdf(_) => E_PDF,
                 _ => E_CONVERT,
             };
-            events.fatal(code, &error.to_string());
-            return ExitCode::Failed;
+            return fatal(code, error.to_string(), ExitCode::Failed);
         }
     };
-    events.stage("convert", "end");
 
     // Every warning the conversion collected, as `code` + `args`. Phase 5 emitted the emitter's
     // codes with an empty argument object; the document now carries the arguments too, and a
@@ -207,35 +280,45 @@ pub(crate) fn run_job<W: Write>(
         events.warning(warning.code, severity_name(warning.severity), args);
     }
 
+    // The last boundary a cancel is honoured at: past it, the book is written and the answer is
+    // the book. Nothing has been written to the destination yet — neither the report nor the
+    // temporary — so a cancelled job leaves the directory as it found it.
+    if cancel.is_cancelled() {
+        return Ending::Cancelled;
+    }
+
     // The report is written **before** the atomic rename, so a report exists even for a conversion
     // that then fails to place its output (PIPELINE §13).
     let report_path = job.report.clone();
-    let report = openconvert::report::report(
-        &conversion,
-        openconvert::report::ReportInput {
-            filename: &options.filename,
-            pdfium_version: &backend.version().version,
-            producer_family: conversion.producer_family,
-            pages: page_count(&conversion),
-            page_classes: conversion.page_classes.clone(),
-        },
-    );
-    match openconvert::report::to_json(&report) {
-        Ok(json) => {
-            if let Err(error) = std::fs::write(&report_path, json) {
-                events.fatal(E_REPORT, &format!("{}: {error}", report_path.display()));
-                return ExitCode::Failed;
-            }
+    let written = oc_core::progress::timed(&progress, "report", || {
+        let report = openconvert::report::report(
+            &conversion,
+            openconvert::report::ReportInput {
+                filename: &options.filename,
+                pdfium_version: &backend.version().version,
+                producer_family: conversion.producer_family,
+                pages: page_count(&conversion),
+                page_classes: conversion.page_classes.clone(),
+            },
+        );
+        match openconvert::report::to_json(&report) {
+            Ok(json) => std::fs::write(&report_path, json)
+                .map(|()| report)
+                .map_err(|error| format!("{}: {error}", report_path.display())),
+            Err(error) => Err(error.to_string()),
         }
-        Err(error) => {
-            events.fatal(E_REPORT, &error.to_string());
-            return ExitCode::Failed;
-        }
-    }
+    });
+    let report = match written {
+        Ok(report) => report,
+        Err(message) => return fatal(E_REPORT, message, ExitCode::Failed),
+    };
 
     if let Err(error) = write_atomically(&output, conversion.built.bytes.as_slice()) {
-        events.fatal(E_OUTPUT, &format!("{}: {error}", output.display()));
-        return ExitCode::Failed;
+        return fatal(
+            E_OUTPUT,
+            format!("{}: {error}", output.display()),
+            ExitCode::Failed,
+        );
     }
 
     // The warnings, as sentences, for a person reading a terminal. Only when stderr is *not* the
@@ -264,12 +347,59 @@ pub(crate) fn run_job<W: Write>(
         );
     }
 
-    events.done_job(
-        "ok",
-        &report_path.to_string_lossy(),
-        Some(&output.to_string_lossy()),
-    );
-    ExitCode::Ok
+    Ending::Done {
+        report: report_path,
+        output,
+    }
+}
+
+/// Progress as NDJSON: `stage` edges as they happen, `progress` coalesced (D13.2).
+///
+/// Coalescing is the sink's job and not the stages' (ARCHITECTURE §8.3): a page loop reports every
+/// page, and this lets through at most `ipc.progress_max_per_sec` per stage per second — always
+/// including a stage's last unit, so a bar that reaches the end is never left short of it.
+struct EventProgress<'a, W: Write + Send> {
+    events: &'a EventSink<W>,
+    min_gap: Duration,
+    last: std::sync::Mutex<std::collections::BTreeMap<String, Instant>>,
+}
+
+impl<'a, W: Write + Send> EventProgress<'a, W> {
+    fn new(events: &'a EventSink<W>) -> Self {
+        let per_second = u32::try_from(T.ipc.progress_max_per_sec)
+            .unwrap_or(u32::MAX)
+            .max(1);
+        Self {
+            events,
+            min_gap: Duration::from_secs(1) / per_second,
+            last: std::sync::Mutex::new(std::collections::BTreeMap::new()),
+        }
+    }
+}
+
+impl<W: Write + Send> oc_core::progress::Progress for EventProgress<'_, W> {
+    fn advance(&self, stage: &str, index: u32, total: u32) {
+        let done = index.saturating_add(1);
+        let now = Instant::now();
+        let mut last = self
+            .last
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let due = last
+            .get(stage)
+            .is_none_or(|previous| now.duration_since(*previous) >= self.min_gap);
+        if due || done >= total {
+            last.insert(stage.to_owned(), now);
+            self.events.progress(stage, done, total, "pages");
+        }
+    }
+
+    fn stage(&self, name: &str, phase: StagePhase) {
+        match phase {
+            StagePhase::Begin => self.events.stage(name, "begin"),
+            StagePhase::End { elapsed_ms } => self.events.stage_end(name, elapsed_ms),
+        }
+    }
 }
 
 /// The fatal code and exit status for a document that would not open.

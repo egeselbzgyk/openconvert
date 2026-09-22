@@ -6,7 +6,9 @@
 
 use std::collections::BTreeMap;
 
+use oc_core::cancel::Cancel;
 use oc_core::ledger_check::{ConservationError, ReasonTotals};
+use oc_core::progress::{Progress, StagePhase};
 use oc_core::thresholds::Thresholds;
 use oc_epub::images::SourceImage;
 use oc_epub::{BuiltEpub, EpubOptions};
@@ -48,6 +50,27 @@ pub struct ConvertOptions {
 pub struct Timings(Vec<(&'static str, u64)>);
 
 impl Timings {
+    /// Run one stage as a user sees it: refuse to start it once cancelled, report its edges, and
+    /// time it (D13.2's `stage{name, phase, elapsed_ms}`).
+    fn observed<T, E>(
+        &mut self,
+        observe: Observe<'_>,
+        name: &'static str,
+        run: impl FnOnce() -> Result<T, E>,
+    ) -> Result<T, ConvertError>
+    where
+        ConvertError: From<E>,
+    {
+        observe.check()?;
+        observe.progress.stage(name, StagePhase::Begin);
+        let started = std::time::Instant::now();
+        let out = run();
+        let elapsed_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        self.0.push((name, elapsed_ms));
+        observe.progress.stage(name, StagePhase::End { elapsed_ms });
+        Ok(out?)
+    }
+
     /// Time one stage.
     fn stage<T, E>(
         &mut self,
@@ -102,6 +125,30 @@ pub enum ConvertError {
     Epub(#[from] EpubStageError),
     #[error(transparent)]
     ValidateRepair(#[from] ValidateRepairError),
+    /// Stopped on request. Not a failure: the answer the user asked for (§2.4, exit 3).
+    #[error("the conversion was cancelled")]
+    Cancelled,
+}
+
+/// Who is watching one conversion, and whether they have asked it to stop (D13.2).
+///
+/// A pair of references, because the two cross thread boundaries differently: progress is
+/// reported *from* this thread, cancellation is set *into* it from another (ARCHITECTURE §8.3).
+#[derive(Clone, Copy)]
+pub struct Observe<'a> {
+    pub progress: &'a dyn Progress,
+    pub cancel: &'a Cancel,
+}
+
+impl Observe<'_> {
+    /// Stop here if a cancel has been asked for. Called at every stage boundary and inside every
+    /// per-page and per-image loop, which is what keeps `done{cancelled}` inside two seconds.
+    fn check(&self) -> Result<(), ConvertError> {
+        if self.cancel.is_cancelled() {
+            return Err(ConvertError::Cancelled);
+        }
+        Ok(())
+    }
 }
 
 /// Convert one open document.
@@ -115,24 +162,57 @@ pub fn convert(
     options: &ConvertOptions,
     t: &Thresholds,
 ) -> Result<Conversion, ConvertError> {
+    let silent = oc_core::progress::Silent;
+    let never = Cancel::new();
+    convert_observed(
+        pdf,
+        source_sha256,
+        options,
+        t,
+        Observe {
+            progress: &silent,
+            cancel: &never,
+        },
+    )
+}
+
+/// [`convert`], reporting every stage's edges and every page to `observe.progress`, and
+/// stopping with [`ConvertError::Cancelled`] once `observe.cancel` is set.
+///
+/// The stage names are the twelve of IR_SKETCH, emitted only for stages this driver runs: a
+/// supervisor that shows "Reconstructing" is shown it because `layout` began, not because a timer
+/// said it probably had (UI_UX §2.2).
+pub fn convert_observed(
+    pdf: &dyn PdfDoc,
+    source_sha256: &str,
+    options: &ConvertOptions,
+    t: &Thresholds,
+    observe: Observe<'_>,
+) -> Result<Conversion, ConvertError> {
     let mut timings = Timings::default();
-    let input = timings.stage("ingest", || crate::input::page_inputs(pdf))?;
+    let input = timings.observed(observe, "ingest", || read_pages(pdf, observe))?;
     let mut totals = ReasonTotals::default();
 
-    let text = timings.stage("text", || text_stage(&input, &mut totals, t))?;
+    let text = timings.observed(observe, "text", || text_stage(&input, &mut totals, t))?;
     // Language detection is Phase 2's and is not wired into the stage driver yet, so the
     // configured tag is the one that is used; `LangTag::UND` is what a book gets when nobody
     // said. Guessing English would tell a screen reader to pronounce a German book in English.
     let language = options.language.clone().unwrap_or(LangTag::UND);
 
-    let furniture = timings.stage("furniture", || {
+    let furniture = timings.observed(observe, "furniture", || {
         furniture_stage(&text, language.clone(), &mut totals, t)
     })?;
-    let layout = timings.stage("layout", || layout_stage(&text, &furniture, &mut totals, t))?;
+    let layout = timings.observed(observe, "layout", || {
+        layout_stage(&text, &furniture, &mut totals, t)
+    })?;
 
     let images = document_images(&text);
     let extracted_images = u32::try_from(images.len()).unwrap_or(u32::MAX);
-    let hashes = image_hashes(pdf, &images, t);
+    // The ornament rule's hashes are `structure`'s evidence, so they are reported as its work.
+    observe.check()?;
+    observe.progress.stage("structure", StagePhase::Begin);
+    let structure_started = std::time::Instant::now();
+    let hashes = hash_images(pdf, &images, t, observe)?;
     let vectors = (0..pdf.page_count())
         .filter_map(|page| pdf.page_vectors(page).ok())
         .flatten()
@@ -165,6 +245,12 @@ pub fn convert(
     let structure = timings.stage("structure", || {
         structure_stage(&layout, &structure_input, &mut totals, t)
     })?;
+    observe.progress.stage(
+        "structure",
+        StagePhase::End {
+            elapsed_ms: u64::try_from(structure_started.elapsed().as_millis()).unwrap_or(u64::MAX),
+        },
+    );
 
     let producer_family = oc_pdf::producer::producer_family(
         doc_info.producer.as_deref(),
@@ -205,7 +291,7 @@ pub fn convert(
     ledger.push_stage(&layout.delta, layout.check.clone());
     ledger.push_stage(&structure.delta, structure.check.clone());
 
-    let document = timings.stage("document", || {
+    let document = timings.observed(observe, "document", || {
         document_stage(
             &structure,
             DocumentInput {
@@ -226,11 +312,16 @@ pub fn convert(
         )
     })?;
 
-    let sources = decode_images(pdf, &images);
+    // The images are decoded for `epub`, and reported as its work: the first thing a user sees of
+    // "Building" on an illustrated book is this loop.
+    observe.check()?;
+    let sources = decode_images(pdf, &images, observe)?;
 
     // `epub`, `validate` and `repair` are one call, because the loop owns the emission: each of its
     // iterations is one regeneration plus one validation pass, and a caller that emitted once for
     // the conservation check and again for the loop would encode every image in the book twice.
+    // The host reports each of the three as it runs them, so the stage events stay separate.
+    observe.check()?;
     let loop_result = timings.stage("epub+validate+repair", || {
         validate_repair_stage(
             &document.document,
@@ -242,6 +333,7 @@ pub fn convert(
             pdf.page_count(),
             &mut totals,
             t,
+            observe.progress,
         )
     })?;
 
@@ -324,20 +416,57 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
         .collect()
 }
 
-/// Every image, decoded to RGBA for the encoder.
-fn decode_images(pdf: &dyn PdfDoc, images: &[oc_model::extract::ImageRef]) -> Vec<SourceImage> {
-    images
-        .iter()
-        .map(|image| {
-            let decoded = decode_one(pdf, images, image);
-            SourceImage {
-                id: image.id,
-                width: decoded.width,
-                height: decoded.height,
-                rgba: decoded.rgba,
-            }
-        })
-        .collect()
+/// Every page, read a page at a time with a progress report and a cancel check between pages.
+fn read_pages(
+    pdf: &dyn PdfDoc,
+    observe: Observe<'_>,
+) -> Result<Vec<crate::pipeline::PageInput>, ConvertError> {
+    let total = pdf.page_count();
+    let mut pages = Vec::with_capacity(usize::try_from(total).unwrap_or_default());
+    for index in 0..total {
+        observe.check()?;
+        pages.push(crate::input::page_input(pdf, index)?);
+        observe.progress.advance("ingest", index, total);
+    }
+    Ok(pages)
+}
+
+/// [`image_hashes`], one image at a time, with a cancel check between images.
+fn hash_images(
+    pdf: &dyn PdfDoc,
+    images: &[oc_model::extract::ImageRef],
+    t: &Thresholds,
+    observe: Observe<'_>,
+) -> Result<Vec<Option<u64>>, ConvertError> {
+    let mut hashes = Vec::with_capacity(images.len());
+    for image in images {
+        observe.check()?;
+        hashes.push(
+            oc_structure::images::needs_hash(image, t)
+                .then(|| oc_pdf::images::perceptual_hash(&decode_one(pdf, images, image))),
+        );
+    }
+    Ok(hashes)
+}
+
+/// Every image, decoded to RGBA for the encoder, with a cancel check between images.
+fn decode_images(
+    pdf: &dyn PdfDoc,
+    images: &[oc_model::extract::ImageRef],
+    observe: Observe<'_>,
+) -> Result<Vec<SourceImage>, ConvertError> {
+    let mut sources = Vec::with_capacity(images.len());
+    for image in images {
+        observe.check()?;
+        let decoded = decode_one(pdf, images, image);
+        sources.push(SourceImage {
+            id: image.id,
+            width: decoded.width,
+            height: decoded.height,
+            rgba: decoded.rgba,
+        });
+    }
+    Ok(sources)
 }
 
 /// One image's perceptual hash per image, for the ornament rule.

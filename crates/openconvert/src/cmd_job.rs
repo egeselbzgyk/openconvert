@@ -24,7 +24,7 @@ use crate::cmd_convert::{hello, run_job, ConvertJob, E_PDFIUM};
 pub const E_JOBSPEC: &str = "E_JOBSPEC";
 
 /// Run one job spec, returning the process exit code.
-pub fn run<W: Write>(path: &Path, events: &mut EventSink<W>) -> ExitCode {
+pub fn run<W: Write + Send>(path: &Path, events: &EventSink<W>) -> ExitCode {
     let backend = match PdfiumBackend::bind() {
         Ok(backend) => backend,
         Err(error) => {

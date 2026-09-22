@@ -188,6 +188,57 @@ evidence = "R8 §A6 watchdog 60-120 s per document; per-stage cap set higher for
 owner = "maintainer"
 review_by = "2027-06-30"
 
+# ---------- engine <-> supervisor protocol (D13.2, RT C2) ----------
+[ipc.heartbeat_secs]                      # the engine's heartbeat period
+value = 2
+source = "binary"
+evidence = "D13.2 'heartbeat every 2 s'; IMPLEMENTATION_PLAN §2.3"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[ipc.heartbeat_timeout_secs]              # silence after which the app shows "not responding"
+value = 6
+source = "binary"
+evidence = "IMPLEMENTATION_PLAN Phase 12 detail 3: 'a missing heartbeat for > 6 s flips the row'; UI_UX §2.2 '~4-6 seconds'"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[ipc.progress_max_per_sec]                # progress events are coalesced to at most this many per second
+value = 10
+source = "binary"
+evidence = "D13.2 'progress{stage, done, total} coalesced <= 10/s'"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[ipc.cancel_deadline_secs]                # cancel must reach done{cancelled} within this
+value = 2
+source = "binary"
+evidence = "D13.2 'engine reaches done{cancelled} within 2 s'"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[ipc.kill_after_secs]                     # the supervisor terminates a job that has not exited by then
+value = 5
+source = "binary"
+evidence = "D13.2 'supervisor terminates the job after 5 s'"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+# ---------- desktop app (Phase 12) ----------
+[desktop.max_concurrent_jobs]             # conversions running at once; the rest wait in the queue
+value = 1
+source = "binary"
+evidence = "IMPLEMENTATION_PLAN Phase 12 detail 5: one app-owned -np 1 llama-server, so one conversion at a time (RT A5); revisited only with measurements"
+owner = "maintainer"
+review_by = "2028-01-01"
+
+[desktop.copied_revert_secs]              # how long "Copied" shows before the button reads "Copy" again
+value = 2
+source = "binary"
+evidence = "docs/design/handoff/docs/motion.md 'Copy -> Copied ... reverts after 2 s'"
+owner = "maintainer"
+review_by = "2028-01-01"
+
 # ---------- word/line/layout (R2 §B.3, §D.3) ----------
 [words.nn_manhattan_threshold]
 value = 0.20

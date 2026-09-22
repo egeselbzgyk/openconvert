@@ -1,0 +1,211 @@
+//! Real progress and a real cancel, as a supervisor sees them (D13.2, RT C2, Phase 12 detail 3–4).
+//!
+//! The desktop app renders only what the engine reports. These tests hold the engine to reporting
+//! it: the stage names it actually runs, page counts that reach their total, and a cancel that ends
+//! the run with `done{cancelled}`, exit 3 and an untouched destination — inside the deadline.
+
+use std::io::{BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::sync::mpsc;
+use std::time::{Duration, Instant};
+
+use oc_core::thresholds::T;
+
+fn binary() -> PathBuf {
+    PathBuf::from(env!("CARGO_BIN_EXE_openconvert"))
+}
+
+fn fixture(name: &str) -> PathBuf {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../target/fixtures")
+        .join(format!("{name}.pdf"));
+    assert!(
+        path.is_file(),
+        "missing fixture {}; run `cargo run -p xtask -- fixtures`",
+        path.display()
+    );
+    path
+}
+
+fn scratch(test: &str) -> PathBuf {
+    let directory = std::env::temp_dir().join(format!(
+        "openconvert-progress-{test}-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&directory);
+    std::fs::create_dir_all(&directory).expect("the scratch directory is made");
+    directory
+}
+
+fn write_spec(directory: &Path, input: &Path, output: &Path) -> PathBuf {
+    let path = directory.join("job.json");
+    let spec = serde_json::json!({
+        "schema": "openconvert.job/1",
+        "job_id": "progress",
+        "input": {"path": input},
+        "output": {"path": output}
+    });
+    std::fs::write(&path, serde_json::to_vec(&spec).expect("serialises")).expect("written");
+    path
+}
+
+fn events_of(stderr: &[u8]) -> Vec<serde_json::Value> {
+    String::from_utf8_lossy(stderr)
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| serde_json::from_str(line).unwrap_or_else(|e| panic!("{line:?}: {e}")))
+        .collect()
+}
+
+#[test]
+fn a_conversion_reports_the_stages_it_runs_by_their_real_names() {
+    let directory = scratch("stages");
+    let output = directory.join("book.epub");
+    let spec = write_spec(&directory, &fixture("f09_novel_structure"), &output);
+
+    let run = Command::new(binary()).arg(&spec).output().expect("runs");
+    assert_eq!(run.status.code(), Some(0));
+    let events = events_of(&run.stderr);
+
+    // The order in which stages first begin is the pipeline's order.
+    let mut begun: Vec<String> = Vec::new();
+    for event in events
+        .iter()
+        .filter(|e| e["t"] == "stage" && e["phase"] == "begin")
+    {
+        let name = event["name"].as_str().expect("a name").to_owned();
+        if !begun.contains(&name) {
+            begun.push(name);
+        }
+    }
+    assert_eq!(
+        begun,
+        [
+            "ingest",
+            "text",
+            "furniture",
+            "layout",
+            "structure",
+            "document",
+            "epub",
+            "validate",
+            "report"
+        ],
+        "only the twelve names, only for stages that ran, in order"
+    );
+
+    // Every begin has an end carrying its wall-clock.
+    for name in &begun {
+        let begins = events
+            .iter()
+            .filter(|e| e["t"] == "stage" && e["name"] == name.as_str() && e["phase"] == "begin")
+            .count();
+        let ends: Vec<&serde_json::Value> = events
+            .iter()
+            .filter(|e| e["t"] == "stage" && e["name"] == name.as_str() && e["phase"] == "end")
+            .collect();
+        assert_eq!(begins, ends.len(), "{name}: every begin ends");
+        assert!(ends.iter().all(|e| e["elapsed_ms"].is_u64()));
+    }
+
+    // Page progress never overshoots and always arrives at its total.
+    let pages: Vec<&serde_json::Value> = events
+        .iter()
+        .filter(|e| e["t"] == "progress" && e["stage"] == "ingest")
+        .collect();
+    assert!(!pages.is_empty(), "ingest reports pages");
+    for event in &pages {
+        assert!(event["done"].as_u64() <= event["total"].as_u64());
+        assert_eq!(event["unit"], "pages");
+    }
+    let last = pages.last().expect("at least one");
+    assert_eq!(last["done"], last["total"], "the bar reaches the end");
+
+    assert_eq!(events.last().expect("events")["t"], "done");
+}
+
+/// A12.2: a running conversion, a cancel on stdin — `done{cancelled}` within the deadline, exit 3,
+/// and nothing at the destination: no output, no report, no `.oc-tmp-*`.
+#[test]
+fn a_cancel_on_stdin_ends_the_run_within_the_deadline_and_leaves_nothing() {
+    let directory = scratch("cancel");
+    // Long enough that the cancel lands mid-run on any machine: the reference book the
+    // performance budget is stated for.
+    let pages = usize::try_from(T.perf.bench_reference_pages).expect("positive");
+    let input = directory.join("long.pdf");
+    std::fs::write(&input, oc_testkit::handmade::reference_book(pages)).expect("written");
+    let output = directory.join("long.epub");
+    let spec = write_spec(&directory, &input, &output);
+
+    let mut child = Command::new(binary())
+        .arg(&spec)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawns");
+    let stderr = child.stderr.take().expect("piped");
+    let (lines, received) = mpsc::channel::<serde_json::Value>();
+    let reader = std::thread::spawn(move || {
+        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+            if let Ok(event) = serde_json::from_str(&line) {
+                if lines.send(event).is_err() {
+                    return;
+                }
+            }
+        }
+    });
+
+    // Wait until the engine is demonstrably working through pages, then cancel.
+    let started = Instant::now();
+    loop {
+        let event = received
+            .recv_timeout(Duration::from_secs(60))
+            .expect("the engine reports progress");
+        if event["t"] == "progress" {
+            break;
+        }
+        assert_ne!(event["t"], "done", "finished before it could be cancelled");
+        assert!(started.elapsed() < Duration::from_secs(60));
+    }
+    let mut stdin = child.stdin.take().expect("piped");
+    writeln!(stdin, r#"{{"t":"cancel"}}"#).expect("the engine reads stdin");
+    stdin.flush().expect("flushed");
+    let cancelled_at = Instant::now();
+
+    let deadline =
+        Duration::from_secs(u64::try_from(T.ipc.cancel_deadline_secs).expect("positive"));
+    let done = loop {
+        let event = received
+            .recv_timeout(deadline + Duration::from_secs(5))
+            .expect("the run ends");
+        if event["t"] == "done" || event["t"] == "fatal" {
+            break event;
+        }
+    };
+    let took = cancelled_at.elapsed();
+    let status = child.wait().expect("exits");
+    drop(stdin);
+    reader.join().expect("the reader ends");
+
+    assert_eq!(done["t"], "done");
+    assert_eq!(done["status"], "cancelled");
+    assert!(
+        took <= deadline,
+        "done{{cancelled}} after {took:?}, deadline {deadline:?}"
+    );
+    assert_eq!(status.code(), Some(3), "cancelled is exit 3");
+
+    let mut left: Vec<String> = std::fs::read_dir(&directory)
+        .expect("reads")
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    left.sort();
+    assert_eq!(
+        left,
+        ["job.json", "long.pdf"],
+        "no output, no report, no temporary"
+    );
+}

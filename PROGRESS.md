@@ -174,8 +174,10 @@ Work items, in order, with the plan's test rows against each:
       `schemas/job-spec.v1.json` (walked, not transcribed; fails closed on an unknown keyword);
       `openconvert <JOB.json>` resolves to the same `ConvertJob` as `convert`; `E_JOBSPEC` exit 2,
       `E_OUTPUT_EXISTS`, `E_INPUT_CHANGED`; `job` and `done{report_path}` events (+ 15 tests)
-- [ ] **P12.2** real progress from the engine: the twelve stage names, `progress` coalesced, a
-      `heartbeat` thread, cancel on stdin → `done{cancelled}` exit 3, no `.oc-tmp-*`
+- [x] **P12.2** real progress from the engine: the twelve stage names, `progress` coalesced, a
+      `heartbeat` thread, cancel on stdin → `done{cancelled}` exit 3, no `.oc-tmp-*` (+ 5 tests;
+      `EventSink` is now `&self` and thread-safe; seven `ipc.*`/`desktop.*` thresholds, so the
+      report snapshot counts 175 entries — **recount on merge** if Phase 9 adds thresholds)
 - [ ] **P12.3** the desktop supervisor: `engine.rs` / `fs_scope.rs` — rows 12.1, 12.2, 12.6, 12.17
 - [ ] **P12.4** the queue — row 12.7; drop filtering (PDFs added, every other file named)
 - [ ] **P12.5** webview privacy: `capabilities/default.json`, the shipped CSP — row 12.13

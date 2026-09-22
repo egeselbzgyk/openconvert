@@ -36,7 +36,7 @@ fn run() -> ExitCode {
         .any(|w| w[0] == "--progress" && w[1] == "json");
 
     let stderr = std::io::stderr();
-    let mut events = EventSink::new(stderr.lock(), wants_events);
+    let events = EventSink::new(stderr.lock(), wants_events);
 
     match cli::parse(args) {
         Ok(Command::Print(text)) => {
@@ -44,14 +44,15 @@ fn run() -> ExitCode {
             ExitCode::Ok
         }
         Ok(Command::Convert(convert)) => {
-            let mut events =
-                EventSink::new(std::io::stderr().lock(), convert.progress == Progress::Json);
-            cmd_convert::run(&convert, &mut events)
+            // Unlocked `Stderr`, because the heartbeat writes from a thread of its own; the sink
+            // serialises the lines.
+            let events = EventSink::new(std::io::stderr(), convert.progress == Progress::Json);
+            cmd_convert::run(&convert, &events)
         }
         Ok(Command::Job(path)) => {
             // A job spec's only reader is a supervisor, so the channel is always on.
-            let mut events = EventSink::new(std::io::stderr().lock(), true);
-            cmd_job::run(&path, &mut events)
+            let events = EventSink::new(std::io::stderr(), true);
+            cmd_job::run(&path, &events)
         }
         Ok(Command::Validate(validate)) => {
             let mut events = EventSink::new(

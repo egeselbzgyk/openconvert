@@ -12,11 +12,12 @@
 //! one and relying on the other being constant is deliberate — a caller that passed a different
 //! `modified` on each iteration would otherwise make every container look new.
 
+use oc_core::progress::{timed, Progress, Silent};
 use oc_epub::images::SourceImage;
 use oc_epub::{BuiltEpub, EpubBytes, EpubError, EpubOptions};
 use oc_model::document::Document;
 
-use super::{Emission, Emit};
+use super::{apply_fix, Emission, Emit, Fix};
 use crate::structural::StructuralError;
 use crate::tier1::{validate_tier1, Expectations, Finding};
 
@@ -37,6 +38,9 @@ pub struct EpubHost<'a> {
     /// The container of the emission the loop last asked for, kept so the caller does not have to
     /// emit a third time to get the bytes it writes.
     last: Option<BuiltEpub>,
+    /// Told when `epub`, `validate` and `repair` begin and end, so a supervisor sees the three
+    /// stages this host runs as three stages (D13.2) rather than one call.
+    progress: &'a dyn Progress,
 }
 
 impl<'a> EpubHost<'a> {
@@ -50,7 +54,14 @@ impl<'a> EpubHost<'a> {
             options,
             expectations,
             last: None,
+            progress: &Silent,
         }
+    }
+
+    /// Report each emission, validation and repair to `progress`.
+    pub fn with_progress(mut self, progress: &'a dyn Progress) -> Self {
+        self.progress = progress;
+        self
     }
 
     /// The container the loop settled on, if it ever emitted one.
@@ -63,17 +74,29 @@ impl Emit for EpubHost<'_> {
     type Error = HostError;
 
     fn emit_and_validate(&mut self, document: &Document) -> Result<Emission, Self::Error> {
-        let built = oc_epub::build_epub(document, self.images, self.options)?;
+        let built = timed(self.progress, "epub", || {
+            oc_epub::build_epub(document, self.images, self.options)
+        })?;
 
-        let mut findings: Vec<Finding> = validate_tier1(&built.bytes, &self.expectations).findings;
-        // The structural validator's own findings, keyed on the same vocabulary. Only the two it
-        // can state as message ids — I-7 and the block-duplicate bound — because the rest of its
-        // output is projections of Tier 1's findings and folding them back in would double-count.
-        findings.extend(structural_findings(document, &built.bytes)?);
+        let findings = timed(self.progress, "validate", || {
+            let mut findings: Vec<Finding> =
+                validate_tier1(&built.bytes, &self.expectations).findings;
+            // The structural validator's own findings, keyed on the same vocabulary. Only the two
+            // it can state as message ids — I-7 and the block-duplicate bound — because the rest of
+            // its output is projections of Tier 1's findings and folding them back in would
+            // double-count.
+            findings.extend(structural_findings(document, &built.bytes)?);
+            Ok::<_, HostError>(findings)
+        })?;
 
         let hash = content_hash(&built.bytes)?;
         self.last = Some(built);
         Ok(Emission { hash, findings })
+    }
+
+    /// The table's edit, reported as `repair` — shown only when it actually runs (UI_UX §2.2).
+    fn apply(&mut self, document: &mut Document, fix: Fix) -> bool {
+        timed(self.progress, "repair", || apply_fix(document, fix))
     }
 }
 

@@ -21,17 +21,21 @@ use crate::pipeline::PageInput;
 /// makes about a path it cannot measure.
 pub fn page_inputs(document: &dyn PdfDoc) -> Result<Vec<PageInput>, PdfError> {
     (0..document.page_count())
-        .map(|index| {
-            let glyphs = document.page_glyphs(index)?;
-            let geometry = document.page_geometry(index)?;
-            Ok(PageInput {
-                page: PageRef::new(index),
-                width_pt: geometry.width_pt(),
-                height_pt: geometry.height_pt(),
-                glyphs: glyphs.glyphs,
-                fonts: glyphs.fonts,
-                images: document.page_images(index).unwrap_or_default(),
-            })
-        })
+        .map(|index| page_input(document, index))
         .collect()
+}
+
+/// Read one page. [`page_inputs`] is this over every page; the conversion driver calls it a
+/// page at a time so that it can report progress and honour a cancel between pages (D13.2).
+pub fn page_input(document: &dyn PdfDoc, index: u32) -> Result<PageInput, PdfError> {
+    let glyphs = document.page_glyphs(index)?;
+    let geometry = document.page_geometry(index)?;
+    Ok(PageInput {
+        page: PageRef::new(index),
+        width_pt: geometry.width_pt(),
+        height_pt: geometry.height_pt(),
+        glyphs: glyphs.glyphs,
+        fonts: glyphs.fonts,
+        images: document.page_images(index).unwrap_or_default(),
+    })
 }

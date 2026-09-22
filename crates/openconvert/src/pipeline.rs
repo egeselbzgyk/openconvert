@@ -633,6 +633,10 @@ pub struct ValidateRepairStage {
 /// one character of the book fails I-1 and the conversion stops. That is the whole of PIPELINE §12's
 /// "repairs are structural; none of them may change the character content of the book", stated as an
 /// invariant rather than as a property of three functions nobody re-reads.
+// Eight, because the loop needs the book, its images, how to build it, what to expect of it, its
+// page count, the running totals, the thresholds and who is watching — and a struct gathering
+// them would exist for this one call.
+#[allow(clippy::too_many_arguments)]
 pub fn validate_repair_stage(
     document: &oc_model::document::Document,
     images: &[oc_epub::images::SourceImage],
@@ -641,8 +645,10 @@ pub fn validate_repair_stage(
     page_count: u32,
     totals: &mut ReasonTotals,
     t: &Thresholds,
+    progress: &dyn oc_core::progress::Progress,
 ) -> Result<ValidateRepairStage, ValidateRepairError> {
-    let mut host = oc_validate::repair::EpubHost::new(images, options, expectations);
+    let mut host =
+        oc_validate::repair::EpubHost::new(images, options, expectations).with_progress(progress);
     let opts = oc_validate::repair::RepairOpts {
         max_iterations: u32::try_from(t.repair.max_iterations).unwrap_or(1),
         require_strict_decrease: t.repair.require_strict_decrease,
@@ -668,14 +674,12 @@ pub fn validate_repair_stage(
         built
     };
 
-    let tier1 = oc_validate::validate_tier1(&built.bytes, &expectations);
-    let structural = oc_validate::structural::validate_structural(
-        &settled,
-        &built.bytes,
-        &tier1,
-        page_count,
-        t,
-    )?;
+    // The verdict on the container the loop settled on: `validate` again, as the user sees it.
+    let (tier1, structural) = oc_core::progress::timed(progress, "validate", || {
+        let tier1 = oc_validate::validate_tier1(&built.bytes, &expectations);
+        oc_validate::structural::validate_structural(&settled, &built.bytes, &tier1, page_count, t)
+            .map(|structural| (tier1, structural))
+    })?;
 
     // `validate` is read-only: `C` on either side is the container's own text.
     let emitted = oc_validate::structural::epub_chars(&built.bytes)?;
