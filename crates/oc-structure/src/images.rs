@@ -33,11 +33,10 @@ pub struct ImagePolicy {
 /// is `oc-pdf`'s and this crate must not depend on a backend.
 pub fn drop_ornaments(
     images: &[ImageRef],
-    hashes: &[u64],
+    hashes: &[Option<u64>],
     page_count: u32,
     t: &Thresholds,
 ) -> ImagePolicy {
-    let max_side = t.images.ornament_max_side_pt as f32;
     let min_pages = u32::try_from(t.images.ornament_min_pages).unwrap_or(3);
 
     // Per hash, the distinct pages it appears on. Pages, not placements: an ornament drawn
@@ -46,10 +45,10 @@ pub fn drop_ornaments(
     let mut pages_of: std::collections::BTreeMap<u64, std::collections::BTreeSet<u32>> =
         std::collections::BTreeMap::new();
     for (index, image) in images.iter().enumerate() {
-        if !is_small(image, max_side) {
+        if !needs_hash(image, t) {
             continue;
         }
-        let Some(hash) = hashes.get(index) else {
+        let Some(Some(hash)) = hashes.get(index) else {
             continue;
         };
         pages_of.entry(*hash).or_default().insert(image.page.index);
@@ -72,10 +71,12 @@ pub fn drop_ornaments(
         warnings: Vec::new(),
     };
     for (index, image) in images.iter().enumerate() {
-        let ornament = is_small(image, max_side)
+        let ornament = needs_hash(image, t)
             && hashes
                 .get(index)
-                .is_some_and(|hash| ornaments.contains(hash));
+                .copied()
+                .flatten()
+                .is_some_and(|hash| ornaments.contains(&hash));
         if ornament {
             policy.dropped.push(image.id);
         } else {
@@ -100,6 +101,18 @@ pub fn drop_ornaments(
 ///
 /// A full-page background repeated on every page of a scan is not an ornament — it *is* the
 /// page — so the size test comes before the repetition test rather than after it.
+/// Whether this image's perceptual hash is ever read — the **one** place that decides it.
+///
+/// Only an image small enough to be an ornament is compared with the others, so only such an
+/// image needs decoding. The decoder asks this function rather than keeping its own copy of
+/// the rule: decoding every image in the book cost ~70 s of a 101 s run on a 131-page scan
+/// whose full-page images were decoded, hashed and never looked at (PHASE 7.5, the timeout
+/// class). Two copies of this predicate would be the defect this phase keeps finding — a
+/// second rule that agrees with the first until the day one of them changes.
+pub fn needs_hash(image: &ImageRef, t: &Thresholds) -> bool {
+    is_small(image, t.images.ornament_max_side_pt as f32)
+}
+
 fn is_small(image: &ImageRef, max_side_pt: f32) -> bool {
     let width = image.bbox.x1 - image.bbox.x0;
     let height = image.bbox.y1 - image.bbox.y0;
@@ -136,7 +149,7 @@ mod tests {
     fn a_large_repeated_image_is_never_an_ornament() {
         let t = &oc_core::thresholds::T;
         let images: Vec<ImageRef> = (0..5).map(|page| image(page, page, 400.0)).collect();
-        let policy = drop_ornaments(&images, &[7; 5], 5, t);
+        let policy = drop_ornaments(&images, &[Some(7); 5], 5, t);
         assert!(policy.dropped.is_empty());
         assert_eq!(policy.kept.len(), 5);
     }
@@ -147,7 +160,7 @@ mod tests {
     fn a_short_document_has_no_ornaments() {
         let t = &oc_core::thresholds::T;
         let images = vec![image(0, 0, 20.0), image(1, 1, 20.0)];
-        let policy = drop_ornaments(&images, &[7, 7], 2, t);
+        let policy = drop_ornaments(&images, &[Some(7), Some(7)], 2, t);
         assert!(policy.dropped.is_empty(), "{policy:?}");
     }
 
@@ -156,7 +169,7 @@ mod tests {
     fn two_different_images_do_not_add_up_to_one_ornament() {
         let t = &oc_core::thresholds::T;
         let images: Vec<ImageRef> = (0..6).map(|page| image(page, page, 20.0)).collect();
-        let hashes = [1u64, 2, 3, 4, 5, 6];
+        let hashes = [1u64, 2, 3, 4, 5, 6].map(Some);
         let policy = drop_ornaments(&images, &hashes, 6, t);
         assert!(policy.dropped.is_empty());
     }

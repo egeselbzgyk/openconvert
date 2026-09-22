@@ -52,7 +52,7 @@ fn structure_of(relative: &str) -> (Vec<Unit>, StructureOutput) {
     let layout = layout_stage(&text, &furniture, &mut totals, &T).expect("layout conserves");
 
     let images = document_images(&text);
-    let hashes = openconvert::convert::image_hashes(pdf, &images);
+    let hashes = openconvert::convert::image_hashes(pdf, &images, &T);
     let blocks = block_views(&text, &layout);
     let stage_input = StructureInput {
         blocks: blocks.clone(),

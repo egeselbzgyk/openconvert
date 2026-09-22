@@ -46,7 +46,9 @@ pub struct StructureInput {
     pub fonts: Vec<FontInfo>,
     pub images: Vec<ImageRef>,
     /// Per image, its perceptual hash. Decoding is the backend's.
-    pub image_hashes: Vec<u64>,
+    /// Per image, its perceptual hash — `None` for an image nothing will compare, which is
+    /// every image too large to be an ornament (`images::needs_hash`).
+    pub image_hashes: Vec<Option<u64>>,
     pub vectors: Vec<VectorRegion>,
     pub outline: Vec<OutlineEntry>,
     /// The printed page label per page, as `furniture` recovered it.
@@ -146,13 +148,16 @@ impl StructureOutput {
             }
         }
 
-        // A note is reached through the marker that refers to it, which is a `Span` on the
-        // text rather than a `Content` — so the set of referenced notes is the one `note_refs`
-        // records. A note nothing refers to is a note no reader can arrive at.
-        for note_ref in &self.note_refs {
-            notes.insert(note_ref.note);
-        }
-        for note in self.notes.iter().filter(|note| notes.contains(&note.id)) {
+        // **Every** note reaches the book, referenced or not. `oc_epub::content` emits a note
+        // nothing refers to as a plain `<aside>` at the end of the spine document covering its
+        // page, precisely so that its text is not lost. An earlier version of this function
+        // counted only notes a marker pointed at, which was stricter than the book and made
+        // unreferenced notes look like losses — a diagnostic reporting defects the output
+        // does not have (PHASE 7.5, `docs/DECISIONS_LOG.md` 2026-09-22).
+        //
+        // Figures and tables have no such path: one the flow does not reference is not
+        // emitted, so for them reachability really is the flow.
+        for note in &self.notes {
             collect(&note.body, &mut out);
         }
         for table in self
@@ -185,8 +190,10 @@ impl StructureOutput {
                 reach_claimants(&section.content, &mut out);
             }
         }
-        for note_ref in &self.note_refs {
-            out.insert((ClaimKind::Note, format!("n{}", note_ref.note.0)));
+        // Every note, for the reason given in `reachable_text`: `epub` emits the unreferenced
+        // ones as asides, so a note is never an orphan in the book.
+        for note in &self.notes {
+            out.insert((ClaimKind::Note, format!("n{}", note.id.0)));
         }
         out
     }
@@ -446,23 +453,16 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
             text: text_of(block),
         });
     }
-    // Same reasoning: `list_covers` walks a list's items, and asking it for every consumed
-    // block walks every list for every block. Inverted once instead.
-    let list_of: std::collections::BTreeMap<BlockId, &List> = lists
-        .lists
-        .iter()
-        .flat_map(|list| {
-            lists
-                .consumed
-                .iter()
-                .filter(|block| list_covers(list, **block))
-                .map(move |block| (*block, list))
-        })
-        .collect();
+    // Which list took a block is recorded in `lists.taken`, at the moment the list took it.
+    // Re-deriving it by walking every list's items for every consumed block was cubic, and it
+    // was also the pattern this phase keeps finding: a second predicate standing in for a
+    // decision that has already been recorded.
     for &block in &lists.consumed {
-        let named = list_of
+        let named = lists
+            .taken
             .get(&block)
-            .map(|list| Claimant::new(ClaimKind::List, list.id.as_str().to_owned()));
+            .and_then(|taken| taken.first())
+            .map(|(_, list)| Claimant::new(ClaimKind::List, list.as_str().to_owned()));
         claims.push(Claim {
             block,
             page: page_of(block),
@@ -754,25 +754,6 @@ fn first_block_of(blocks: &[BlockView], region: &TableRegion) -> Option<BlockId>
                 && block.bbox.y1 <= region.bbox.y1 + 1.0
         })
         .map(|block| block.id)
-}
-
-/// Whether any of a list's items — at any depth — came from this block.
-fn list_covers(list: &List, block: BlockId) -> bool {
-    list.items.iter().any(|item| {
-        content_has_block(&item.content, block)
-            || item
-                .nested
-                .as_ref()
-                .is_some_and(|nested| list_covers(nested, block))
-    })
-}
-
-fn content_has_block(content: &[Content], block: BlockId) -> bool {
-    content.iter().any(|item| match item {
-        Content::Paragraph(para) => para.blocks.contains(&block),
-        Content::BlockQuote(inner) | Content::Epigraph(inner) => content_has_block(inner, block),
-        _ => false,
-    })
 }
 
 /// A paragraph from the lines of a block that a list did not take, if any are left.

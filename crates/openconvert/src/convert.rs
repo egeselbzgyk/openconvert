@@ -132,7 +132,7 @@ pub fn convert(
 
     let images = document_images(&text);
     let extracted_images = u32::try_from(images.len()).unwrap_or(u32::MAX);
-    let hashes = image_hashes(pdf, &images);
+    let hashes = image_hashes(pdf, &images, t);
     let vectors = (0..pdf.page_count())
         .filter_map(|page| pdf.page_vectors(page).ok())
         .flatten()
@@ -341,10 +341,20 @@ fn decode_images(pdf: &dyn PdfDoc, images: &[oc_model::extract::ImageRef]) -> Ve
 }
 
 /// One image's perceptual hash per image, for the ornament rule.
-pub fn image_hashes(pdf: &dyn PdfDoc, images: &[oc_model::extract::ImageRef]) -> Vec<u64> {
+pub fn image_hashes(
+    pdf: &dyn PdfDoc,
+    images: &[oc_model::extract::ImageRef],
+    t: &Thresholds,
+) -> Vec<Option<u64>> {
+    // Only the images the ornament rule will compare. A full-page scan cannot be an ornament,
+    // and decoding one at full resolution to produce a hash nobody reads was most of the time
+    // an image-only book spent in conversion.
     images
         .iter()
-        .map(|image| oc_pdf::images::perceptual_hash(&decode_one(pdf, images, image)))
+        .map(|image| {
+            oc_structure::images::needs_hash(image, t)
+                .then(|| oc_pdf::images::perceptual_hash(&decode_one(pdf, images, image)))
+        })
         .collect()
 }
 

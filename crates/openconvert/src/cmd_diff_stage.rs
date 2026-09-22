@@ -265,7 +265,7 @@ fn structure_diff(
         .map_err(|error| format!("layout: {error}"))?;
 
     let images = document_images(&text);
-    let hashes = openconvert::convert::image_hashes(pdf, &images);
+    let hashes = openconvert::convert::image_hashes(pdf, &images, t);
     let vectors = (0..pdf.page_count())
         .filter_map(|page| pdf.page_vectors(page).ok())
         .flatten()
@@ -394,6 +394,18 @@ fn structure_diff(
             )
             .map_err(io)?;
         }
+    }
+
+    // Note text whose marker was not recognised. Kept, as an unmarked note — reported because
+    // it is where a book's footnote numbering was not read.
+    if output.note_stats.unmarked_chars > 0 {
+        writeln!(stdout).map_err(io)?;
+        writeln!(
+            stdout,
+            "  UNMARKED  {} characters of note text had no recognised marker (kept as an unmarked note)",
+            output.note_stats.unmarked_chars
+        )
+        .map_err(io)?;
     }
 
     // Orphaned claimants: structures that took blocks out of the flow and were never placed

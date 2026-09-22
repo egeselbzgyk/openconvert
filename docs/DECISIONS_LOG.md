@@ -3347,3 +3347,72 @@ of them behind paragraphs.
 Evidence: `no_claimant_is_orphaned`, `no_text_has_two_owners` (mutation-tested); 491 workspace
 tests green; the table above.
 Affects: `oc-structure::{stage,lists,tables,figures,claims}`, `openconvert::cmd_diff_stage`.
+
+## 2026-09-22 · Correction: an unreferenced note is not lost — the diagnostic was stricter than the book · Phase 7.5
+Context: the entry above says the three documents went from 499 093 characters lost to
+**1 200**, "every remaining character an orphaned note — a different mechanism, next". The
+second half is wrong.
+
+`oc_epub::content` emits every note nothing refers to as a plain `<aside>` at the end of the
+spine document covering its page — "a note nothing referred to still has text, and the text has
+to reach the book". So an unreferenced note is **in the book**. `StructureOutput::reachable_text`
+and `reachable_claimants` counted a note as reachable only through a marker, which is stricter
+than what `epub` does, and they reported notes the output contains as losses.
+
+Found by reading `epub` before starting on "the next mechanism", which is the order this should
+always go in: confirm the defect is in the output before looking for its cause.
+
+Decision: every note is reachable, as in the book. Figures and tables are **not** given the same
+treatment, because they have no such path — one the flow does not reference is genuinely not
+emitted, and for them reachability really is the flow.
+
+Corrected figure for the three documents: **499 093 → 1 character lost** (the pdfTeX paper),
+and duplication zero. There is no orphaned-note class.
+
+The lesson is the same one as the "timeout class" two days ago, from the other side: that one
+was a class invented by a harness that could not see an error; this one was a loss invented by a
+diagnostic that did not know the output's contract. **A diagnostic's model of the output has to
+be checked against the output**, not only against the stage it instruments.
+Affects: `oc-structure::stage::{reachable_text, reachable_claimants}`.
+
+## 2026-09-22 · Defect class `structure/lost/unattached-note-text`, admitted — the page-42 defect, at last · Phase 7.5
+Context: after the orphan, contested and caption fixes, the full corpus loses 3 415 characters
+where it lost 1 421 777. `diff-stage` now reports **UNATTACHED** — note-zone characters no note
+carried — and on the documents that still lose text it accounts for nearly all of it, in all six
+strata: pdfTeX 244/244, ABBYY-scanner 113/113 and 60/60, Word 650/644, Ghostscript 40/40,
+InDesign 57/57 and 194/176, unknown 364/356, 349/343, 236/230, 48/48.
+
+The Word document is `oapen-20-500-12657-115632`, and the block is the one this phase opened
+on: page 42, *"8Cornelia Koppetsch zu zitieren, bedarf einer Fußnote…"*, 644 characters. It took
+two days and five other classes to reach it, because each of those was larger.
+
+Mechanism. `note_bodies` walks the note zone line by line. A line that opens with a recognised
+marker opens a note; any other line is appended to the note that is open — **and if none is open,
+it is not kept**. The block is still claimed, through the notes that do open later in it, so it
+leaves the flow and those lines reach nothing. The marker rule recognises a bare digit only when
+its run is flagged superscript or it is followed by `.` or `)`: `8Cornelia` is neither, so
+footnote 8 opens nothing, and until footnote 9's marker arrives, footnote 8 is discarded.
+
+*How else could this arise?*
+
+1. **Any marker the rule does not recognise** — a digit glued to its word with no superscript
+   flag, a lettered note, a roman numeral, a symbol outside the set, `*)`.
+2. **A footnote continued from a page whose zone was not classified as one**, so its
+   continuation arrives with nothing open.
+3. **A cap or filter after assembly** that removes a note while its block stays claimed —
+   checked: every `Found` becomes a `Note`, and unreferenced ones reach the book as asides, so
+   this path does not lose text today.
+4. **The same shape in any line-oriented assembler** — a `match` whose fall-through arm has an
+   `if let Some(open)` and no `else`. Lists had it too, in the form of the continuation lines
+   `build_level` did not take.
+
+Decision: **a note-zone line is never dropped.** With no note open it opens an *unmarked* note,
+which carries the text; unreferenced notes already reach the book as asides, so conservation holds
+by construction, and pass 3 of the linker (order within the page) may still pair it with the body
+marker it belongs to. The quality question — should `8Cornelia` have been read as marker 8 — is
+a heuristic and is not this phase's; recognising glued digits misfires on `3D printing`.
+
+Not this class, recorded: three Turkish Word articles and four oapen books lose 18–612 characters
+with **zero** unattached. A different mechanism, with its own evidence to gather.
+Evidence: `diff-stage structure` over the 38 documents that lost text in the previous inventory.
+Affects: `oc-structure::notes::note_bodies`, `NoteLinkStats`.

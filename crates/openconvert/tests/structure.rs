@@ -44,7 +44,7 @@ struct Read {
     info: InfoDict,
     /// Per image in `images`, its perceptual hash. Decoding is the backend's, so the hashes
     /// are taken here and handed to `structure` as numbers.
-    hashes: Vec<u64>,
+    hashes: Vec<Option<u64>>,
     pages: u32,
     labels: Vec<Option<String>>,
     totals: ReasonTotals,
@@ -131,7 +131,7 @@ fn read(relative: &str) -> Read {
                     oc_model::extract::ImageId(u32::try_from(local).unwrap_or_default()),
                 )
                 .map(|decoded| oc_pdf::images::perceptual_hash(&decoded))
-                .unwrap_or_default()
+                .ok()
         })
         .collect();
     Read {

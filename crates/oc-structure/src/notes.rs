@@ -43,6 +43,11 @@ pub struct NoteLinkStats {
     /// How many notes were found under a separator rule. A confidence signal, never a
     /// requirement: plenty of books draw no rule at all.
     pub separator_rules: u32,
+    /// Characters carried by an *unmarked* note: note-zone text that arrived while no note
+    /// was open, because its marker was not one the rule recognises. They used to be dropped;
+    /// now they are kept, and this says how much of a book's note text had no marker read
+    /// (PHASE 7.5, `structure/lost/unattached-note-text`).
+    pub unmarked_chars: u32,
     pub warnings: Vec<Warning>,
 }
 
@@ -74,7 +79,7 @@ pub fn link_notes(
     let zone_ids: Vec<BlockId> = zone.iter().map(|block| block.id).collect();
 
     let markers = body_markers(blocks, &zone_ids);
-    let mut notes = note_bodies(&zone);
+    let (mut notes, unmarked_chars) = note_bodies(&zone);
     let separator_rules = notes
         .iter()
         .filter(|note| has_separator_rule(note, blocks, rules, body_size_pt, t))
@@ -202,6 +207,7 @@ pub fn link_notes(
             matched: u32::try_from(matched).unwrap_or(u32::MAX),
             match_rate,
             separator_rules: u32::try_from(separator_rules).unwrap_or(u32::MAX),
+            unmarked_chars,
             warnings,
         },
     )
@@ -286,7 +292,7 @@ fn is_symbol(text: &str) -> bool {
 }
 
 /// Split the zone's blocks into notes, one per line that opens with a marker.
-fn note_bodies(zone: &[&BlockView]) -> Vec<Found> {
+fn note_bodies(zone: &[&BlockView]) -> (Vec<Found>, u32) {
     let mut notes: Vec<Found> = Vec::new();
     for block in zone {
         for line in &block.lines {
@@ -306,12 +312,36 @@ fn note_bodies(zone: &[&BlockView]) -> Vec<Found> {
                         open.text.push(' ');
                         open.text.push_str(line.text.trim());
                         open.lines.push(line.line.clone());
+                    } else {
+                        // Nothing is open, so the line opens a note of its own, with no marker.
+                        // It used to be dropped here — while its block, claimed through the
+                        // notes opening later in it, left the flow — which is where the 644
+                        // characters on page 42 went (PHASE 7.5,
+                        // `structure/lost/unattached-note-text`). An unmarked note still reaches
+                        // the book: `epub` emits an unreferenced note as an aside, and the
+                        // linker's order-within-the-page pass may still pair it with its marker.
+                        notes.push(Found {
+                            marker: String::new(),
+                            page: block.page,
+                            block: block.id,
+                            top_y: line.bbox().y0,
+                            text: line.text.trim().to_owned(),
+                            lines: vec![line.line.clone()],
+                            marker_index: None,
+                        });
                     }
                 }
             }
         }
     }
-    notes
+    // Counted once the notes are complete, so the continuation lines an unmarked note went on
+    // to collect are counted with it, not only the line that opened it.
+    let unmarked = notes
+        .iter()
+        .filter(|note| note.marker.is_empty())
+        .map(|note| note.text.chars().filter(|ch| !ch.is_whitespace()).count())
+        .sum::<usize>();
+    (notes, u32::try_from(unmarked).unwrap_or(u32::MAX))
 }
 
 /// Every superscript marker in the body flow, in reading order.
@@ -361,4 +391,141 @@ fn has_separator_rule(
             && rule.bbox.y1 <= note.top_y
             && note.top_y - rule.bbox.y1 <= gap
     })
+}
+
+#[cfg(test)]
+mod note_text_tests {
+    use super::*;
+    use oc_model::geom::Rect;
+    use oc_model::layout::BlockKindHint;
+    use oc_model::text::Line;
+
+    fn line(text: &str, y: f32) -> crate::view::LineView {
+        let bbox = Rect {
+            x0: 0.0,
+            y0: y,
+            x1: 300.0,
+            y1: y + 8.0,
+        };
+        crate::view::LineView {
+            line: Line {
+                runs: Vec::new(),
+                bbox,
+                baseline_y: y + 7.0,
+                ends_with_hyphen: false,
+                indent_pt: 0.0,
+                right_gap_pt: 0.0,
+            },
+            text: text.to_owned(),
+            runs: Vec::new(),
+        }
+    }
+
+    fn block(page: u32, lines: &[&str]) -> BlockView {
+        let views: Vec<_> = lines
+            .iter()
+            .enumerate()
+            .map(|(index, text)| line(text, 700.0 + 10.0 * index as f32))
+            .collect();
+        let text = lines.join(" ");
+        BlockView {
+            id: BlockId::derive(
+                page,
+                Rect {
+                    x0: 0.0,
+                    y0: 700.0,
+                    x1: 300.0,
+                    y1: 760.0,
+                },
+                &text,
+            ),
+            page,
+            order: 0,
+            bbox: Rect {
+                x0: 0.0,
+                y0: 700.0,
+                x1: 300.0,
+                y1: 760.0,
+            },
+            column: 0,
+            kind_hint: BlockKindHint::Text,
+            text,
+            lines: views,
+            column_width_pt: 300.0,
+            space_above_pt: 0.0,
+            page_height_pt: 792.0,
+        }
+    }
+
+    fn c(text: &str) -> oc_model::extract::CharHistogram {
+        oc_model::ledger::c_of(text)
+    }
+
+    /// `structure/lost/unattached-note-text`, as an invariant: **note assembly carries every
+    /// character of the zone it is given**, whatever the markers look like.
+    ///
+    /// The first shape is the one this phase opened on — page 42, footnote 8's marker glued to
+    /// its first word so the rule does not read it, and 644 characters discarded until footnote
+    /// 9's marker opened something. The others are the ways the same fall-through arm is
+    /// reached: every line unmarked, a lettered note, a marker in the middle of the zone.
+    #[test]
+    fn note_assembly_keeps_every_character_of_the_zone() {
+        let zones: Vec<Vec<BlockView>> = vec![
+            // Page 42: glued marker, continuation, then a marker the rule does read.
+            vec![block(
+                41,
+                &[
+                    "8Cornelia Koppetsch zu zitieren, bedarf einer Fußnote.",
+                    "Die an der TU Darmstadt lehrende Soziologin",
+                    "9. Eine zweite Anmerkung.",
+                ],
+            )],
+            // Nothing recognisable at all.
+            vec![block(3, &["a Lettered note text", "and its continuation"])],
+            // Marked, then a second block whose first line is unmarked continuation.
+            vec![
+                block(7, &["1. First note", "runs on"]),
+                block(8, &["carried over from page seven", "2. Second note"]),
+            ],
+        ];
+
+        for zone in &zones {
+            let refs: Vec<&BlockView> = zone.iter().collect();
+            let (notes, _) = note_bodies(&refs);
+
+            let mut given = oc_model::extract::CharHistogram::new();
+            for block in zone {
+                for line in &block.lines {
+                    given = given.union(&c(&line.text));
+                }
+            }
+            let mut kept = oc_model::extract::CharHistogram::new();
+            for note in &notes {
+                kept = kept.union(&c(&note.text));
+            }
+
+            assert_eq!(
+                kept,
+                given,
+                "note assembly dropped {:?} from a zone of {} blocks",
+                given.difference(&kept).iter().collect::<Vec<_>>(),
+                zone.len()
+            );
+        }
+    }
+
+    /// The unmarked note is reported, and counted whole: its continuation lines included.
+    #[test]
+    fn an_unmarked_note_is_counted_with_its_continuations() {
+        let zone = [block(3, &["a Lettered note text", "and its continuation"])];
+        let refs: Vec<&BlockView> = zone.iter().collect();
+        let (notes, unmarked) = note_bodies(&refs);
+
+        assert_eq!(notes.len(), 1);
+        assert!(notes[0].marker.is_empty());
+        assert_eq!(
+            unmarked as u64,
+            c("a Lettered note text and its continuation").total()
+        );
+    }
 }

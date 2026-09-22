@@ -206,23 +206,10 @@ pub fn dump(
     let layout = crate::pipeline::layout_stage(&text, &furniture, &mut totals, t).map_err(fail)?;
 
     let images = crate::structure_input::document_images(&text);
-    let image_hashes = images
-        .iter()
-        .map(|image| {
-            let local = images
-                .iter()
-                .filter(|other| other.page.index == image.page.index)
-                .position(|other| other.id == image.id)
-                .unwrap_or_default();
-            document
-                .image_bytes(
-                    image.page.index,
-                    oc_model::extract::ImageId(u32::try_from(local).unwrap_or_default()),
-                )
-                .map(|decoded| oc_pdf::images::perceptual_hash(&decoded))
-                .unwrap_or_default()
-        })
-        .collect();
+    // The one decoder, which hashes only what the ornament rule reads. This site used to keep
+    // its own copy of the decode-and-hash loop, which is how a change to one would have left
+    // `dump-stage structure` disagreeing with `convert` about which images are ornaments.
+    let image_hashes = crate::convert::image_hashes(document, &images, t);
     let doc_info = document.doc_info();
 
     let stage_input = StructureInput {
