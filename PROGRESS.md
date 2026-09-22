@@ -1275,3 +1275,5 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-22  P8.7      oc-ai: one OpenAI-compatible client over a Transport; the adversarial stub (+ 7)  cc95e87
 2026-09-22  P8.8      oc-ai: cassettes at the provider seam, replay exact, four seeds (8.11 + 5)  6294cc6
 2026-09-22  P8.9      oc-core: the six escalation predicates, pure, table-tested (8.16)  1074970
+2026-09-22  P8.10     oc-ai: no socket by dependency or by std; CI unshare step; the DoD (8.15)  e5ad4ef
+2026-09-22  PHASE 8   COMPLETE on worktree-phase8 - Definition of Done checked; Linux/macOS CI and the unshare step unverified until merge
