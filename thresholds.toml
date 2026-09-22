@@ -776,6 +776,13 @@ evidence = "RT C2 'idle-kill at 120 s'"
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[llm.cache_reuse_min_chunk]
+value = 256
+source = "provisional"
+evidence = "PHASE 9 detail 2 / RT A3: `--cache-reuse N` is passed only to entries whose models.toml says cache_reuse = true; N is the smallest chunk llama-server will try to reuse from the KV cache by shifting. 256 tokens is the value llama.cpp's own examples use; it is not measured here, and gate G5 measures whether the prefix is reused at all"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [inventory.max_clusters]
 value = 24
 source = "provisional"

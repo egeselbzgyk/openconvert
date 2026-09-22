@@ -3606,3 +3606,30 @@ text never leaves the machine unless the user sends it to an endpoint they named
 non-loopback endpoint may be used at all is D10's consent question and Phase 11's.
 Evidence: `crates/oc-net/src/transport.rs`; `http_transport_posts_json_with_the_bearer_key`.
 Affects: D10, D13.9, SECURITY §8.
+
+## 2026-09-23 · The sidecar's key goes in `LLAMA_API_KEY`; its port is picked in `oc-net` · Phase 9
+Context: D8 says `llama-server` is spawned "with a per-run `--api-key`", and row 9.12 says the
+spawned command line must contain no key material ("key passed via file/env"). The plan also puts
+port picking in `oc-core/src/sidecar/portpick.rs`.
+Decision: (1) `oc_core::sidecar::llama::command` passes the key in the environment variable
+`LLAMA_API_KEY`, which llama.cpp's argument parser binds to `--api-key`, and never on the command
+line. Any local user can read a process's argv with `ps`; only the same user can read its
+environment. (2) Port picking binds a listener on `127.0.0.1:0` to learn a free port, and binding a
+socket is opening one, which D13.9 and test 9.7 reserve for `oc-net`. It is
+`oc_net::loopback::free_port`, and the caller passes the port to `oc-core`.
+**PROVISIONAL — needs maintainer ratification:** that `LLAMA_API_KEY` is read by the pinned build
+could not be checked here: github.com release assets are refused by this sandbox's egress policy,
+so no llama-server binary was run. If the pinned build does not read it, an owned server starts
+with no key. The live tests (9.15/9.16) and G1 would then see requests without a key accepted,
+and test 9.8 asserts the stub rejects them. `--api-key-file` is the fallback D8's wording allows.
+Evidence: `api_key_never_appears_in_argv`, `free_port_is_an_ephemeral_loopback_port`.
+Affects: D8, D13.9, PHASE 9 details 2–3, `crates/oc-core/src/sidecar/llama.rs`,
+`crates/oc-net/src/loopback.rs`.
+
+## 2026-09-23 · `llm.cache_reuse_min_chunk = 256`, provisional · Phase 9
+Context: PHASE 9 detail 2 passes `--cache-reuse N` to entries whose `models.toml` says
+`cache_reuse = true`, and names no N.
+Decision: 256 tokens, `source = provisional`. The value is the one llama.cpp's examples use. It is
+not measured here. Gate G5 measures the consequence directly: a second identical call set must cost
+≤ 40 % of the first.
+Affects: `thresholds.toml`, `crates/oc-core/src/sidecar/llama.rs`.

@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 9
-CURRENT_ITEM: P9.5 — sidecar arguments and port picking (rows 9.12, 9.14).
+CURRENT_ITEM: P9.6 — the owned server's lifecycle (rows 9.8–9.11, 9.13).
               Built on branch `phase/09-local-model`.
 LAST_UPDATED: 2026-09-23
 
@@ -70,7 +70,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P9.2** the downloader: allowlist, streaming SHA-256, LICENSE/NOTICE, atomic — rows 9.3–9.6
 - [x] **P9.3** the store (`list`, `remove`) and `HttpTransport` — row 9.19
 - [x] **P9.4** `oc-core` has no net dependency — row 9.7
-- [ ] **P9.5** sidecar arguments and port picking — rows 9.12, 9.14
+- [x] **P9.5** sidecar arguments and port picking — rows 9.12, 9.14
 - [ ] **P9.6** the owned server's lifecycle — rows 9.8–9.11, 9.13
 - [ ] **P9.7** `openconvert model pull|list|remove` — row 9.18
 - [ ] **P9.8** live tests behind `live-llm`, `W_LLM_PREFIX_COLD` — rows 9.15, 9.16
@@ -95,8 +95,12 @@ What a fresh session needs:
   Cargo.lock and scans `oc-core/src` for `std::net`. So the sidecar supervisor in `oc-core` reaches
   its server only through a health probe and a port its caller supplies (the caller links `oc-net`).
   The conversion suite passes here under `unshare -n` (5 tests, CI's filter).
+- **The key travels in `LLAMA_API_KEY`**, never in argv (`oc_core::sidecar::llama::command`).
+  `--cache-reuse` comes from the registry's `cache_reuse`, its chunk from
+  `llm.cache_reuse_min_chunk` (new, provisional). `oc_net::loopback::free_port` picks the port:
+  the plan's `oc-core/src/sidecar/portpick.rs` moved to `oc-net` because binding is opening a socket.
 - **Disk is shared with a parallel worker** (`/home/user/wt/phase12`, ~11 GB). Build with
-  `CARGO_INCREMENTAL=0`; prune stale duplicates in `target/debug/deps` when free space drops under
+  `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` (env only, no repo change); prune stale duplicates in `target/debug/deps` when free space drops under
   ~5 GB (keep the newest artefact per crate name).
 
 ## Current work item
