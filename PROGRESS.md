@@ -211,7 +211,18 @@ Work items, in order, with the plan's test rows against each:
       `QueueRow`/`StageList`/`ProgressBar`/`Spinner`/`BlockingError`. The UI's numbers arrive
       from `thresholds.toml` through the `ui_config` command; component tests drive `App` through
       `test/fake-backend.ts`
-- [ ] **P12.8** the screens: queue, result, report, preview, settings, first run, blocking errors
+- [ ] **P12.8** the screens, in six commits:
+  - [x] **P12.8a** route `queue`: DropZone (full, strip, drag-over all-PDF / mixed, "Select PDF…"
+        through the native picker — `pick_pdfs`, `tauri-plugin-dialog` called from Rust only),
+        PrivacyNote, QueueList (roving tabindex, ↑/↓/Home/End, Delete), "Remove all waiting…"
+        confirm Dialog (focus trap, opens on Cancel), polite announcements, AppHeader; persisted
+        settings (`settings.rs`: language, preset, caps → the job spec's `preset`/`limits`) (+ 4 tests)
+  - [ ] **P12.8b** route `result`: the expanded row — output, summary, validation, warnings with
+        page links, quality facts, actions; open in reader / show in folder
+  - [ ] **P12.8c** route `report`
+  - [ ] **P12.8d** route `preview`
+  - [ ] **P12.8e** route `settings` (+ `models`/`firstrun` shells for part B)
+  - [ ] **P12.8f** the diagnostic bundle (export, review)
 - [ ] **P12.9** metadata and TOC overrides — rows 12.10, 12.11
 - [ ] **P12.10** Playwright under the shipped CSP — rows 12.14 (keyboard), 12.15, 12.16
 - [ ] **P12.11** CI wiring, the signing dry-run workflow (row 12.14 signing, unverified here)

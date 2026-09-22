@@ -24,6 +24,8 @@ engine-integration = []
 
 [dependencies]
 tauri.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-opener.workspace = true
 # The job-spec validator and the thresholds: the same code the engine runs (D13.1).
 oc-core = { path = "../../../crates/oc-core", version = "0.1.0" }
 oc-model = { path = "../../../crates/oc-model", version = "0.1.0" }

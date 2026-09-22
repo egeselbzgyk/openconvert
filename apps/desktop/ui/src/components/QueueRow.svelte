@@ -14,16 +14,30 @@
   let {
     row,
     now,
+    active = true,
     oncancel,
     onremove,
     onretry,
   }: {
     row: Row;
     now: number;
+    /** The roving-tabindex row: the one Tab lands on (QueueList). */
+    active?: boolean;
     oncancel: (id: string) => void;
     onremove: (id: string) => void;
     onretry: (row: Row) => void;
   } = $props();
+
+  const tab = $derived(active ? 0 : -1);
+
+  /** Delete removes a waiting row (components.md, QueueRow). */
+  function keydown(event: KeyboardEvent) {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === "Delete" && (row.phase === "queued" || row.phase === "cancelled" || row.phase === "failed")) {
+      event.preventDefault();
+      onremove(row.id);
+    }
+  }
 
   const name = $derived(row.input.split(/[\\/]/).pop() ?? row.input);
 
@@ -67,6 +81,10 @@
   });
 </script>
 
+<!-- The spec's roving tabindex is over the list items themselves (components.md, QueueList): one Tab
+     stop into the list, arrows between rows, Delete on a waiting row. -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <li
   class="oc-row"
   class:oc-row--running={row.phase === "running" && !row.stalled}
@@ -77,6 +95,8 @@
   class:oc-row--compact={row.phase === "queued"}
   aria-label={t("row.label", { file: name, status })}
   data-job={row.id}
+  tabindex={tab}
+  onkeydown={keydown}
 >
   <div class="oc-row__line">
     {#if row.phase === "queued"}
@@ -117,17 +137,17 @@
     </div>
 
     {#if row.phase === "queued"}
-      <button class="oc-btn oc-btn--quiet oc-btn--sm" aria-label={t("queue.removeFile", { file: name })} onclick={() => onremove(row.id)}>{t("queue.remove")}</button>
+      <button class="oc-btn oc-btn--quiet oc-btn--sm" tabindex={tab} aria-label={t("queue.removeFile", { file: name })} onclick={() => onremove(row.id)}>{t("queue.remove")}</button>
     {:else if row.phase === "running"}
-      <button class="oc-btn oc-btn--sm" aria-label={t("queue.cancelFile", { file: name })} onclick={() => oncancel(row.id)}>{t("queue.cancel")}</button>
+      <button class="oc-btn oc-btn--sm" tabindex={tab} aria-label={t("queue.cancelFile", { file: name })} onclick={() => oncancel(row.id)}>{t("queue.cancel")}</button>
     {:else if row.phase === "cancelling"}
-      <button class="oc-btn oc-btn--sm" disabled>{t("queue.cancelling")}</button>
+      <button class="oc-btn oc-btn--sm" tabindex={tab} disabled>{t("queue.cancelling")}</button>
     {:else if row.phase === "cancelled"}
-      <button class="oc-btn oc-btn--sm" onclick={() => onretry(row)}>{t("queue.again")}</button>
-      <button class="oc-btn oc-btn--quiet oc-btn--sm" aria-label={t("queue.removeFile", { file: name })} onclick={() => onremove(row.id)}>{t("queue.remove")}</button>
+      <button class="oc-btn oc-btn--sm" tabindex={tab} onclick={() => onretry(row)}>{t("queue.again")}</button>
+      <button class="oc-btn oc-btn--quiet oc-btn--sm" tabindex={tab} aria-label={t("queue.removeFile", { file: name })} onclick={() => onremove(row.id)}>{t("queue.remove")}</button>
     {:else if row.phase === "failed"}
-      {#if failure.retry}<button class="oc-btn oc-btn--sm" onclick={() => onretry(row)}>{t("queue.again")}</button>{/if}
-      <button class="oc-btn oc-btn--quiet oc-btn--sm" aria-label={t("queue.removeFile", { file: name })} onclick={() => onremove(row.id)}>{t("queue.remove")}</button>
+      {#if failure.retry}<button class="oc-btn oc-btn--sm" tabindex={tab} onclick={() => onretry(row)}>{t("queue.again")}</button>{/if}
+      <button class="oc-btn oc-btn--quiet oc-btn--sm" tabindex={tab} aria-label={t("queue.removeFile", { file: name })} onclick={() => onremove(row.id)}>{t("queue.remove")}</button>
     {/if}
   </div>
 

@@ -3,7 +3,7 @@
  * emit `engine-line` and `job-changed` exactly as the Rust side would.
  */
 
-import type { Backend, DropEvent, Enqueued, UiConfig, UiError } from "../lib/backend";
+import type { Backend, DropEvent, Enqueued, Settings, UiConfig, UiError } from "../lib/backend";
 import type { Hello } from "../lib/events";
 import type { JobView } from "../lib/jobstate";
 
@@ -51,6 +51,25 @@ export class FakeBackend implements Backend {
   async enqueue(paths: string[]): Promise<Enqueued> {
     this.calls.push(["enqueue", paths]);
     return { jobs: [], skipped: [] };
+  }
+  picked: string[] = [];
+  saved: Settings = {
+    language: "en",
+    preset: "auto",
+    maxPages: null,
+    maxMemoryBytes: null,
+    firstrunDismissed: false,
+  };
+  async pickPdfs(): Promise<string[]> {
+    this.calls.push(["pick", null]);
+    return this.picked;
+  }
+  async settings(): Promise<Settings> {
+    return this.saved;
+  }
+  async saveSettings(next: Settings): Promise<void> {
+    this.calls.push(["settings", next]);
+    this.saved = next;
   }
   async cancel(job: string): Promise<void> {
     this.calls.push(["cancel", job]);

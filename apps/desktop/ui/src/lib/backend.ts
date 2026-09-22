@@ -35,6 +35,17 @@ export interface UiError {
   detail?: unknown;
 }
 
+export type Preset = "auto" | "novel" | "academic" | "textbook" | "poetry" | "scanned";
+
+/** The user's settings, kept by the Rust side (`src-tauri/src/settings.rs`). */
+export interface Settings {
+  language: "en" | "de" | "tr" | null;
+  preset: Preset;
+  maxPages: number | null;
+  maxMemoryBytes: number | null;
+  firstrunDismissed: boolean;
+}
+
 export interface Enqueued {
   jobs: string[];
   skipped: string[];
@@ -54,6 +65,9 @@ export interface Backend {
   config(): Promise<UiConfig>;
   rows(): Promise<JobView[]>;
   enqueue(paths: string[]): Promise<Enqueued>;
+  pickPdfs(): Promise<string[]>;
+  settings(): Promise<Settings>;
+  saveSettings(next: Settings): Promise<void>;
   cancel(job: string): Promise<void>;
   remove(job: string): Promise<void>;
   onLine(handler: (job: string, line: string) => void): Promise<Unlisten>;
@@ -69,6 +83,9 @@ export function tauriBackend(): Backend {
     config: () => invoke<UiConfig>("ui_config"),
     rows: () => invoke<JobView[]>("queue_rows"),
     enqueue: (paths) => invoke<Enqueued>("enqueue", { paths }),
+    pickPdfs: () => invoke<string[]>("pick_pdfs"),
+    settings: () => invoke<Settings>("settings_get"),
+    saveSettings: (next) => invoke<void>("settings_set", { next }),
     cancel: (job) => invoke<void>("cancel", { job }),
     remove: (job) => invoke<void>("remove", { job }),
     onLine: (handler) =>

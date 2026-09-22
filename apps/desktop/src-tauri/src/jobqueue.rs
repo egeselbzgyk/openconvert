@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use oc_core::jobspec::JobSpec;
+use oc_core::jobspec::{JobSpec, LimitsSpec};
 use oc_core::thresholds::T;
 use oc_model::document::PresetName;
 use serde::Serialize;
@@ -73,6 +73,7 @@ struct Job {
     output: PathBuf,
     renamed: bool,
     preset: PresetName,
+    limits: Option<LimitsSpec>,
     phase: Phase,
 }
 
@@ -118,6 +119,16 @@ impl<L: Launch> JobQueue<L> {
     /// Each output is `<input>.epub`, or the first free `name (n).epub` when that exists or is
     /// already another queued job's output — the app never overwrites (design, `result.html` §5).
     pub fn enqueue(&mut self, pdfs: &[PathBuf], preset: PresetName) -> Vec<String> {
+        self.enqueue_with(pdfs, preset, None)
+    }
+
+    /// [`JobQueue::enqueue`], with the resource caps the user set in Settings › Advanced.
+    pub fn enqueue_with(
+        &mut self,
+        pdfs: &[PathBuf],
+        preset: PresetName,
+        limits: Option<LimitsSpec>,
+    ) -> Vec<String> {
         let mut ids = Vec::with_capacity(pdfs.len());
         for input in pdfs {
             self.next += 1;
@@ -130,6 +141,7 @@ impl<L: Launch> JobQueue<L> {
                 renamed: output != desired,
                 output,
                 preset,
+                limits,
                 phase: Phase::Queued,
             });
             ids.push(id);
@@ -261,6 +273,7 @@ impl<L: Launch> JobQueue<L> {
             let mut spec = JobSpec::new(job.input.clone(), job.output.clone());
             spec.job_id = Some(job.id.clone());
             spec.preset = Some(job.preset);
+            spec.limits = job.limits;
             let sink = Arc::clone(&self.sink);
             let id = job.id.clone();
             job.phase =

@@ -421,3 +421,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* BlockingError: the secondary paragraph (was inline: secondary colour, --oc-text-md). */
 .oc-blocking__hint { color: var(--oc-text-secondary); font-size: var(--oc-text-md); }
+
+/* The app root fills the window and hosts the dialogs' scrim (was inline position:relative). */
+.oc-app--window { position: relative; height: 100vh; }
+
+/* DropZone: the secondary line and the skipped-files line (were inline). */
+.oc-dropzone__hint { font-size: var(--oc-text-sm); color: var(--oc-text-secondary); }
+.oc-dropzone__skip { display: inline-flex; align-items: center; justify-content: center; gap: var(--oc-space-2); }
+.oc-dropzone__skip .oc-icon { color: var(--oc-status-warning); }
+
+/* QueueList: the head's spacer and the scrolling list (were inline). */
+.oc-queue__spacer { flex: 1; }
+.oc-queue--scroll { flex: 1; min-height: 0; overflow: auto; padding-right: var(--oc-space-1); }

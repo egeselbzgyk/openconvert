@@ -73,6 +73,18 @@ export function translate(locale: Locale, key: string, args: Args = {}): string 
   return template === undefined ? `⟦${key}⟧` : fill(template, args, locale);
 }
 
+/**
+ * A UI string that depends on a count: `key.one`, `key.other`, … chosen by the locale's plural
+ * rules, with the count as `{n}`. Every locale carries the same suffixes, so the key-parity gate
+ * still holds.
+ */
+export function translatePlural(locale: Locale, key: string, count: number, args: Args = {}): string {
+  const category = new Intl.PluralRules(locale).select(count);
+  const table = STRINGS[locale];
+  const template = table[`${key}.${category}`] ?? table[`${key}.other`];
+  return template === undefined ? `⟦${key}⟧` : fill(template, { n: count, ...args }, locale);
+}
+
 /** A warning's sentence from its code and arguments, or `null` for a code no table knows. */
 export function renderWarning(locale: Locale, code: string, args: Args = {}): string | null {
   const template = TEMPLATES[locale].get(code);

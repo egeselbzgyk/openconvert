@@ -11,21 +11,25 @@
 //! can never add an argument to it (RT B15). This file is only the Tauri wiring: the commands the
 //! webview may call, and the two events it receives — `engine-line` (one NDJSON line of one job's
 //! engine, parsed and judged by the UI) and `job-changed` (a queue row's state).
+//!
+//! The webview names files only by job id. A path the Rust side opens, reveals or reads is always
+//! one the queue recorded for that job, never a string from the webview.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use oc_core::thresholds::T;
-use oc_model::document::PresetName;
 use openconvert_desktop::config::UiConfig;
 use openconvert_desktop::engine::{
     handshake, sidecar_path, Engine, Hello, ProcessLauncher, UiError,
 };
 use openconvert_desktop::fs_scope::{partition_drop, AppDirs};
 use openconvert_desktop::jobqueue::{JobQueue, JobView, QueueSink};
+use openconvert_desktop::settings::{self, Settings};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_dialog::DialogExt;
 
 /// What the startup check found. The UI shows a blocking error instead of the app when this is an
 /// error, and the queue refuses work without it (RT A5.7).
@@ -33,6 +37,12 @@ struct Startup(Result<Hello, UiError>);
 
 /// The queue, once the app knows where its directories and its engine are.
 struct Queue(Mutex<Option<JobQueue<ProcessLauncher>>>);
+
+/// The user's settings and where they are kept.
+struct Prefs {
+    path: Mutex<Option<PathBuf>>,
+    current: Mutex<Settings>,
+}
 
 /// Relays the queue to the webview.
 struct WebviewSink(AppHandle);
@@ -66,23 +76,48 @@ struct Enqueued {
 }
 
 /// Queue the PDFs among `paths`; name everything else. Paths come from Tauri's native drop or
-/// the native file picker, so they are absolute (Phase 12 detail 2).
+/// the native file picker, so they are absolute (Phase 12 detail 2). The preset and the resource
+/// caps are the user's settings.
 #[tauri::command]
 fn enqueue(
     paths: Vec<PathBuf>,
-    preset: Option<PresetName>,
     startup: tauri::State<'_, Startup>,
     queue: tauri::State<'_, Queue>,
+    prefs: tauri::State<'_, Prefs>,
 ) -> Result<Enqueued, UiError> {
     startup.0.as_ref().map_err(Clone::clone)?;
     let drop = partition_drop(paths);
+    let chosen = prefs
+        .current
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
     let jobs = with_queue(&queue, |queue| {
-        Ok(queue.enqueue(&drop.pdfs, preset.unwrap_or_default()))
+        Ok(queue.enqueue_with(&drop.pdfs, chosen.preset, chosen.limits()))
     })?;
     Ok(Enqueued {
         jobs,
         skipped: drop.skipped,
     })
+}
+
+/// The native file picker, PDFs only ("Select PDF…"). Run off the main thread: a blocking dialog
+/// on it would freeze the window it belongs to.
+#[tauri::command]
+async fn pick_pdfs(app: AppHandle) -> Result<Vec<PathBuf>, UiError> {
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .add_filter("PDF", &["pdf", "PDF"])
+            .blocking_pick_files()
+    })
+    .await
+    .map_err(|error| UiError::Io(error.to_string()))?;
+    Ok(picked
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|path| path.into_path().ok())
+        .collect())
 }
 
 #[tauri::command]
@@ -95,22 +130,45 @@ fn remove(job: String, queue: tauri::State<'_, Queue>) -> Result<(), UiError> {
     with_queue(&queue, |queue| queue.remove(&job))
 }
 
+/// Every row, for a webview that (re)loads.
+#[tauri::command]
+fn queue_rows(queue: tauri::State<'_, Queue>) -> Result<Vec<JobView>, UiError> {
+    with_queue(&queue, |queue| Ok(queue.views()))
+}
+
 /// The thresholds the webview needs (`openconvert_desktop::config`).
 #[tauri::command]
 fn ui_config() -> UiConfig {
     UiConfig::from_thresholds(env!("CARGO_PKG_VERSION"))
 }
 
+#[tauri::command]
+fn settings_get(prefs: tauri::State<'_, Prefs>) -> Settings {
+    prefs
+        .current
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()
+}
+
+#[tauri::command]
+fn settings_set(next: Settings, prefs: tauri::State<'_, Prefs>) -> Result<(), UiError> {
+    if let Some(path) = prefs
+        .path
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+    {
+        settings::save(path, &next)?;
+    }
+    *prefs.current.lock().unwrap_or_else(PoisonError::into_inner) = next;
+    Ok(())
+}
+
 /// "Quit" on the blocking startup screen.
 #[tauri::command]
 fn quit(app: AppHandle) {
     app.exit(0);
-}
-
-/// Every row, for a webview that (re)loads.
-#[tauri::command]
-fn queue_rows(queue: tauri::State<'_, Queue>) -> Result<Vec<JobView>, UiError> {
-    with_queue(&queue, |queue| Ok(queue.views()))
 }
 
 fn with_queue<R>(
@@ -133,10 +191,21 @@ fn main() {
         Duration::from_millis(u64::try_from(T.desktop.supervisor_tick_ms).unwrap_or(u64::MAX));
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(Startup(startup))
         .manage(Queue(Mutex::new(None)))
+        .manage(Prefs {
+            path: Mutex::new(None),
+            current: Mutex::new(Settings::default()),
+        })
         .setup(move |app| {
             let dirs = AppDirs::under(&app.path().app_data_dir()?)?;
+            let settings_file = settings::settings_path(&app.path().app_config_dir()?);
+            let prefs = app.state::<Prefs>();
+            *prefs.current.lock().unwrap_or_else(PoisonError::into_inner) =
+                settings::load(&settings_file);
+            *prefs.path.lock().unwrap_or_else(PoisonError::into_inner) = Some(settings_file);
+
             if let Ok(engine) = engine {
                 let launcher = ProcessLauncher::new(engine, dirs.jobs.clone());
                 let sink = Arc::new(WebviewSink(app.handle().clone()));
@@ -161,8 +230,11 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             startup_status,
             ui_config,
+            settings_get,
+            settings_set,
             quit,
             enqueue,
+            pick_pdfs,
             cancel,
             remove,
             queue_rows

@@ -59,6 +59,10 @@ time      = { version = "0.3", features = ["formatting", "macros"] }
 # --- desktop shell (apps/desktop only) ---
 tauri              = { version = "2", features = [] }
 tauri-build        = "2"
+# Native file picker and save dialog, and "open with the default app" / "show in folder". Both
+# are called from the app's own Rust commands; the webview is granted neither plugin (test 12.13).
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
 # --- parallelism / process ---
 rayon = "1"
 # --- net (oc-net only) ---

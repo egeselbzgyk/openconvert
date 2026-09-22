@@ -10,3 +10,4 @@ pub mod config;
 pub mod engine;
 pub mod fs_scope;
 pub mod jobqueue;
+pub mod settings;
