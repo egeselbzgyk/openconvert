@@ -26,5 +26,7 @@ thiserror.workspace = true
 
 [dev-dependencies]
 oc-core = { path = "../oc-core", version = "0.1.0" }
+# Only to hold gate V's restatement of the Gopher statistics equal to oc-text's own.
+oc-text = { path = "../oc-text", version = "0.1.0" }
 insta.workspace = true
 proptest.workspace = true

@@ -3505,6 +3505,7 @@ dependencies = [
  "insta",
  "oc-core",
  "oc-model",
+ "oc-text",
  "proptest",
  "serde",
  "serde_json",

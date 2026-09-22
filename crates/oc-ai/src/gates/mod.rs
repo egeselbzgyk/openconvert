@@ -16,12 +16,35 @@
 pub mod fallback;
 pub mod locality;
 pub mod schema;
+pub mod validity;
+
+use oc_model::document::Document;
+
+use validity::{Region, RegionStats, Tolerance};
+
+/// Gates L and V over an edit built from an answer gate S admitted, in that order: a change of
+/// characters is refused before anything is measured about the text it would have produced.
+///
+/// The caller keeps `before` and applies `after` only on `Ok`, which is what "revert" means.
+pub fn gate_edit(
+    before: &Document,
+    after: &Document,
+    region: &Region,
+    tolerance: &Tolerance,
+) -> Result<(), GateFailure> {
+    locality::gate_locality(before, after)?;
+    validity::gate_validity(
+        &RegionStats::measure(before, region),
+        &RegionStats::measure(after, region),
+        tolerance,
+    )
+}
 
 /// Why a model's answer was not applied.
 ///
 /// Each variant carries what a developer reading a failing test needs. Only [`GateFailure::code`]
 /// reaches the IR: the details may quote the model, and the model may have quoted the book.
-#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
 pub enum GateFailure {
     /// Gate S: the answer holds a `<think>` block. D10 disables thinking per request and asserts
     /// it absent from the output, whatever the provider did with the request.
@@ -56,6 +79,14 @@ pub enum GateFailure {
     /// Gate L: every character is still there, and the book no longer reads in the same order.
     #[error("the edit moved text: every character is present, and not in the order it was")]
     TextReordered,
+    /// Gate V: a component of the region's statistics worsened by more than its epsilon. The
+    /// first such component in the tuple's fixed order is the one named.
+    #[error("the edit made `{statistic}` worse: {before} before, {after} after")]
+    Worsened {
+        statistic: &'static str,
+        before: f32,
+        after: f32,
+    },
 }
 
 impl GateFailure {
@@ -69,6 +100,7 @@ impl GateFailure {
             GateFailure::NotBijective { .. } => "S.bijection",
             GateFailure::CharactersChanged { .. } => "L.characters",
             GateFailure::TextReordered => "L.order",
+            GateFailure::Worsened { .. } => "V.worsened",
         }
     }
 }

@@ -7,7 +7,7 @@ CURRENT_PHASE: 7.5 — and 8, in parallel, on the `worktree-phase8` branch
 CURRENT_ITEM: 7.5.3 — the defect inventory over the whole corpus, and the timeout class
               it found. 9 of 104 documents are unmeasured; the inventory run was
               stopped by system memory pressure.
-              P8.4 — gate V (Phase 8, `worktree-phase8`; see "Phase 8 — in parallel")
+              P8.5 — the call budget (Phase 8, `worktree-phase8`; see "Phase 8 — in parallel")
 LAST_UPDATED: 2026-09-22
 
 ---
@@ -261,7 +261,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P8.1** prompt artifacts, the GBNF parser, the request — rows 8.1, 8.14 (+ 19)
 - [x] **P8.2** gate S, and gate D's record — rows 8.2, 8.3, 8.4, 8.9, 8.12 (+ 6)
 - [x] **P8.3** gate L — rows 8.5, 8.6 (+ 3)
-- [ ] **P8.4** gate V — rows 8.7, 8.8
+- [x] **P8.4** gate V — rows 8.7, 8.8 (+ 5)
 - [ ] **P8.5** the call budget — row 8.13
 - [ ] **P8.6** the cache key and the file cache — row 8.10
 - [ ] **P8.7** transport, the OpenAI-compatible client, the stub server
@@ -291,6 +291,11 @@ What a fresh session needs, in the order it matters:
   I-1 and is still a deletion no task may make; a rename cannot reorder or re-encode text either.
   Test 8.5 runs 5 000 generated edits and has a converse, `gate_l_admits_every_rename`, so the
   gate cannot pass by refusing everything. `tests/common/book.rs` builds small `Document`s.
+- **Gate V restates oc-text's Gopher statistics** (dup-line, top-2/3-gram, non-alpha words) plus
+  heading-tree violations, as ARCHITECTURE §6.2's fixed tuple; undefined is `None` and skipped.
+  `gate_v_statistics_are_oc_texts` (oc-text is a dev-dependency) holds the two definitions equal.
+  `gates::gate_edit` runs L then V over an applied edit; the caller keeps `before` on `Err`.
+  Epsilons: `llm.gate_v_ratio_eps = 0.01` (provisional), `llm.gate_v_violations_eps = 0`.
 - **The worked examples of A.3 are `crates/oc-ai/tests/common/mod.rs`** and are the seeds for the
   committed cassettes (P8.8). "One cassette per task per fixture" is read as one per task per
   *named payload*: a payload rendered from a Typst fixture needs Phase 10's inventory builders.
@@ -1203,3 +1208,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-20  P7.10     ci: the python job, corpus lint, and four nightly bodies (7.13, 7.14 + 16)  61edb1d
 2026-09-22  P8.1      oc-ai: v1 prompts, a llama.cpp GBNF parser, the request (8.1, 8.14 + 19)  42807c2
 2026-09-22  P8.2      oc-ai: gate S, and gate D's record in Decision.fallback (8.2-8.4, 8.9, 8.12 + 6)  6c47025
+2026-09-22  P8.3      oc-ai: gate L - C unchanged without the ledger, then reading order (8.5, 8.6 + 3)  7b83a2a

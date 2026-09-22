@@ -734,6 +734,20 @@ evidence = "Ratified note N-4 (ARCHITECTURE 6.3, D13.6): task 4 is batched at ex
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[llm.gate_v_ratio_eps]
+value = 0.01
+source = "provisional"
+evidence = "ARCHITECTURE 6.2 / RT B13: the epsilon each ratio component of gate V's tuple (duplicate-line, top-2-gram, top-3-gram, non-alpha-word) may worsen by before an edit is reverted. As invented as the tuple itself; first measured against a real model's edits in Phase 10"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.gate_v_violations_eps]
+value = 0
+source = "binary"
+evidence = "ARCHITECTURE 6.2: heading_tree_violations is an integer count - level skips plus page-order inversions - and its epsilon is 0: an edit may not add a single one"
+owner = "maintainer"
+review_by = "2099-01-01"
+
 [llm.max_wallclock_share]
 value = 0.25
 source = "provisional"
