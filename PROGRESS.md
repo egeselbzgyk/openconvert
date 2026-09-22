@@ -4,10 +4,9 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 7.5
-CURRENT_ITEM: 7.5.3 — the defect inventory over the whole corpus, and the timeout class
-              it found. 9 of 104 documents are unmeasured; the inventory run was
-              stopped by system memory pressure.
-LAST_UPDATED: 2026-09-20
+CURRENT_ITEM: 7.5.4 — the timeout class: 11 long books do not finish structure in 90 s
+              (see ## Current work item, open item 1)
+LAST_UPDATED: 2026-09-22
 
 ---
 
@@ -60,190 +59,86 @@ LAST_UPDATED: 2026-09-20
 
 ## Current work item
 
-**Phase 7.5 is in progress.** Two work items are done; the state below is measured, not planned.
-
-### 7.5.1 — the diagnostic  ✅
-
-`openconvert diff-stage <stage> <input.pdf>` runs a stage **outside** the conservation check and
-reports what it did to the text. It exists because `dump-stage` refuses on a stage that does not
-balance — the debugging surface was unavailable exactly when it was wanted, and locating the first
-defect cost a hand-written binary search over page prefixes.
-
-It answers three questions at once, and the third is the one that was invisible before:
+**Phase 7.5 is in progress, and its conservation gate is close.** Everything below is measured on
+the full 104-document corpus with one binary, via `openconvert diff-stage structure`.
 
 ```
-  in           108491 characters over 3048 blocks
-  declared      84599 characters over 3229 units   lost 23894  appeared 2
-  reachable     84421 characters over 3185 units   lost 24072  appeared 2
-
-  SILENT LOSS  178 characters are in a container the flow does not reach
-  CONTESTED      7 blocks are claimed by more than one structure
+run          clean  conservation  timeout  text-I1       lost      dup
+2026-09-20     35        58           6*       4    1 421 777   30 579
+2026-09-22 a   72        14          17        0        3 415        0
+2026-09-22 b   79        13          11        0        2 869        0
+                              (* 300 s per document; the later runs allowed 90 s)
 ```
 
-- **declared** is `StructureOutput::emitted_text` — every container the stage built. This is what
-  I-1 is computed against today.
-- **reachable** is `StructureOutput::reachable_text` — only the containers the flow points at,
-  which is what a reader will see.
-- The gap between them is a **loss the conservation law cannot see**: a figure whose image was
-  dropped as an ornament keeps its bound caption claimed, and the stage balances against its own
-  bookkeeping while the book is short.
+**Loss down 99.8 %, duplication gone, clean documents 35 → 79.** The 2026-09-20 baseline has
+mixed provenance: its loop kept running after its wrapper was reaped, and its last nine rows came
+from whichever binary was built at that moment.
 
-`oc_structure::claims` replaces the bare `taken: BTreeSet<BlockId>` with a `Claim` that names its
-claimant, so a dropped block can be traced to the structure that dropped it. `contested()` reports
-a block two claimants both want — which the set used to resolve silently by insertion order.
+### Classes closed, in the order they were worked
 
-### 7.5.2 — first defect class, admitted and closed  ✅
+Each one: admitted at ≥ 3 documents across ≥ 2 strata, *how else could this arise?* written in
+`docs/DECISIONS_LOG.md` before the fix, closed by an architectural change, left an invariant test.
 
-`structure/lost/claim-without-emission`, admitted on **7 documents across 2 producer strata**.
+| class | mechanism | invariant |
+|---|---|---|
+| `structure/lost/claim-without-emission` | a claim computed from a predicate over the input (a line range, a bbox) rather than from what the builder emitted | `a_claimed_block_must_be_accounted_for_by_its_claimant` |
+| `text/substituted/nfc-singleton` → ADR ruling | `N`'s NFC changed `C` and D13.4's closed `Reason` enum could not say so. **Ruled 2026-09-20: `C(·)` is taken after canonical *de*composition** — NFD, because composition depends on adjacency and a multiset must not | `c_of_is_invariant_under_canonical_equivalence_across_unicode`, `c_of_does_not_depend_on_where_the_text_was_cut` |
+| `structure/lost/orphaned-claimant` — **73 % of all loss** | a list entered the flow only if its first item's block was itself claimed; 13 of 13 orphans had an unclaimed first block | `no_claimant_is_orphaned` |
+| `structure/appeared/contested-claim` | four detectors ran independently over every block; now notes → tables → captions → lists, each built from what the ones before left | `no_text_has_two_owners` |
+| (found inside the above) caption claimed by **text** | a running head repeated on 15 pages, one bound as a caption, all 15 claimed | covered by the two above |
+| `structure/lost/unattached-note-text` — **the page-42 defect this phase opened on** | a note-zone line arriving with no note open was dropped; `8Cornelia` is not a marker to the rule | `note_assembly_keeps_every_character_of_the_zone` |
 
-**The claim was computed from a predicate over the input rather than from what the builder
-produced.** Two independent instances of one shape:
+**One shape, found five times:** a second predicate standing in for a decision that had already
+been made — a claim re-derived from geometry, from a line range, from a text search, from a
+trigger block, from a walk over items. Every fix was to record the decision where it is made and
+read that record. It is worth looking for first in any new class.
 
-- `lists` extended `consumed_lines` over the whole marked run while `build_level` emitted only
-  `lines.get(marker.line)`. Its own comment said "its marked line and every unmarked line beneath
-  it before the next marker" and the code took one line. Every continuation line in every list was
-  claimed and dropped — 22 776 characters on one arXiv paper.
-- `tables` consumed every block geometrically inside the region while `build_table` read text from
-  the runs inside it. Two different predicates, and the blocks in the gap were lost.
+### Found and fixed on the way
 
-Measured on the eleven documents, reachable output: **46 413 → 37 980 characters lost (−18 %)**, no
-document worse than before, **all 62 `(unnamed)` claimants gone**.
+- **A fatal reached nobody without `--progress json`.** `inspect`, `validate`, `dump-stage` and
+  `diff-stage` exited non-zero printing nothing, which invented a "timeout class" of 13 documents
+  that were failing in under a second.
+- **Hashing decoded every image** although only small ones are ever compared: a 131-page scan
+  went 101 s → 42.5 s, and six documents left the timeout list.
+- **Unreferenced notes are in the book** — `epub` emits them as asides — so the diagnostic's
+  reachability rule for notes was stricter than the output and reported losses that were not.
+- Three quadratic or cubic lookups this phase itself introduced, all replaced by indexes.
 
-Two things were learned by doing it and both changed the fix — `docs/DECISIONS_LOG.md`, 2026-09-20:
+### Open, in the order it matters
 
-1. The first attempt made two documents **worse**: deriving the table's claim from the runs it took
-   consumed blocks that only partly overlap the region.
-2. Correcting that traded loss for duplication (544 → 2 015 characters emitted twice), because a
-   straddling block stayed in the flow while its inside runs were still in the cells. **The unit of
-   taking and the unit of claiming must be the same unit** — the table read at run granularity and
-   claimed at block granularity, and every straddling block fell in that gap.
+1. **The timeout class — 11 documents, all long books** (123–974 pages; ABBYY-scanner 4, InDesign
+   3, unknown 4). Localised on a 368-page InDesign volume to `structure` alone (`ingest` 14.6 s,
+   `text` 5.4 s, `layout` 6.7 s, `structure` > 280 s). The claim lookups were indexed and were not
+   it. `extract_tables` is the first suspect, unverified. A scaling probe was written and twice
+   reaped by memory pressure before measuring. D13.2's `limits.stage_deadline_secs` should make
+   this fail legibly and does not. **Timings on this machine are unstable** — the test suite has
+   run at half speed under memory pressure — so every number here is a range, not a point.
+2. **13 documents still lose 2 869 characters**, a mechanism not yet named: three Turkish Word
+   articles (612, 612, 368) and `oapen-117097`, `-117206` (672, 420), then small ones. None of it
+   is unattached note text.
+3. **`emitted_text` is still what I-1 is computed against.** `reachable_text` exists, is now
+   aligned with what `epub` emits, and is asserted on the fixtures; the pipeline has not been
+   switched.
+4. `dergipark-1113748` is refused by I-4 (furniture over budget) — one document, one stratum.
+5. **Item 7.5.0, the reading corpus.** Candidates for en/de/tr are committed at
+   `corpus/reading/candidates_*.json` and verified; the `PD-old-work` admission path is written in
+   the plan and not in `stratify.py`. Turkish is structurally short (life + 70, alphabet 1928):
+   source it from Sabahattin Ali and Sait Faik and report it short rather than pad it.
+6. **`docs/LLM_BOUNDARY.md`** and its property test (item 7.5.7) are not written.
 
-### What is open, in the order it matters
+Recorded as **quality**, deliberately not fixed in a conservation phase: the runaway list (a
+margin-level marker swallows pages of prose, because `x0 >= marker.indent − tol` is always true
+at the margin); the running head that reached `structure` (a chapter title on fifteen pages, below
+the whole-book repetition ratio `furniture` uses); a debug-assert panic in `para_of` on arXiv's
+vertical datestamp (one stratum, not admitted).
 
-1. **`structure/appeared/claim-unit-mismatch-list`** — the same unit mismatch on the list side.
-   `detect_lists` takes at *line* granularity and claims at *block* granularity, so a block mixing
-   introductory prose with a list item has its list lines in the item and its prose in the flow.
-   Duplication across the eleven documents is 544 → 681 because of it. **Recorded, not fixed**:
-   closing it inside the class above would be fitting a fix to the documents that happened to be on
-   the bench, which this phase's rule forbids.
-2. **The timeout class — measured, and it is one stage.** The corpus inventory (95 of 104
-   documents; the run was stopped by system memory pressure) found **6 genuine timeouts at
-   300 s** across three strata: ABBYY-scanner x2, InDesign x1, unknown x3. That is an
-   undercount — it was taken before the NFD correction, and the four documents that used to
-   fail fast at `text` now run the whole pipeline. `oapen-20-500-12657-115799` is one of them
-   and has joined the class.
+### Running the corpus on this machine
 
-   Localised on that document, 368 pages, InDesign:
-
-   ```
-   ingest       14 645 ms
-   text          5 412 ms
-   layout        6 714 ms
-   structure   >280 000 ms     <- here, and nothing else
-   ```
-
-   Three quadratic claim lookups were found in `structure` and indexed (commit `311e685`) —
-   and **that did not fix it**, so the bottleneck is one of the stage's other passes.
-   `extract_tables` is the first suspect: `runs_inside_attributed` walks every block on a page
-   for every detected region, and the *AI Engineering* note already records that the ruled-
-   table detector fires on figure boxes and code blocks, so a book with many false regions
-   pays that product many times over. **Unverified** — a scaling probe over 16…368 pages was
-   written to settle it and was stopped twice by memory pressure before producing a number.
-
-   D13.2's `limits.stage_deadline_secs` exists to make this fail legibly and does not. Same
-   class.
-
-3. **`emitted_text` is still what I-1 is computed against.** `reachable_text` exists and is
-   asserted on the fixtures, but the pipeline has not been switched over to it. Switching it will
-   make I-1 fire on documents that pass today — correctly, because those documents are losing text
-   silently — so it wants the timeout class closed first, or the corpus run cannot finish to
-   measure it.
-4. **Item 7.5.0, the reading corpus**, is unfinished. Three agents produced candidate lists on
-   2026-09-20, committed at `corpus/reading/candidates_{en,de,tr}.json`; every one was re-verified
-   here because none of the agents' licence fields were read from the source:
-
-   ```
-   English  16 of 17 admitted    (rejected: Fitzgerald's 1961 Odyssey, in a lending collection)
-   German   23 of 24 admitted    (rejected: an untraced German translation)
-   Turkish   4 of 10 admitted    (rejected: 5 in copyright, 1 a Chagatai manuscript)
-   ```
-
-   **The Turkish number is structural, not a sourcing failure.** Copyright is life + 70 and the
-   alphabet reform was 1928, so a Latin-script Turkish novel is public domain only if its author
-   wrote after 1928 and died before 1956 — a 28-year window. *Çalıkuşu* misses by one year and
-   enters on 1 January 2027. Source the slice from inside the window — **Sabahattin Ali (d. 1948)
-   and Sait Faik Abasıyanık (d. 1954)** — and if it cannot reach 40, report it short with the
-   reason rather than padding it with Ottoman-script scans, which answer a different question.
-
-   Still to do: the German list is Google-Books Fraktur and several entries are plays rather than
-   prose, so it wants filtering and topping up; English needs ~24 more; the `PD-old-work` admission
-   path (rows 7.5.0x–z) is written in the plan and **not yet in `stratify.py`**. The verification
-   script used here is in the session scratchpad and should be rewritten as
-   `eval/src/oc_eval/corpus/sources/public_domain.py`.
-
-### The defect inventory — 95 of 104 documents, the phase's work queue
-
-```
-clean            29      structure conserves exactly: lost 0, appeared 0
-conservation     57
-TIMEOUT-300s      6
-text-I1           4      closed by the NFD correction
-furniture-I4      1
-```
-
-Twenty-nine documents now convert through `structure` losing nothing. The sample this phase
-opened with was 0 of 14.
-
-Where the remaining loss is — and it is **not** where the work has been:
-
-```
-stratum          docs       lost   duplicated
-InDesign           10    770 666       14 068
-Word               12    425 137       13 187
-unknown            22    182 600        2 289
-pdfTeX             10     36 652          962
-Ghostscript         1      5 773            2
-ABBYY-scanner       2        672            0
-TOTAL              57  1 421 500       30 508
-```
-
-84 % of the loss is InDesign and Word. The defects closed so far were found on arXiv papers,
-which are 2.6 % of it. **That is the ordering the plan's item 8 asks for and it is now a fact
-rather than a preference.**
-
-The nine unmeasured documents are the largest ones. The inventory should be re-run against the
-current binary when memory allows; it is cheap now that failures are sub-second and visible.
-
-### Two findings about the instruments themselves
-
-- **`oc_eval run` writes nothing until it finishes.** It accumulates in memory and has a 600 s
-  per-file timeout over 104 files; a run killed after fifty minutes yielded zero bytes. For a phase
-  whose whole method is re-running the corpus, that is a defect in the instrument. It should write
-  each row as it is produced.
-- **The fixture suite could not have found any of this.**
-  `every_container_the_conservation_check_counts_is_reachable_from_the_flow` passes on all ten
-  Typst fixtures and fails on real documents; `structure` is conserving on every fixture and loses
-  23 894 characters on an arXiv paper. A synthetic corpus cannot exhibit the defects of a producer
-  nobody wrote — which is the argument for the reading corpus, stated as a measurement rather than
-  as an expectation.
-
-### The rule that governs every fix in this phase
-
-A fix may not be derived from a single document. The unit of work is a defect *class*
-`(stage, direction, signature)`, admitted only at **≥ 3 documents across ≥ 2 strata** and, for a
-reading-corpus class, **≥ 2 languages**. Every class carries a written *How else could this arise?*
-answered **before** any code changes. A class closes by making the fault unrepresentable or checked
-— never by special-casing the shape it was found in — and leaves an invariant test, not only a
-corpus file.
-
-**Two things no item in this phase may do**: fix a document instead of a class, and make a refusal
-disappear by widening a `conservation.budget.*` or adding a `Reason` meaning "text we could not
-account for". The second would turn a refusal into a silent loss, which is worse than shipping
-nothing.
-
-**The LLM boundary is one question**, and `docs/LLM_BOUNDARY.md` is still to be written:
-*if this is answered wrongly, does the book lose or gain a character?* Yes → deterministic,
-permanently. No → it is a name, and a name may be escalated (D13.6's four tasks).
+System memory has been at 1.5–4.5 GB free of 15.7 GB, and background shells are reaped while the
+session is idle. Run the inventory **in the foreground, in chunks** under the 10-minute limit,
+packed by each document's previous run time; strip `\r` from Python-written chunk files (Windows
+writes CRLF, and every name carries it), and give the child `< /dev/null` or it swallows the list.
+Check `rc` and output sizes before believing a run: one "complete" run here had never executed.
 
 ## Phase 6 — what it built
 
