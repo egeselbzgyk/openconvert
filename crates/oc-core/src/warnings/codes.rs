@@ -76,6 +76,10 @@ pub const CODES: &[WarningSpec] = &[
         args: &["numbers"],
     },
     WarningSpec {
+        code: "W_LLM_BUDGET_EXHAUSTED",
+        args: &["task", "calls"],
+    },
+    WarningSpec {
         code: "W_LOW_RETENTION",
         args: &["retention", "floor"],
     },

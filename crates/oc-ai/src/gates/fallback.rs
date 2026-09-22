@@ -63,3 +63,19 @@ pub fn settle(choice: Choice, trace: LlmTrace, verdict: Result<String, GateFailu
         fallback,
     }
 }
+
+/// Record an escalated choice whose call was never made — the budget was spent, say
+/// (`budget::BUDGET_CALLS`). The deterministic answer stands and no trace exists, which is what
+/// tells this apart from a model that was asked and contradicted.
+pub fn unasked(choice: Choice, why: &'static str) -> Decision {
+    Decision {
+        stage: choice.stage,
+        subject: choice.subject,
+        kind: choice.kind,
+        chosen: choice.deterministic,
+        alternatives: choice.alternatives,
+        method: Method::Deterministic,
+        llm: None,
+        fallback: Some(why),
+    }
+}

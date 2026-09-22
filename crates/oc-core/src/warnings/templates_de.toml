@@ -17,6 +17,7 @@ W_IMAGE_ONLY_PAGES = "{count} Seiten sind Bilder ohne jede Textebene. Sie werden
 W_LANG_FALLBACK = "Es ließ sich keine Sprache erkennen, daher wurde die für diesen Auftrag konfigurierte für dc:language verwendet. EPUB verlangt das Feld; die Alternative wäre ein invalides Buch gewesen."
 W_LANG_UNSTABLE = "Zu große Teile des Buches widersprachen der erkannten Sprache, als dass Sprachauszeichnungen pro Absatz verlässlich wären; es wurde keine gesetzt."
 W_LIST_NUMBERING_GAP = "Eine numerierte Liste überspringt Nummern: {numbers}. Die gedruckte Zählung bleibt unverändert."
+W_LLM_BUDGET_EXHAUSTED = "Das Buch hatte alle {calls} Modellaufrufe verbraucht, daher wurde {task} ohne das Modell entschieden, nach den eigenen Regeln des Konverters."
 W_LOW_RETENTION = "{retention} des Quelltextes sind im Buch angekommen, unter den {floor}, ab denen dieser Konverter warnt. Entfernte Kolumnentitel und Seitenzahlen sind hier mitgezählt und sind kein Verlust."
 W_NOTE_UNMATCHED = "{markers} Fußnotenzeichen und {notes} Fußnotentexte wurden gefunden, davon {matched} einander zugeordnet. Die übrigen blieben im Fließtext an ihrer gedruckten Stelle."
 W_NO_TEXT_EXTRACTED = "Aus diesem Dokument ließ sich kein Text gewinnen. Seine Seiten werden als Bilder übernommen, damit nichts verloren geht; durchsuchbar oder umfließbar ist das Buch damit nicht."

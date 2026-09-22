@@ -9,6 +9,7 @@
 //! book. What this crate owns is the question (`prompt`), the shape an answer must have to be
 //! considered at all (`gbnf`), and the name every piece of it hashes to (`digest`).
 
+pub mod budget;
 pub mod digest;
 pub mod gates;
 pub mod gbnf;
