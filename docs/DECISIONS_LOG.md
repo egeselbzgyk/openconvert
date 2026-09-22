@@ -3633,3 +3633,43 @@ Decision: 256 tokens, `source = provisional`. The value is the one llama.cpp's e
 not measured here. Gate G5 measures the consequence directly: a second identical call set must cost
 ≤ 40 % of the first.
 Affects: `thresholds.toml`, `crates/oc-core/src/sidecar/llama.rs`.
+
+## 2026-09-23 · Who tears the sidecar down, and what is left for Phase 14 · Phase 9
+Context: PHASE 9 detail 5 and D13.2 ask that an engine-owned `llama-server` never outlive the
+engine: `setsid` + `kill(-pgid)` and `PR_SET_PDEATHSIG` on Unix, a nested job object with
+`KILL_ON_JOB_CLOSE` on Windows, SIGTERM/SIGINT and console-ctrl handlers everywhere, and "a `Drop`
+guard alone is insufficient". CLAUDE.md requires `#![forbid(unsafe_code)]` in every crate except the
+PDFium binding.
+Decision:
+1. `oc_core::sidecar::supervise` owns every child in one registry, and four paths tear it down:
+   `OwnedServer`'s `Drop` (normal exit), a **panic hook** (runs before unwinding and before a
+   `panic = "abort"` abort), a **signal handler** via `ctrlc` (SIGINT/SIGTERM/SIGHUP on Unix,
+   Ctrl-C/Break/close on Windows), which kills the children and exits with `ExitCode::Cancelled`
+   (3), and the supervisor's own group kill. Teardown is `Child::kill` then `wait`, so nothing is
+   left as a zombie.
+2. **The server stays in the engine's process group**, and is not `setsid`'d into its own.
+   ARCHITECTURE §8.2 has the *app* `setsid` the *engine* and kill it with `kill(-pgid)`, and that
+   group kill reaches the server only if the server is in the engine's group. A server in a group
+   of its own would survive exactly the supervisor kill the design relies on.
+3. **PROVISIONAL — needs maintainer ratification:** `PR_SET_PDEATHSIG` has to be set in the child
+   between `fork` and `exec` (`CommandExt::pre_exec`, an `unsafe fn`), and a Windows job object is
+   FFI. Neither can be written under `forbid(unsafe_code)`. So an engine killed outright
+   (`SIGKILL` of the engine's pid alone, or a segfault in PDFium) can still orphan its server on
+   Linux and Windows. Both land with Phase 14's hardening, either through a reviewed wrapper crate
+   or a re-exec trampoline that calls rustix's safe `set_parent_process_death_signal` and then
+   `exec`s the server. When the app is the supervisor, the group kill covers the Unix case already.
+4. The lifecycle tests use two dev-only binaries in `oc-testkit`: `oc-stub-llama-server` (the real
+   server's command line, `/health` without a key, `/v1/chat/completions` only with one) and
+   `oc-sidecar-engine` (drives `oc_core::sidecar` exactly as the engine will). They live there
+   because `CARGO_BIN_EXE_*` is visible only to a package's own tests, and Appendix A already makes
+   `oc-testkit` the home of "a stub LLM server for tests".
+5. Idle-kill is a policy on `OwnedServer` (`call_started`, `call_finished`, `kill_if_idle(now)`),
+   handed its clock by the caller (row 9.13). The loop that calls it belongs to whoever makes calls,
+   which is Phase 10.
+Evidence: `owned_server_is_killed_on_engine_exit`, `…_on_engine_panic` (the engine forgets its
+server, so only the hook can act), `…_on_engine_sigterm`. Mutation: with `kill_all()` removed from
+the hook and the handler, the panic and SIGTERM tests fail and the exit test (`Drop`) still passes.
+25 consecutive runs green after fixing a race in the harness (the engine now waits for a go line
+before it ends). `cargo check -p oc-core` passes for `x86_64-pc-windows-msvc` and
+`aarch64-apple-darwin`. The tests themselves have run on Linux only.
+Affects: D8, D13.2, ARCHITECTURE §8.2, SECURITY §3, PHASE 9 detail 5, Phase 14.

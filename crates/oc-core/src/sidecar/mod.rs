@@ -4,4 +4,7 @@
 //! Nothing here opens a socket (D13.9, test 9.7). The port a server listens on and the probe that
 //! asks it whether it is healthy both come from the caller, which is the thing that links `oc-net`.
 
+pub mod endpoint;
 pub mod llama;
+pub mod server;
+pub mod supervise;

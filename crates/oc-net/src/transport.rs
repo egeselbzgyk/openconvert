@@ -61,6 +61,21 @@ impl HttpTransport {
     pub fn base(&self) -> &str {
         &self.base
     }
+
+    /// GET `path`, with the key if there is one. `llama-server`'s `/health` is the caller: it
+    /// answers 200 once the model is loaded and 503 while it is loading.
+    pub fn get(&self, path: &str, timeout: Duration) -> Result<String, TransportError> {
+        let mut request = self
+            .agent
+            .get(format!("{}{path}", self.base))
+            .config()
+            .timeout_global(Some(timeout))
+            .build();
+        if let Some(key) = &self.api_key {
+            request = request.header("Authorization", format!("Bearer {}", key.expose_secret()));
+        }
+        read_reply(request.call(), timeout)
+    }
 }
 
 impl Transport for HttpTransport {
@@ -80,24 +95,27 @@ impl Transport for HttpTransport {
         if let Some(key) = &self.api_key {
             request = request.header("Authorization", format!("Bearer {}", key.expose_secret()));
         }
-        let mut response = request.send(body).map_err(|error| match error {
-            ureq::Error::Timeout(_) => TransportError::Timeout(timeout),
-            other => TransportError::Unreachable(other.to_string()),
-        })?;
-        let status = response.status();
-        if !status.is_success() {
-            return Err(TransportError::Status {
-                status: status.as_u16(),
-            });
-        }
-        // `read_to_string` keeps ureq's default cap on the reply's size: a chat completion held to
-        // `llm.max_output_tokens_per_call` tokens is a few kilobytes, far below it.
-        response
-            .body_mut()
-            .read_to_string()
-            .map_err(|error| match error {
-                ureq::Error::Timeout(_) => TransportError::Timeout(timeout),
-                other => TransportError::Unreachable(other.to_string()),
-            })
+        read_reply(request.send(body), timeout)
     }
+}
+
+/// The body of a 2xx reply; any other status, a timeout or a dead connection as an error.
+fn read_reply(
+    sent: Result<ureq::http::Response<ureq::Body>, ureq::Error>,
+    timeout: Duration,
+) -> Result<String, TransportError> {
+    let as_transport = |error: ureq::Error| match error {
+        ureq::Error::Timeout(_) => TransportError::Timeout(timeout),
+        other => TransportError::Unreachable(other.to_string()),
+    };
+    let mut response = sent.map_err(as_transport)?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(TransportError::Status {
+            status: status.as_u16(),
+        });
+    }
+    // `read_to_string` keeps ureq's default cap on the reply's size: a chat completion held to
+    // `llm.max_output_tokens_per_call` tokens is a few kilobytes, far below it.
+    response.body_mut().read_to_string().map_err(as_transport)
 }

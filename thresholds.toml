@@ -776,6 +776,13 @@ evidence = "RT C2 'idle-kill at 120 s'"
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[llm.health_poll_millis]
+value = 100
+source = "provisional"
+evidence = "PHASE 9 detail 3: how often an engine-owned llama-server's GET /health is asked while it loads its model. A 1.1 GB GGUF takes seconds to load, so a tenth of a second costs nothing measurable and keeps the wait within a tenth of a second of the server being ready. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [llm.cache_reuse_min_chunk]
 value = 256
 source = "provisional"
