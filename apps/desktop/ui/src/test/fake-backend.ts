@@ -6,6 +6,7 @@
 import type { Backend, DropEvent, Enqueued, Settings, UiConfig, UiError } from "../lib/backend";
 import type { Hello } from "../lib/events";
 import type { JobView } from "../lib/jobstate";
+import type { Report } from "../lib/report";
 
 export const CONFIG: UiConfig = {
   appVersion: "0.1.0",
@@ -70,6 +71,20 @@ export class FakeBackend implements Backend {
   async saveSettings(next: Settings): Promise<void> {
     this.calls.push(["settings", next]);
     this.saved = next;
+  }
+  reports = new Map<string, Report>();
+  noReader = false;
+  async report(job: string): Promise<Report> {
+    const report = this.reports.get(job);
+    if (report === undefined) throw { kind: "io", detail: "no report" };
+    return report;
+  }
+  async openOutput(job: string): Promise<void> {
+    this.calls.push(["open", job]);
+    if (this.noReader) throw { kind: "io", detail: "no handler" };
+  }
+  async showOutput(job: string): Promise<void> {
+    this.calls.push(["show", job]);
   }
   async cancel(job: string): Promise<void> {
     this.calls.push(["cancel", job]);

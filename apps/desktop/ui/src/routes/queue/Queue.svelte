@@ -19,6 +19,11 @@
     onremove,
     onretry,
     onremovewaiting,
+    ontoggle,
+    onopen,
+    onshow,
+    ondetails,
+    onpage = null,
   }: {
     store: JobStore;
     dragging: { pdfs: number; skipped: string[] } | null;
@@ -27,6 +32,11 @@
     onremove: (id: string) => void;
     onretry: (row: Row) => void;
     onremovewaiting: () => void;
+    ontoggle: (id: string) => void;
+    onopen: (id: string) => void;
+    onshow: (id: string) => void;
+    ondetails: (id: string) => void;
+    onpage?: ((id: string, page: string) => void) | null;
   } = $props();
 
   let confirming = $state(false);
@@ -40,7 +50,7 @@
   {:else}
     <QueueList rows={store.rows} onremoveall={() => (confirming = true)}>
       {#snippet row(row: Row, active: boolean)}
-        <QueueRow {row} {active} now={store.now} {oncancel} {onremove} {onretry} />
+        <QueueRow {row} {active} now={store.now} {oncancel} {onremove} {onretry} {ontoggle} {onopen} {onshow} {ondetails} {onpage} />
       {/snippet}
     </QueueList>
   {/if}

@@ -9,6 +9,7 @@
   import { pulse } from "../lib/motion";
   import Icon from "./Icon.svelte";
   import Spinner from "./Spinner.svelte";
+  import ResultPanel from "./ResultPanel.svelte";
   import StageList from "./StageList.svelte";
 
   let {
@@ -18,6 +19,11 @@
     oncancel,
     onremove,
     onretry,
+    ontoggle = () => undefined,
+    onopen = () => undefined,
+    onshow = () => undefined,
+    ondetails = () => undefined,
+    onpage = null,
   }: {
     row: Row;
     now: number;
@@ -26,13 +32,26 @@
     oncancel: (id: string) => void;
     onremove: (id: string) => void;
     onretry: (row: Row) => void;
+    ontoggle?: (id: string) => void;
+    onopen?: (id: string) => void;
+    onshow?: (id: string) => void;
+    ondetails?: (id: string) => void;
+    onpage?: ((id: string, page: string) => void) | null;
   } = $props();
+
+  const report = $derived(row.report !== null && row.report !== "unavailable" ? row.report : null);
+  const invalid = $derived(report?.status === "invalid");
 
   const tab = $derived(active ? 0 : -1);
 
-  /** Delete removes a waiting row (components.md, QueueRow). */
+  /** Delete removes a waiting row; Enter/Space toggles a completed one (components.md, QueueRow). */
   function keydown(event: KeyboardEvent) {
     if (event.target !== event.currentTarget) return;
+    if ((event.key === "Enter" || event.key === " ") && row.phase === "complete") {
+      event.preventDefault();
+      ontoggle(row.id);
+      return;
+    }
     if (event.key === "Delete" && (row.phase === "queued" || row.phase === "cancelled" || row.phase === "failed")) {
       event.preventDefault();
       onremove(row.id);
@@ -93,6 +112,7 @@
   class:oc-row--cancelled={row.phase === "cancelled"}
   class:oc-row--failed={row.phase === "failed"}
   class:oc-row--compact={row.phase === "queued"}
+  class:oc-row--expanded={row.phase === "complete" && row.expanded}
   aria-label={t("row.label", { file: name, status })}
   data-job={row.id}
   tabindex={tab}
@@ -109,6 +129,8 @@
       <span class="oc-tile"><Spinner stopped={row.stalled} /></span>
     {:else if row.phase === "cancelled"}
       <span class="oc-tile"><Icon name="ban" size="md" /></span>
+    {:else if row.phase === "complete" && invalid}
+      <span class="oc-tile oc-tile--err"><Icon name="xcircle" size="md" /></span>
     {:else if row.phase === "complete"}
       <span class="oc-tile oc-tile--ok"><Icon name="check" size="md" /></span>
     {:else}
@@ -130,6 +152,8 @@
           <b>{status}</b><span>· {t("queue.noFile")}</span>
         {:else if row.phase === "failed"}
           <b>{status}</b><span>{failure.note}</span>
+        {:else if row.phase === "complete" && invalid}
+          <b>{status}</b><span>· {t("result.savedInvalid")}</span>
         {:else}
           <b>{status}</b>
         {/if}
@@ -145,6 +169,15 @@
     {:else if row.phase === "cancelled"}
       <button class="oc-btn oc-btn--sm" tabindex={tab} onclick={() => onretry(row)}>{t("queue.again")}</button>
       <button class="oc-btn oc-btn--quiet oc-btn--sm" tabindex={tab} aria-label={t("queue.removeFile", { file: name })} onclick={() => onremove(row.id)}>{t("queue.remove")}</button>
+    {:else if row.phase === "complete"}
+      {#if !row.expanded}<button class="oc-btn oc-btn--sm" tabindex={tab} onclick={() => onopen(row.id)}>{t("result.open")}</button>{/if}
+      <button
+        class="oc-btn oc-btn--icon oc-btn--sm"
+        tabindex={tab}
+        aria-label={row.expanded ? t("result.collapse") : t("queue.expand")}
+        aria-expanded={row.expanded}
+        onclick={() => ontoggle(row.id)}
+      ><Icon name={row.expanded ? "chevup" : "chevdown"} size="md" /></button>
     {:else if row.phase === "failed"}
       {#if failure.retry}<button class="oc-btn oc-btn--sm" tabindex={tab} onclick={() => onretry(row)}>{t("queue.again")}</button>{/if}
       <button class="oc-btn oc-btn--quiet oc-btn--sm" tabindex={tab} aria-label={t("queue.removeFile", { file: name })} onclick={() => onremove(row.id)}>{t("queue.remove")}</button>
@@ -153,5 +186,19 @@
 
   {#if row.phase === "running" && !row.stalled}
     <StageList {row} />
+  {:else if row.phase === "complete" && row.expanded}
+    {#if report !== null}
+      <ResultPanel
+        {row}
+        {report}
+        noReader={row.noReader}
+        onopen={() => onopen(row.id)}
+        onshow={() => onshow(row.id)}
+        ondetails={() => ondetails(row.id)}
+        onpage={onpage === null ? null : (page) => onpage(row.id, page)}
+      />
+    {:else if row.report === "unavailable"}
+      <div class="oc-banner oc-banner--warn" role="status"><Icon name="alert" size="md" /><span class="oc-banner__text">{t("result.reportUnavailable")}</span></div>
+    {/if}
   {/if}
 </li>

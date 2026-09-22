@@ -30,6 +30,7 @@ use openconvert_desktop::settings::{self, Settings};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
 
 /// What the startup check found. The UI shows a blocking error instead of the app when this is an
 /// error, and the queue refuses work without it (RT A5.7).
@@ -136,6 +137,34 @@ fn queue_rows(queue: tauri::State<'_, Queue>) -> Result<Vec<JobView>, UiError> {
     with_queue(&queue, |queue| Ok(queue.views()))
 }
 
+/// The job's `report.json`, as the engine wrote it (PIPELINE §13). The result panel and the report
+/// view are renderings of this file; nothing is summarised on the way.
+#[tauri::command]
+fn read_report(job: String, queue: tauri::State<'_, Queue>) -> Result<serde_json::Value, UiError> {
+    let (_, report) = with_queue(&queue, |queue| queue.outputs(&job))?;
+    let text = std::fs::read_to_string(&report)?;
+    serde_json::from_str(&text).map_err(|error| UiError::Io(error.to_string()))
+}
+
+/// "Open in reader": the OS default EPUB handler. An error means no reader is set up, which the UI
+/// explains rather than hides (design proposal, `result.html` §5).
+#[tauri::command]
+fn open_output(job: String, app: AppHandle, queue: tauri::State<'_, Queue>) -> Result<(), UiError> {
+    let (output, _) = with_queue(&queue, |queue| queue.outputs(&job))?;
+    app.opener()
+        .open_path(output.to_string_lossy(), None::<&str>)
+        .map_err(|error| UiError::Io(error.to_string()))
+}
+
+/// "Show in folder".
+#[tauri::command]
+fn show_output(job: String, app: AppHandle, queue: tauri::State<'_, Queue>) -> Result<(), UiError> {
+    let (output, _) = with_queue(&queue, |queue| queue.outputs(&job))?;
+    app.opener()
+        .reveal_item_in_dir(output)
+        .map_err(|error| UiError::Io(error.to_string()))
+}
+
 /// The thresholds the webview needs (`openconvert_desktop::config`).
 #[tauri::command]
 fn ui_config() -> UiConfig {
@@ -192,6 +221,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(Startup(startup))
         .manage(Queue(Mutex::new(None)))
         .manage(Prefs {
@@ -237,7 +267,10 @@ fn main() {
             pick_pdfs,
             cancel,
             remove,
-            queue_rows
+            queue_rows,
+            read_report,
+            open_output,
+            show_output
         ])
         .run(tauri::generate_context!())
         .expect("the Tauri application starts");

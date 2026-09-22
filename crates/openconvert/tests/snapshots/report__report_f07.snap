@@ -26,7 +26,8 @@ expression: value
     "sections": 2,
     "figures": 0,
     "tables": 0,
-    "notes": 0
+    "notes": 0,
+    "images_extracted": 0
   },
   "timings_ms": "[redacted]",
   "conservation": {
@@ -200,5 +201,5 @@ expression: value
       "fallback": null
     }
   ],
-  "thresholds": "[175 entries, redacted]"
+  "thresholds": "[176 entries, redacted]"
 }

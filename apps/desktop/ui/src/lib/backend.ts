@@ -16,6 +16,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 
 import type { Hello } from "./events";
 import type { JobView } from "./jobstate";
+import type { Report } from "./report";
 
 /** The numbers the UI needs, from `thresholds.toml` via the Rust side — never literals here. */
 export interface UiConfig {
@@ -68,6 +69,9 @@ export interface Backend {
   pickPdfs(): Promise<string[]>;
   settings(): Promise<Settings>;
   saveSettings(next: Settings): Promise<void>;
+  report(job: string): Promise<Report>;
+  openOutput(job: string): Promise<void>;
+  showOutput(job: string): Promise<void>;
   cancel(job: string): Promise<void>;
   remove(job: string): Promise<void>;
   onLine(handler: (job: string, line: string) => void): Promise<Unlisten>;
@@ -86,6 +90,9 @@ export function tauriBackend(): Backend {
     pickPdfs: () => invoke<string[]>("pick_pdfs"),
     settings: () => invoke<Settings>("settings_get"),
     saveSettings: (next) => invoke<void>("settings_set", { next }),
+    report: (job) => invoke<Report>("read_report", { job }),
+    openOutput: (job) => invoke<void>("open_output", { job }),
+    showOutput: (job) => invoke<void>("show_output", { job }),
     cancel: (job) => invoke<void>("cancel", { job }),
     remove: (job) => invoke<void>("remove", { job }),
     onLine: (handler) =>

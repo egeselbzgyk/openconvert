@@ -4,6 +4,7 @@
  */
 
 import { parseLine, ProtocolError, PROTOCOL_VERSION } from "./events";
+import type { Report } from "./report";
 import {
   applyEvent,
   applyView,
@@ -26,7 +27,31 @@ export class JobStore {
   /** The clock the rows were last judged against, for "no signal for {s} seconds". */
   now = $state(0);
 
-  constructor(private readonly heartbeatTimeoutMs: number) {}
+  constructor(
+    private readonly heartbeatTimeoutMs: number,
+    /** Called once when a row completes, so its report can be read. */
+    private readonly oncomplete: (id: string) => void = () => undefined,
+  ) {}
+
+  private patch(id: string, change: (row: Row) => Row): void {
+    const index = this.rows.findIndex((row) => row.id === id);
+    if (index >= 0) this.rows[index] = change(this.rows[index] as Row);
+  }
+
+  /** The report of a completed row, or that it could not be read. */
+  setReport(id: string, report: Report | "unavailable"): void {
+    this.patch(id, (row) => ({ ...row, report }));
+  }
+
+  /** Expand or collapse a completed row (Enter/Space, or its button). */
+  toggle(id: string): void {
+    this.patch(id, (row) => ({ ...row, expanded: !row.expanded }));
+  }
+
+  /** "Open in reader" found no reader. */
+  setNoReader(id: string): void {
+    this.patch(id, (row) => ({ ...row, noReader: true }));
+  }
 
   /** A queue change from the Rust side. */
   view(view: JobView): void {
@@ -70,7 +95,10 @@ export class JobStore {
     if (event === null) return;
     const index = this.rows.findIndex((row) => row.id === job);
     if (index < 0) return;
-    this.rows[index] = applyEvent(this.rows[index] as Row, event, now);
+    const before = this.rows[index] as Row;
+    const after = applyEvent(before, event, now);
+    this.rows[index] = after;
+    if (before.phase !== "complete" && after.phase === "complete") this.oncomplete(job);
   }
 
   /** Judge every row's heartbeat against `now`. */

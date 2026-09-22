@@ -12,6 +12,7 @@
  */
 
 import type { Done, Event, Fatal, Warning } from "./events";
+import type { Report } from "./report";
 
 /** The user-facing steps (UI_UX §2.2), in order. `repairing` is shown only when it runs. */
 export const STEPS = ["analyzing", "extracting", "reconstructing", "building", "checking"] as const;
@@ -87,6 +88,12 @@ export interface Row {
   fatal: Fatal | null;
   /** The engine's exit code, once the queue saw it exit. */
   exit: number | null | undefined;
+  /** report.json, once a completed job's report has been read; `"unavailable"` if it could not be. */
+  report: Report | "unavailable" | null;
+  /** The completed row is expanded into its result (route `result`). */
+  expanded: boolean;
+  /** "Open in reader" failed: no EPUB reader is set up (result.html §5). */
+  noReader: boolean;
 }
 
 export function newRow(view: JobView): Row {
@@ -110,6 +117,9 @@ export function newRow(view: JobView): Row {
       done: null,
       fatal: null,
       exit: undefined,
+      report: null,
+      expanded: false,
+      noReader: false,
     },
     view,
   );
@@ -218,6 +228,8 @@ export function applyEvent(row: Row, event: Event, now: number): Row {
             ? [...STEPS, ...(row.repaired ? (["repairing"] as const) : [])]
             : row.finished,
         current: event.status === "ok" ? null : row.current,
+        // A finished book opens into its result (motion.md, "Row expands into result").
+        expanded: event.status === "ok" ? true : row.expanded,
       };
     case "fatal":
       return { ...row, fatal: event, phase: "failed", stalled: false };
@@ -236,9 +248,7 @@ export function checkHeartbeat(row: Row, now: number, timeoutMs: number): Row {
 
 /** The steps a row shows, in order: the five, plus "Repairing" when it ran. */
 export function visibleSteps(row: Row): Step[] {
-  return row.repaired
-    ? [...STEPS.slice(0, STEPS.indexOf("checking")), "repairing", "checking"]
-    : [...STEPS];
+  return row.repaired ? [...STEPS, "repairing"] : [...STEPS];
 }
 
 /** A step's state in the StageList. */

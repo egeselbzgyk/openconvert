@@ -85,6 +85,9 @@ pub struct DocumentSummary {
     pub figures: usize,
     pub tables: usize,
     pub notes: usize,
+    /// How many images extraction found — the other side of `figures` in the image-parity check,
+    /// so the result panel can say "12 of 12" from the report rather than from a guess (Phase 12).
+    pub images_extracted: u32,
 }
 
 /// One reason's ledger total, with the budget it draws on and what is left of it.
@@ -276,6 +279,7 @@ pub fn report(conversion: &Conversion, input: ReportInput<'_>) -> Report {
             figures: document.figures.len(),
             tables: document.tables.len(),
             notes: document.notes.len(),
+            images_extracted: conversion.extracted_images,
         },
         timings_ms: timings,
         conservation: ConservationReport {

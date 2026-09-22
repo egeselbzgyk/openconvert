@@ -40,6 +40,15 @@ export function detectLocale(preferred: readonly string[]): Locale {
 /** A value as the locale writes it: numbers through `Intl.NumberFormat` (design decision 18). */
 export function formatValue(value: unknown, locale: Locale): string {
   if (typeof value === "number") return new Intl.NumberFormat(locale).format(value);
+  // The engine's warning arguments are strings; a plain decimal among them is a number and is
+  // written the locale's way ("0.968" → "0,968" in German), keeping its precision.
+  if (typeof value === "string" && /^-?\d+(\.\d+)?$/.test(value)) {
+    const decimals = value.split(".")[1]?.length ?? 0;
+    return new Intl.NumberFormat(locale, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }).format(Number(value));
+  }
   if (typeof value === "string") return value;
   if (Array.isArray(value)) return value.map((item) => formatValue(item, locale)).join(", ");
   if (value === null || value === undefined) return "";

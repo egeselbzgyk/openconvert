@@ -4,7 +4,7 @@
  */
 
 import { formatPercent } from "./i18n";
-import { i18n, t } from "./locale.svelte";
+import { i18n, t, tn } from "./locale.svelte";
 import { visibleSteps, type ProgressCount, type Row, type Step } from "./jobstate";
 
 export function stepLabel(step: Step): string {
@@ -29,4 +29,9 @@ export function stepOf(row: Row): string {
   const steps = visibleSteps(row);
   const index = row.current === null ? 0 : steps.indexOf(row.current);
   return t("queue.stepOf", { i: index + 1, n: steps.length });
+}
+
+/** "12 images", "1 image" — a count with its noun, by the locale's plural rules. */
+export function pluralCount(key: string, n: number): string {
+  return tn(key, n);
 }

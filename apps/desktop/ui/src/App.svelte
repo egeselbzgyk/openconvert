@@ -23,7 +23,7 @@
 
   let { backend = tauriBackend(), clock = () => Date.now() }: { backend?: Backend; clock?: () => number } = $props();
 
-  type Route = { name: "queue" } | { name: "settings" };
+  type Route = { name: "queue" } | { name: "settings" } | { name: "report"; job: string };
 
   let config = $state<UiConfig | null>(null);
   let settings = $state<Settings | null>(null);
@@ -68,7 +68,7 @@
         startupError = fromStartup(error as UiError);
         return;
       }
-      const jobs = new JobStore(config.heartbeatTimeoutMs);
+      const jobs = new JobStore(config.heartbeatTimeoutMs, (id) => void loadReport(jobs, id));
       store = jobs;
       unlisten.push(await backend.onJobChanged((view) => jobs.view(view)));
       unlisten.push(await backend.onLine((job, line) => jobs.line(job, line, clock())));
@@ -120,6 +120,23 @@
     await add(await backend.pickPdfs());
   }
 
+  /** A completed job's report.json, for its result panel. */
+  async function loadReport(jobs: JobStore, id: string) {
+    try {
+      jobs.setReport(id, await backend.report(id));
+    } catch {
+      jobs.setReport(id, "unavailable");
+    }
+  }
+
+  async function open(id: string) {
+    try {
+      await backend.openOutput(id);
+    } catch {
+      store?.setNoReader(id);
+    }
+  }
+
   async function cancel(id: string) {
     await backend.cancel(id);
   }
@@ -161,6 +178,10 @@
         onremove={remove}
         onretry={retry}
         onremovewaiting={removeWaiting}
+        ontoggle={(id) => store?.toggle(id)}
+        onopen={open}
+        onshow={(id) => void backend.showOutput(id)}
+        ondetails={(id) => (route = { name: "report", job: id })}
       />
       <AppHeader onsettings={() => (route = { name: "settings" })} />
     {:else}

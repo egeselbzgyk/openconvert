@@ -288,6 +288,19 @@ impl<L: Launch> JobQueue<L> {
         }
     }
 
+    /// The EPUB job `id` writes, and the report beside it — the only paths the app will open,
+    /// reveal or read on the webview's behalf, looked up by id so the webview never names one.
+    pub fn outputs(&self, id: &str) -> Result<(PathBuf, PathBuf), UiError> {
+        let job = self
+            .jobs
+            .iter()
+            .find(|job| job.id == id)
+            .ok_or_else(|| UiError::UnknownJob(id.to_owned()))?;
+        let mut report = job.output.as_os_str().to_os_string();
+        report.push(".report.json");
+        Ok((job.output.clone(), PathBuf::from(report)))
+    }
+
     /// Every row, in queue order, with waiting positions counted from the running job as #1.
     pub fn views(&self) -> Vec<JobView> {
         let mut position = self

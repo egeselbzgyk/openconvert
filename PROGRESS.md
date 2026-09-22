@@ -217,8 +217,12 @@ Work items, in order, with the plan's test rows against each:
         PrivacyNote, QueueList (roving tabindex, ↑/↓/Home/End, Delete), "Remove all waiting…"
         confirm Dialog (focus trap, opens on Cancel), polite announcements, AppHeader; persisted
         settings (`settings.rs`: language, preset, caps → the job spec's `preset`/`limits`) (+ 4 tests)
-  - [ ] **P12.8b** route `result`: the expanded row — output, summary, validation, warnings with
-        page links, quality facts, actions; open in reader / show in folder
+  - [x] **P12.8b** route `result`: the expanded row — output (Open in reader / Show in folder via
+        `tauri-plugin-opener` from Rust, by job id), renamed-output and no-reader banners, counts,
+        "Deterministic processing", ValidationLine with WarningLines (severity image, PageLink,
+        engine template), QualityFacts (retention; images from Tier-1 parity + the new
+        `document.images_extracted` report field; notes linked; EPUBCheck not run), Details;
+        Enter/Space toggles; tests read **real engine reports** (`ui/src/test/reports/`) (+ 4 tests)
   - [ ] **P12.8c** route `report`
   - [ ] **P12.8d** route `preview`
   - [ ] **P12.8e** route `settings` (+ `models`/`firstrun` shells for part B)
