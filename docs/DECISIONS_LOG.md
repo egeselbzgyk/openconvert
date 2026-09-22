@@ -3549,3 +3549,47 @@ bound**: at exactly `verse.short_line_ratio_min` it resolves `BlockQuote` instea
 comparison with a call to `oc_core::escalation::verse_quote`.
 Evidence: `escalation_predicates_are_pure_and_unit_tested`.
 Affects: ARCHITECTURE §3.1 and §6.1, `oc-core::escalation`, `oc-structure::quotes` (open).
+
+## 2026-09-23 · `webpki-roots` resolved by option (a): platform roots · Phase 9
+Context: the 2026-09-09 entry deferred the choice between (a) platform/native TLS roots, (b) a
+`deny.toml` exception scoped to `webpki-roots`, and (c) amending D15, to the phase that owns
+downloads.
+Decision: (a). `ureq = { default-features = false, features = ["rustls-no-provider",
+"platform-verifier"] }`, and `rustls` named beside it with only the `ring` provider, so no private
+`_ring` feature is used. `HttpFetch` sets `RootCerts::PlatformVerifier` and the ring provider
+explicitly; with `rustls-no-provider` and neither set, ureq would panic at the first TLS handshake.
+Evidence: `cargo deny --all-features check` → `advisories ok, bans ok, licenses ok, sources ok`;
+`cargo tree -p oc-net -e normal --target <t> -i webpki-roots` finds no such package on
+`x86_64-unknown-linux-gnu`, `x86_64-pc-windows-msvc` or `aarch64-apple-darwin`.
+`rustls-platform-verifier` 0.7 depends on `webpki-root-certs` for Android only, which is not a
+`deny.toml` target. `deny.toml` is unchanged: `exceptions = []` holds.
+Affects: D15, `Cargo.toml`, `crates/oc-net`.
+
+## 2026-09-23 · The allowlist is checked on every hop; the CDN host is unverified here · Phase 9
+Context: a Hugging Face `resolve/<commit>/<file>` URL answers with a redirect to a CDN. The plan's
+`HOST_ALLOWLIST` names `huggingface.co`, `cdn-lfs.huggingface.co` and `cdn-lfs-us-1.huggingface.co`.
+Decision: `ureq` follows no redirect itself (`max_redirects(0)`). The downloader follows each
+`Location` and checks it against the allowlist *before* the fetch that would open a socket to it,
+up to `max_redirects` hops, so a redirect off the list is refused and its host never contacted
+(test 9.3 counts the requests). The parse is deliberately narrow: `https`, a bare host, no
+user-info, no port. The list is the plan's, unchanged.
+**PROVISIONAL — needs maintainer ratification:** this sandbox's egress policy refuses
+`huggingface.co` (HTTP 403 on CONNECT), so which CDN host a real download redirects to today could
+not be observed. If Hugging Face now serves these repos from a host the list does not name,
+`model pull` fails with `HostNotAllowed` naming that host. It fails closed and installs nothing.
+Widening the list is then a one-line reviewed change.
+Evidence: `crates/oc-net/tests/download.rs`; the proxy log for this session
+(`connect_rejected … huggingface.co:443`).
+Affects: D13.9, SECURITY §8, `crates/oc-net/src/allowlist.rs`.
+
+## 2026-09-23 · A model whose licence text is not bundled is refused · Phase 9
+Context: D9 and LICENSE_AND_DEPENDENCIES §5 require `LICENSE` and `NOTICE` beside every
+downloaded model. The registry carries a licence *name*; the only text anyone can write is text
+the app ships.
+Decision: `oc-net` bundles the Apache-2.0 text (`crates/oc-net/licenses/Apache-2.0.txt`, the
+repository's own `LICENSE`). A registry entry under any other licence is refused with
+`NetError::UnknownLicense` before a byte is fetched. Every v1 entry is Apache-2.0. `NOTICE` is the
+entry's `notice_text` (or `<display_name>, <license>.`) followed by the URL, repository, revision,
+file and SHA-256 that were installed.
+Evidence: `download_writes_license_and_notice`.
+Affects: D9, LICENSE_AND_DEPENDENCIES §5, `crates/oc-net/src/download.rs`.

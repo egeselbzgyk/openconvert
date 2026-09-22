@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 9
-CURRENT_ITEM: P9.2 — the downloader: allowlist, streaming SHA-256, LICENSE/NOTICE, atomic
-              rename (rows 9.3–9.6). Built on branch `phase/09-local-model`.
+CURRENT_ITEM: P9.3 — the store (`list`, `remove`) and `HttpTransport` (row 9.19).
+              Built on branch `phase/09-local-model`.
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -67,7 +67,7 @@ LAST_UPDATED: 2026-09-23
 Work items, in order, with the plan's test rows against each:
 
 - [x] **P9.1** the registry: `oc_net::registry` — rows 9.1, 9.2
-- [ ] **P9.2** the downloader: allowlist, streaming SHA-256, LICENSE/NOTICE, atomic — rows 9.3–9.6
+- [x] **P9.2** the downloader: allowlist, streaming SHA-256, LICENSE/NOTICE, atomic — rows 9.3–9.6
 - [ ] **P9.3** the store (`list`, `remove`) and `HttpTransport` — row 9.19
 - [ ] **P9.4** `oc-core` has no net dependency — row 9.7
 - [ ] **P9.5** sidecar arguments and port picking — rows 9.12, 9.14
@@ -86,7 +86,11 @@ What a fresh session needs:
   A9.1 download and the live tests 9.15/9.16 are **unverified here**. Tests use synthetic hashes.
 - **TLS roots are option (a):** `ureq` with `rustls-no-provider` + `platform-verifier`, and
   `rustls` with the `ring` provider. `cargo deny --all-features check` is clean and `webpki-roots`
-  is in no target's graph (P9.2 adds the dependency).
+  is in no target's graph.
+- **The downloader follows redirects itself** and checks every hop against the allowlist before
+  fetching it. Tests run the real `ureq` client over loopback: `tests/common/mod.rs` maps
+  `https://<host>/<path>` to `http://127.0.0.1:<port>/<host>/<path>`. Only Apache-2.0 models install,
+  because that is the only licence text bundled.
 
 ## Current work item
 
