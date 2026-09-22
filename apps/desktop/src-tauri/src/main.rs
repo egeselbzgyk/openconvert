@@ -18,6 +18,7 @@ use std::time::{Duration, Instant};
 
 use oc_core::thresholds::T;
 use oc_model::document::PresetName;
+use openconvert_desktop::config::UiConfig;
 use openconvert_desktop::engine::{
     handshake, sidecar_path, Engine, Hello, ProcessLauncher, UiError,
 };
@@ -94,6 +95,18 @@ fn remove(job: String, queue: tauri::State<'_, Queue>) -> Result<(), UiError> {
     with_queue(&queue, |queue| queue.remove(&job))
 }
 
+/// The thresholds the webview needs (`openconvert_desktop::config`).
+#[tauri::command]
+fn ui_config() -> UiConfig {
+    UiConfig::from_thresholds(env!("CARGO_PKG_VERSION"))
+}
+
+/// "Quit" on the blocking startup screen.
+#[tauri::command]
+fn quit(app: AppHandle) {
+    app.exit(0);
+}
+
 /// Every row, for a webview that (re)loads.
 #[tauri::command]
 fn queue_rows(queue: tauri::State<'_, Queue>) -> Result<Vec<JobView>, UiError> {
@@ -147,6 +160,8 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             startup_status,
+            ui_config,
+            quit,
             enqueue,
             cancel,
             remove,

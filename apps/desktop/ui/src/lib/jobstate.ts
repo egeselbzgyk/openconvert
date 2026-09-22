@@ -1,0 +1,256 @@
+/**
+ * A queue row as a pure function of what the engine and the supervisor reported.
+ *
+ * Every visible piece of job state — stage label, progress fraction, "not responding", the result
+ * — is a projection of engine events and queue changes (UI_UX §8). Nothing here advances on a
+ * timer: a bar moves when a `progress` event says so, a stage changes when a `stage` event says
+ * so, and the only thing time decides is that a heartbeat is *overdue* — which is the one
+ * question heartbeats exist to answer (RT C2).
+ *
+ * Pure and synchronous, so the rules are tested without a window or a clock; `jobs.svelte.ts`
+ * holds the reactive copy.
+ */
+
+import type { Done, Event, Fatal, Warning } from "./events";
+
+/** The user-facing steps (UI_UX §2.2), in order. `repairing` is shown only when it runs. */
+export const STEPS = ["analyzing", "extracting", "reconstructing", "building", "checking"] as const;
+export type Step = (typeof STEPS)[number] | "repairing";
+
+/** Engine stage → user-facing step (UI_UX §2.2). Unknown stages map to nothing. */
+export const STAGE_STEP: Readonly<Record<string, Step>> = {
+  inspect: "analyzing",
+  ingest: "analyzing",
+  text: "extracting",
+  furniture: "extracting",
+  layout: "reconstructing",
+  paragraphs: "reconstructing",
+  structure: "reconstructing",
+  document: "reconstructing",
+  epub: "building",
+  validate: "checking",
+  report: "checking",
+  repair: "repairing",
+};
+
+/** The queue's view of a job, as the Rust side sends it (`job-changed`). */
+export type QueueState =
+  | { state: "queued"; position: number }
+  | { state: "running" }
+  | { state: "cancelling" }
+  | { state: "cancelled_before_start" }
+  | { state: "exited"; code: number | null }
+  | { state: "failed_to_start"; error: { kind: string; detail?: unknown } };
+
+export type JobView = {
+  id: string;
+  input: string;
+  output: string;
+  renamed: boolean;
+} & QueueState;
+
+export type Phase = "queued" | "running" | "cancelling" | "cancelled" | "complete" | "failed";
+
+export interface ProgressCount {
+  step: Step;
+  stage: string;
+  done: number;
+  total: number;
+  unit: string;
+}
+
+export interface Row {
+  id: string;
+  input: string;
+  output: string;
+  renamed: boolean;
+  phase: Phase;
+  /** Waiting position, the running job counted as #1 (design decision 6). */
+  position: number | null;
+  /** The step whose stage began last; `null` before any stage. */
+  current: Step | null;
+  /** Steps that have finished, in the order they finished. */
+  finished: Step[];
+  /** Whether `repair` ran at all, so "Repairing" is shown only then. */
+  repaired: boolean;
+  /** The latest count of the current step, exactly as the engine reported it. */
+  progress: ProgressCount | null;
+  /** When the last heartbeat (or the start of the run) was seen, in ms. */
+  lastSignalMs: number | null;
+  /** More than the heartbeat timeout since the last heartbeat. */
+  stalled: boolean;
+  /** How many heartbeats have arrived: each one is one pulse. */
+  beats: number;
+  pages: number | null;
+  warnings: Warning[];
+  done: Done | null;
+  fatal: Fatal | null;
+  /** The engine's exit code, once the queue saw it exit. */
+  exit: number | null | undefined;
+}
+
+export function newRow(view: JobView): Row {
+  return applyView(
+    {
+      id: view.id,
+      input: view.input,
+      output: view.output,
+      renamed: view.renamed,
+      phase: "queued",
+      position: null,
+      current: null,
+      finished: [],
+      repaired: false,
+      progress: null,
+      lastSignalMs: null,
+      stalled: false,
+      beats: 0,
+      pages: null,
+      warnings: [],
+      done: null,
+      fatal: null,
+      exit: undefined,
+    },
+    view,
+  );
+}
+
+/** The queue's state change, folded in. The engine's own events win where both speak. */
+export function applyView(row: Row, view: JobView): Row {
+  const next: Row = { ...row, input: view.input, output: view.output, renamed: view.renamed };
+  switch (view.state) {
+    case "queued":
+      return { ...next, phase: "queued", position: view.position };
+    case "running":
+      return { ...next, phase: row.phase === "queued" ? "running" : row.phase, position: null };
+    case "cancelling":
+      return { ...next, phase: settled(row) ? row.phase : "cancelling", position: null };
+    case "cancelled_before_start":
+      return { ...next, phase: "cancelled", position: null };
+    case "failed_to_start":
+      return {
+        ...next,
+        phase: "failed",
+        position: null,
+        fatal: row.fatal ?? synthetic("E_START", view.error.kind),
+      };
+    case "exited": {
+      const exited = { ...next, position: null, exit: view.code, stalled: false };
+      if (settled(row)) return exited;
+      // The engine exited without a final event: killed at the cancel deadline, or crashed.
+      if (row.phase === "cancelling") return { ...exited, phase: "cancelled" };
+      return {
+        ...exited,
+        phase: "failed",
+        fatal: row.fatal ?? synthetic("E_EXIT", `exit ${String(view.code)}`),
+      };
+    }
+  }
+}
+
+/** Whether the engine already told this row how it ended. */
+function settled(row: Row): boolean {
+  return row.phase === "complete" || row.phase === "failed" || row.phase === "cancelled";
+}
+
+function synthetic(code: string, message: string): Fatal {
+  return { v: 1, t: "fatal", seq: -1, ts_ms: 0, code, message };
+}
+
+/** One engine event, folded in at time `now` (ms). */
+export function applyEvent(row: Row, event: Event, now: number): Row {
+  switch (event.t) {
+    case "hello":
+      return { ...row, lastSignalMs: now, stalled: false };
+    case "job":
+      return {
+        ...row,
+        phase: row.phase === "queued" ? "running" : row.phase,
+        pages: event.pages,
+        lastSignalMs: row.lastSignalMs ?? now,
+      };
+    case "heartbeat":
+      return { ...row, lastSignalMs: now, stalled: false, beats: row.beats + 1 };
+    case "stage": {
+      const step = STAGE_STEP[event.name];
+      if (step === undefined) return row;
+      if (event.phase === "begin") {
+        const finished =
+          row.current !== null && row.current !== step && !row.finished.includes(row.current)
+            ? [...row.finished, row.current]
+            : row.finished;
+        return {
+          ...row,
+          current: step,
+          finished: finished.filter((done) => done !== step),
+          repaired: row.repaired || step === "repairing",
+          // A new step starts with no count: it shows a spinner until one arrives.
+          progress: row.current === step ? row.progress : null,
+        };
+      }
+      return row;
+    }
+    case "progress": {
+      const step = STAGE_STEP[event.stage] ?? row.current;
+      if (step === null || step === undefined) return row;
+      return {
+        ...row,
+        progress: {
+          step,
+          stage: event.stage,
+          done: Math.min(event.done, event.total),
+          total: event.total,
+          unit: event.unit,
+        },
+      };
+    }
+    case "warning":
+      return { ...row, warnings: [...row.warnings, event] };
+    case "done":
+      return {
+        ...row,
+        done: event,
+        stalled: false,
+        phase:
+          event.status === "ok" ? "complete" : event.status === "cancelled" ? "cancelled" : "failed",
+        finished:
+          event.status === "ok"
+            ? [...STEPS, ...(row.repaired ? (["repairing"] as const) : [])]
+            : row.finished,
+        current: event.status === "ok" ? null : row.current,
+      };
+    case "fatal":
+      return { ...row, fatal: event, phase: "failed", stalled: false };
+    case "llm":
+      return row;
+  }
+}
+
+/** Mark the row not responding once more than `timeoutMs` has passed since the last heartbeat. */
+export function checkHeartbeat(row: Row, now: number, timeoutMs: number): Row {
+  const watching = row.phase === "running" || row.phase === "cancelling";
+  if (!watching || row.lastSignalMs === null) return row.stalled ? { ...row, stalled: false } : row;
+  const stalled = now - row.lastSignalMs > timeoutMs;
+  return stalled === row.stalled ? row : { ...row, stalled };
+}
+
+/** The steps a row shows, in order: the five, plus "Repairing" when it ran. */
+export function visibleSteps(row: Row): Step[] {
+  return row.repaired
+    ? [...STEPS.slice(0, STEPS.indexOf("checking")), "repairing", "checking"]
+    : [...STEPS];
+}
+
+/** A step's state in the StageList. */
+export function stepState(row: Row, step: Step): "done" | "current" | "pending" | "repair" {
+  if (row.current === step && row.phase !== "complete") {
+    return step === "repairing" ? "repair" : "current";
+  }
+  if (row.finished.includes(step)) return "done";
+  return "pending";
+}
+
+/** Seconds since the last heartbeat, for "no signal for {s} seconds". */
+export function silentSeconds(row: Row, now: number): number {
+  return row.lastSignalMs === null ? 0 : Math.floor((now - row.lastSignalMs) / 1000);
+}

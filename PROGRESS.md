@@ -204,7 +204,13 @@ Work items, in order, with the plan's test rows against each:
       `crates/oc-core/src/warnings/templates_*.toml` compiled into the bundle — the design's
       `warn.*` drafts are not used. Lucide/Svelte/Tauri notices: `apps/desktop/THIRD-PARTY-NOTICES.txt`.
       `xtask ci-lint` now also reads `.svelte`/`.mjs` and skips `dist/`
-- [ ] **P12.7** the job store: events → rows, heartbeat watchdog, cancel states — rows 12.4, 12.5
+- [x] **P12.7** the job store: events → rows, heartbeat watchdog, cancel states — rows **12.3,
+      12.4, 12.5** (+ 7 UI tests, 1 Rust). `jobstate.ts` (pure: stage → step per UI_UX §2.2,
+      progress only from events, exit-without-`done` is a failure or, when cancelling, a
+      cancel) → `jobs.svelte.ts` (reactive; a `ProtocolError` sets the blocking screen) →
+      `QueueRow`/`StageList`/`ProgressBar`/`Spinner`/`BlockingError`. The UI's numbers arrive
+      from `thresholds.toml` through the `ui_config` command; component tests drive `App` through
+      `test/fake-backend.ts`
 - [ ] **P12.8** the screens: queue, result, report, preview, settings, first run, blocking errors
 - [ ] **P12.9** metadata and TOC overrides — rows 12.10, 12.11
 - [ ] **P12.10** Playwright under the shipped CSP — rows 12.14 (keyboard), 12.15, 12.16

@@ -6,6 +6,7 @@
 //! ([`engine`]), where the app keeps its files and which paths it will hand the engine
 //! ([`fs_scope`]). `main.rs` is the Tauri wiring around them.
 
+pub mod config;
 pub mod engine;
 pub mod fs_scope;
 pub mod jobqueue;
