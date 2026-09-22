@@ -189,7 +189,13 @@ Work items, in order, with the plan's test rows against each:
       outputs never collide ("name (2).epub", queued outputs reserved); Tauri commands `enqueue`
       (drop split: PDFs added, every other file named), `cancel`, `remove`, `queue_rows`,
       `startup_status`, events `engine-line` / `job-changed`
-- [ ] **P12.5** webview privacy: `capabilities/default.json`, the shipped CSP — row 12.13
+- [x] **P12.5** webview privacy: `capabilities/default.json`, the shipped CSP — row **12.13**.
+      The webview may only listen for the app's own events (an allow-list the test enforces);
+      no `http:`, no `shell:` (the shell plugin is gone from the workspace); CSP
+      `default-src 'self'; connect-src 'none'; script-src 'self'; style-src 'self'; …` — no
+      `'unsafe-inline'` anywhere, so dynamic values must go through `style:` (CSSOM). Tauri's IPC
+      falls back from its `ipc:` fetch to `postMessage` under `connect-src 'none'` (to be seen in
+      a real window — unverified here, no display)
 - [ ] **P12.6** UI foundation: Svelte 5, the ported styles, inlined icons, EN/DE/TR, warnings from
       the engine's templates — rows 12.3, 12.8, 12.9
 - [ ] **P12.7** the job store: events → rows, heartbeat watchdog, cancel states — rows 12.4, 12.5

@@ -120,7 +120,6 @@ fn main() {
         Duration::from_millis(u64::try_from(T.desktop.supervisor_tick_ms).unwrap_or(u64::MAX));
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
         .manage(Startup(startup))
         .manage(Queue(Mutex::new(None)))
         .setup(move |app| {
