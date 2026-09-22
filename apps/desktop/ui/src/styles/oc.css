@@ -433,3 +433,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* QueueList: the head's spacer and the scrolling list (were inline). */
 .oc-queue__spacer { flex: 1; }
 .oc-queue--scroll { flex: 1; min-height: 0; overflow: auto; padding-right: var(--oc-space-1); }
+
+/* ReportView: the title's arrow, the chip row, the headings' asides, the raw names and the
+   paragraphs (were inline). */
+.oc-report__arrow { color: var(--oc-text-secondary); }
+.oc-report__chips { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+.oc-panel__aside { font-weight: var(--oc-weight-regular); color: var(--oc-text-secondary); }
+.oc-report__raw { color: var(--oc-text-tertiary); }
+.oc-report__para { margin: 0; }
+.oc-report__warnings { padding: 0; }

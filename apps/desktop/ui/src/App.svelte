@@ -20,6 +20,7 @@
   import type { Row } from "./lib/jobstate";
   import { i18n, setLanguage, t, tn } from "./lib/locale.svelte";
   import Queue from "./routes/queue/Queue.svelte";
+  import Report from "./routes/report/Report.svelte";
 
   let { backend = tauriBackend(), clock = () => Date.now() }: { backend?: Backend; clock?: () => number } = $props();
 
@@ -184,6 +185,13 @@
         ondetails={(id) => (route = { name: "report", job: id })}
       />
       <AppHeader onsettings={() => (route = { name: "settings" })} />
+    {:else if route.name === "report"}
+      {@const job = route.job}
+      {@const row = store.rows.find((candidate) => candidate.id === job)}
+      {#if row !== undefined && config !== null}
+        <Report {row} appVersion={config.appVersion} />
+      {/if}
+      <AppHeader title={t("report.title")} back={{ label: t("queue.title"), onclick: () => (route = { name: "queue" }) }} />
     {:else}
       <main class="oc-main"></main>
       <AppHeader title={t("settings.title")} back={{ label: t("queue.title"), onclick: () => (route = { name: "queue" }) }} />

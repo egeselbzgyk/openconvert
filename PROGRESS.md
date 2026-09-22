@@ -223,7 +223,10 @@ Work items, in order, with the plan's test rows against each:
         engine template), QualityFacts (retention; images from Tier-1 parity + the new
         `document.images_extracted` report field; notes linked; EPUBCheck not run), Details;
         Enter/Space toggles; tests read **real engine reports** (`ui/src/test/reports/`) (+ 4 tests)
-  - [ ] **P12.8c** route `report`
+  - [x] **P12.8c** route `report`: ReportView over report.json — contents, how it was made, checks
+        (Tier 1, EPUBCheck not run), warnings by page, time per step (timeline flex via `style:`;
+        `epub+validate+repair` is one timing and shown as "Building and checking"), the ledger by
+        reason with share of C₀, run details (+ 1 test)
   - [ ] **P12.8d** route `preview`
   - [ ] **P12.8e** route `settings` (+ `models`/`firstrun` shells for part B)
   - [ ] **P12.8f** the diagnostic bundle (export, review)

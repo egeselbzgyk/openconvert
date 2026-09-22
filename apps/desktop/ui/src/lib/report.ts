@@ -102,3 +102,51 @@ export function llmDecisions(report: Report): number | null {
   const count = report.decisions.filter((decision) => decision.method === "llm").length;
   return report.engine.prompt_version === null && count === 0 ? null : count;
 }
+
+/** The report's step timings, in the user-facing steps (UI_UX §5 "Timing per stage"). */
+export function stepTimings(report: Report): Array<{ label: string; ms: number }> {
+  const steps: Array<{ label: string; ms: number }> = [];
+  for (const [stage, ms] of report.timings_ms) {
+    if (stage === "total") continue;
+    const label = STAGE_LABEL[stage] ?? stage;
+    const last = steps[steps.length - 1];
+    if (last !== undefined && last.label === label) {
+      last.ms += ms;
+    } else {
+      steps.push({ label, ms });
+    }
+  }
+  return steps;
+}
+
+/** The total the report records, or the sum of its steps. */
+export function totalMs(report: Report): number {
+  const total = report.timings_ms.find(([stage]) => stage === "total");
+  return total?.[1] ?? stepTimings(report).reduce((sum, step) => sum + step.ms, 0);
+}
+
+/**
+ * Engine stages as the report times them → the string key of the user-facing step. The driver
+ * times `epub`, `validate` and `repair` as one call, so the report cannot split them and the view
+ * does not pretend to.
+ */
+const STAGE_LABEL: Readonly<Record<string, string>> = {
+  inspect: "stage.analyzing",
+  ingest: "stage.analyzing",
+  text: "stage.extracting",
+  furniture: "stage.extracting",
+  layout: "stage.reconstructing",
+  paragraphs: "stage.reconstructing",
+  structure: "stage.reconstructing",
+  document: "stage.reconstructing",
+  epub: "stage.building",
+  validate: "stage.checking",
+  repair: "stage.repairing",
+  "epub+validate+repair": "stage.buildingChecking",
+  report: "stage.checking",
+};
+
+/** Warnings grouped by page, pages in order, page-less ones first (UI_UX §5). */
+export function warningsByPage(report: Report): ReportWarning[] {
+  return [...report.warnings].sort((a, b) => (a.page?.index ?? -1) - (b.page?.index ?? -1));
+}
