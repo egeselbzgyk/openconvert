@@ -3221,3 +3221,129 @@ Restored from `811388a`, with the three intended edits since then reapplied: the
 section cleared, `CURRENT_ITEM` moved to the inventory, and the timeout class rewritten with
 what was measured rather than what was assumed.
 Affects: PROGRESS.md, and the way this session edits documents.
+
+## 2026-09-22 · Defect class `structure/lost/orphaned-claimant`, admitted — 73 % of all measured loss · Phase 7.5
+Context: the 95-document inventory, re-read by claimant rather than by document, says who took
+the lost text:
+
+```
+list        38 docs  5 strata   1 492 414 chars
+table       54 docs  5 strata     304 004
+(nothing)   64 docs  6 strata     140 849
+note        38 docs  6 strata      64 507
+caption     31 docs  5 strata      38 907
+```
+
+`diff-stage` now names **orphaned claimants** — structures that took blocks out of the flow and
+were never placed in it themselves. On the three largest losses, one per stratum, the loss *is*
+the orphaned lists:
+
+```
+InDesign  oapen-...-115755   lost 217 873   orphaned list text 226 346   9 lists
+Word      oapen-...-115632   lost 257 991   orphaned list text 256 856   3 lists
+pdfTeX    arxiv-2305-09065   lost  23 228   orphaned list text  23 230   1 list, 451 blocks
+```
+
+Mechanism, measured rather than inferred: **13 of 13 orphaned lists have a first block that is
+not itself claimed.** A list enters the flow at exactly one point — when the loop reaches the
+block holding its first item *and that block is claimed*. Membership is decided per **line**;
+claiming is decided per **block**, all or nothing. So when the first item shares a layout block
+with the sentence introducing it — "consider the following:" and then "1." on the next line — the
+block is only partly the list's, it is not claimed, the trigger never fires, and every block the
+list *did* claim is dropped with nowhere to go. The comment above the trigger says "a list is
+emitted at the first block it consumed"; the code emits it at the first item's block, and those
+are different blocks exactly when this happens. Third time in this phase a comment and its code
+have disagreed at the site of a defect.
+
+*How else could this arise?* — answered before the fix:
+
+1. **Any structure whose emission is triggered by a predicate other than its own claims.** Lists
+   (the first item's block must be claimed); tables (`first_block_of`, a y-range test that
+   ignores columns and can match no block at all).
+2. **A claimant whose trigger block is held by another claimant.** 124 contested blocks on the
+   InDesign document alone — list + caption, list + table, note + note + note + note.
+3. **A container whose own reference is dropped.** A figure whose image is dropped as an ornament
+   takes its bound caption with it; a note whose marker is never linked takes its body.
+4. **A structure truncated by a cap** — `list.max_depth` — after its lines were claimed.
+5. **The same shape one stage later.** `document` moves sections into chapters and `epub` moves
+   chapters into files; both keep "handled" bookkeeping and neither is checked for this.
+
+Decision: **a structure is emitted where its first claimed unit occurs, and the unit of claiming
+is the unit of taking.** For lists the unit is the line. A block whose lines are all taken is
+skipped, as before; a block whose lines are *partly* taken is split — its untaken lines before
+the list stay a paragraph, the list is emitted, its untaken lines after follow. Every line is in
+exactly one place, and a list with even one taken line is reached by construction, because the
+loop visits every block. There is no longer a trigger that can disagree with the claims.
+
+The checked half: `StructureOutput::orphaned_claims` is asserted empty over the fixtures, and
+`diff-stage` reports any claimant of any kind that the book does not reach.
+
+Rejected: emitting a list at its first *claimed block*. It closes the orphaning and duplicates
+the first item — its lines would be in the list *and* in the intro block's paragraph. Also
+rejected: shrinking list membership to whole blocks. It leaves the `list_starts_at` trigger in
+place, and a whole block can still hold lines before the first surviving marker, which is the
+same orphan one step later.
+
+Not in scope, recorded: **the runaway list.** The one pdfTeX list claims 451 blocks — most of a
+paper. A continuation line stays in a list while `x0 >= marker.indent − tolerance`, and when the
+marker sits at the body margin every body line satisfies that, so one line-initial "1." or "–"
+swallows pages of prose. Its comment says "a line indented back to the body margin has left"; the
+code cannot tell. That is a quality defect — the text survives, as a list — and this phase's gate
+is conservation. It inflates this class's magnitude and is recorded for the quality phase.
+Evidence: `openconvert diff-stage structure` on the three documents above.
+Affects: `oc-structure::{lists,stage,claims}`, PHASE 7.5 items 4-5.
+
+## 2026-09-22 · Classes `orphaned-claimant` and `contested-claim` closed — measured · Phase 7.5
+Context: the fix recorded in the entry above, and what implementing it found.
+
+The three documents the orphan class was admitted on, `diff-stage structure`, reachable:
+
+```
+                         before            orphans fixed        + one owner per block
+                    lost    appeared      lost    appeared      lost    appeared
+InDesign 115755   217 873        2          24      6 940         64         0
+Word     115632   257 991        0       1 135          0      1 135         0
+pdfTeX 2305-09065  23 228        2           1          3          1         0
+```
+
+**499 093 characters lost → 1 200, and duplication to zero.** Every remaining character is an
+orphaned **note** — a note whose marker was never linked, so nothing in the text reaches it. A
+different mechanism, next.
+
+Three things implementing it found, each a correction of the plan above:
+
+1. **Closing the orphans exposed a class they were hiding.** Once lists reached the book,
+   InDesign's duplication rose from 2 to 6 940: the 124 blocks that a list *and* a table or
+   caption had both taken were now emitted by both. The orphaning had been masking it, because
+   an orphaned list's copy never reached the book. `structure/appeared/contested-claim` was then
+   measured on the saved inventory — 44 of 95 documents, all six strata — and admitted.
+   Fix: the four detectors run in precedence order, **each built from what the ones before it
+   left** — notes (the zone and the font), tables (ruling), captions (an image beside them),
+   lists (a line-initial marker, the weakest signal, and the one that once took 451 blocks).
+   Two overlapping table regions no longer both take one block either.
+2. **The precedence fix raised InDesign's loss from 24 to 3 170**, and the per-kind report
+   showed why: a chapter title repeated as a running head on fifteen pages, each copy near an
+   image and so a caption *candidate*. One figure bound one copy. The claim was then re-derived
+   by **text equality** — every block whose text equalled that caption — so fifteen were claimed
+   and one emitted. `associate_captions` already knew which block it bound (`taken[position]`)
+   and discarded it. It now returns the binding, and the claim uses it. **Fourth time in this
+   phase the same shape**: a second predicate standing in for a decision already made.
+3. **The first invariant was wrong.** "No block has two owners" failed on `f08`: one footnote
+   block holding two notes, correctly split between them. Sharing a block is fine; owning the
+   same *characters* twice is the defect. Each note claim now records the note's own text rather
+   than the whole block's, and the invariant is `no_text_has_two_owners` — the claims on a block
+   may not add up to more than the block holds. Mutation-tested: recording the whole block
+   again fails it on `f08`.
+
+Recorded, not fixed: **the running head that reached `structure` at all.** A chapter title
+repeated on fifteen consecutive pages should have been removed by `furniture`. It repeats within
+one chapter of a 368-page book, which is below any whole-book repetition ratio. That is a
+`furniture` class with its own evidence to gather.
+
+The diagnostic grew two things this needed: **ORPHANED** (claimants the book never reaches) and
+examples **per claimant kind** — captions are short, and ranking by length alone hid every one
+of them behind paragraphs.
+
+Evidence: `no_claimant_is_orphaned`, `no_text_has_two_owners` (mutation-tested); 491 workspace
+tests green; the table above.
+Affects: `oc-structure::{stage,lists,tables,figures,claims}`, `openconvert::cmd_diff_stage`.

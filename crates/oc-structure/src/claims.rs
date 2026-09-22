@@ -142,6 +142,31 @@ impl Claims {
             .map(|claim| claim.by.clone())
     }
 
+    /// Blocks whose claimants between them took **more text than the block holds** — the
+    /// same characters owned twice, and therefore emitted twice.
+    ///
+    /// This, and not [`Self::contested`], is the defect. Several claimants sharing one block
+    /// is often correct: a footnote block holding three notes is split three ways, and each
+    /// note's claim records only its own part. What must not happen is that the parts add up
+    /// to more than the whole, which is exactly a list item that is also a table row, or one
+    /// note body handed to four notes (PHASE 7.5, `structure/appeared/contested-claim`).
+    pub fn overclaimed(
+        &self,
+        block_text: impl Fn(BlockId) -> String,
+    ) -> Vec<(BlockId, Vec<Claimant>)> {
+        self.contested()
+            .into_iter()
+            .filter(|(block, _)| {
+                let mut claimed = oc_model::extract::CharHistogram::new();
+                for claim in self.claims.iter().filter(|claim| claim.block == *block) {
+                    claimed = claimed.union(&oc_model::ledger::c_of(&claim.text));
+                }
+                let held = oc_model::ledger::c_of(&block_text(*block));
+                !claimed.difference(&held).is_empty()
+            })
+            .collect()
+    }
+
     /// Blocks claimed by more than one structure.
     ///
     /// Not a hypothetical: a note body opens with `*` exactly as a bulleted list item does,

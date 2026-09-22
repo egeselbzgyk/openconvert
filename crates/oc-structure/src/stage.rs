@@ -173,6 +173,62 @@ impl StructureOutput {
         }
         out
     }
+
+    /// Every claimant the reader can reach, as `(kind, id)` — the same names `Claimant` uses.
+    ///
+    /// A list is reached when the flow holds it; a table or a figure when the flow holds a
+    /// reference to it; a note when a marker in the text refers to it.
+    pub fn reachable_claimants(&self) -> std::collections::BTreeSet<(ClaimKind, String)> {
+        let mut out = std::collections::BTreeSet::new();
+        for section in &self.sections {
+            for section in section.walk() {
+                reach_claimants(&section.content, &mut out);
+            }
+        }
+        for note_ref in &self.note_refs {
+            out.insert((ClaimKind::Note, format!("n{}", note_ref.note.0)));
+        }
+        out
+    }
+
+    /// Claims whose claimant is **not in the book** (PHASE 7.5).
+    ///
+    /// A block leaves the flow because a structure undertook to carry its text. If that
+    /// structure is then never placed, the undertaking is void and the text is gone — and
+    /// nothing downstream can see it, because nothing downstream ever meets the structure.
+    /// An unnamed claimant is orphaned by definition: there is no structure to reach.
+    pub fn orphaned_claims(&self) -> Vec<&crate::claims::Claim> {
+        let reachable = self.reachable_claimants();
+        self.claims
+            .iter()
+            .filter(|claim| match &claim.by.id {
+                Some(id) => !reachable.contains(&(claim.by.kind, id.clone())),
+                None => true,
+            })
+            .collect()
+    }
+}
+
+/// Which claimants a content list reaches, recursively.
+fn reach_claimants(content: &[Content], out: &mut std::collections::BTreeSet<(ClaimKind, String)>) {
+    for item in content {
+        match item {
+            Content::List(list) => {
+                out.insert((ClaimKind::List, list.id.as_str().to_owned()));
+            }
+            Content::Table(id) => {
+                out.insert((ClaimKind::Table, format!("t{}", id.0)));
+            }
+            Content::Figure(id) => {
+                out.insert((ClaimKind::Caption, format!("f{}", id.0)));
+            }
+            Content::NoteRefAnchor(id) => {
+                out.insert((ClaimKind::Note, format!("n{}", id.0)));
+            }
+            Content::BlockQuote(inner) | Content::Epigraph(inner) => reach_claimants(inner, out),
+            _ => {}
+        }
+    }
 }
 
 /// Walk a content list the way a reader does, recording which containers it reaches.
@@ -304,15 +360,33 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
             })
         })
         .collect();
+    // **One owner per block, decided by precedence.** The four detectors used to run over
+    // every block independently, so a block could be a note body *and* a table row *and* a
+    // list item, and each emitted it. 44 of 95 corpus documents had such blocks, in all six
+    // strata (PHASE 7.5, `structure/appeared/contested-claim`). So each detector is built from
+    // what the ones before it left — notes, then tables, then captions, then lists — and the
+    // text of a block is in exactly one structure by construction rather than by luck.
+    //
+    // The order is the strength of the evidence each one has. A note is decided by the zone
+    // at the foot of the page and its font size; a table by ruling lines; a caption by an
+    // image beside it; a list only by a line that opens with a marker, which is the weakest
+    // and the most promiscuous signal of the four — it once took 451 blocks of one paper.
+    let mut owned: std::collections::BTreeSet<BlockId> = note_blocks.iter().copied().collect();
     let tables = extract_tables(
         &input.vectors,
         blocks,
+        &owned,
         u32::try_from(input.images.len()).unwrap_or_default(),
         t,
     );
-    let (figures, captions, caption_warnings) =
-        associate_captions(&input.images, blocks, body_size, &input.lang, t);
-    let lists = detect_lists(blocks, &note_blocks, &noteref_runs, t);
+    owned.extend(tables.consumed.iter().copied());
+    let (figures, _captions, caption_warnings, bound_captions) =
+        associate_captions(&input.images, blocks, &owned, body_size, &input.lang, t);
+    // Only a caption that was actually bound owns its block — by identity, as recorded where
+    // it was bound. An unbound one stays in the flow and may still be anything else.
+    owned.extend(bound_captions.keys().copied());
+    let list_skip: Vec<BlockId> = owned.iter().copied().collect();
+    let lists = detect_lists(blocks, &list_skip, &noteref_runs, t);
     let (indented, escalations) = classify_indented(blocks, body_size, t);
     let images = drop_ornaments(&input.images, &input.image_hashes, input.page_count, t);
     let (metadata, meta_confidence) = metadata(&input.meta, blocks, body_size, t);
@@ -347,7 +421,11 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
                         block,
                         page: page_of(block),
                         by: Claimant::new(ClaimKind::Note, format!("n{}", note.id.0)),
-                        text: text_of(block),
+                        // What *this note* took, not the whole block. One footnote block
+                        // routinely holds several notes, split between them; recording the
+                        // block's full text against each made a correct split look like the
+                        // same text owned four times over.
+                        text: para.text.clone(),
                     });
                 }
             }
@@ -392,32 +470,22 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
             text: text_of(block),
         });
     }
-    // Only the captions that were actually bound: an unattached caption stays in the flow as
-    // a paragraph, which is what "abstain rather than guess" means for the text as well as
-    // for the link.
-    let bound: std::collections::BTreeMap<String, oc_model::ids::FigureId> = figures
-        .iter()
-        .filter_map(|figure| {
-            figure
-                .caption
-                .as_ref()
-                .map(|caption| (oc_model::doc::spans_text(caption), figure.id))
-        })
-        .collect();
-    for caption in &captions {
-        if let Some(figure) = bound.get(caption.text.trim()) {
-            claims.push(Claim {
-                block: caption.block,
-                page: page_of(caption.block),
-                by: Claimant::new(ClaimKind::Caption, format!("f{}", figure.0)),
-                text: text_of(caption.block),
-            });
-        }
+    // Only the captions that were actually bound — the very blocks, as `associate_captions`
+    // recorded them — not every block whose text happens to equal a bound caption's.
+    for (&block, figure) in &bound_captions {
+        claims.push(Claim {
+            block,
+            page: page_of(block),
+            by: Claimant::new(ClaimKind::Caption, format!("f{}", figure.0)),
+            text: text_of(block),
+        });
     }
 
     let mut minter = Minter::new();
     let mut flow: Vec<FlowItem> = Vec::new();
     let mut emitted_lists: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let list_by_id: std::collections::BTreeMap<BlockId, &List> =
+        lists.lists.iter().map(|list| (list.id, list)).collect();
     // A drop cap that `layout` gave a block of its own, waiting to be joined to the paragraph
     // it opens. Failing to do this is the classic stray one-character paragraph — `<p>W</p>`
     // followed by a paragraph beginning "hen the survey" — which is a very visible EPUB
@@ -445,19 +513,81 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
                 content: Content::Table(region.id),
             });
         }
+        // The lists that took lines of this block, in line order. A list is emitted the first
+        // time the loop meets **any** line it took — the emission point is derived from its
+        // claims, so a list with even one taken line cannot fail to reach the book. The old
+        // trigger fired only when the list's first item's block was itself claimed, and 13 of
+        // 13 measured orphans were lists whose first item shared a block with the sentence
+        // introducing it (PHASE 7.5, `structure/lost/orphaned-claimant`).
+        let taken_here: &[(usize, BlockId)] =
+            lists.taken.get(&block.id).map(Vec::as_slice).unwrap_or(&[]);
+
         if claims.contains(block.id) {
-            // A list is emitted at the first block it consumed, and only once.
-            if let Some(list) = lists
-                .lists
-                .iter()
-                .find(|list| list_starts_at(list, block.id))
-            {
-                if emitted_lists.insert(list.id.as_str().to_owned()) {
-                    flow.push(FlowItem {
-                        page: block.page,
-                        content: Content::List(list.clone()),
-                    });
+            for (_, list_id) in taken_here {
+                if let Some(list) = list_by_id.get(list_id) {
+                    if emitted_lists.insert(list.id.as_str().to_owned()) {
+                        flow.push(FlowItem {
+                            page: block.page,
+                            content: Content::List((*list).clone()),
+                        });
+                    }
                 }
+            }
+            continue;
+        }
+
+        if !taken_here.is_empty() {
+            // Taken in part. The block is split at exactly the lines the list took: what comes
+            // before stays a paragraph, the list follows, and what comes after follows it.
+            // Every line is in one place — the list, or a paragraph of this block — which is
+            // what the two rejected fixes could not both say.
+            let taken_at: std::collections::BTreeMap<usize, BlockId> =
+                taken_here.iter().copied().collect();
+            let mut segment: Vec<&crate::view::LineView> = Vec::new();
+            for (position, line) in block.lines.iter().enumerate() {
+                let Some(list_id) = taken_at.get(&position) else {
+                    segment.push(line);
+                    continue;
+                };
+                let first_time = list_by_id
+                    .get(list_id)
+                    .is_some_and(|list| !emitted_lists.contains(list.id.as_str()));
+                if first_time {
+                    if let Some(para) = segment_para(
+                        &mut minter,
+                        block,
+                        &segment,
+                        &noteref_runs,
+                        &mut pending_cap,
+                        t,
+                    ) {
+                        flow.push(FlowItem {
+                            page: block.page,
+                            content: Content::Paragraph(para),
+                        });
+                    }
+                    segment.clear();
+                    if let Some(list) = list_by_id.get(list_id) {
+                        emitted_lists.insert(list.id.as_str().to_owned());
+                        flow.push(FlowItem {
+                            page: block.page,
+                            content: Content::List((*list).clone()),
+                        });
+                    }
+                }
+            }
+            if let Some(para) = segment_para(
+                &mut minter,
+                block,
+                &segment,
+                &noteref_runs,
+                &mut pending_cap,
+                t,
+            ) {
+                flow.push(FlowItem {
+                    page: block.page,
+                    content: Content::Paragraph(para),
+                });
             }
             continue;
         }
@@ -645,15 +775,30 @@ fn content_has_block(content: &[Content], block: BlockId) -> bool {
     })
 }
 
-/// Whether a list's first item came from this block.
-fn list_starts_at(list: &List, block: BlockId) -> bool {
-    list.items
-        .first()
-        .and_then(|item| item.content.first())
-        .is_some_and(|content| match content {
-            Content::Paragraph(para) => para.blocks.first() == Some(&block),
-            _ => false,
-        })
+/// A paragraph from the lines of a block that a list did not take, if any are left.
+///
+/// A pending drop cap is joined to the first such paragraph, exactly as the whole-block path
+/// joins it, because a cap belongs to the paragraph it opens wherever the block is cut.
+fn segment_para(
+    minter: &mut Minter,
+    block: &BlockView,
+    lines: &[&crate::view::LineView],
+    noterefs: &crate::build::NoteRefRuns,
+    pending_cap: &mut Option<(BlockId, String)>,
+    t: &Thresholds,
+) -> Option<oc_model::layout::Para> {
+    if lines.iter().all(|line| line.text.trim().is_empty()) {
+        return None;
+    }
+    let mut para = para_of(minter, block.page, &[block.id], lines, noterefs, t);
+    if let Some((cap_block, cap)) = pending_cap.take() {
+        para.spans
+            .insert(0, oc_model::doc::Span::plain(cap.clone()));
+        para.text = format!("{cap}{}", para.text);
+        para.blocks.insert(0, cap_block);
+        para.drop_cap = true;
+    }
+    Some(para)
 }
 
 /// Whether a drop cap opens this block.

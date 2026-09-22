@@ -70,11 +70,23 @@ pub struct CaptionCandidate {
 pub fn associate_captions(
     images: &[ImageRef],
     blocks: &[BlockView],
+    skip: &std::collections::BTreeSet<oc_model::ids::BlockId>,
     body_size_pt: f32,
     lang: &LangTag,
     t: &Thresholds,
-) -> (Vec<Figure>, Vec<CaptionCandidate>, Vec<Warning>) {
-    let captions = caption_candidates(blocks, body_size_pt, lang, t);
+) -> (
+    Vec<Figure>,
+    Vec<CaptionCandidate>,
+    Vec<Warning>,
+    std::collections::BTreeMap<oc_model::ids::BlockId, FigureId>,
+) {
+    // A block a higher-precedence structure owns is not a caption candidate: a caption bound
+    // to a figure *and* read into a table's cells was emitted twice (PHASE 7.5,
+    // `structure/appeared/contested-claim`).
+    let captions: Vec<CaptionCandidate> = caption_candidates(blocks, body_size_pt, lang, t)
+        .into_iter()
+        .filter(|caption| !skip.contains(&caption.block))
+        .collect();
     let gap = body_size_pt * t.caption.max_gap_em as f32;
 
     let mut warnings = Vec::new();
@@ -138,6 +150,24 @@ pub fn associate_captions(
         }
     }
 
+    // **Which block** each figure took, recorded here where the decision is made. A figure
+    // keeps only its caption's *text*, and the claim used to be re-derived by searching for
+    // that text — so a chapter title repeated as a running head on fifteen pages, bound once
+    // to one figure, had all fifteen copies claimed and one emitted (PHASE 7.5). The same
+    // shape as the list and table claims before it: a second predicate standing in for a
+    // decision that had already been made.
+    let bound: std::collections::BTreeMap<oc_model::ids::BlockId, FigureId> = taken
+        .iter()
+        .enumerate()
+        .filter_map(|(position, index)| {
+            let caption = index.and_then(|index| captions.get(index))?;
+            Some((
+                caption.block,
+                FigureId(u32::try_from(position).unwrap_or(u32::MAX)),
+            ))
+        })
+        .collect();
+
     let figures = images
         .iter()
         .enumerate()
@@ -168,7 +198,7 @@ pub fn associate_captions(
         })
         .collect();
 
-    (figures, captions, warnings)
+    (figures, captions, warnings, bound)
 }
 
 /// The blocks that read as captions.

@@ -271,3 +271,63 @@ fn every_container_the_conservation_check_counts_is_reachable_from_the_flow() {
         );
     }
 }
+
+/// `structure/lost/orphaned-claimant`, as an invariant.
+///
+/// A structure that takes a block out of the flow must itself be in the book, or the text it
+/// took is gone and nothing downstream can see it. 73 % of all measured corpus loss was this:
+/// lists that claimed blocks and were never placed, because their emission was triggered by a
+/// predicate other than their own claims. Emission is now derived from the claims — a list is
+/// placed where its first taken line is — so this should hold by construction.
+#[test]
+fn no_claimant_is_orphaned() {
+    for name in FIXTURES {
+        let (_, output) = structure_of(name);
+        let orphaned: Vec<String> = output
+            .orphaned_claims()
+            .iter()
+            .map(|claim| format!("{} by {}", claim.block.as_str(), claim.by.label()))
+            .collect();
+        assert!(
+            orphaned.is_empty(),
+            "{name}: claimed by a structure the book never reaches: {orphaned:?}"
+        );
+    }
+}
+
+/// `structure/appeared/contested-claim`, as an invariant — stated as what is actually
+/// required, which is not what was first written.
+///
+/// The first version asserted that no *block* has two owners, and it failed on `f08`: one
+/// footnote block holding two notes, split correctly between them. Sharing a block is not the
+/// defect. The defect is **the same characters owned twice** — a list item that is also a
+/// table row, one note body handed to four notes — because whatever is owned twice is emitted
+/// twice. 44 of 95 corpus documents had it, in all six strata. The detectors are now built in
+/// precedence order, each from what the ones before it left, and each claim records only the
+/// text its claimant took.
+#[test]
+fn no_text_has_two_owners() {
+    for name in FIXTURES {
+        let (input, output) = structure_of(name);
+        let text_of = |block: oc_model::ids::BlockId| -> String {
+            input
+                .iter()
+                .find(|unit| unit.label == format!("block {}", block.as_str()))
+                .map(|unit| unit.text.clone())
+                .unwrap_or_default()
+        };
+        let overclaimed: Vec<String> = output
+            .claims
+            .overclaimed(text_of)
+            .iter()
+            .map(|(block, who)| {
+                let names: Vec<String> = who.iter().map(|by| by.label()).collect();
+                format!("{} by {}", block.as_str(), names.join(" + "))
+            })
+            .collect();
+        assert!(
+            overclaimed.is_empty(),
+            "{name}: text owned by more than one structure: {overclaimed:?}"
+        );
+    }
+}

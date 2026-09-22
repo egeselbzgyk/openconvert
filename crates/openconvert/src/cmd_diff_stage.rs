@@ -47,6 +47,9 @@ const E_STAGE: &str = "E_UNKNOWN_STAGE";
 /// paragraph per dropped block is one nobody reads to the end of.
 const EXCERPT_CHARS: usize = 72;
 
+/// How many unaccounted blocks the report names for each kind of claimant.
+const EXAMPLES_PER_KIND: usize = 6;
+
 /// The stages this command can diff so far.
 ///
 /// `structure` first because it is where every one of Phase 7's eleven refusals landed. The
@@ -393,6 +396,74 @@ fn structure_diff(
         }
     }
 
+    // Orphaned claimants: structures that took blocks out of the flow and were never placed
+    // in it themselves. Grouped by kind, because the kind is the defect class and the ids are
+    // only where to look.
+    let orphaned = output.orphaned_claims();
+    if !orphaned.is_empty() {
+        let mut by_kind: std::collections::BTreeMap<
+            &str,
+            (usize, u64, std::collections::BTreeSet<String>),
+        > = std::collections::BTreeMap::new();
+        for claim in &orphaned {
+            let slot = by_kind.entry(claim.by.kind()).or_default();
+            slot.0 += 1;
+            slot.1 += oc_model::ledger::c_of(&claim.text).total();
+            slot.2.insert(claim.by.label());
+        }
+        writeln!(stdout).map_err(io)?;
+        writeln!(
+            stdout,
+            "  ORPHANED  {} claimed blocks belong to a structure the book never reaches:",
+            orphaned.len()
+        )
+        .map_err(io)?;
+        for (kind, (blocks, chars, who)) in &by_kind {
+            writeln!(
+                stdout,
+                "    {kind:<10} {blocks:>5} blocks  {chars:>9} characters  in {} structures",
+                who.len()
+            )
+            .map_err(io)?;
+        }
+    }
+
+    // Why a list is orphaned. A list enters the flow only when the loop reaches its first
+    // item's first block *and that block is claimed*; the question worth one line of output is
+    // whether that block is claimed, and what share of it the list actually took.
+    let orphan_lists: std::collections::BTreeSet<String> = orphaned
+        .iter()
+        .filter(|claim| claim.by.kind() == "list")
+        .filter_map(|claim| claim.by.id.clone())
+        .collect();
+    if !orphan_lists.is_empty() {
+        let mut first_unclaimed = 0usize;
+        for list in output
+            .lists
+            .iter()
+            .filter(|l| orphan_lists.contains(l.id.as_str()))
+        {
+            let first = list
+                .items
+                .first()
+                .and_then(|item| item.content.first())
+                .and_then(|content| match content {
+                    oc_model::doc::Content::Paragraph(para) => para.blocks.first().copied(),
+                    _ => None,
+                });
+            if first.is_some_and(|block| !output.claims.contains(block)) {
+                first_unclaimed += 1;
+            }
+        }
+        writeln!(
+            stdout,
+            "    of {} orphaned lists, {} have a first block that is not itself claimed",
+            orphan_lists.len(),
+            first_unclaimed
+        )
+        .map_err(io)?;
+    }
+
     unaccounted(stdout, &against_reachable)?;
 
     Ok(against_reachable.balances())
@@ -450,7 +521,21 @@ fn unaccounted(stdout: &mut dyn Write, result: &Diff) -> Result<(), String> {
     }
     writeln!(stdout).map_err(io)?;
 
-    for unit in result.unaccounted.iter().take(20) {
+    // The longest few *of each kind*, not the longest twenty overall. Captions and note
+    // markers are short, so a single ranking by length hid them entirely behind paragraphs —
+    // and a class that cannot be seen cannot be counted.
+    let mut shown: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for unit in result.unaccounted.iter().filter(|unit| {
+        let kind = unit
+            .claimed_by
+            .as_deref()
+            .and_then(|by| by.split_whitespace().next())
+            .unwrap_or("nothing")
+            .to_owned();
+        let count = shown.entry(kind).or_default();
+        *count += 1;
+        *count <= EXAMPLES_PER_KIND
+    }) {
         let page = unit
             .page
             .map(|page| format!("p{}", page + 1))

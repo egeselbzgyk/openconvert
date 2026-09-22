@@ -66,6 +66,7 @@ pub struct TableRegion {
 pub fn extract_tables(
     vectors: &[VectorRegion],
     blocks: &[BlockView],
+    skip: &std::collections::BTreeSet<BlockId>,
     first_fallback_image: u32,
     t: &Thresholds,
 ) -> TableOutcome {
@@ -83,10 +84,20 @@ pub fn extract_tables(
     for page in pages {
         for region in regions_on(vectors, page, t) {
             let id = TableId(u32::try_from(outcome.tables.len()).unwrap_or(u32::MAX));
+            // What is no longer available: blocks a higher-precedence structure owns, and
+            // blocks an earlier region on this page already took. Two overlapping regions
+            // both taking one block emitted it twice (PHASE 7.5,
+            // `structure/appeared/contested-claim`).
+            let unavailable: std::collections::BTreeSet<BlockId> = skip
+                .iter()
+                .chain(outcome.consumed.iter())
+                .copied()
+                .collect();
             let (table, gridded, took) = build_table(
                 id,
                 &region,
                 blocks,
+                &unavailable,
                 page,
                 first_fallback_image.saturating_add(id.0),
                 t,
@@ -199,10 +210,12 @@ fn regions_on(vectors: &[VectorRegion], page: u32, t: &Thresholds) -> Vec<Lattic
 }
 
 /// Build one table, as a grid if the grid validates and as the image fallback otherwise.
+#[allow(clippy::too_many_arguments)]
 fn build_table(
     id: TableId,
     lattice: &Lattice,
     blocks: &[BlockView],
+    unavailable: &std::collections::BTreeSet<BlockId>,
     page: u32,
     fallback_image: u32,
     t: &Thresholds,
@@ -232,6 +245,7 @@ fn build_table(
     let whole: std::collections::BTreeSet<oc_model::ids::BlockId> = blocks
         .iter()
         .filter(|block| block.page == page)
+        .filter(|block| !unavailable.contains(&block.id))
         .filter(|block| {
             let runs: Vec<_> = block
                 .runs()

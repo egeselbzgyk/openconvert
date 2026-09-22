@@ -75,6 +75,9 @@ pub fn detect_lists(
     noterefs: &crate::build::NoteRefRuns,
     t: &Thresholds,
 ) -> ListOutcome {
+    // A set, once: the skip list is every block a higher-precedence structure owns, which on
+    // a long book is thousands, and asking a `Vec` per block is quadratic.
+    let skip: std::collections::BTreeSet<BlockId> = skip.iter().copied().collect();
     let lines: Vec<(&BlockView, &LineView)> = blocks
         .iter()
         // A note at the foot of a page opens with `*` and so does a bulleted item, and two
@@ -83,6 +86,14 @@ pub fn detect_lists(
         // claimed do not enter this one.
         .filter(|block| !skip.contains(&block.id))
         .flat_map(|block| block.lines.iter().map(move |line| (block, line)))
+        .collect();
+    // Where each flattened line sits inside its own block. A list takes *lines*, and the flow
+    // has to be able to split a block at exactly the lines a list took (PHASE 7.5,
+    // `structure/lost/orphaned-claimant`).
+    let positions: Vec<usize> = blocks
+        .iter()
+        .filter(|block| !skip.contains(&block.id))
+        .flat_map(|block| 0..block.lines.len())
         .collect();
 
     let marked: Vec<Option<Marked>> = lines
@@ -107,6 +118,8 @@ pub fn detect_lists(
     let mut warnings = Vec::new();
     let mut lists = Vec::new();
     let mut consumed_lines: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
+    let mut taken: std::collections::BTreeMap<BlockId, Vec<(usize, BlockId)>> =
+        std::collections::BTreeMap::new();
 
     // A list is a maximal run of marked lines, allowing unmarked continuation lines between
     // them, that holds at least `min_siblings` markers at its shallowest indent.
@@ -150,11 +163,18 @@ pub fn detect_lists(
             },
             &mut warnings,
         ) {
-            lists.push(list);
             // Exactly the lines the builder placed into items — not the range they came
             // from. A line the builder skipped stays in the flow, where the reader can still
             // see it, instead of being claimed by a list that never emitted it.
+            for &index in &placed {
+                if let (Some((block, _)), Some(&position)) =
+                    (lines.get(index), positions.get(index))
+                {
+                    taken.entry(block.id).or_default().push((position, list.id));
+                }
+            }
             consumed_lines.extend(placed);
+            lists.push(list);
         }
         start = last_marked + 1;
     }
@@ -180,9 +200,14 @@ pub fn detect_lists(
         .map(|(block, _)| block)
         .collect();
 
+    for lines_of_block in taken.values_mut() {
+        lines_of_block.sort_unstable();
+    }
+
     ListOutcome {
         lists,
         consumed,
+        taken,
         warnings,
     }
 }
@@ -193,6 +218,15 @@ pub struct ListOutcome {
     pub lists: Vec<List>,
     /// Blocks every one of whose lines is inside a list, so the flow does not emit them twice.
     pub consumed: Vec<BlockId>,
+    /// Every line a list took, by the block it came from: `(position in the block, list id)`,
+    /// in line order.
+    ///
+    /// Line-granular because list membership *is* line-granular. A block holding the
+    /// sentence that introduces a list and the list's first item belongs to the list only in
+    /// part, and the flow needs to know exactly which part to split it at — otherwise the
+    /// list is emitted at a block that is never claimed and every block it did claim is lost
+    /// (PHASE 7.5, `structure/lost/orphaned-claimant`, 13 of 13 measured orphans).
+    pub taken: std::collections::BTreeMap<BlockId, Vec<(usize, BlockId)>>,
     pub warnings: Vec<Warning>,
 }
 

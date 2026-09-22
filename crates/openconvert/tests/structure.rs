@@ -503,8 +503,14 @@ fn caption_associated_to_nearest_figure() {
     let read = read("../../target/fixtures/f10_lists_and_table.pdf");
     let views = read.views();
     let body_size = read.inventory().body_size_pt();
-    let (figures, captions, warnings) =
-        associate_captions(&read.images, &views, body_size, &LangTag::EN, &T);
+    let (figures, captions, warnings, _bound) = associate_captions(
+        &read.images,
+        &views,
+        &Default::default(),
+        body_size,
+        &LangTag::EN,
+        &T,
+    );
 
     assert_eq!(read.images.len(), 2, "f10 draws two images");
     assert_eq!(
@@ -566,8 +572,14 @@ fn ambiguous_caption_left_unassociated() {
     let read = read("../../corpus/fixtures/handmade/h25_two_figures_one_caption.pdf");
     let views = read.views();
     let body_size = read.inventory().body_size_pt();
-    let (figures, captions, warnings) =
-        associate_captions(&read.images, &views, body_size, &LangTag::EN, &T);
+    let (figures, captions, warnings, _bound) = associate_captions(
+        &read.images,
+        &views,
+        &Default::default(),
+        body_size,
+        &LangTag::EN,
+        &T,
+    );
 
     assert_eq!(read.images.len(), 2, "h25 draws two figures");
     assert_eq!(
@@ -672,6 +684,7 @@ fn ruled_table_becomes_html_table() {
     let outcome = extract_tables(
         &read.vectors,
         &views,
+        &Default::default(),
         u32::try_from(read.images.len()).unwrap_or_default(),
         &T,
     );
@@ -725,7 +738,7 @@ fn ruled_table_becomes_html_table() {
 #[test]
 fn borderless_table_falls_back_to_image_with_details() {
     let read = read("../../corpus/fixtures/handmade/h26_borderless_table.pdf");
-    let outcome = extract_tables(&read.vectors, &read.views(), 0, &T);
+    let outcome = extract_tables(&read.vectors, &read.views(), &Default::default(), 0, &T);
 
     assert_eq!(outcome.tables.len(), 1, "the rules bound one region");
     assert!(
