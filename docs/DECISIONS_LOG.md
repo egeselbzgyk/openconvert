@@ -4977,3 +4977,44 @@ Evidence: `the_bundle_layout_is_the_same_on_every_os`,
 listed on 2026-09-23 (the unit test carries the listings).
 Affects: `apps/desktop/src-tauri/tauri{,.linux,.macos,.windows}.conf.json`,
 `xtask/src/{stage_sidecars,vendor_pdfium}.rs`, `.github/workflows/{ci,signing-dryrun}.yml`.
+
+## 2026-09-23 · The first real AppImage: what building it found, and 112.7 MB against 45 · Phase 15 (P15.5)
+Context: nothing had ever bundled the app. `tauri build --bundles appimage` (tauri-cli 2.11.5, the
+prebuilt from npm) was run here, with the release engine staged, and the bundle then tested.
+Findings, each fixed or recorded:
+1. **`beforeBuildCommand` / `beforeDevCommand` pointed nowhere.** Tauri runs them from the app
+   directory (`apps/desktop`), not from `src-tauri`, so `npm --prefix ../ui` resolved to `apps/ui`.
+   Fixed: `npm --prefix ui …`. No Phase 12 run could have noticed: nothing ran `tauri build`.
+2. **The bundle identifier was `dev.openconvert.app`**, which Tauri warns against (it ends in `.app`,
+   the macOS bundle extension). It is now `io.openconvert.OpenConvert`, the ID the plan's Linux
+   packaging files already use (`io.openconvert.OpenConvert.metainfo.xml`, the Flatpak manifest).
+   The app's data and config directories follow the identifier, so they move; no release has shipped,
+   so no user has data under the old one. **PROVISIONAL — needs maintainer ratification** (the
+   reverse-DNS domain is the maintainer's to choose).
+3. The AppImage bundler needs `xdg-open` on the build machine (it bundles it for
+   `tauri-plugin-opener`); `xdg-utils` was installed here, and `release.yml` installs it.
+4. **Row 15.7 passes here:** `appimage_launches_and_converts_headless` runs the AppImage itself under
+   `xvfb-run`, from a directory with no `vendor/`, `OC_PDFIUM_PATH` unset and a clean `HOME`: the
+   window's libraries load, the app's handshake finds its bundled engine, the engine finds the
+   bundled PDFium beside it, and f01 becomes a valid EPUB (exit 0). `appimage_carries_the_bundle_layout`
+   passes too, including the bundled `llama-server --version` (build 10456) resolving every library
+   from inside the bundle. The app gained `--smoke-convert <pdf>` for this (and for 15.19's VMs): the
+   normal startup and queue, the book dropped from the command line, the engine's exit code as the
+   process's — which needed `run_return`, because `AppHandle::exit(code)` under `run` exits 0.
+5. **Row 15.15 fails on Linux, correctly: the AppImage is 112 695 800 bytes against
+   `release.max_installer_bytes` = 45 000 000.** The AppImage has to carry WebKitGTK; its three
+   largest libraries alone — `libwebkit2gtk-4.1` (95 MB), `libjavascriptcoregtk-4.1` (33 MB) and
+   `libicudata` (31 MB) — compress (gzip -6) to 34.6 + 11.1 + 12.2 = 57.9 MB, over the budget before
+   a byte of OpenConvert. Everything OpenConvert itself puts in `usr/bin` (shell, engine, PDFium,
+   llama-server and its runtime) compresses to 28.1 MB, which is D12's estimate: D12's 35–45 MB holds
+   where the OS supplies the web view (WebView2, WKWebView) and cannot hold for an AppImage.
+   linuxdeploy also copies the llama.cpp libraries it finds `usr/bin/llama-server` linking into
+   `usr/lib` (about 20 MB uncompressed of duplicates) — a saving, but not one that closes the gap.
+   **Release blocker, listed in PROGRESS; needs a maintainer decision** — a per-OS budget for the
+   Linux AppImage, or another primary Linux format. The budget and the gate are left as they are: a
+   gate made to pass by moving its number is not a gate.
+Evidence: `appimage_launches_and_converts_headless`, `appimage_carries_the_bundle_layout`,
+`installer_size_within_budget` (all `--features release-artifacts`, `OC_BUNDLE_DIR` set), run here on
+2026-09-23; `only_the_smoke_flag_asks_for_a_smoke_conversion`,
+`a_smoke_job_ends_with_the_engines_exit_code`.
+Affects: `apps/desktop/src-tauri/{tauri.conf.json,src/main.rs,src/smoke.rs}`, `xtask/tests/release.rs`.

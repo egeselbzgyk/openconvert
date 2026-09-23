@@ -111,7 +111,12 @@ Work items, in order, with the plan's test rows against each:
       `the_installer_budget_counts_installers_only`; the gates themselves (15.6 on Windows, 15.15,
       15.20) are `release-artifacts`-feature tests the release job runs — **unverified here** except
       15.15 on Linux (P15.5)
-- [ ] **P15.5** Linux AppImage, headless smoke conversion, installer size — rows 15.7, 15.15
+- [x] **P15.5** Linux AppImage built here (tauri-cli 2.11.5): `--smoke-convert <pdf>` in the app;
+      row 15.7 `appimage_launches_and_converts_headless` **passes here** (xvfb-run, clean HOME, no
+      vendor/), plus `appimage_carries_the_bundle_layout`; row 15.15 `installer_size_within_budget`
+      **fails here, correctly: 112 695 800 bytes > 45 000 000** (WebKitGTK alone compresses to ~58 MB)
+      — a release blocker for the maintainer (Blocked). Fixed on the way: the UI build hooks' paths,
+      the `.app`-suffixed identifier (now `io.openconvert.OpenConvert`, provisional)
 - [ ] **P15.6** Flatpak manifest, updater compiled out there — row 15.8
 - [ ] **P15.7** updater: signed `latest.json`, verified before install — rows 15.9, 15.10
 - [ ] **P15.8** SBOM: `cargo cyclonedx` + `npm sbom`, merged by `xtask sbom` — rows 15.11, 15.12

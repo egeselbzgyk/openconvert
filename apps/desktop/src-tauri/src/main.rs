@@ -37,7 +37,7 @@ use openconvert_desktop::packs::{self, PackManager, PackReadiness, PacksView};
 use openconvert_desktop::preview::{self, PreviewIndex};
 use openconvert_desktop::providers::ProviderCli;
 use openconvert_desktop::settings::{self, Settings};
-use openconvert_desktop::tree;
+use openconvert_desktop::{smoke, tree};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
@@ -621,10 +621,62 @@ fn with_queue<R>(
     work(queue)
 }
 
+/// Queue `pdf` as a drop would, wait for its row to finish, report it and exit with the engine's
+/// code ([`smoke`]). The supervisor's clock, started beside this, runs the job.
+fn smoke_convert(handle: AppHandle, pdf: PathBuf, tick: Duration) {
+    std::thread::spawn(move || {
+        if let Err(error) = &handle.state::<Startup>().0 {
+            eprintln!("smoke: the app did not start its engine: {error}");
+            handle.exit(smoke::EXIT_NOT_STARTED);
+            return;
+        }
+        let preset = handle
+            .state::<Prefs>()
+            .current
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .preset;
+        let queue = handle.state::<Queue>();
+        let Ok(ids) = with_queue(&queue, |queue| Ok(queue.enqueue(&[pdf], preset))) else {
+            eprintln!("smoke: the queue is not ready");
+            handle.exit(smoke::EXIT_NOT_STARTED);
+            return;
+        };
+        loop {
+            std::thread::sleep(tick);
+            let finished = with_queue(&queue, |queue| {
+                Ok(queue
+                    .views()
+                    .into_iter()
+                    .find(|view| ids.contains(&view.id))
+                    .and_then(|view| smoke::finished(&view).map(|code| (view, code))))
+            });
+            if let Ok(Some((view, code))) = finished {
+                println!(
+                    "smoke: {} -> {} (exit {code})",
+                    view.input.display(),
+                    view.output.display()
+                );
+                handle.exit(code);
+                return;
+            }
+        }
+    });
+}
+
 fn main() {
     // Every engine's process tree ends with the app, however it ends: this teardown runs from the
     // panic hook and the signal handler `supervise` installs (D13.2), and at `RunEvent::Exit`.
     oc_core::sidecar::supervise::on_teardown(tree::end_all);
+    // `--smoke-convert <pdf>` (rows 15.7, 15.19): everything below runs as it always does, and the
+    // book is dropped from the command line instead of on the window.
+    let smoke_pdf = match smoke::requested(std::env::args_os()) {
+        Ok(pdf) => pdf,
+        Err(message) => {
+            eprintln!("{message}");
+            std::process::exit(smoke::EXIT_NOT_STARTED);
+        }
+    };
     let engine = sidecar_path();
     let startup = engine
         .clone()
@@ -632,7 +684,7 @@ fn main() {
     let tick =
         Duration::from_millis(u64::try_from(T.desktop.supervisor_tick_ms).unwrap_or(u64::MAX));
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .register_uri_scheme_protocol("ocpreview", |context, request| {
@@ -707,6 +759,9 @@ fn main() {
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner) = Some(queue);
             }
+            if let Some(pdf) = smoke_pdf.clone() {
+                smoke_convert(app.handle().clone(), pdf, tick);
+            }
             // The supervisor's clock: notice exits, enforce the kill deadline, start the next job,
             // and stop the model server once no job has used it for `llm.idle_kill_secs`.
             let handle = app.handle().clone();
@@ -778,27 +833,30 @@ fn main() {
             network_log
         ])
         .build(tauri::generate_context!())
-        .expect("the Tauri application starts")
-        .run(|app, event| {
-            if let tauri::RunEvent::Exit = event {
-                // Nothing the app started outlives it: every engine's tree, then the model server
-                // and its key.
-                tree::end_all();
-                let llm = Arc::clone(&app.state::<Llm>().0);
-                let stopped = match llm.try_lock() {
-                    Ok(mut guard) => {
-                        if let Some(host) = guard.as_mut() {
-                            host.shutdown();
-                        }
-                        true
+        .expect("the Tauri application starts");
+    // `run_return`, so the code `AppHandle::exit` was given is the process's: a smoke conversion
+    // that failed must not look like one that passed.
+    let code = app.run_return(|app, event| {
+        if let tauri::RunEvent::Exit = event {
+            // Nothing the app started outlives it: every engine's tree, then the model server
+            // and its key.
+            tree::end_all();
+            let llm = Arc::clone(&app.state::<Llm>().0);
+            let stopped = match llm.try_lock() {
+                Ok(mut guard) => {
+                    if let Some(host) = guard.as_mut() {
+                        host.shutdown();
                     }
-                    Err(_) => false,
-                };
-                if !stopped {
-                    // A model is still loading for a job: end the server the way the panic hook
-                    // would. Its key file goes with the run directory at the next start.
-                    oc_core::sidecar::supervise::kill_all();
+                    true
                 }
+                Err(_) => false,
+            };
+            if !stopped {
+                // A model is still loading for a job: end the server the way the panic hook
+                // would. Its key file goes with the run directory at the next start.
+                oc_core::sidecar::supervise::kill_all();
             }
-        });
+        }
+    });
+    std::process::exit(code);
 }

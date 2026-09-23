@@ -579,3 +579,141 @@ fn release_artifacts_all_have_published_hashes() {
     assert!(!assets.is_empty(), "no assets were downloaded");
     assert_eq!(unpublished(&body, &assets), Vec::<String>::new());
 }
+
+/// The one AppImage under `OC_BUNDLE_DIR`.
+#[cfg(all(feature = "release-artifacts", target_os = "linux"))]
+fn the_appimage() -> PathBuf {
+    let release =
+        xtask::release::collect(&required_env("OC_BUNDLE_DIR"), xtask::release::Os::Linux)
+            .expect("an AppImage");
+    let found: Vec<PathBuf> = release
+        .files
+        .iter()
+        .filter(|f| f.kind == xtask::release::Installer::AppImage)
+        .map(|f| f.path.clone())
+        .collect();
+    assert_eq!(found.len(), 1, "exactly one AppImage: {found:?}");
+    found[0].clone()
+}
+
+/// A scratch directory standing in for a user's machine: its own HOME and XDG directories, so the
+/// app's settings, jobs and caches go nowhere near the runner's.
+#[cfg(all(feature = "release-artifacts", target_os = "linux"))]
+fn clean_home(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("oc-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("home")).expect("home");
+    dir
+}
+
+/// Row 15.7: the AppImage itself — not the build tree — launches under `xvfb-run` on a machine with
+/// no display, starts its bundled engine, and turns a PDF into an EPUB, exiting 0. It runs from a
+/// directory that holds no `vendor/`, with `OC_PDFIUM_PATH` unset, so the engine can only have
+/// found PDFium where the bundle put it.
+#[cfg(all(feature = "release-artifacts", target_os = "linux"))]
+#[test]
+fn appimage_launches_and_converts_headless() {
+    let appimage = the_appimage();
+    let scratch = clean_home("appimage-smoke");
+    let pdf = scratch.join("book.pdf");
+    std::fs::copy(
+        workspace_root().join("target/fixtures/f01_prose_single_column.pdf"),
+        &pdf,
+    )
+    .expect("the f01 fixture (cargo run -p xtask -- fixtures)");
+
+    let home = scratch.join("home");
+    let output = std::process::Command::new("xvfb-run")
+        .args(["-a"])
+        .arg(&appimage)
+        .arg("--smoke-convert")
+        .arg(&pdf)
+        .current_dir(&scratch)
+        // No FUSE on CI runners or in containers: the AppImage runtime unpacks itself instead.
+        .env("APPIMAGE_EXTRACT_AND_RUN", "1")
+        .env("HOME", &home)
+        .env("XDG_DATA_HOME", home.join(".local/share"))
+        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .env("XDG_CACHE_HOME", home.join(".cache"))
+        .env_remove("OC_PDFIUM_PATH")
+        .output()
+        .expect("xvfb-run runs");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "the AppImage exited {:?}\nstdout:\n{stdout}\nstderr:\n{stderr}",
+        output.status
+    );
+    let epub = std::fs::read(scratch.join("book.epub")).expect("book.epub beside the PDF");
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(epub)).expect("a zip");
+    let mut mimetype = String::new();
+    std::io::Read::read_to_string(
+        &mut archive.by_name("mimetype").expect("a mimetype entry"),
+        &mut mimetype,
+    )
+    .expect("utf-8");
+    assert_eq!(mimetype, "application/epub+zip");
+    let _ = std::fs::remove_dir_all(scratch);
+}
+
+/// The AppImage carries PHASE 15 detail 1's layout: both sidecars with their natives beside them in
+/// `usr/bin`, the registry and thresholds and the natives' licences in the resource directory — and
+/// no model. The bundled `llama-server` answers `--version`, which it can only do when every
+/// library it links resolved from inside the bundle.
+#[cfg(all(feature = "release-artifacts", target_os = "linux"))]
+#[test]
+fn appimage_carries_the_bundle_layout() {
+    let appimage = the_appimage();
+    let scratch = clean_home("appimage-layout");
+    let status = std::process::Command::new(&appimage)
+        .arg("--appimage-extract")
+        .current_dir(&scratch)
+        .stdout(std::process::Stdio::null())
+        .status()
+        .expect("the AppImage runs");
+    assert!(status.success());
+    let root = scratch.join("squashfs-root");
+    for file in [
+        "usr/bin/openconvert-engine",
+        "usr/bin/llama-server",
+        "usr/bin/libpdfium.so",
+        "usr/bin/libllama-server-impl.so",
+        "usr/bin/libggml-cpu-x64.so",
+        "usr/lib/OpenConvert/models.toml",
+        "usr/lib/OpenConvert/thresholds.toml",
+        "usr/lib/OpenConvert/licenses/pdfium.LICENSE.txt",
+        "usr/lib/OpenConvert/licenses/llama.cpp.LICENSE.txt",
+    ] {
+        assert!(root.join(file).exists(), "{file} is in the AppImage");
+    }
+    let mut stack = vec![root.clone()];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).expect("a directory").flatten() {
+            let path = entry.path();
+            let name = path.to_string_lossy().to_string();
+            let file = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default();
+            assert!(!name.ends_with(".gguf"), "a model is bundled: {name}");
+            assert!(
+                !file.starts_with("libggml-rpc") && !file.starts_with("ggml-rpc"),
+                "the RPC backend is bundled: {name}"
+            );
+            if path.is_dir() && !path.is_symlink() {
+                stack.push(path);
+            }
+        }
+    }
+    let version = std::process::Command::new(root.join("usr/bin/llama-server"))
+        .arg("--version")
+        .env_remove("LD_LIBRARY_PATH")
+        .output()
+        .expect("llama-server runs");
+    let text = String::from_utf8_lossy(&version.stderr).to_string()
+        + &String::from_utf8_lossy(&version.stdout);
+    assert!(version.status.success(), "{text}");
+    assert!(text.contains("build 10456"), "{text}");
+    let _ = std::fs::remove_dir_all(scratch);
+}
