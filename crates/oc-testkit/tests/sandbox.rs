@@ -5,6 +5,10 @@
 //! enforce is decided independently of the code under test — from the kernel's own list of active
 //! security modules — so each test has two honest branches: enforced, with the denials asserted,
 //! or not, with the recorded skip asserted.
+//!
+//! Landlock is a Linux security module, so the whole file is Linux-only: on macOS and Windows
+//! there is nothing to observe, and helpers compiled without their tests would be dead code.
+#![cfg(target_os = "linux")]
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -62,7 +66,6 @@ fn path(p: &Path) -> String {
 /// restricted process, which is the only place it can be seen. Both halves matter: a scope set that
 /// forgot the output directory would turn every conversion into a permission error on exactly the
 /// kernels that run Landlock (the plan's failure mode), so the permitted write is asserted too.
-#[cfg(target_os = "linux")]
 #[test]
 fn landlock_applies_on_supported_kernel() {
     let dir = scratch("fs");
@@ -120,7 +123,6 @@ fn landlock_applies_on_supported_kernel() {
 
 /// Row 14.12. On ABI ≥ 4 a `connect()` from inside is refused, unless the scope names the port;
 /// below ABI 4 the outcome says TCP is not restricted, and that line is what is asserted.
-#[cfg(target_os = "linux")]
 #[test]
 fn landlock_blocks_tcp_connect_on_abi4() {
     // Listeners in this (unrestricted) process: one the probe may reach, one it may not.

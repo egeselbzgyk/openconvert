@@ -147,12 +147,9 @@ fn string_list(value: &serde_json::Value) -> Vec<&str> {
 #[test]
 fn the_bundle_layout_is_the_same_on_every_os() {
     let root = workspace_root();
-    let native = format!(
-        "{}/",
-        Path::new("bin")
-            .join(xtask::stage_sidecars::NATIVE_DIR)
-            .display()
-    );
+    // The configuration's spelling, `/` on every OS: a `Path::join` would write `bin\native` on
+    // Windows, which is not what `tauri.windows.conf.json` says.
+    let native = format!("bin/{}/", xtask::stage_sidecars::NATIVE_DIR);
     for (os, targets) in [
         ("linux", vec!["appimage"]),
         ("macos", vec!["app", "dmg"]),

@@ -5521,3 +5521,45 @@ pull requests no longer trigger the workflow); `main`'s run is still never cance
 Unchanged: `nightly.yml` (schedule + manual), `release.yml` (version tags + manual),
 `signing-dryrun.yml` (manual).
 Affects: `.github/workflows/ci.yml`.
+
+## 2026-09-23 · Cross-OS test build: what is Linux-only, and one byte-identity defect found
+
+Context: CI run 35896250574, the first with Actions enabled after Phases 9–15, failed `test (macos-latest)`
+and `test (windows-latest)` at compile time: `crates/oc-testkit/tests/sandbox.rs` gated its two
+tests on Linux but not their helpers, so `-D warnings` refused the dead code. A local
+`cargo check --target x86_64-pc-windows-gnu` and `--target aarch64-apple-darwin` (`--all-targets`,
+`RUSTFLAGS=-D warnings`; the Apple C build scripts given a stand-in compiler, since only types are
+checked) found one more: `oc_core::jobspec`'s test helper `with`, used only by a `cfg(unix)` test.
+The Windows test suite was then run under Wine 9 with the pinned `pdfium-win-x64` build.
+Decisions:
+1. `sandbox.rs` is Linux-only as a file (`#![cfg(target_os = "linux")]`): Landlock is a Linux LSM.
+   `with` carries its only user's `cfg(unix)`. No `allow(dead_code)`.
+2. `jobspec`'s tests used `/tmp/in.pdf` as an absolute path; on Windows it is only rooted, so
+   `check_paths` refused every spec the tests meant to be valid. The tests now name a host-absolute
+   path (`C:/tmp/in.pdf` on Windows). Production code unchanged.
+3. `the_bundle_layout_is_the_same_on_every_os` built `bin/native/` with `Path::join`, which writes
+   `bin\native/` on Windows; the Tauri configuration spells it with `/` everywhere. Now a format string.
+4. `RLIMIT_AS` is asserted on Linux only (`rlimit::the_memory_cap_limits_the_address_space`,
+   `hardening::memory_cap_is_applied_before_the_pdf_opens`, both previously `cfg(unix)`). XNU's
+   `setrlimit(RLIMIT_AS)` returns `EINVAL` for a limit below the task's current map size
+   (`bsd/kern/kern_resource.c` → `vm_map_set_size_limit`), and an arm64 macOS process maps hundreds of
+   GiB before `main` (the same check makes `RLIMIT_DATA` fail below 418 301 149 184 bytes, Apple
+   developer forums thread 702803). The engine already records such a failure as
+   `sandbox.memory.status = "failed"` and converts; that is now the documented macOS behaviour.
+   Inferred from the kernel source, not observed on a Mac: the next `main` run is the evidence.
+5. **Found, not fixed: `f10`'s EPUB is not byte-identical on Windows.** Under Wine every stage dump of
+   `f10` (`ingest`, `text`, `layout`, `structure`) is identical to Linux, and the EPUB differs in one
+   file, `images/i0002.jpg` — a plate downscaled from 1240×1754 by `oc_epub::images::downscale` with
+   `image`'s `Lanczos3`, whose kernel calls `f32::sin`: the platform libm. A sweep of 17.8 M `f32::sin`
+   inputs over [−3π, 3π] hashes differently under glibc and under Windows (Wine). So
+   `ai::no_ai_output_is_byte_identical_to_the_pre_phase_snapshot` is expected to fail on Windows and
+   possibly macOS, and D13.8's byte-identity claim does not hold for a book with a downscaled image
+   (`epub_is_byte_identical_across_os` converts `f07` only, which has none). The fix — a resampler
+   with no libm call, or a pure-Rust `sin` — changes output bytes and the snapshots with them, so it is
+   a reviewed deterministic change, not part of a build fix. PROVISIONAL — needs maintainer ratification
+   (listed under `## Blocked` in PROGRESS.md).
+Uncertain (not changed): the `oc-pdf` `limits` bomb tests and `hardening::no_partial_output_after_any_cap_violation`
+(1 000 engine runs) timed out under Wine only, which is slow at inflating 300 MiB in a debug build
+and at starting processes; their time on a real Windows runner is unknown.
+Affects: `crates/oc-testkit/tests/sandbox.rs`, `crates/oc-core/src/jobspec.rs`,
+`crates/oc-core/src/sandbox/rlimit.rs`, `crates/openconvert/tests/hardening.rs`, `xtask/tests/release.rs`.
