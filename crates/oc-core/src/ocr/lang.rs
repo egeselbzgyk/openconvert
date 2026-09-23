@@ -140,7 +140,9 @@ pub fn stack_second(
 pub fn install_hint(os: Os, code: &str) -> String {
     match os {
         Os::Linux => format!("sudo apt install tesseract-ocr-{code}"),
-        Os::MacOs => "brew install tesseract-lang".to_owned(),
+        Os::MacOs => format!(
+            "brew install tesseract-lang (Homebrew's one pack of language data, \"{code}\" included)"
+        ),
         Os::Windows => format!(
             "re-run the UB-Mannheim Tesseract installer and select the \"{code}\" \
              traineddata under Additional language data"

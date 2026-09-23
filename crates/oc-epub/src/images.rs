@@ -140,9 +140,10 @@ fn encode_one(
 /// Scale an image so its longest side is within the bound, and leave it alone otherwise.
 ///
 /// `Lanczos3` because the choice has to be *fixed* for cross-OS byte identity and this is the
-/// one that loses least on the downscale a scanned plate actually needs. Never upscales: an
-/// image smaller than the bound is already as good as it gets, and enlarging it would add
-/// bytes and no detail.
+/// one that loses least on the downscale a scanned plate actually needs. It is our own
+/// [`crate::resample`], not `image`'s: that one calls the platform's `sinf`, which made one
+/// plate's bytes differ between Linux and Windows. Never upscales: an image smaller than the
+/// bound is already as good as it gets, and enlarging it would add bytes and no detail.
 fn downscale(buffer: image::RgbaImage, max_longest_side_px: u32) -> image::RgbaImage {
     let longest = buffer.width().max(buffer.height());
     if max_longest_side_px == 0 || longest <= max_longest_side_px {
@@ -151,12 +152,7 @@ fn downscale(buffer: image::RgbaImage, max_longest_side_px: u32) -> image::RgbaI
     let scale = f64::from(max_longest_side_px) / f64::from(longest);
     let width = ((f64::from(buffer.width()) * scale).round() as u32).max(1);
     let height = ((f64::from(buffer.height()) * scale).round() as u32).max(1);
-    image::imageops::resize(
-        &buffer,
-        width,
-        height,
-        image::imageops::FilterType::Lanczos3,
-    )
+    crate::resample::lanczos3_rgba(&buffer, width, height)
 }
 
 // ---------------------------------------------------------------------------
@@ -244,6 +240,60 @@ fn encoding_the_same_image_twice_produces_the_same_bytes() {
     let (first, _) = encode(&source, &options()).expect("encodes");
     let (second, _) = encode(&source, &options()).expect("encodes");
     assert_eq!(first, second);
+}
+
+/// FNV-1a, 64-bit: a fingerprint of bytes that needs no hashing crate and is the same on every
+/// platform.
+#[cfg(test)]
+fn fnv1a(bytes: impl IntoIterator<Item = u8>) -> u64 {
+    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+    const PRIME: u64 = 0x0000_0100_0000_01b3;
+    bytes.into_iter().fold(OFFSET, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(PRIME)
+    })
+}
+
+/// D13.8, at the root: the Lanczos-3 kernel is the same bits on Linux, macOS and Windows. Every
+/// argument on a 2^-12 grid across the window and a little past it, fingerprinted and pinned.
+/// `f32::sin` is the platform C library's, and glibc's and the Windows CRT's disagree in the last
+/// place for about one argument in a thousand (CI run 35902627957); a kernel built on it cannot
+/// pass this on all three runners.
+#[test]
+fn the_lanczos3_kernel_is_pinned_bit_for_bit() {
+    const STEPS_PER_UNIT: i32 = 4096;
+    let span = 4 * STEPS_PER_UNIT;
+    let bits = (-span..=span)
+        .map(|k| crate::resample::lanczos3(k as f32 / STEPS_PER_UNIT as f32))
+        .flat_map(|value| value.to_bits().to_le_bytes());
+    assert_eq!(format!("{:016x}", fnv1a(bits)), "80ee416ded659fc0");
+}
+
+/// The whole downscale, pinned: a busy 311 × 197 picture scaled to 128 on its longest side is
+/// these bytes on every OS, so a plate in a book is too.
+#[test]
+fn a_downscale_is_pinned_byte_for_byte() {
+    let (width, height) = (311_u32, 197_u32);
+    let mut rgba = Vec::with_capacity((width * height * 4) as usize);
+    for y in 0..height {
+        for x in 0..width {
+            let noise = (x.wrapping_mul(2_654_435_761) ^ y.wrapping_mul(40_503)) >> 13;
+            rgba.extend_from_slice(&[
+                (x * 7 + y * 3) as u8,
+                noise as u8,
+                ((x ^ y) * 5) as u8,
+                u8::MAX,
+            ]);
+        }
+    }
+    let scaled = downscale(
+        image::ImageBuffer::from_raw(width, height, rgba).expect("buffer"),
+        128,
+    );
+    assert_eq!((scaled.width(), scaled.height()), (128, 81));
+    assert_eq!(
+        format!("{:016x}", fnv1a(scaled.as_raw().iter().copied())),
+        "98dd4919ded005d3"
+    );
 }
 
 /// A buffer that is not four bytes per pixel is a bug upstream, and encoding it would produce

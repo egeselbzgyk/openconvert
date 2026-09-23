@@ -278,7 +278,7 @@ not **Yes** is in `## Blocked` › "v1.0 — Appendix D".
 
 | Item | State |
 |---|---|
-| `--no-ai` byte-identical across ubuntu/macos/windows | **Unverified.** The Linux half only (P15.9: working directory, time zone, locale, build profile); row 15.13 needs the three OS tables. |
+| `--no-ai` byte-identical across ubuntu/macos/windows | **Unverified.** The Linux half only (P15.9: working directory, time zone, locale, build profile); row 15.13 needs the three OS tables. The one known cross-OS defect (the Lanczos kernel's platform `sinf`, `f10`) is fixed: `oc-epub`'s own resample on `libm`, and `ci-lint` refuses platform maths in shipped crates; under Wine all ten `--no-ai` hashes match Linux (`docs/DECISIONS_LOG.md` 2026-09-23, "Windows CI"). |
 | Conversion suite green under `unshare -n`, with `--ai` on cassettes | **Yes here** (row 14.20, re-run on this branch); the CI job unverified. |
 | `cargo tree -p oc-core -i ureq` empty; `cargo deny check` clean | **Yes** — `ureq` is in no part of the graph; both deny policies clean. |
 | Webview grants no `http`; CSP `connect-src 'none'` | **Yes** — `webview_has_no_network_permission` (12.13). |
@@ -288,7 +288,7 @@ not **Yes** is in `## Blocked` › "v1.0 — Appendix D".
 
 | Item | State |
 |---|---|
-| Every cap in SECURITY §4 enforced before the operation, ordering tested | **No.** Before the work, with tests (SECURITY_TESTING §1, `hardening`): pages, image pixels, decompressed bytes, xref depth/cycles, stage deadlines, glyphs, `RLIMIT_AS` on Unix. **Missing:** a Windows memory cap (P14-b) and any max-output-size cap (only a 50 MiB warning). |
+| Every cap in SECURITY §4 enforced before the operation, ordering tested | **No.** Before the work, with tests (SECURITY_TESTING §1, `hardening`): pages, image pixels, decompressed bytes, xref depth/cycles, stage deadlines, glyphs, `RLIMIT_AS` on Unix. **Missing:** a Windows memory cap (P14-b) and any max-output-size cap (only a 50 MiB warning). The decompressed-bytes ceiling is now reached in linear time on every allocator (it was quadratic where `realloc` copies — Windows CI timed out, 2026-09-23). |
 | Isartor + mutated crash corpora: 100 % clean | **No.** The 29 mutated files: yes (14.17). Isartor: not run — no pins (P14-a). |
 | Three fuzz targets green in nightly, corpora committed | **Unverified.** Targets and seed corpora committed; 120 s per target here, zero crashes; the nightly has not run. |
 | Landlock on Linux ≥ 5.13; recorded skip below | **Partly.** Applied here (6.18, ABI 7; rows 14.10/14.12; in the AppImage's smoke run too). The skip is exercised through `OC_LANDLOCK=off` (P14-c); a real kernel below 5.13 is unverified. |
@@ -1825,13 +1825,6 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 
 ## Blocked
 
-**Cross-OS byte identity — found 2026-09-23, PROVISIONAL, needs maintainer ratification**
-(`docs/DECISIONS_LOG.md` 2026-09-23, "Cross-OS test build"): `f10`'s EPUB differs on Windows in one
-downscaled image, because `image`'s `Lanczos3` resampler calls the platform libm's `sinf`. Expected
-to turn `ai::no_ai_output_is_byte_identical_to_the_pre_phase_snapshot` red on Windows (macOS
-possibly). The fix changes output bytes and snapshots, so it waits for a decision: a libm-free
-resampler, a pure-Rust `sin`, or narrowing D13.8's claim.
-
 **Phase 15 part A — provisional decisions awaiting maintainer ratification** (each in
 `docs/DECISIONS_LOG.md` 2026-09-23; work continued on the conservative reading):
 
@@ -2593,3 +2586,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  FIX-P9b   oc-net: allow the Xet CDN host that model downloads redirect to  9c05ad2
 2026-09-23  FIX-P9b   docs: amend D9's default repository to ggml-org's Q4_K_M  19a8c1b
 2026-09-23  FIX-P9b   docs: the default model downloaded and run; PROGRESS, CHANGELOG  (the commit that adds this line)
+2026-09-23  FIX       oc-epub/oc-pdf: platform-independent Lanczos resample; the stream ceiling reached in linear time (Windows CI 35902627957)  (the commit that adds this line)

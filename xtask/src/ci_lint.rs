@@ -71,6 +71,18 @@ const UNSAFE_ALLOWED: [&str; 4] = [
     "crates/oc-core/src/sandbox/jobobject.rs",
 ];
 
+/// The float methods that are the platform C library's rather than IEEE-754 basic operations, and
+/// whose last bits therefore differ between glibc, Apple's libm and the Windows CRT (D13.8; the
+/// Lanczos kernel's `sin` made one EPUB differ between Linux and Windows in CI run 35902627957).
+/// `powi` is here too: std documents its precision as unspecified. `sqrt`, `mul_add`, `floor`,
+/// `ceil`, `round` and `abs` are exact everywhere and are not. A shipped crate calls `libm`'s
+/// pure-Rust port instead, which is the same code on every target.
+const PLATFORM_MATHS: [&str; 26] = [
+    "sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sinh", "cosh", "tanh", "asinh", "acosh",
+    "atanh", "exp", "exp2", "exp_m1", "ln", "log", "log2", "log10", "ln_1p", "powf", "powi",
+    "hypot", "cbrt", "sin_cos",
+];
+
 /// Crate roots that cannot forbid `unsafe_code`: libFuzzer's `fuzz_target!` expands to a
 /// `#[no_mangle]` entry point, which the lint counts, in a dev-only workspace of its own.
 const FORBID_EXEMPT_DIRS: [&str; 1] = ["fuzz/"];
@@ -101,6 +113,7 @@ pub fn run(workspace_root: &Path, release_branch: bool) -> Result<()> {
 
     check_warning_registry(workspace_root, &mut findings)?;
     check_unsafe(workspace_root, &mut findings)?;
+    check_platform_maths(workspace_root, &mut findings)?;
 
     if release_branch {
         let today = crate::thresholds_lint::today_for_test();
@@ -383,6 +396,71 @@ fn check_unsafe(workspace_root: &Path, findings: &mut Vec<Finding>) -> Result<()
         }
     }
     Ok(())
+}
+
+fn check_platform_maths(workspace_root: &Path, findings: &mut Vec<Finding>) -> Result<()> {
+    for path in source_files(workspace_root)? {
+        if path.extension().is_none_or(|ext| ext != "rs")
+            || is_self_referential(workspace_root, &path)
+        {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let relative = relative(workspace_root, &path);
+        for (line, rule, text) in platform_maths_rule(&relative, &text) {
+            findings.push(Finding {
+                path: path.clone(),
+                line,
+                rule,
+                text,
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Whether `relative` is the source of a crate the converter ships: `crates/<name>/src/`, less
+/// the dev-only test kit.
+fn is_shipped_source(relative: &str) -> bool {
+    relative.starts_with("crates/")
+        && !relative.starts_with("crates/oc-testkit/")
+        && relative
+            .split('/')
+            .nth(2)
+            .is_some_and(|directory| directory == "src")
+}
+
+/// The platform-maths rule over one file: `(line, rule, text)` for each call of a function in
+/// [`PLATFORM_MATHS`] in a shipped crate's source, as a method or through `f32::`/`f64::`.
+fn platform_maths_rule(relative: &str, text: &str) -> Vec<(usize, &'static str, String)> {
+    const RULE: &str =
+        "a platform-libm float function in a shipped crate; call libm's instead (D13.8)";
+    if !is_shipped_source(relative) {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for (number, line) in text.lines().enumerate() {
+        let code = line.split("//").next().unwrap_or_default();
+        let calls = PLATFORM_MATHS.iter().any(|name| {
+            code.contains(&format!(".{name}("))
+                || code.contains(&format!("f32::{name}("))
+                || code.contains(&format!("f64::{name}("))
+        });
+        if calls {
+            out.push((number + 1, RULE, line.trim().to_owned()));
+        }
+    }
+    out
+}
+
+/// [`platform_maths_rule`] for a test: the rules that fire on `text` at `relative`.
+pub fn platform_maths_findings_in(relative: &str, text: &str) -> Vec<String> {
+    platform_maths_rule(relative, text)
+        .into_iter()
+        .map(|(_, rule, _)| rule.to_owned())
+        .collect()
 }
 
 fn relative(workspace_root: &Path, path: &Path) -> String {

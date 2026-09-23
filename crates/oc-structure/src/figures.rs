@@ -272,7 +272,8 @@ pub fn starts_with_caption_prefix(text: &str, lang: &LangTag) -> bool {
 fn edge_distance(a: Rect, b: Rect) -> f32 {
     let dx = (b.x0 - a.x1).max(a.x0 - b.x1).max(0.0);
     let dy = (b.y0 - a.y1).max(a.y0 - b.y1).max(0.0);
-    dx.hypot(dy)
+    // `libm`, not `f32::hypot`: the platform's `hypotf` is not the same bits on every OS (D13.8).
+    libm::hypotf(dx, dy)
 }
 
 /// The typographic convention, as a tie-break: a caption belongs below its figure.

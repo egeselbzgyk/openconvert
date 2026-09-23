@@ -5703,3 +5703,63 @@ provisional items of the two entries above also stay open.
 Evidence: the pull's stderr (`installed qwen3-1.7b-q4_k_m at …`), the `NOTICE`, `sha256sum`, and the
 nextest summaries (`2 tests run: 2 passed`; `1 test run: 1 passed`).
 Affects: PROGRESS.md (Phase 9 Blocked items 1–4, Appendix D), `docs/CHANGELOG.md`, `docs/RELEASE_CHECKLIST.md`.
+
+## 2026-09-23 · Windows CI: a platform-independent resample, and the stream ceiling reached in linear time
+
+Context: CI run 35902627957 (`main` d8bbae2), `test (windows-latest)`: 801/804. Three failures, two causes.
+Reproduced with the `x86_64-pc-windows-gnu` suite under Wine 9 and the pinned `pdfium-win-x64`
+(build 7881, SHA-256 as in `xtask/pdfium.lock`).
+
+**1. Resolves the PROVISIONAL item 5 of "Cross-OS test build" above.** It was not a new decision: D13.8
+and Appendix D row 15.13 already require `--no-ai` output to be byte-identical across OSes, and a
+resampler whose bytes depend on the C library breaks that requirement; fixing it is conformance.
+- Cause: `image::imageops::resize(.., Lanczos3)` builds its kernel with `f32::sin`, i.e. the platform's
+  `sinf`. Over every `f32` in [−3π, 3π] (2 184 026 057 values), glibc's `sinf` and `libm::sinf` (musl's,
+  pure Rust) disagree in 2 148 032 (≈ 0.1 %).
+- Fix: `oc_epub::resample::lanczos3_rgba`, the same filter — kernel, support, `image` 0.25's
+  vertical-then-horizontal passes, every `f32` operation in the same order — with `libm::sinf`. The
+  rest is IEEE basic arithmetic, `floor`, `ceil`, `round`: exact on every target. `libm` is MIT (on
+  the D15 allow-list) and already in the lock file (via `typst`).
+- Byte change on Linux: only `f10_lists_and_table` (its plate `images/i0002.jpg`, 1240×1754 → 1131×1600).
+  `ai__no_ai_epub_sha256.snap` goes from `b6888253…` to `3bc80a89…` — **the hash Windows CI produced**:
+  for this image the Windows CRT's `sinf` agrees with musl's and glibc's is the odd one out. Under Wine
+  the new build gives `3bc80a89…` as well. No other snapshot moved.
+- Every other platform-maths call on an output path, found by a sweep of `crates/*/src` and of the
+  output-path dependencies (`image`'s codecs, `zune-jpeg`, `png`, `fdeflate`, `lopdf`, the
+  `pdfium-render` calls `oc-pdf` makes — none call a transcendental): `oc-layout::blocks::line_angle_deg`
+  (`atan2` → `libm::atan2f`), `oc-structure::figures::edge_distance` (`hypot` → `libm::hypotf`),
+  `oc-layout::blocks::pivot_of` (`powi(2)` → `dx * dx`; std leaves `powi`'s precision unspecified). No
+  snapshot moved for these. `xtask ci-lint` now refuses the `f32`/`f64` transcendental methods in any
+  shipped crate's `src/` (`platform_maths_is_refused_where_output_is_made`).
+- Not covered, listed: PDFium's own C++ (image decoders, `lcms2` colour, rasterisation for OCR) is compiled
+  per platform and calls its CRT; `f10`'s ingest dump matched under Wine, but Wine's CRT maths is not
+  Microsoft's, so only CI can show the real Windows. Tesseract output (OCR) is a system tool's and is not
+  claimed byte-identical.
+
+**2. The stream ceiling was reached in quadratic time wherever `realloc` copies.** `oc_pdf::filters::read_into`
+reserved exactly one 64 KiB grain per read (`try_reserve_exact(grain)`), so that capacity never ran past
+the ceiling. glibc serves a growing large block with `mremap` and the cost stayed linear; the Windows heap
+(and Wine's) copies the block each time: 4 096 copies averaging 128 MiB to reach the 256 MiB ceiling. That
+is `limits::declared_length_is_not_trusted` (two bombs) and `hardening::no_partial_output_after_any_cap_violation`
+(its bomb runs took ~212 s in the engine) timing out at 240 s on Windows — a cap that answers only after
+minutes of work, the Phase 14 failure class, not a slow runner. Fix: `reserve_for` grows by the buffer's own
+length (doubling), at least a grain, never beyond what the ceiling still allows — capacity is still bounded by
+the ceiling, and reaching it takes ~13 reallocations. Test:
+`filters::the_decoded_buffer_grows_geometrically_and_never_past_the_ceiling`. Under Wine, with the fix,
+`declared_length_is_not_trusted` takes 4.0 s; with the old one-grain step and everything else equal it had
+not finished after 900 s.
+Also: `flate2` runs on `zlib-rs` (turned on by `zip`'s `deflate-flate2-zlib-rs`), not on `miniz_oxide`, which
+the dev profile optimised for these tests; `zlib-rs` now gets `opt-level = 3` in the dev profile too
+(code generation only). The two `limits` bomb tests went from ~20 s to ~2 s on Linux.
+**3. The whole suite under Wine** (808 tests, nextest `ci` profile, `INSTA_WORKSPACE_ROOT` set): all ten
+`--no-ai` hashes equal Linux's; `hardening::no_partial_output_after_any_cap_violation` passes in ~62 s (all
+1 000 runs; it was ~212 s per bomb run); the `limits` bomb tests in 3–4 s. Three failures, all of the
+harness rather than of Windows: `pdfium::binds_and_reports_version` (the PDFium `VERSION` file is not beside
+the DLL `OC_PDFIUM_PATH` named) and the two `xtask::release` notices tests (a Windows process under Wine
+cannot run the Linux `cargo metadata`); CI's Windows runner passed all three in run 35902627957. Without
+`INSTA_WORKSPACE_ROOT`, insta's own `cargo metadata` fails the same way and every snapshot test reads the
+wrong path — also harness only.
+Affects: `crates/oc-epub/src/{resample.rs,images.rs,lib.rs}`, `crates/oc-layout/src/blocks.rs`,
+`crates/oc-structure/src/figures.rs`, `crates/oc-pdf/src/filters.rs`, `Cargo.toml`, three crate manifests,
+`xtask/src/ci_lint.rs`, `xtask/tests/ci.rs`, `crates/openconvert/tests/snapshots/ai__no_ai_epub_sha256.snap`,
+`licenses/third-party-rust.txt`, `docs/LICENSE_AND_DEPENDENCIES.md`.

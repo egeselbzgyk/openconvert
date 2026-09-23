@@ -64,6 +64,9 @@ regex                 = "1"
 quick-xml = { version = "0.42", features = ["serialize"] }
 zip       = { version = "8.6", default-features = false, features = ["deflate"] }
 image     = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+# Pure-Rust transcendental functions (musl's, MIT): what an output-producing path calls instead of
+# `f32::sin` & co., which are the platform C library's and round differently per OS (D13.8).
+libm      = "0.2"
 uuid      = { version = "1", features = ["v5"] }
 time      = { version = "0.3", features = ["formatting", "macros"] }
 # --- desktop shell (apps/desktop only) ---
@@ -134,7 +137,12 @@ debug = "line-tables-only"
 
 # The inflate backend at full speed in test builds: the ceiling tests decode a quarter of a gigabyte
 # (PHASE 14 rows 14.2, 14.3), which unoptimised takes most of a minute and optimised takes a second.
-# Code generation only; what these crates compute does not depend on it.
+# Code generation only; what these crates compute does not depend on it. `flate2` runs on `zlib-rs`
+# once `zip`'s `deflate-flate2-zlib-rs` feature is on, which it is, so that is the backend that
+# needs it; `miniz_oxide` keeps its entry for the crates that call it directly (`png` 0.17).
+[profile.dev.package.zlib-rs]
+opt-level = 3
+
 [profile.dev.package.miniz_oxide]
 opt-level = 3
 

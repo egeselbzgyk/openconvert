@@ -23,9 +23,8 @@ use oc_core::limits::{CapViolation, Limits};
 
 use crate::limits::{BoundedInflate, CeilingReached};
 
-/// How much is asked of a decoder per read. Not a limit — the ceiling is — only the grain at
-/// which the output buffer grows, so it can stop exactly at the ceiling instead of doubling past
-/// it.
+/// How much is asked of a decoder per read, and the least the output buffer grows by. Not a
+/// limit — the ceiling is: the buffer doubles (see [`reserve_for`]) but never past it.
 const READ_GRAIN: usize = 64 * 1024;
 
 /// PDF 32000-1 §7.4.4.4: `/Predictor` values. 1 is none, 2 is TIFF, 10–15 are the PNG family.
@@ -241,16 +240,22 @@ enum ReadStop {
     Corrupt(String),
 }
 
-/// Append everything `reader` yields to `output`, growing it one grain at a time so its
-/// capacity never runs ahead of what the ceiling allows.
+/// Append everything `reader` yields to `output`, reading a grain at a time and growing the
+/// buffer by [`reserve_for`], so its capacity never runs ahead of what the ceiling allows.
 fn read_into<R: Read>(mut reader: BoundedInflate<R>, output: &mut Vec<u8>) -> Result<(), ReadStop> {
     loop {
         let grain = usize::try_from(reader.remaining())
             .unwrap_or(usize::MAX)
             .clamp(1, READ_GRAIN);
         let start = output.len();
-        if output.try_reserve_exact(grain).is_err() {
-            return Err(ReadStop::Ceiling(reader.produced()));
+        if output.capacity() - start < grain {
+            let remaining = usize::try_from(reader.remaining()).unwrap_or(usize::MAX);
+            if output
+                .try_reserve_exact(reserve_for(start, grain, remaining))
+                .is_err()
+            {
+                return Err(ReadStop::Ceiling(reader.produced()));
+            }
         }
         output.resize(start + grain, 0);
         match reader.read(&mut output[start..]) {
@@ -271,6 +276,17 @@ fn read_into<R: Read>(mut reader: BoundedInflate<R>, output: &mut Vec<u8>) -> Re
             }
         }
     }
+}
+
+/// How much more room to reserve when a read's grain no longer fits: as much again as the buffer
+/// holds, at least one grain, and never more than the ceiling still allows.
+///
+/// Doubling keeps the copying linear on every allocator. A fixed step is quadratic wherever
+/// `realloc` has to move the block — the Windows heap does, glibc's `mremap` does not — and on
+/// Windows that turned a 256 MiB bomb into minutes of copying before the cap could say no. The
+/// upper bound is what the fixed step was for: capacity never runs ahead of the ceiling.
+fn reserve_for(len: usize, grain: usize, remaining: usize) -> usize {
+    len.clamp(grain, remaining.max(grain))
 }
 
 /// Undo a `/Predictor`. Neither family makes data larger, so the layer's ceiling still holds.
@@ -771,4 +787,36 @@ fn our_filter_chain_agrees_with_lopdf_on_every_fixture() {
         }
     }
     assert!(compared > 50, "only {compared} streams compared");
+}
+
+/// PHASE 14 detail 2, on every allocator: the decoded buffer grows geometrically, bounded by the
+/// ceiling, so reaching the 256 MiB ceiling costs a handful of reallocations rather than one per
+/// 64 KiB grain. A fixed step is quadratic wherever `realloc` copies — the Windows heap, and Wine's
+/// — and only glibc's `mremap` had been making it cheap: on Windows CI each bomb took minutes to
+/// reach a cap that is meant to stop it at once (run 35902627957, rows 14.3 and 14.19).
+#[test]
+fn the_decoded_buffer_grows_geometrically_and_never_past_the_ceiling() {
+    const MIB: usize = 1 << 20;
+    for limit in [256 * MIB, 3 * MIB + 17, READ_GRAIN, 1] {
+        let (mut len, mut capacity, mut growths) = (0_usize, 0_usize, 0_u32);
+        while len < limit {
+            let remaining = limit - len;
+            let grain = remaining.clamp(1, READ_GRAIN);
+            if capacity - len < grain {
+                capacity = len + reserve_for(len, grain, remaining);
+                growths += 1;
+            }
+            assert!(capacity - len >= grain, "a read always has its grain");
+            assert!(
+                capacity <= limit,
+                "{capacity} bytes reserved under a {limit} ceiling"
+            );
+            len += grain;
+        }
+        let bound = usize::BITS - (limit / READ_GRAIN).leading_zeros() + 1;
+        assert!(
+            growths <= bound,
+            "{growths} reallocations to reach {limit} bytes; at most {bound} for doubling"
+        );
+    }
 }

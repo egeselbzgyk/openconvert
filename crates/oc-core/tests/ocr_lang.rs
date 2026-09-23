@@ -100,5 +100,10 @@ fn language_selection_maps_and_falls_back() {
     // The hint is a command the reader can paste, per platform.
     assert!(install_hint(Os::Linux, "deu").contains("apt install tesseract-ocr-deu"));
     assert!(install_hint(Os::MacOs, "deu").contains("brew install tesseract-lang"));
+    // Every hint names the pack it asks for, on every OS: the fallback warning is read on the
+    // machine it was raised on, and "install the languages" alone does not say which one is missing.
+    for os in [Os::Linux, Os::MacOs, Os::Windows] {
+        assert!(install_hint(os, "deu").contains("deu"), "{os:?}");
+    }
     assert!(install_hint(Os::Windows, "deu").contains("UB-Mannheim"));
 }

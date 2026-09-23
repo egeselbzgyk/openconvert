@@ -18,6 +18,7 @@ pub mod images;
 pub mod nav;
 pub mod ncx;
 pub mod opf;
+mod resample;
 pub mod textcontent;
 pub mod xhtml;
 pub mod zip;

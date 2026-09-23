@@ -31,6 +31,7 @@ Corrected against R8 §B1 and V2 (the round-2 verification pass), with version/l
 | `lopdf` | MIT | 0.45.0 (V2 §2) | Object-model access: outlines, `/StructTreeRoot` hint, XMP, `/Producer`/`/Creator`. Bundles a Montserrat font under SIL OFL — not itself a licensing concern for OpenConvert since the font is not redistributed by us, but noted for completeness (R6 §3.6). |
 | `quick-xml` | MIT | 0.42.0 (V2 §9) | XHTML/OPF/NCX emission; no external-entity resolution by default, which is load-bearing for the XXE posture in `SECURITY.md`. |
 | `zip` | MIT | 8.6.0 (V2 §9) | Deterministic zip writer (mimetype stored-first, fixed timestamps, sorted entries — D5). Verified version is materially newer than the 2.x/4.x line an earlier plan assumed; pin exactly and treat a major-version bump as a reviewed change with a golden-EPUB byte diff. |
+| `libm` | MIT | 0.2.16 | musl's maths library in pure Rust. Every transcendental function an output-producing crate calls (the Lanczos kernel's `sin`, `atan2`, `hypot`) comes from here rather than from the platform C library, whose last bits differ between glibc, Apple's libm and the Windows CRT — what `--no-ai` byte identity across OSes rests on (D13.8). `xtask ci-lint` refuses the `f32`/`f64` methods in shipped crates. |
 | `insta` | Apache-2.0 | 1.48.0 (V2 §9) | Snapshot testing (`TEST_STRATEGY.md` §3.3). |
 | `proptest` | MIT OR Apache-2.0 | 1.11.0 (V2 §9) | Property-based testing. |
 | `criterion` | Apache-2.0 OR MIT | 0.8.2 (V2 §9) | Per-stage performance budgets. |
