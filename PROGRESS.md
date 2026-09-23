@@ -3,9 +3,9 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 12
-CURRENT_ITEM: Phase 12 — Desktop UI (being built on `phase/12-desktop-ui`). Phase 11 is complete
-              and merged (2026-09-23); what Phase 12 must wire from it is in the Phase 11 section.
+CURRENT_PHASE: 14
+CURRENT_ITEM: Phase 14 — Security hardening. Phase 12 is complete and merged (2026-09-23); its
+              Network log is a hook for PHASE 14 detail 12's audit log (`netlog.rs`).
               Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
@@ -75,7 +75,13 @@ LAST_UPDATED: 2026-09-23
       cassette contract through every adapter; `openconvert provider detect|check|probe`. No real
       provider is reachable here: a live Ollama and a remote endpoint are unverified, and the
       provisional decisions are in the Blocked section.)*
-- [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
+- [x] **Phase 12** — Desktop UI  *(all 18 named tests exist; 17 pass here — 12.14's signing dry run
+      needs certificates and Actions and is unverified. Built on `phase/12-desktop-ui` in parts A, B1
+      and B2 and merged into `main` 2026-09-23: the one-argument engine with real progress and
+      cancel, the queue, every screen in EN/DE/TR, corrections with a partial re-run, models and
+      packs, and — off by default — AI assistance through the app's own server, Ollama or a
+      consented endpoint. A real Tauri window, WebKit, macOS/Windows and every CI job are unverified
+      here; the provisional decisions are in the Blocked section.)*
 - [x] **Phase 13** — OCR  *(VD-g closed. All 22 named tests green, plus 27 additions (21 Rust, 6 Python); built on
       `phase/13-ocr` and merged into `main` 2026-09-23. Tesseract 5.3.4 was on this machine, so the
       real-engine tests ran: synthetic-scan CER 0.0007 against 0.03. The real-scan stratum, macOS
@@ -238,8 +244,8 @@ What a fresh session needs:
 
 ## Current work item
 
-**Phase 12 — Desktop UI**, built concurrently on `phase/12-desktop-ui`. Phase 11 is merged; the
-list of what Phase 12 must wire from it is at the end of the Phase 11 section below.
+**Phase 14 — Security hardening.** Phase 12 is merged; Settings › Network log waits for PHASE 14
+detail 12's `oc-net` audit log (`apps/desktop/src-tauri/src/netlog.rs`, `read()`).
 
 ## Phase 11 — built on `phase/11-byo-providers`, merged 2026-09-23
 
@@ -330,6 +336,9 @@ What a fresh session needs:
 
 ### What Phase 12 must wire from Phase 11
 
+*Wired by Phase 12 part B2 (P12.17–P12.21): the job spec's `ai` object, Settings › Provider and
+the consent dialog, the report page, and the Network log as a hook for Phase 14.*
+
 Phase 11 did not touch `apps/desktop` (`routes/settings/providers.svelte` is Phase 12's).
 
 - **The engine is the only thing that connects.** The webview needs no network for providers:
@@ -355,7 +364,7 @@ Phase 11 did not touch `apps/desktop` (`routes/settings/providers.svelte` is Pha
 - **Job spec → engine**: `endpoint` → `--llm-endpoint`, `api_key_file` → `--llm-api-key-file`,
   `model_path` → `--model-path`, `model_id` → `--llm-model`, `non_loopback_consent` →
   `--llm-allow-host <endpoint host>`. Job-spec v1 has no provider-kind field; the engine probes.
-  (The engine's `--job` reader does not exist yet.)
+  (The engine reads the spec as its one argument, `openconvert <JOB.json>`; P12.17.)
 - **Events and warnings**: `fatal{code: "E_CONSENT_REQUIRED"}` (exit 2) — show the consent dialog
   again, never a generic error. `W_LLM_UNAVAILABLE {reason}` and the new `W_LLM_UNCONSTRAINED
   {model}` have en/de/tr templates. No new NDJSON event type.
@@ -557,13 +566,13 @@ packed by each document's previous run time; strip `\r` from Python-written chun
 writes CRLF, and every name carries it), and give the child `< /dev/null` or it swallows the list.
 Check `rc` and output sizes before believing a run: one "complete" run here had never executed.
 
-## Phase 12 — in progress (parts A and B1 done; B2 waits for Phases 10 and 11)
+## Phase 12 — built on `phase/12-desktop-ui`, merged 2026-09-23 (parts A, B1 and B2)
 
 Built on branch `phase/12-desktop-ui` (worktree `/home/user/wt/phase12`) while Phase 9 runs on its
 own branch. **Part A** is every Phase 12 item that does not need Phase 9 (model manager,
 `ModelReadiness`, process groups/job objects) or Phase 11 (BYO providers). **Part B1** is what
-needs only Phase 9 (merged into this branch 2026-09-23). **Part B2**, after Phases 10 and 11 merge,
-is listed at the end of this section. Phase 12 is **not** done until part B2 is.
+needs only Phase 9 (merged into this branch 2026-09-23). **Part B2**, after Phases 10, 11 and 13
+merged, is at the end of this section, followed by the phase's Definition of Done.
 
 Work items, in order, with the plan's test rows against each:
 
@@ -760,7 +769,7 @@ behind `llm.rs` (only `oc-stub-llama-server`), Windows job objects and the macOS
 at run time, the real Tauri window (drag and drop, IPC under `connect-src 'none'`, the `ocpreview:`
 frame), `webkit-ui`, every CI job, the signing dry run (A12.7).
 
-### Part B2 — what remains (after Phase 10 and Phase 11 merge)
+### Part B2 — after Phases 10, 11 and 13 merged
 
 **Merged `origin/main` (c812e9e: Phases 9, 10, 11, 13) into this branch, 2026-09-23.** One driver
 for progress/cancel/cache and AI/OCR; the partial re-run is skipped for runs that asked a model or
@@ -807,33 +816,74 @@ Part B2 work items:
       D13.2), counted while the job runs ("· 3 model calls"); the result's "AI-assisted decisions: N"
       and the report's calls line come from the report (+ 1 Vitest assertion block)
 
-1. **The AI toggle** (Settings › AI assistance and the first-run route's "installed" step): it is
-   drawn disabled, saying the converter has no AI support in this build. Enabling it needs Phase
-   10's engine to accept `ai.enabled` (the job-spec validator refuses the field by name today) and
-   the non-inferiority gate. Then: persist the choice; for each job with AI on, `LlmHost::acquire`
-   the app's server for the installed default model (`ModelManager::installed_path`,
-   `llm::spec_for`) and write `ai.enabled`/`ai.endpoint`/`ai.api_key_file`/`ai.model_id` into the
-   job spec, `release` when the job ends; the fail-open banner when no model is installed or the
-   server does not come up (UI_UX §4); show the engine's `llm` events and the AI-decision count on
-   the row and in the report. `llama-server` must also be staged beside the app (`externalBin`,
-   Phase 15).
-2. **Phase 11 wiring**: Settings › Provider (built-in / Ollama / custom endpoint, API-key file, the
-   non-loopback consent dialog → job spec `ai.endpoint`/`api_key_file`/`non_loopback_consent`) and
-   Settings › Network log fed from `oc-net`'s audit log (SECURITY §8). Today it says this build does
-   not record connections yet and opens one only for a model or pack download (its B1 wording); B2
-   must list those downloads too, not only the provider's calls.
-3. **Merge chores**: merge `origin/main` again (Phases 10, 11, 13 as they land); recount the report
-   snapshot's threshold entries (188 on this branch); reconcile `PROGRESS.md` /
-   `docs/DECISIONS_LOG.md` / `docs/CHANGELOG.md` keeping both sides; re-run `xtask ci-lint` (warning
-   registry) and the UI's 12.9 locale gate if new warning codes arrive; regenerate `Cargo.lock` with
-   cargo; re-run every gate on the merge commit (merge procedure).
-4. **`docs/CHANGELOG.md` Phase 12 entry** (parts A, B1, B2).
-5. **The Definition of Done**: CI green on Linux/macOS/Windows (the `desktop`, `ui`, `webkit-ui`
-   jobs have never run — unverified here); the signing dry run (A12.7, row 12.14 signing) run by a
-   maintainer and its outcome logged; ratify the provisional decisions under Blocked (part A's
-   three, B1's `win32job` and the validation pack). Do not tick Phase 12 before then.
-6. **Open, needs a maintainer decision (not B2's to invent):** the validation pack's payload, host,
-   Java runtime licence, and the job-spec field a conversion would use it through (Blocked).
+- [x] **P12.23** merge chores and the Definition of Done: `origin/main` merged (above), the report
+      snapshot recounted (224), `Cargo.lock` regenerated by cargo, `PROGRESS.md` /
+      `docs/DECISIONS_LOG.md` kept both sides, `docs/CHANGELOG.md` Phase 12 entry (parts A, B1, B2)
+
+The original B2 list, item by item: (1) the AI toggle — P12.18, P12.22 (`llama-server` staged beside
+the app as `externalBin` stays Phase 15); (2) Phase 11 wiring — P12.17, P12.19, P12.20, and the
+Network log as a hook for PHASE 14 detail 12 (P12.21); (3) merge chores and (4) the CHANGELOG —
+P12.23; (5) the Definition of Done — below, with every CI-only row "unverified here"; (6) the
+validation pack's payload, host, Java runtime licence and job-spec field — still a maintainer's
+decision (Blocked).
+
+**Part B2 verification here (Linux, no display), on the branch head before the merge:** workspace
+nextest **745 passed** (`--exclude openconvert-desktop`); desktop crate **57 passed** with
+`engine-integration` (after `cargo build -p openconvert -p oc-testkit --bins` and
+`cargo run -p xtask -- stage-sidecars`); UI Vitest **53 passed**, svelte-check (0 errors, 0
+warnings), lint and build clean; Playwright `chromium-ui` **4 passed** under the shipped CSP; EPUB
+DOM checks **210 passed** (`xtask dom-fixtures`, three Chromium viewports); fmt, clippy (workspace
+`--all-features` and the desktop crate), `xtask ci-lint`, `thresholds-lint`, `cargo deny
+--all-features check` clean.
+
+### Phase 12 — Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3)
+
+- [x] Every named test exists and passes — 12.1 `engine_is_spawned_with_exactly_one_argument`,
+      12.2 `job_spec_is_validated_before_spawn` (`engine.rs`); 12.3
+      `protocol_version_mismatch_hard_errors` (`App.svelte.test.ts`); 12.4
+      `progress_events_drive_the_bar`, 12.5 `missing_heartbeat_marks_not_responding`
+      (`queue.svelte.test.ts`); 12.6 `cancel_reaches_done_cancelled_and_cleans_temp`, 12.17
+      `stale_sidecar_is_refused_at_startup` (`tests/engine_integration.rs`, real engine); 12.7
+      `queue_runs_one_job_at_a_time` (`jobqueue.rs`); 12.8 `warnings_are_localised_from_code_and_args`,
+      12.9 `every_warning_code_has_every_locale` (`i18n.test.ts`); 12.10
+      `overrides_roundtrip_metadata_and_toc` (`crates/openconvert/tests/overrides.rs`); 12.11
+      `overrides_with_wrong_ir_version_are_refused` (`oc_model::overrides`); 12.12
+      `model_download_progress_streams_and_cancels` (`tests/models.rs`, Vitest); 12.13
+      `webview_has_no_network_permission` (`tests/webview_privacy.rs`); 12.14
+      `keyboard_only_flow_completes_a_conversion`, 12.15 `axe_has_no_serious_violations`, 12.16
+      `dark_and_light_render_without_contrast_failures` (Playwright `chromium-ui`). **12.14
+      `signing_dry_run_completes_on_a_throwaway_tag`** exists as `.github/workflows/signing-dryrun.yml`
+      and has **not run — unverified here** (certificates, GitHub Actions, macOS, Windows).
+- [x] `cargo nextest run --workspace` green on Linux (745 + the desktop crate's 57). **macOS and
+      Windows CI: unverified here** (Actions disabled).
+- [x] clippy `-D warnings` (workspace `--all-features`, and the desktop crate `--all-features`),
+      `cargo fmt --check`, `cargo deny --all-features check`, `xtask thresholds-lint`, `xtask ci-lint`
+      clean; UI svelte-check `--fail-on-warnings`, lint, build clean.
+- [x] Acceptance criteria:
+      A12.1 (40 PDFs, one at a time, all complete or cancellable) — `queue_runs_one_job_at_a_time`,
+      `forty_dropped_books_all_complete_one_at_a_time` (real engine);
+      A12.2 (cancel → `done{cancelled}` ≤ 2 s, no temp, exit 3) —
+      `cancel_reaches_done_cancelled_and_cleans_temp`,
+      `a_cancel_on_stdin_ends_the_run_within_the_deadline_and_leaves_nothing`;
+      A12.3 (every warning localised in de/tr) — `every_warning_code_has_every_locale`, "A12.3: the same
+      warning in German and Turkish", "the model warnings are localised in every locale";
+      A12.4 (edits via `overrides.json`, `UserOverride`) — `overrides_roundtrip_metadata_and_toc`;
+      A12.4b (only `document`→`report` re-run from the cached `structure`) —
+      `a_rebuild_runs_only_the_stages_after_structure` (`crates/openconvert/tests/rebuild.rs`);
+      A12.5 (axe, four screens) — `axe_has_no_serious_violations`;
+      A12.6 (no network permission, `connect-src 'none'`) — `webview_has_no_network_permission`;
+      **A12.7 (the signing/notarization dry run on a throwaway tag) — unverified here**: it needs
+      Developer ID and Windows certificates, GitHub Actions, macOS and Windows; a maintainer runs
+      `signing-dryrun.yml` and logs the outcome.
+      **Unverified here** as well: the real Tauri window on WebKitGTK / WKWebView / WebView2 (native
+      drag and drop, IPC's `postMessage` fallback under `connect-src 'none'`, the `ocpreview:` frame),
+      the nightly `webkit-ui` project (no WebKit on this machine), the `desktop`/`ui` CI jobs, Windows
+      job objects and the macOS process-group path at run time, a real model behind the app's server,
+      and a real Ollama or remote endpoint.
+- [x] `docs/CHANGELOG.md` Phase 12 entry.
+- [x] No `TODO`/`FIXME` without an issue number (`xtask ci-lint`).
+- Provisional decisions awaiting ratification: `## Blocked` › Phase 12 (part A's three, B1's
+  `win32job` and the validation pack, B2's default-model-only built-in and cache rule).
 
 ## Phase 8 — built on `worktree-phase8`, merged 2026-09-23
 
@@ -1378,6 +1428,15 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 - **Part B1:** Windows job objects come from `win32job` 2.0.3 (MIT OR Apache-2.0), the "reviewed
   wrapper crate" Phase 9's deferral anticipated — not reviewed by a maintainer and never run here
   (DECISIONS_LOG 2026-09-23, "The app ends an engine's whole process tree").
+- **Part B2:** built-in AI assistance serves the registry's default model only; UI_UX §4's "falls
+  back to the next-safest installed tier" when a model fails its gates at load is not built (the
+  registry has no "safest" order, and no model can be fetched here to fail one). DECISIONS_LOG
+  2026-09-23, "The AI switch, and the app's own server per job", item 6.
+- **Part B2:** the partial re-run saves and resumes only runs that asked no model and in which OCR
+  did nothing; any other rebuild is a full run (DECISIONS_LOG 2026-09-23, "Phase 12 meets Phases 10,
+  11 and 13", item 2). Conservative, and R-15 is silent on AI and OCR.
+- **Part B2 — not a decision, a Phase 14 dependency:** Settings › Network log is a hook
+  (`netlog::read()` answers `NotRecorded`) until PHASE 14 detail 12's `oc-net` audit log exists.
 
 The NFC question raised on 2026-09-20 was ruled the same day — `C(·)` is taken after
 canonical **de**composition — and is implemented. `docs/DECISIONS_LOG.md` 2026-09-20 and the
