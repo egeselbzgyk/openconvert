@@ -192,9 +192,13 @@ fn write_text_dump(
             page: oc_model::extract::PageRef::new(index),
             width_pt: geometry.width_pt(),
             height_pt: geometry.height_pt(),
+            class: glyphs.class,
             glyphs: glyphs.glyphs,
             fonts: glyphs.fonts,
-            images: document.page_images(index).unwrap_or_default(),
+            images: openconvert::input::number_images(
+                document.page_images(index).unwrap_or_default(),
+            ),
+            ocr_runs: Vec::new(),
         });
     }
     if cancel.is_cancelled() {
@@ -298,9 +302,13 @@ fn read_pages(
             page: oc_model::extract::PageRef::new(index),
             width_pt: geometry.width_pt(),
             height_pt: geometry.height_pt(),
+            class: glyphs.class,
             glyphs: glyphs.glyphs,
             fonts: glyphs.fonts,
-            images: document.page_images(index).unwrap_or_default(),
+            images: openconvert::input::number_images(
+                document.page_images(index).unwrap_or_default(),
+            ),
+            ocr_runs: Vec::new(),
         });
     }
     if cancel.is_cancelled() {

@@ -569,3 +569,12 @@ back on.
 | 13.24 | `ocr_merge::ocr_words_become_one_run_per_line_with_provenance_ocr` | `oc-core` | unit — detail 7 | `test` | green |
 | 13.24a | `ocr_merge::region_confidence_is_the_mean_and_the_sub_floor_count` | `oc-core` | unit — detail 9 | `test` | green |
 | 13.24b | `ocr_merge::a_full_page_region_is_cut_into_bands_around_existing_text` | `oc-core` | unit — I-6 on a scan with stray PDF glyphs | `test` | green |
+| 13.11 | `ocr_e2e::ocr_runs_carry_provenance_ocr` | `openconvert` | fixture (f03, f11; in-process engine) | `test` | green |
+| 13.12 | `ocr_e2e::ledger_ocr_entries_are_added_only` | `openconvert` | fixture (f03; in-process engine) | `test` | green |
+| 13.14 | `ocr_e2e::mixed_page_ocrs_only_uncovered_regions` | `openconvert` | fixture (f11 mixed; in-process engine) | `test` | green |
+| 13.16 | `ocr_e2e::re_ocr_replaces_sandwich_layer_conservingly` | `openconvert` | fixture (h05 sandwich; in-process engine) | `test` | green |
+| 13.17 | `ocr_e2e::missing_engine_emits_install_hint_and_page_images` | `openconvert` | integration (binary) — A13.2 | `test` | green |
+| 13.18 | `ocr_e2e::hung_tesseract_is_killed_at_deadline` | `openconvert` | integration (a fake that sleeps, Unix) — A13.5 | `test` | green |
+| 13.22 | `ocr_e2e::ocr_never_calls_the_llm` | `openconvert` | unit (source + dependency scan, conversion) | `test` | green |
+| 13.25 | `ocr_e2e::a_doubtful_or_failed_region_keeps_its_picture` | `openconvert` | fixture — details 9 and 11 | `test` | green |
+| 13.25a | `ocr_e2e::hello_reports_the_discovered_engine` | `openconvert` | binary (fake engine, Unix) — detail 1 | `test` | green |

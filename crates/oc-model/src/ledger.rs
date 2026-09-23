@@ -61,6 +61,17 @@ impl Reason {
     pub fn may_remove(self) -> bool {
         !matches!(self, Reason::Ocr)
     }
+
+    /// Whether a removal under this reason is folded into `C_0` rather than charged against it.
+    ///
+    /// The two dedup reasons (ARCHITECTURE §5.2): `C_0` is taken *after* overdraw and OCR-layer
+    /// dedup, so a duplicate copy of a page never counts as text the book had and then lost. Such
+    /// an entry is kept in the ledger as the record of what was removed, and is left out of I-7's
+    /// `Removed_all` — the equation's baseline already does not contain it, and counting it again
+    /// would be charging the book for text it never had.
+    pub fn folded_into_c0(self) -> bool {
+        matches!(self, Reason::OverdrawDedup | Reason::OcrLayerDuplicate)
+    }
 }
 
 /// One removal or addition, with enough context to find it in the document.
@@ -332,8 +343,19 @@ impl Ledger {
     }
 
     /// Everything every stage removed, as one multiset — the `Removed_all` of invariant I-7.
+    ///
+    /// Removals folded into `C_0` ([`Reason::folded_into_c0`]) are not in it: `C_0` is the baseline
+    /// after them, so they are already accounted for on the other side of the equation.
     pub fn removed_all(&self) -> CharHistogram {
-        self.side(false)
+        let mut histogram = CharHistogram::new();
+        for entry in self
+            .entries
+            .iter()
+            .filter(|e| !e.added && !e.reason.folded_into_c0())
+        {
+            histogram = histogram.union(&c_of(&entry.text));
+        }
+        histogram
     }
 
     /// Everything every stage added — the `Added_all` of invariant I-7.

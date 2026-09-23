@@ -48,6 +48,22 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
         .clone()
         .unwrap_or_else(|| default_output(&args.input));
 
+    // Discovery runs once, before anything is read, so that `hello` can say whether this run can
+    // OCR (PHASE 13 detail 1). `--ocr never` asks nothing of the machine at all.
+    let workdir = temporary_beside(&output);
+    let ocr = ocr_options(args, &workdir);
+    let capabilities: Vec<String> = ocr
+        .engine
+        .as_ref()
+        .map(|engine| vec![engine.capability()])
+        .unwrap_or_default();
+    events.hello_with(
+        env!("CARGO_PKG_VERSION"),
+        oc_model::IR_VERSION,
+        &backend.version().version,
+        &capabilities,
+    );
+
     let options = ConvertOptions {
         filename: args
             .input
@@ -63,10 +79,15 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
             warn_total_bytes: u64::try_from(T.epub.warn_total_bytes).unwrap_or(u64::MAX),
             modified: args.modified.clone().unwrap_or_else(now_utc),
         },
+        ocr,
     };
 
     events.stage("convert", "begin");
-    let conversion = match convert_bytes(&backend, &bytes, args.password.as_deref(), &options, &T) {
+    let converted = convert_bytes(&backend, &bytes, args.password.as_deref(), &options, &T);
+    // The rasters are deleted after every call; the directory goes with the conversion, whatever
+    // became of it.
+    let _ = std::fs::remove_dir_all(&workdir);
+    let conversion = match converted {
         Ok(conversion) => conversion,
         Err(error) => {
             let code = match &error {
@@ -154,6 +175,46 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
 
     events.done_with("ok", Some(&output.to_string_lossy()));
     ExitCode::Ok
+}
+
+/// What `--ocr`, `--ocr-path`, `--ocr-lang` and `--re-ocr` ask for, with the engine discovered.
+fn ocr_options(args: &ConvertArgs, workdir: &Path) -> openconvert::ocr::OcrOptions {
+    use oc_core::ocr::discover::{discover, region_deadline};
+    use oc_core::ocr::invoke::{OcrEngine, Tesseract};
+    use oc_core::ocr::OcrMode;
+
+    if args.ocr == OcrMode::Never {
+        return openconvert::ocr::OcrOptions::off();
+    }
+    let engine = discover(args.ocr_path.as_deref()).map(|info| {
+        std::sync::Arc::new(Tesseract::new(info, workdir, region_deadline()))
+            as std::sync::Arc<dyn OcrEngine>
+    });
+    let mut options = openconvert::ocr::OcrOptions::auto(engine, &T);
+    options.mode = args.ocr;
+    options.re_ocr = args.re_ocr;
+    options.langs = args.ocr_lang.clone();
+    options
+}
+
+/// `<output>.oc-tmp-<token>`: a job-private temporary beside the output, on the same filesystem.
+fn temporary_beside(output: &Path) -> PathBuf {
+    let directory = output.parent().unwrap_or_else(|| Path::new("."));
+    let token = format!(
+        "{:x}-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|since| since.as_nanos())
+            .unwrap_or_default(),
+        std::process::id()
+    );
+    directory.join(format!(
+        "{}.oc-tmp-{token}",
+        output
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "out.epub".to_owned())
+    ))
 }
 
 /// `<output>.report.json` (§2.1).

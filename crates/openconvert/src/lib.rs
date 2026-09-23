@@ -17,6 +17,7 @@ pub mod dump_layout;
 pub mod dump_structure;
 pub mod dump_text;
 pub mod input;
+pub mod ocr;
 pub mod pipeline;
 pub mod report;
 pub mod structure_input;

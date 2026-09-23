@@ -176,6 +176,8 @@ fn page_of(page: u32, lines: usize, per_line: usize, alphabet: &[char]) -> PageI
         // law is about characters and knows nothing about faces.
         fonts: Vec::new(),
         images: Vec::new(),
+        class: oc_pdf::classify::PageClass::Text,
+        ocr_runs: Vec::new(),
     }
 }
 

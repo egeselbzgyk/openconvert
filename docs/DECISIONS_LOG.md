@@ -3891,3 +3891,67 @@ Decision:
 Evidence: `i6_region_scope_rejects_overlapping_text`, `a_full_page_region_is_cut_into_bands_around_existing_text`,
 `ocr_regions_excluded_from_source_retention`, `retention_excludes_ocr_added_characters`.
 Affects: IR_SKETCH `LedgerEntry` (additive field), ARCHITECTURE §5.4 I-6, PHASE 13 details 7 and 8.
+
+## 2026-09-23 · OCR in `ingest`: where it runs, what it replaces, and what `ingest` now records · Phase 13
+Context: PHASE 13 details 3, 7–11 route OCR by page class inside `ingest` and merge its runs there.
+This codebase's `ingest` is `openconvert::input::page_inputs` (glyphs, fonts, images per page); the
+plan's `crates/oc-core/src/stages/ingest.rs` routing cannot live in `oc-core`, which `oc-pdf`
+depends on, so it cannot see a `PdfDoc`.
+Decision:
+1. **Routing is `openconvert::ocr::ocr_stage`**, called inside `convert`'s `ingest` timing, after
+   extraction and before `text`. `oc-core` keeps the engine adapter (`ocr::{discover, invoke, tsv,
+   lang, merge}`), the `INGEST` declaration (`stages/ingest.rs`) and I-6 (`check_i6`). OCR runs ride
+   on `PageInput.ocr_runs`; `text` appends them after the runs it assembles from glyphs.
+2. **`ingest` is now checked and recorded** — I-1, I-2 and I-6 over the OCR step — and its
+   `StageCheck` is the first entry of `per_stage_checks`. Before this phase `ingest` added nothing
+   and was not in the ledger at all. So a born-digital book's ledger gains one Conserving-looking
+   `ingest` entry (0 removed, 0 added), the report's per-stage list has nine entries, and the f07
+   report snapshot changed for that reason alone. The glyph filters' own removals (`GeneratedSpace`,
+   `HiddenText`, …) are still not pushed into the document ledger; that predates this phase and
+   `C_raw` bookkeeping is Phase 7.5's to settle.
+3. **The picture OCR replaced leaves the book** when the region's mean confidence is at or over
+   `ocr.region_conf_min`; under it, the picture stays beside the text with `W_OCR_LOW_CONFIDENCE`
+   (detail 9). A region that yields no words, or whose call fails or hangs, keeps its picture
+   (`W_OCR_FAILED` for the latter), and the book completes.
+4. **Image ids are numbered page-locally at extraction** (`input::number_images`), and decoding
+   reads that id (`structure_input::image_slots`). The old code recovered the page-local index from
+   positions in the document-wide list, which is only right while no image leaves the list; OCR
+   removing one would have made every later image on its page decode as its predecessor. Output is
+   unchanged for every existing fixture (the snapshot suite is green without edits for it).
+5. **I-7's `Removed_all` leaves out the two dedup reasons** (`OverdrawDedup`, `OcrLayerDuplicate`,
+   `Reason::folded_into_c0`). ARCHITECTURE §5.2 folds dedup into `C_0` "rather than recorded against
+   `C_raw`", so the baseline already lacks those characters; counting them again made a re-OCR'd
+   sandwich fail I-7 by exactly its old layer. The entries stay in the ledger as the record.
+   *Found, not fixed:* the same double count applies to `text`'s `SoftHyphen`/`LigatureExpand`
+   entries (`C_0` is taken after `N`), which would fail I-7 on any book with a soft hyphen or a
+   ligature code point. No fixture has one, and it is Phase 7.5's class, not OCR's.
+6. **A re-OCR's `OcrLayerDuplicate` removal is not charged to `conservation.budget.ocr_layer_duplicate_per_page`.**
+   PIPELINE §3 defers `ingest`'s budget checks to `text`, and the existing code never charged any
+   `ingest` removal; re-OCR replaces 100 % of a page's layer by design, which the 0.60 per-page
+   dedup allowance would forbid outright. No budget was widened. **PROVISIONAL — needs maintainer
+   ratification:** whether re-OCR's coupled removal should have a budget of its own.
+7. **`convert` now emits `hello`**, with `ocr:tesseract-<version>` in `capabilities` when discovery
+   found a usable engine (detail 1). `convert` emitted no `hello` before, against §2.3's "always the
+   first line"; `inspect` and `dump-stage` are unchanged.
+8. The rasters go into `<output>.oc-tmp-<token>/`, beside the output, removed after every call and
+   the directory after the conversion.
+Evidence: `ocr_e2e` (8 tests), `repair::the_ledger_records_validate_and_repair_as_conserving_stages`,
+`report::the_report_carries_every_part_the_plan_names`.
+Affects: PIPELINE §3, ARCHITECTURE §5.2/§5.4, PHASE 13 details 1, 3, 7–11, §2.1 (four new flags).
+
+## 2026-09-23 · `BrokenText` pages are not OCR'd in v1 · Phase 13 · PROVISIONAL
+Context: D13.10 routes `broken-text` → OCR, and PIPELINE §3's table says "OCR the whole page; the
+broken text layer is removed under `HiddenText` if invisible, else kept and flagged". A broken
+layer that is invisible has already been removed as `HiddenText` by extraction (render mode 3 on a
+non-sandwich page), so a page that still classifies `BrokenText` has a **visible** broken layer. A
+whole-page `Ocr` region over it contains pre-existing text runs, which I-6 (ratified N-1) forbids;
+keeping both would put the page in the book twice; and removing visible text for being unreadable
+has no reason in the closed `Reason` enum (`HiddenText` is "rendered but not visible", which this is
+not). The task rules forbid adding a `Reason`.
+Decision (the most conservative reading consistent with DECISIONS.md): `BrokenText` pages keep their
+extracted text and the existing `W_BROKEN_TEXT_PAGES` flag, and OCR does not read them. `ImageOnly`,
+`Mixed` and `--re-ocr` sandwich pages are read as the plan says.
+**PROVISIONAL — needs maintainer ratification:** one of (a) a `Reason` for "replaced by OCR" (an
+`ir_version` question), (b) extending `OcrLayerDuplicate` to a broken visible layer, or (c) ratifying
+that v1 does not OCR broken-text pages.
+Affects: D13.10, PIPELINE §3, PHASE 13 details 3 and 6.

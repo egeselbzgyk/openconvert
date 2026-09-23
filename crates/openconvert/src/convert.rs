@@ -22,11 +22,12 @@ use oc_structure::meta::{InfoDict, MetaSources};
 use oc_structure::stage::StructureInput;
 
 use crate::document::DocumentInput;
+use crate::ocr::{ocr_stage, OcrOptions, OcrReport};
 use crate::pipeline::{
     body_runs, document_stage, epub_check, furniture_stage, layout_stage, structure_stage,
     text_stage, validate_repair_stage, DocumentError, EpubStageError, ValidateRepairError,
 };
-use crate::structure_input::{block_views, document_images};
+use crate::structure_input::{block_views, document_images, image_slots};
 
 /// What the caller chose.
 pub struct ConvertOptions {
@@ -37,6 +38,8 @@ pub struct ConvertOptions {
     /// The preset before [`PresetName::resolve`] has run.
     pub preset: PresetName,
     pub epub: EpubOptions,
+    /// Whether and how scanned content is read (PHASE 13). [`OcrOptions::off`] reads nothing.
+    pub ocr: OcrOptions,
 }
 
 /// Per-stage wall-clock, in milliseconds, in stage order.
@@ -87,6 +90,8 @@ pub struct Conversion {
     pub producer_family: oc_pdf::producer::ProducerFamily,
     /// How many pages of each class the document has (D13.10), by the class's report name.
     pub page_classes: BTreeMap<String, u32>,
+    /// What OCR read and what it left as pictures, when any page needed it (PHASE 13).
+    pub ocr: Option<OcrReport>,
 }
 
 /// Why a conversion failed.
@@ -116,8 +121,18 @@ pub fn convert(
     t: &Thresholds,
 ) -> Result<Conversion, ConvertError> {
     let mut timings = Timings::default();
-    let input = timings.stage("ingest", || crate::input::page_inputs(pdf))?;
-    let mut totals = ReasonTotals::default();
+    // OCR is part of `ingest` (ratified note N-2), timed with it, and checked as `ingest` before
+    // `text` runs.
+    let (input, ocr) = timings.stage("ingest", || -> Result<_, ConvertError> {
+        let mut input = crate::input::page_inputs(pdf)?;
+        let ocr = ocr_stage(pdf, &mut input, &options.ocr, options.language.as_ref(), t)?;
+        Ok((input, ocr))
+    })?;
+    let mut totals = ReasonTotals::default().with_ocr_added(
+        ocr.delta
+            .reason_added(oc_model::ledger::Reason::Ocr)
+            .total(),
+    );
 
     let text = timings.stage("text", || text_stage(&input, &mut totals, t))?;
     // Language detection is Phase 2's and is not wired into the stage driver yet, so the
@@ -131,8 +146,9 @@ pub fn convert(
     let layout = timings.stage("layout", || layout_stage(&text, &furniture, &mut totals, t))?;
 
     let images = document_images(&text);
+    let slots = image_slots(&text);
     let extracted_images = u32::try_from(images.len()).unwrap_or(u32::MAX);
-    let hashes = image_hashes(pdf, &images, t);
+    let hashes = image_hashes(pdf, &images, &slots, t);
     let vectors = (0..pdf.page_count())
         .filter_map(|page| pdf.page_vectors(page).ok())
         .flatten()
@@ -200,6 +216,7 @@ pub fn convert(
         c_0: text.c_0.clone(),
         ..Ledger::default()
     };
+    ledger.push_stage(&ocr.delta, ocr.check.clone());
     ledger.push_stage(&text.delta, text.check.clone());
     ledger.push_stage(&furniture.delta, furniture.check.clone());
     ledger.push_stage(&layout.delta, layout.check.clone());
@@ -226,7 +243,7 @@ pub fn convert(
         )
     })?;
 
-    let sources = decode_images(pdf, &images);
+    let sources = decode_images(pdf, &images, &slots);
 
     // `epub`, `validate` and `repair` are one call, because the loop owns the emission: each of its
     // iterations is one regeneration plus one validation pass, and a caller that emitted once for
@@ -261,6 +278,11 @@ pub fn convert(
     for check in loop_result.checks {
         settled.ledger.push_stage(&LedgerDelta::default(), check);
     }
+    // `ingest`'s OCR warnings come first: it is the first stage, and a reader of the report meets
+    // "these pages stayed pictures" before anything that follows from it.
+    let mut warnings = ocr.warnings;
+    warnings.append(&mut settled.warnings);
+    settled.warnings = warnings;
     settled
         .warnings
         .extend(loop_result.structural.warnings.iter().cloned());
@@ -284,6 +306,7 @@ pub fn convert(
         timings,
         producer_family,
         page_classes: class_histogram(&classes),
+        ocr: ocr.report,
     })
 }
 
@@ -324,12 +347,16 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
         .collect()
 }
 
-/// Every image, decoded to RGBA for the encoder.
-fn decode_images(pdf: &dyn PdfDoc, images: &[oc_model::extract::ImageRef]) -> Vec<SourceImage> {
+/// Every image, decoded to RGBA for the encoder. `slots` is [`image_slots`].
+fn decode_images(
+    pdf: &dyn PdfDoc,
+    images: &[oc_model::extract::ImageRef],
+    slots: &[oc_model::extract::ImageId],
+) -> Vec<SourceImage> {
     images
         .iter()
         .map(|image| {
-            let decoded = decode_one(pdf, images, image);
+            let decoded = decode_one(pdf, slots, image);
             SourceImage {
                 id: image.id,
                 width: decoded.width,
@@ -344,6 +371,7 @@ fn decode_images(pdf: &dyn PdfDoc, images: &[oc_model::extract::ImageRef]) -> Ve
 pub fn image_hashes(
     pdf: &dyn PdfDoc,
     images: &[oc_model::extract::ImageRef],
+    slots: &[oc_model::extract::ImageId],
     t: &Thresholds,
 ) -> Vec<Option<u64>> {
     // Only the images the ornament rule will compare. A full-page scan cannot be an ornament,
@@ -353,7 +381,7 @@ pub fn image_hashes(
         .iter()
         .map(|image| {
             oc_structure::images::needs_hash(image, t)
-                .then(|| oc_pdf::images::perceptual_hash(&decode_one(pdf, images, image)))
+                .then(|| oc_pdf::images::perceptual_hash(&decode_one(pdf, slots, image)))
         })
         .collect()
 }
@@ -361,29 +389,26 @@ pub fn image_hashes(
 /// Decode one image, translating the document-wide id back to the page-local one.
 ///
 /// `ImageId` means two things and this is the boundary: the backend numbers images per *page*,
-/// because `image_bytes` indexes that page's draw order, while a `Figure` names one picture in
-/// the whole book. The page-local index is recoverable as the image's position among those
-/// sharing its page, which document order preserves.
+/// because `image_bytes` indexes that page's images in draw order, while a `Figure` names one
+/// picture in the whole book. `slots` holds the page-local number for every document-wide id, as
+/// `ingest` assigned it — never recovered from positions, which move when OCR replaces an image.
 fn decode_one(
     pdf: &dyn PdfDoc,
-    images: &[oc_model::extract::ImageRef],
+    slots: &[oc_model::extract::ImageId],
     image: &oc_model::extract::ImageRef,
 ) -> oc_pdf::images::DecodedImage {
-    let local = images
-        .iter()
-        .filter(|other| other.page.index == image.page.index)
-        .position(|other| other.id == image.id)
-        .unwrap_or_default();
-    pdf.image_bytes(
-        image.page.index,
-        oc_model::extract::ImageId(u32::try_from(local).unwrap_or_default()),
-    )
-    .unwrap_or(oc_pdf::images::DecodedImage {
-        // A one-pixel opaque black square, so that an image the backend could not decode
-        // becomes a visibly wrong picture rather than a panic or a dropped figure. The
-        // conversion report is where it is named.
-        width: 1,
-        height: 1,
-        rgba: vec![0, 0, 0, 255],
-    })
+    let local = slots
+        .get(usize::try_from(image.id.0).unwrap_or(usize::MAX))
+        .copied()
+        // An id with no slot decodes as nothing rather than as some other picture.
+        .unwrap_or(oc_model::extract::ImageId(u32::MAX));
+    pdf.image_bytes(image.page.index, local)
+        .unwrap_or(oc_pdf::images::DecodedImage {
+            // A one-pixel opaque black square, so that an image the backend could not decode
+            // becomes a visibly wrong picture rather than a panic or a dropped figure. The
+            // conversion report is where it is named.
+            width: 1,
+            height: 1,
+            rgba: vec![0, 0, 0, 255],
+        })
 }

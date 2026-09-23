@@ -46,6 +46,21 @@ impl<W: Write> EventSink<W> {
 
     /// The `hello` event. Always the first line (§2.3).
     pub fn hello(&mut self, engine_version: &str, ir_version: u32, pdfium_version: &str) {
+        self.hello_with(engine_version, ir_version, pdfium_version, &[]);
+    }
+
+    /// The `hello` event, with capabilities this run discovered beyond the ones every engine has —
+    /// `ocr:tesseract-5.3.4` when a usable Tesseract was found, and nothing when it was not
+    /// (PHASE 13 detail 1). A supervisor reads OCR support here rather than by trying it.
+    pub fn hello_with(
+        &mut self,
+        engine_version: &str,
+        ir_version: u32,
+        pdfium_version: &str,
+        extra: &[String],
+    ) {
+        let mut capabilities = vec!["inspect".to_owned()];
+        capabilities.extend(extra.iter().cloned());
         self.emit(
             "hello",
             serde_json::json!({
@@ -53,7 +68,7 @@ impl<W: Write> EventSink<W> {
                 "ir_version": ir_version,
                 "protocol": PROTOCOL_VERSION,
                 "pdfium_version": pdfium_version,
-                "capabilities": ["inspect"],
+                "capabilities": capabilities,
             }),
         );
     }

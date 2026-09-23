@@ -117,3 +117,66 @@ impl OcrScope {
         }
     }
 }
+
+/// `--ocr`: whether pages are OCR'd (PHASE 13, §2.1).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum OcrMode {
+    /// Follow the page class: `ImageOnly` pages whole, `Mixed` pages' uncovered image regions.
+    #[default]
+    Auto,
+    /// Never OCR. Scanned pages stay pictures, and no warning says so: the user asked.
+    Never,
+    /// Read every page whole, in bands that avoid the text it already has (I-6).
+    Always,
+}
+
+impl OcrMode {
+    pub fn parse(value: &str) -> Option<OcrMode> {
+        match value {
+            "auto" => Some(OcrMode::Auto),
+            "never" => Some(OcrMode::Never),
+            "always" => Some(OcrMode::Always),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            OcrMode::Auto => "auto",
+            OcrMode::Never => "never",
+            OcrMode::Always => "always",
+        }
+    }
+}
+
+/// `--re-ocr`: whether an OCR sandwich's existing layer is replaced (D13.10, detail 10).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ReOcr {
+    /// Use the layer the file carries, with `provenance = OcrLayer`. The default.
+    #[default]
+    Never,
+    /// Re-OCR a sandwich page when its layer's dictionary hit rate is under
+    /// `pageclass.broken_text_dict_hit_min`.
+    Auto,
+    /// Re-OCR every sandwich page.
+    Always,
+}
+
+impl ReOcr {
+    pub fn parse(value: &str) -> Option<ReOcr> {
+        match value {
+            "never" => Some(ReOcr::Never),
+            "auto" => Some(ReOcr::Auto),
+            "always" => Some(ReOcr::Always),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ReOcr::Never => "never",
+            ReOcr::Auto => "auto",
+            ReOcr::Always => "always",
+        }
+    }
+}

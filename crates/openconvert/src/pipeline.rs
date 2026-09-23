@@ -23,7 +23,8 @@ use oc_model::geom::Rect;
 use oc_model::lang::LangTag;
 use oc_model::layout::{Block, Para, ParagraphConvention};
 use oc_model::ledger::{LedgerDelta, StageCheck};
-use oc_model::text::{Line, Run};
+use oc_model::text::{Line, Run, RunId, TextProvenance};
+use oc_pdf::classify::PageClass;
 use oc_text::dehyphen::DocLexicon;
 use oc_text::lines::assemble_lines;
 use oc_text::normalize::{normalize, LedgerSite};
@@ -41,8 +42,15 @@ pub struct PageInput {
     /// differently; `text` merges them into one document table and remaps the runs.
     pub fonts: Vec<FontInfo>,
     /// The images `ingest` found on the page. `layout` anchors them into the flow and drops
-    /// none of them (PIPELINE §6 step 5).
+    /// none of them (PIPELINE §6 step 5). Each one's `id` is its position among the page's images
+    /// in draw order — what [`oc_pdf::inspect::PdfDoc::image_bytes`] takes — so that an image OCR
+    /// replaced can leave the list without the ones after it decoding as the wrong picture.
     pub images: Vec<ImageRef>,
+    /// What `inspect` classified the page as (D13.10); OCR routing reads it.
+    pub class: PageClass,
+    /// Runs OCR read off the page, with `provenance = Ocr` (PHASE 13 detail 7). Empty unless OCR
+    /// ran; `text` appends them after the runs it assembles from glyphs.
+    pub ocr_runs: Vec<Run>,
 }
 
 /// One page as `text` leaves it.
@@ -116,7 +124,7 @@ pub fn text_stage(
     totals: &mut ReasonTotals,
     t: &Thresholds,
 ) -> Result<TextStage, ConservationError> {
-    let before = glyph_chars(input);
+    let before = glyph_chars(input).union(&ocr_chars(input));
 
     let mut delta = LedgerDelta::default();
     let mut pages = Vec::with_capacity(input.len());
@@ -124,6 +132,32 @@ pub fn text_stage(
     for page in input {
         let remap = merge_fonts(&mut fonts, &page.fonts);
         let mut assembly = assemble_runs(&page.glyphs, page.page.clone(), t);
+        // An OCR sandwich's layer is the file's own OCR, not text the document drew visibly, and
+        // says so (D13.10): a run whose every glyph is invisible is `OcrLayer`.
+        for run in &mut assembly.runs {
+            let (first, last) = run.glyph_range;
+            let glyphs = assembly
+                .order
+                .get(first as usize..last as usize)
+                .unwrap_or_default();
+            if !glyphs.is_empty()
+                && glyphs.iter().all(|index| {
+                    page.glyphs
+                        .get(*index as usize)
+                        .is_some_and(crate::ocr::is_layer)
+                })
+            {
+                run.provenance = TextProvenance::OcrLayer;
+            }
+        }
+        // OCR's runs follow the assembled ones, renumbered so that a run's id is still its index
+        // in the page's list.
+        let first_ocr = u32::try_from(assembly.runs.len()).unwrap_or(u32::MAX);
+        for (position, run) in page.ocr_runs.iter().enumerate() {
+            let mut run = run.clone();
+            run.id = RunId(first_ocr.saturating_add(u32::try_from(position).unwrap_or(u32::MAX)));
+            assembly.runs.push(run);
+        }
         let mut offset: u32 = 0;
         for run in &mut assembly.runs {
             run.font = remap
@@ -152,17 +186,37 @@ pub fn text_stage(
 
     let after = run_chars(&pages);
     // `C_0` is defined *after* `N`, so the account the budgets are fractions of is opened
-    // here rather than at extraction (ARCHITECTURE §5.2).
-    *totals = ReasonTotals::new(&after);
+    // here rather than at extraction (ARCHITECTURE §5.2). It is the source's text only: what OCR
+    // read off pixels is carried forward as OCR-added and is in neither side of the retention
+    // ratio (I-6, RT C1).
+    let c_0 = c_of_parts(
+        pages
+            .iter()
+            .flat_map(|page| page.runs.iter())
+            .filter(|run| run.provenance != TextProvenance::Ocr)
+            .map(|run| run.text.as_str()),
+    );
+    let ocr_added = totals.ocr_added();
+    *totals = ReasonTotals::new(&c_0).with_ocr_added(ocr_added);
     let check = check_invariants(&before, &after, &delta, stages::TEXT, totals)?;
 
     Ok(TextStage {
         pages,
         fonts,
         delta,
-        c_0: after,
+        c_0,
         check,
     })
+}
+
+/// `C` of the OCR runs `ingest` added, as `text` receives them.
+fn ocr_chars(input: &[PageInput]) -> CharHistogram {
+    c_of_parts(
+        input
+            .iter()
+            .flat_map(|page| page.ocr_runs.iter())
+            .map(|run| run.text.as_str()),
+    )
 }
 
 /// Merge one page's font table into the document's, returning the page's id-to-document-id

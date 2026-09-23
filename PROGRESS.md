@@ -78,7 +78,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P13.4** invocation: fixed argv, deadline, process ownership, the fake engine — rows 13.10, 13.18 (invocation half), 13.19
 - [x] **P13.5** `oc-pdf` rasterization (`render_region`) — rows 13.23, 13.23a, 13.23b (additions)
 - [x] **P13.6** merge, the `ingest` declaration, region-scoped I-6, retention — rows 13.13, 13.15
-- [ ] **P13.7** OCR routing in `ingest`, the `convert` flags, degradation — rows 13.11, 13.12, 13.14, 13.16, 13.17, 13.22
+- [x] **P13.7** OCR routing in `ingest`, the `convert` flags, degradation — rows 13.11, 13.12, 13.14, 13.16, 13.17, 13.18, 13.22
 - [ ] **P13.8** scanned fixtures, `.assert.json`, CER per stratum — rows 13.20, 13.21
 - [ ] **P13.9** `docs/OCR_PACK_SPIKE.md`, CI job, Definition of Done, CHANGELOG, merge
 
@@ -91,6 +91,12 @@ What a fresh session needs:
   shell script, and live in `crates/oc-testkit/tests/` (not `oc-core/tests` as the plan's file list
   says): `oc-core` cannot dev-depend on `oc-testkit` without putting `oc-net` into the graph
   `oc_core_has_no_net_dependency` walks. They are `#[cfg(unix)]`; Windows is unverified here.
+- OCR routing is `openconvert::ocr::ocr_stage`, inside `convert`'s `ingest`; tests use the in-process
+  `tests/common/ocr.rs::ScriptedEngine`. `common::build*` convert with `OcrOptions::off()`. New
+  fixture `f11_mixed_plate` (Typst, `mixed`); `h05_invisible_layer` is the sandwich.
+- Disk: build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` and run the suite per package with
+  `scratchpad/p13_test_all.sh` (deletes each package's test binaries after it runs) — the whole
+  workspace's test binaries at once filled the disk.
 - VD-g is closed: UB-Mannheim installs to `%ProgramFiles%\Tesseract-OCR` (all users) or
   `%LOCALAPPDATA%\Programs\Tesseract-OCR` (one user), does not touch `PATH`, ships 5.5.3, and prints
   `tesseract v5.5.3.20260724` — the parser reads that form.
@@ -847,6 +853,16 @@ ratification**, and worked around. None of them blocks Phase 10's deterministic-
    is being built concurrently.
 8. **G8's probes are generated, not native-speaker authored**, and their labels follow from their
    templates.
+
+### Blocked — Phase 13 (each PROVISIONAL, logged in `docs/DECISIONS_LOG.md` 2026-09-23)
+
+- **P13-a `BrokenText` pages are not OCR'd.** A visible broken layer cannot coexist with an `Ocr`
+  region under I-6, and no declared `Reason` removes visible text for being unreadable. The page
+  keeps its text and `W_BROKEN_TEXT_PAGES`. Ratify one of: a new `Reason`, widening
+  `OcrLayerDuplicate`, or "v1 does not OCR broken-text pages".
+- **P13-b re-OCR's `OcrLayerDuplicate` removal is not budget-charged.** `ingest` budgets are deferred
+  to `text` (PIPELINE §3) and re-OCR replaces a whole layer by design; decide whether it needs its
+  own budget.
 
 ## Phase 7 — Definition of Done
 

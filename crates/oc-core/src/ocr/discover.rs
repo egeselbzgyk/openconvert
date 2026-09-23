@@ -80,6 +80,20 @@ impl Version {
     }
 }
 
+/// How to install Tesseract 5 on `os`, as `W_OCR_ENGINE_MISSING`'s `hint` (detail 11): a command a
+/// reader can paste where there is one, and the installer's name where there is not. The app never
+/// opens a URL itself (D13.9).
+pub fn engine_install_hint(os: Os) -> &'static str {
+    match os {
+        Os::Linux => "sudo apt install tesseract-ocr tesseract-ocr-deu tesseract-ocr-tur",
+        Os::MacOs => "brew install tesseract tesseract-lang",
+        Os::Windows => {
+            "install Tesseract 5 with the UB-Mannheim Tesseract installer for Windows, and select \
+             German and Turkish under Additional language data"
+        }
+    }
+}
+
 /// Where the Tesseract in use was found.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DiscoverySource {

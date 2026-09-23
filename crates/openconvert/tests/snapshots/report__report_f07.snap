@@ -36,6 +36,13 @@ expression: value
     "retention": 1.0,
     "per_stage": [
       {
+        "stage": "ingest",
+        "kind": "budgeted",
+        "removed_chars": 0,
+        "added_chars": 0,
+        "retention": 1.0
+      },
+      {
         "stage": "text",
         "kind": "budgeted",
         "removed_chars": 0,
