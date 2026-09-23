@@ -93,11 +93,11 @@ items, in order, with the plan's test rows against each:
 - [x] **P14.3** the xref/ObjStm pre-walk: depth counter and visited set — rows 14.4, 14.5
 - [x] **P14.4** the page cap from the catalogue's `/Count`, before any page object — row 14.6 *(the CLI's exit 1 + report is P14.10)*
 - [x] **P14.5** one abort path: `AbortCause`, `DeadlineGuard`, one cleanup — row 14.8 *(wired into `convert` in P14.10)*
-- [ ] **P14.6** `--max-memory`: `RLIMIT_AS` / nested job object before the PDF opens — row 14.7
+- [x] **P14.6** `oc_core::sandbox::{rlimit, jobobject}`: `RLIMIT_AS`, the engine's job object *(row 14.7, the CLI half, is P14.10)*
 - [ ] **P14.7** children never outlive a killed engine: PDEATHSIG trampoline, job object (Phases 9, 13)
 - [ ] **P14.8** Landlock: `ScopeSet`, self-restriction, recorded skip — rows 14.10–14.12
 - [ ] **P14.9** `oc-net` audit log — row 14.21
-- [ ] **P14.10** caps end in exit 1 with a report and no output; the 40 M-glyph PDF — rows 14.9, 14.19
+- [ ] **P14.10** the engine: `--max-memory`/`--max-pages`, Landlock and deadlines wired into `convert`; caps end in exit 1 with a report and no output; the 40 M-glyph PDF — rows 14.7, 14.9, 14.19, 14.6's exit 1
 - [ ] **P14.11** crash corpus: `oc-eval mutate`, `corpus/fixtures/crash/`, Isartor fetch — rows 14.16–14.18
 - [ ] **P14.12** `fuzz/`: three targets, seeded corpora — rows 14.13–14.15
 - [ ] **P14.13** `unshare -n` over the AI cassette path — row 14.20
@@ -129,6 +129,15 @@ What a fresh session needs:
   the same flag with `AbortCause::Deadline(stage)` (first cause wins). `Scratch::clean_up` is the one
   cleanup (paths are taken as they are removed, so a second call removes nothing). Clock injected
   (`Cancel::with_clock`, `ManualClock`).
+- `oc_core::sandbox` holds the mechanisms, each over a crate that owns the syscall (no `unsafe` of
+  ours): `rlimit` (rustix `setrlimit(RLIMIT_AS)`, soft limit only), `jobobject` (win32job,
+  KILL_ON_JOB_CLOSE; **no Windows memory cap**: win32job does not expose
+  `JOB_OBJECT_LIMIT_PROCESS_MEMORY` and setting it ourselves is `unsafe` FFI — PROVISIONAL, Blocked),
+  `landlock` (P14.8). The workspace `rustix`/`win32job` lines are copied verbatim from Phase 12's
+  branch so the two merge cleanly. Windows/macOS type-check: `CARGO_FEATURE_PURE=1 cargo check -p
+  oc-core --target x86_64-pc-windows-msvc` (blake3's C build needs MSVC otherwise).
+- `openconvert::sandbox` is the report's `sandbox` section and `--max-memory` parsing
+  (`parse_bytes`, binary units only); not wired into `convert` yet (P14.10).
 
 ## Phase 13 — on branch `phase/13-ocr`
 

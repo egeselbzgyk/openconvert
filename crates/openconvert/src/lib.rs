@@ -23,4 +23,5 @@ pub mod input;
 pub mod ocr;
 pub mod pipeline;
 pub mod report;
+pub mod sandbox;
 pub mod structure_input;

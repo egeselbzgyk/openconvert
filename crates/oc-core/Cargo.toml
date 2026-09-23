@@ -23,6 +23,17 @@ getrandom.workspace = true
 # `oc-epub` and `pdfium-render`, with the same two codecs.
 image.workspace = true
 
+# The sandbox (PHASE 14): `RLIMIT_AS` and the parent-death signal through rustix's safe wrappers,
+# Landlock through its own crate; on Windows a job object through win32job. No `unsafe` of ours.
+[target.'cfg(unix)'.dependencies]
+rustix.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+win32job.workspace = true
+
 [dev-dependencies]
 insta.workspace = true
 proptest.workspace = true
