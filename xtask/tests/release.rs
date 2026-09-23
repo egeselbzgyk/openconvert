@@ -756,7 +756,7 @@ fn yaml_strings(value: &serde_yaml::Value) -> Vec<String> {
 #[test]
 fn flatpak_manifest_has_no_network_finish_arg() {
     let root = workspace_root();
-    let manifest = yaml(&root.join("packaging/linux/flatpak/io.openconvert.OpenConvert.yml"));
+    let manifest = yaml(&root.join(FLATPAK_MANIFEST));
 
     let finish_args = yaml_strings(&manifest["finish-args"]);
     assert!(!finish_args.is_empty(), "the manifest has finish-args");
@@ -815,12 +815,172 @@ fn flatpak_manifest_has_no_network_finish_arg() {
         "the Flatpak's natives are the ones the locks pin"
     );
 
-    // The desktop entry and the AppStream data name the same app.
-    let metainfo = read(&root.join("packaging/linux/io.openconvert.OpenConvert.metainfo.xml"));
-    assert!(metainfo.contains("<id>io.openconvert.OpenConvert</id>"));
+    // The desktop entry and the AppStream data name the same app, under files named for it.
+    let metainfo = read(&root.join(format!("packaging/linux/{APP_ID}.metainfo.xml")));
+    assert!(metainfo.contains(&format!("<id>{APP_ID}</id>")));
+    assert!(metainfo.contains(&format!(
+        "<launchable type=\"desktop-id\">{APP_ID}.desktop</launchable>"
+    )));
     assert!(metainfo.contains("<project_license>Apache-2.0</project_license>"));
-    let entry = read(&root.join("packaging/linux/openconvert.desktop"));
-    assert!(entry.contains("Icon=io.openconvert.OpenConvert"));
+    let entry = read(&root.join(format!("packaging/linux/{APP_ID}.desktop")));
+    assert!(entry.contains(&format!("Icon={APP_ID}")));
+}
+
+/// The app ID (maintainer decision 2026-09-23): the repository's own code-hosting ID, because
+/// Flathub requires the domain an ID names to be reachable and the developer's. It replaced the
+/// provisional `io.openconvert.OpenConvert`, whose domain is not ours (`appid-url-not-reachable` on
+/// v1.0.0's first release run). Every place that names the app names this; the homepage is the
+/// repository.
+const APP_ID: &str = "io.github.egeselbzgyk.OpenConvert";
+const FLATPAK_MANIFEST: &str = "packaging/linux/flatpak/io.github.egeselbzgyk.OpenConvert.yml";
+
+#[test]
+fn the_app_id_is_the_repositorys_code_hosting_id_everywhere() {
+    let root = workspace_root();
+    let config = json(&root.join("apps/desktop/src-tauri/tauri.conf.json"));
+    assert_eq!(config["identifier"].as_str(), Some(APP_ID));
+    let manifest = yaml(&root.join(FLATPAK_MANIFEST));
+    assert_eq!(manifest["id"].as_str(), Some(APP_ID));
+    let metainfo = read(&root.join(format!("packaging/linux/{APP_ID}.metainfo.xml")));
+    for url in [
+        "<url type=\"homepage\">https://github.com/egeselbzgyk/openconvert</url>",
+        "<url type=\"bugtracker\">https://github.com/egeselbzgyk/openconvert/issues</url>",
+    ] {
+        assert!(metainfo.contains(url), "the metainfo lacks {url}");
+    }
+    let workflow = read(&root.join(".github/workflows/release.yml"));
+    assert!(
+        workflow.contains(FLATPAK_MANIFEST),
+        "release.yml lints another manifest"
+    );
+    // Nothing that ships, builds or documents the app still names the provisional ID or its domain.
+    for file in [
+        "apps/desktop/src-tauri/tauri.conf.json",
+        FLATPAK_MANIFEST,
+        &format!("packaging/linux/{APP_ID}.metainfo.xml"),
+        &format!("packaging/linux/{APP_ID}.desktop"),
+        ".github/workflows/release.yml",
+        "docs/INSTALL.md",
+    ] {
+        let text = read(&root.join(file));
+        assert!(
+            !text.contains("io.openconvert"),
+            "{file} names io.openconvert"
+        );
+        assert!(
+            !text.contains("openconvert.io"),
+            "{file} names openconvert.io"
+        );
+    }
+}
+
+/// The Flatpak's generated sources are the lockfiles, digest for digest: Flathub builds offline
+/// from `cargo-sources.json` and `node-sources.json`, so a crate or package the lockfiles gained
+/// without them would fail Flathub's build, and one they lost would ship a stale pin. (Both were
+/// missing on v1.0.0's first release run: `flatpak-builder-lint` could not deserialize the
+/// module's `sources`.) The regeneration commands are in the manifest's header.
+#[test]
+fn flatpak_sources_match_the_lockfiles() {
+    use base64::Engine as _;
+    let root = workspace_root();
+    let manifest = yaml(&root.join(FLATPAK_MANIFEST));
+    let flatpak_dir = root.join("packaging/linux/flatpak");
+    let mut referenced = BTreeSet::new();
+    for module in manifest["modules"].as_sequence().expect("modules") {
+        for source in module["sources"].as_sequence().into_iter().flatten() {
+            if let Some(file) = source.as_str() {
+                assert!(
+                    flatpak_dir.join(file).is_file(),
+                    "the manifest names {file}, which is not committed beside it"
+                );
+                referenced.insert(file.to_owned());
+            }
+        }
+    }
+    assert_eq!(
+        referenced,
+        BTreeSet::from([
+            "cargo-sources.json".to_owned(),
+            "node-sources.json".to_owned()
+        ])
+    );
+    let regenerate = "stale: regenerate it with the commands in the Flatpak manifest's header";
+
+    // Cargo: every crates.io package of Cargo.lock, as the archive flatpak-cargo-generator names.
+    let lock: toml::Table = toml::from_str(&read(&root.join("Cargo.lock"))).expect("Cargo.lock");
+    let mut want = BTreeSet::new();
+    for package in lock["package"].as_array().expect("packages") {
+        if package.get("source").and_then(|s| s.as_str())
+            != Some("registry+https://github.com/rust-lang/crates.io-index")
+        {
+            assert!(
+                package.get("source").is_none(),
+                "a non-registry source: {package}"
+            );
+            continue;
+        }
+        let name = package["name"].as_str().expect("a name");
+        let version = package["version"].as_str().expect("a version");
+        let sum = package["checksum"].as_str().expect("a checksum");
+        want.insert((
+            format!("https://static.crates.io/crates/{name}/{name}-{version}.crate"),
+            sum.to_owned(),
+        ));
+    }
+    let cargo = json(&flatpak_dir.join("cargo-sources.json"));
+    let have: BTreeSet<(String, String)> = cargo
+        .as_array()
+        .expect("a source list")
+        .iter()
+        .filter(|s| s["type"] == "archive")
+        .map(|s| {
+            (
+                s["url"].as_str().expect("a url").to_owned(),
+                s["sha256"].as_str().expect("a sha256").to_owned(),
+            )
+        })
+        .collect();
+    assert!(!want.is_empty());
+    assert_eq!(
+        have.symmetric_difference(&want).collect::<Vec<_>>(),
+        Vec::<&(String, String)>::new(),
+        "cargo-sources.json is {regenerate}"
+    );
+
+    // npm: every package of the UI's package-lock.json, by its resolved URL and integrity digest.
+    let lock = json(&root.join("apps/desktop/ui/package-lock.json"));
+    let mut want = BTreeSet::new();
+    for (path, package) in lock["packages"].as_object().expect("packages") {
+        if path.is_empty() || package["link"] == true {
+            continue;
+        }
+        let url = package["resolved"].as_str().expect("a resolved URL");
+        let integrity = package["integrity"].as_str().expect("an integrity digest");
+        let (algorithm, digest) = integrity.split_once('-').expect("<algorithm>-<base64>");
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(digest)
+            .expect("base64");
+        let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        want.insert((url.to_owned(), algorithm.to_owned(), hex));
+    }
+    let node = json(&flatpak_dir.join("node-sources.json"));
+    let mut have = BTreeSet::new();
+    for source in node.as_array().expect("a source list") {
+        let Some(url) = source["url"].as_str() else {
+            continue;
+        };
+        for algorithm in ["sha512", "sha256", "sha1"] {
+            if let Some(hex) = source[algorithm].as_str() {
+                have.insert((url.to_owned(), algorithm.to_owned(), hex.to_owned()));
+            }
+        }
+    }
+    assert!(!want.is_empty());
+    assert_eq!(
+        have.symmetric_difference(&want).collect::<Vec<_>>(),
+        Vec::<&(String, String, String)>::new(),
+        "node-sources.json is {regenerate}"
+    );
 }
 
 /// Two small inputs in the shape `cargo cyclonedx` and `npm sbom` write, rooted at `root`.
@@ -1573,22 +1733,28 @@ fn workflow_steps(workflow: &serde_yaml::Value) -> Vec<(String, serde_yaml::Valu
 /// the Linux build, the Linux reproducibility leg, the SBOM, the comparison and the publication — is
 /// a Debian image without Python that asserts so before anything else. (That the job then succeeds
 /// is the release run's to show — unverified here.)
+///
+/// The Linux build's first step is the one that installs packages, and the GTK/WebKit -dev packages
+/// bring Python with them (v1.0.0's first release run): there the step diverts every interpreter off
+/// PATH (`dpkg-divert --rename`) after the install and asserts at its end, so every later step of the
+/// build runs where Python cannot be called (`the_linux_build_diverts_python_after_installing`).
 #[test]
 fn release_job_needs_no_python() {
     let workflow = release_workflow();
     let assertion = "command -v python3 || command -v python";
+    let diversion = "dpkg-divert --local --rename";
     for (job, step) in workflow_steps(&workflow) {
         let uses = step["uses"].as_str().unwrap_or_default();
         assert!(
             !uses.contains("setup-python") && !uses.contains("setup-uv"),
             "{job}: {uses}"
         );
-        // The assertion line itself names Python, to say it is absent.
+        // The assertion line itself names Python, to say it is absent; the diversion, to remove it.
         let run: String = step["run"]
             .as_str()
             .unwrap_or_default()
             .lines()
-            .filter(|line| !line.contains(assertion))
+            .filter(|line| !line.contains(assertion) && !line.contains(diversion))
             .collect::<Vec<_>>()
             .join("\n");
         for word in ["python", "pip ", "pip3", "uv ", "uv sync", "eval/", ".venv"] {
@@ -1631,6 +1797,51 @@ fn release_job_needs_no_python() {
         containers >= 6,
         "gates, build (Linux), repro (Linux), repro-compare, sbom, publish"
     );
+}
+
+/// Row 15.14 on the Linux build image: the packages are installed, then every `python*` on the
+/// image is diverted off PATH, then the absence is asserted — in that order, in the job's first
+/// step, as its last command. Asserting before the install (the gates' pattern) proves nothing here,
+/// and installing after the diversion could bring an interpreter back.
+#[test]
+fn the_linux_build_diverts_python_after_installing() {
+    let workflow = release_workflow();
+    let steps = workflow["jobs"]["build"]["steps"]
+        .as_sequence()
+        .expect("build steps");
+    let first = steps.first().expect("a first step");
+    assert_eq!(first["if"].as_str(), Some("matrix.os == 'linux'"));
+    let run = first["run"].as_str().expect("a run");
+    let lines: Vec<&str> = run
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
+    let at = |needle: &str| {
+        lines
+            .iter()
+            .position(|l| l.contains(needle))
+            .unwrap_or_else(|| panic!("the first build step has no {needle:?}"))
+    };
+    let install = at("apt-get install");
+    let divert = at("dpkg-divert --local --rename");
+    let assertion = at("command -v python3 || command -v python");
+    assert!(install < divert && divert < assertion, "{run}");
+    assert_eq!(
+        assertion,
+        lines.len() - 1,
+        "the assertion is the step's last command"
+    );
+    assert!(
+        lines[divert].contains("/usr/bin/python*"),
+        "{}",
+        lines[divert]
+    );
+    // Nothing later installs a package again.
+    for step in &steps[1..] {
+        let later = step["run"].as_str().unwrap_or_default();
+        assert!(!later.contains("apt-get install"), "{later}");
+    }
 }
 
 /// Every CI-gate row of the plan's table is a step of the release workflow, named with its row

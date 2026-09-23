@@ -110,6 +110,33 @@ LAST_UPDATED: 2026-09-23
       the 1.0.0 release notes and the release checklist. **Appendix D (v1.0) does not pass** — its
       evaluation is below the Phase 15 section and every open item is in `## Blocked`.)*
 
+## v1.0.0 release run fixes — `fix/release-gates-file`, merged 2026-09-23
+
+Release run 35931356244 (workflow_dispatch, tag v1.0.0) failed four jobs; each fix is in
+`docs/DECISIONS_LOG.md` (2026-09-23, "release run fix" entries). The maintainer re-tags; no tag was
+created, moved or deleted here.
+
+- [x] **Linux build image, row 15.14**: the GTK/WebKit -dev packages bring `/usr/bin/python3`; the
+      first build step now installs, then `dpkg-divert`s every `python*` off PATH, then asserts none
+      is left (last command), so the whole build runs where Python cannot be called —
+      `release_job_needs_no_python`, `the_linux_build_diverts_python_after_installing`
+- [x] **Windows `stage-sidecars`**: the Windows llama.cpp zip has no `LICENSE` (all four assets
+      downloaded and listed); `licenses/llama.cpp.LICENSE.txt` (the MIT text from the Linux archive)
+      is staged when the archive has none, and must equal the archive's where it has one —
+      `the_llama_licence_is_staged_from_the_committed_copy_when_the_archive_has_none` and three more
+- [x] **`bash -e` traps**: `x=$([ … ] && echo .exe)` replaced in release.yml (repro, build); nightly's
+      `echo "X=$(fetch)"` assigns first; jq's CRLF on Windows would have left the installers out of
+      the release artefact silently — stripped, and a name not copied now fails the step
+- [x] **flatpak-lint**: app ID `io.github.egeselbzgyk.OpenConvert` everywhere (maintainer decision),
+      metainfo URLs → the repository, GNOME 51 runtime, the generated sources committed —
+      `the_app_id_is_the_repositorys_code_hosting_id_everywhere`, `flatpak_sources_match_the_lockfiles`;
+      the Flathub linter run here (summary lookups stubbed) is clean on the new manifest and
+      reproduces the run's three errors on the old one
+
+**Still unverified here** (the next release run shows them): the Tauri AppImage bundling and its
+headless smoke test inside `debian:bookworm`, the Windows NSIS/MSI bundling and their 45 MB budget,
+`gh` 2.23 (bookworm) with a draft release, and a real `flatpak-builder` build on GNOME 51.
+
 ## v1.0.0 release preparation — `release/v1.0.0-prep`, merged 2026-09-23
 
 The maintainer's decisions of 2026-09-23, ratified and applied (each in `docs/DECISIONS_LOG.md`; D6 and
@@ -1880,7 +1907,9 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
   overwrite the workspace's engine (P15.1).
 - `.deb`/`.rpm` are not built: Tauri would install `llama-server` and its libraries into the system
   `/usr/bin` (P15.2).
-- The bundle identifier is `io.openconvert.OpenConvert` (was `dev.openconvert.app`) (P15.5).
+- ~~The bundle identifier is `io.openconvert.OpenConvert` (was `dev.openconvert.app`) (P15.5).~~
+  **Resolved by the maintainer (2026-09-23):** the app ID is `io.github.egeselbzgyk.OpenConvert`
+  everywhere (DECISIONS_LOG, "The app ID is io.github.egeselbzgyk.OpenConvert").
 - The updater uses Tauri's format, keys and verifier but fetches through `oc-net`, because
   `tauri-plugin-updater` needs the banned `reqwest`; the alternative is a `deny.toml` wrapper exception
   (P15.7). A check happens only when the user asks.
@@ -1890,6 +1919,13 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 - `release.max_installer_bytes` = 45 000 000 (decimal MB, the stricter reading of D12). *Resolved for
   Linux by the maintainer (2026-09-23): the AppImage has its own 120 MB budget; the 45 MB one (still
   provisional) covers the Windows installers.*
+
+**v1.0.0 release run fixes — provisional decision awaiting maintainer ratification**
+(`docs/DECISIONS_LOG.md` 2026-09-23, "The Flatpak's generated sources are committed; GNOME 51"):
+
+- `packaging/linux/flatpak/{cargo-sources,node-sources}.json` are generated with flatpak-builder-tools
+  and committed (they were named by the manifest but missing), held to the lockfiles by
+  `flatpak_sources_match_the_lockfiles`; a dependency change now also regenerates them.
 
 **Phase 15 part B — provisional decision awaiting maintainer ratification** (`docs/DECISIONS_LOG.md`
 2026-09-23, "Appendix D evaluated"):

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- AppStream metadata for Flathub and software centres (PHASE 15 detail 4). -->
 <component type="desktop-application">
-  <id>io.openconvert.OpenConvert</id>
+  <id>io.github.egeselbzgyk.OpenConvert</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>Apache-2.0</project_license>
   <name>OpenConvert</name>
@@ -18,10 +18,10 @@
       choose to install.
     </p>
   </description>
-  <launchable type="desktop-id">io.openconvert.OpenConvert.desktop</launchable>
-  <url type="homepage">https://github.com/openconvert/openconvert</url>
-  <url type="bugtracker">https://github.com/openconvert/openconvert/issues</url>
-  <developer id="io.openconvert">
+  <launchable type="desktop-id">io.github.egeselbzgyk.OpenConvert.desktop</launchable>
+  <url type="homepage">https://github.com/egeselbzgyk/openconvert</url>
+  <url type="bugtracker">https://github.com/egeselbzgyk/openconvert/issues</url>
+  <developer id="io.github.egeselbzgyk">
     <name>OpenConvert contributors</name>
   </developer>
   <content_rating type="oars-1.1"/>

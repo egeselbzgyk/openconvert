@@ -90,8 +90,8 @@ claim with where it is tested (`docs/SECURITY_TESTING.md` has the full map):
 - Windows: the NSIS installer or the MSI. **They are not code-signed in this release**, so Microsoft
   Defender SmartScreen warns on first run ("More info" → "Run anyway"); `docs/INSTALL.md` explains why.
 - Linux: the AppImage (about 113 MB: it carries its own WebKitGTK), which updates itself when you ask
-  it to. The Flatpak manifest for Flathub is ready; on Flathub it runs without network access (so it
-  cannot download an AI model) and is updated by Flathub.
+  it to. The Flatpak manifest for Flathub (app ID `io.github.egeselbzgyk.OpenConvert`) is ready; on
+  Flathub it runs without network access (so it cannot download an AI model) and is updated by Flathub.
 - macOS: not in this release. A signed and notarized app comes in a later 1.x release; until then
   OpenConvert can be built from source on macOS, unsigned.
 - Every file's SHA-256 is listed at the end of these notes, and the release carries a CycloneDX 1.6
@@ -1745,3 +1745,21 @@ The maintainer's release decisions of 2026-09-23 (`docs/DECISIONS_LOG.md`), appl
   (`the_shipped_updater_key_is_the_maintainers_minisign_key`). `ci-lint --release-branch` is clean.
 - `README.md` rewritten for the public repository; `docs/INSTALL.md`, `docs/RELEASE_CHECKLIST.md`
   and the 1.0.0 notes above say Windows + Linux, and list the known limitations.
+
+## Release run fixes — v1.0.0 (run 35931356244)
+
+The first release run failed four jobs. Fixed on `fix/release-gates-file` (`docs/DECISIONS_LOG.md`,
+2026-09-23):
+
+- **App ID `io.github.egeselbzgyk.OpenConvert`** everywhere (maintainer decision), replacing the
+  provisional `io.openconvert.OpenConvert`: `tauri.conf.json`, the Flatpak manifest (renamed), the
+  AppStream metainfo and desktop entry (renamed), whose homepage and bug tracker are now the
+  repository. The Flatpak runtime is GNOME 51 (48 is end of life), and the generated
+  `cargo-sources.json`/`node-sources.json` it names are committed and checked against the lockfiles.
+- **llama.cpp's MIT licence is always bundled**: the Windows archive has none, so
+  `licenses/llama.cpp.LICENSE.txt` is staged there, and must match the archive's text elsewhere.
+- **The Linux build proves it needs no Python** (D1, row 15.14): the build dependencies bring it, so
+  the job diverts it off PATH before building and asserts it is gone.
+- **Workflow shell fixes**: no command substitution that ends in a false test under `bash -e`; the
+  release artefact step strips jq's CRLF on Windows and fails on any installer it cannot find; the
+  nightly live-model job no longer swallows a failed `fetch-llama-server`.
