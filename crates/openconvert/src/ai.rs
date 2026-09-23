@@ -34,3 +34,28 @@ pub fn heading_edits(edit: &RoleEdit) -> HeadingEdits {
             .collect(),
     }
 }
+
+/// Task 3's edit, in `oc-structure`'s terms.
+pub fn zone_edits(edit: &oc_ai::task::book_structure::ZoneEdit) -> oc_structure::book::ZoneEdits {
+    use oc_ai::task::book_structure::Zone as AiZone;
+    use oc_model::doc::Zone;
+    oc_structure::book::ZoneEdits {
+        labels: edit
+            .labels
+            .iter()
+            .map(|(index, label)| {
+                (
+                    *index,
+                    oc_structure::book::ZoneLabel {
+                        zone: match label.zone {
+                            AiZone::Front => Zone::Front,
+                            AiZone::Body => Zone::Body,
+                            AiZone::Back => Zone::Back,
+                        },
+                        part: label.part,
+                    },
+                )
+            })
+            .collect(),
+    }
+}

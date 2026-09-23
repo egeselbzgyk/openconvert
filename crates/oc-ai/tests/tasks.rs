@@ -18,10 +18,14 @@ use oc_ai::cassette::{record, Cassette, Params, Recording, Replay, STUB_MODEL};
 use oc_ai::digest::hex;
 use oc_ai::gates::schema::gate_response;
 use oc_ai::gates::GateFailure;
+use oc_ai::prompt::v1::book_structure::{BookStructureAnswer, HeadingEntry};
 use oc_ai::prompt::v1::heading_roles::{Align, ClusterSummary, HeadingRolesInput, Probe, Weight};
 use oc_ai::prompt::v1::metadata::{self, MetadataAnswer, MetadataInput, Size, StyledLine};
 use oc_ai::provider::{LlmProvider, LlmRequest, LlmResponse};
 use oc_ai::session::{Asked, Asker, TaskResult, Unasked};
+use oc_ai::task::book_structure::{
+    self as book_structure_task, chunks, validate_structure, BookStructureLimits, Zone,
+};
 use oc_ai::task::heading_roles::{self as roles, Demotion, HeadingRolesLimits, HoldoutProbe};
 use oc_ai::task::metadata::{apply_metadata, validate_metadata, MetadataLimits};
 use oc_ai::task::{InventoryFacts, PreGateFailure};
@@ -97,26 +101,34 @@ fn max_tokens() -> u32 {
 
 /// An [`Asker`] that answers every question with one scripted answer, replayed from its committed
 /// cassette, and counts the questions — so "no call was made" is a number a test reads.
+///
+/// Several answers are given in the order the questions will come; the last one answers any
+/// question after it.
 struct Scripted {
-    fixture: &'static str,
-    answer: String,
+    answers: Vec<(&'static str, String)>,
     calls: usize,
 }
 
 impl Scripted {
     fn new(fixture: &'static str, answer: impl Into<String>) -> Self {
-        Self {
-            fixture,
-            answer: answer.into(),
-            calls: 0,
-        }
+        Self::sequence(vec![(fixture, answer.into())])
+    }
+
+    fn sequence(answers: Vec<(&'static str, String)>) -> Self {
+        Self { answers, calls: 0 }
     }
 }
 
 impl Asker for Scripted {
     fn ask(&mut self, request: &LlmRequest) -> Result<Asked, Unasked> {
+        let (fixture, answer) = self
+            .answers
+            .get(self.calls)
+            .or(self.answers.last())
+            .cloned()
+            .expect("a scripted answer");
         self.calls += 1;
-        let response = replayed(self.fixture, request, &self.answer);
+        let response = replayed(fixture, request, &answer);
         let trace = oc_ai::provider::trace(STUB_MODEL, request, &response.text, true, 0);
         Ok(Asked { response, trace })
     }
@@ -635,4 +647,245 @@ fn the_probe_bound_is_the_grammars() {
         "the grammar admits {max} probes"
     );
     assert!(T.inventory.holdout_min_probes <= max);
+}
+
+// ---------------------------------------------------------------------------
+// Task 3 — book_structure
+// ---------------------------------------------------------------------------
+
+fn structure_limits() -> BookStructureLimits {
+    BookStructureLimits {
+        chunk_headings: usize::try_from(T.llm.book_structure_chunk_headings).unwrap_or(1),
+        chunk_overlap: usize::try_from(T.llm.book_structure_chunk_overlap).unwrap_or_default(),
+    }
+}
+
+fn boundaries(front: u32, parts: &[u32], back: u32) -> BookStructureAnswer {
+    serde_json::from_str(&format!(
+        r#"{{"frontmatter_end_idx":{front},"part_boundaries":{parts:?},"backmatter_start_idx":{back}}}"#
+    ))
+    .expect("an answer")
+}
+
+/// `n` headings of a long reference work: a preface, numbered entries, an index.
+fn reference_work(n: u32) -> Vec<HeadingEntry> {
+    (0..n)
+        .map(|idx| HeadingEntry {
+            idx,
+            text: match idx {
+                0 => "Preface".to_owned(),
+                last if last + 1 == n => "Index".to_owned(),
+                other => format!("Entry {other}"),
+            },
+            page: idx + 1,
+            c: u32::from(idx == 0 || idx + 1 == n),
+        })
+        .collect()
+}
+
+/// Row 10.9. Boundaries are strictly increasing — front ≺ parts ≺ back — and in range, or the
+/// whole answer is refused. `frontmatter_end_idx >= part_boundaries[0]` is refused, the equal
+/// case included (the conservative reading; `docs/DECISIONS_LOG.md` 2026-09-23 says why).
+#[test]
+fn structure_answer_must_be_strictly_increasing() {
+    let n = 20;
+    assert_eq!(validate_structure(&boundaries(2, &[4, 11], 18), n), Ok(()));
+    assert_eq!(
+        validate_structure(&boundaries(0, &[], n), n),
+        Ok(()),
+        "no front, no back"
+    );
+
+    for (answer, what) in [
+        (boundaries(5, &[3, 11], 18), "front after the first part"),
+        (boundaries(4, &[4, 11], 18), "front on the first part"),
+        (boundaries(2, &[11, 4], 18), "parts out of order"),
+        (boundaries(2, &[4, 4], 18), "a part twice"),
+        (boundaries(2, &[4, 18], 18), "a part on the back matter"),
+        (boundaries(9, &[], 9), "no body at all"),
+    ] {
+        assert!(
+            matches!(
+                validate_structure(&answer, n),
+                Err(GateFailure::NotOrdered(_))
+            ),
+            "{what} was admitted"
+        );
+    }
+    assert!(matches!(
+        validate_structure(&boundaries(2, &[4], 21), n),
+        Err(GateFailure::OutOfRange {
+            field: "backmatter_start_idx",
+            ..
+        })
+    ));
+    assert!(matches!(
+        validate_structure(&boundaries(2, &[20], 20), n),
+        Err(GateFailure::OutOfRange {
+            field: "part_boundaries",
+            ..
+        })
+    ));
+    assert_eq!(
+        validate_structure(&boundaries(5, &[3], 18), n).map_err(|failure| failure.code()),
+        Err("S.order")
+    );
+}
+
+/// Row 10.10. 250 headings are asked about in two chunks that overlap by
+/// `llm.book_structure_chunk_overlap`. The first says the back matter is not in its window; the
+/// second puts its start inside the overlap — at a heading the first chunk called body. The two
+/// disagree about a heading both saw, and the chunked answer is rejected whole.
+#[test]
+fn structure_chunking_requires_overlap_agreement() {
+    let limits = structure_limits();
+    let headings = reference_work(250);
+    let windows = chunks(headings.len(), &limits);
+    assert_eq!(windows.len(), 2);
+    let overlap_start = windows[1].start;
+    assert_eq!(windows[0].end - overlap_start, limits.chunk_overlap);
+
+    let mut asker = Scripted::sequence(vec![
+        (
+            "chunk_one_of_two",
+            r#"{"frontmatter_end_idx":1,"part_boundaries":[],"backmatter_start_idx":200}"#
+                .to_owned(),
+        ),
+        (
+            "chunk_two_disagrees",
+            r#"{"frontmatter_end_idx":0,"part_boundaries":[],"backmatter_start_idx":5}"#.to_owned(),
+        ),
+    ]);
+    let result = book_structure_task::run(
+        &mut asker,
+        "en",
+        &headings,
+        windows.len(),
+        &limits,
+        max_tokens(),
+    );
+    assert_eq!(asker.calls, 2, "both chunks were asked");
+    let expected = u32::try_from(overlap_start + 5).unwrap_or_default();
+    assert!(
+        matches!(
+            result,
+            TaskResult::Rejected {
+                failure: GateFailure::OverlapDisagrees { index },
+                ..
+            } if index == expected
+        ),
+        "{result:?}"
+    );
+}
+
+/// The converse: chunks that agree on the overlap stitch into one edit covering every heading,
+/// and a chunk the budget did not grant is not asked — its headings keep the deterministic answer.
+#[test]
+fn agreeing_chunks_stitch_and_ungranted_chunks_are_not_asked() {
+    let limits = structure_limits();
+    // A book one heading longer: another second chunk, so another question and cassette.
+    let headings = reference_work(251);
+
+    let mut asker = Scripted::sequence(vec![
+        (
+            "chunk_one_of_two",
+            r#"{"frontmatter_end_idx":1,"part_boundaries":[],"backmatter_start_idx":200}"#
+                .to_owned(),
+        ),
+        (
+            "chunk_two_agrees",
+            r#"{"frontmatter_end_idx":0,"part_boundaries":[],"backmatter_start_idx":70}"#
+                .to_owned(),
+        ),
+    ]);
+    let TaskResult::Admitted { answer: edit, .. } =
+        book_structure_task::run(&mut asker, "en", &headings, 2, &limits, max_tokens())
+    else {
+        panic!("agreeing chunks were refused");
+    };
+    assert_eq!(edit.labels.len(), 251);
+    assert_eq!(
+        edit.labels.get(&0).map(|label| label.zone),
+        Some(Zone::Front)
+    );
+    assert_eq!(
+        edit.labels.get(&100).map(|label| label.zone),
+        Some(Zone::Body)
+    );
+    assert_eq!(
+        edit.labels.get(&249).map(|label| label.zone),
+        Some(Zone::Body)
+    );
+    assert_eq!(
+        edit.labels.get(&250).map(|label| label.zone),
+        Some(Zone::Back)
+    );
+
+    // One chunk granted: one call, and an edit that covers that chunk only.
+    let mut asker = Scripted::new(
+        "chunk_one_of_two",
+        r#"{"frontmatter_end_idx":1,"part_boundaries":[],"backmatter_start_idx":200}"#,
+    );
+    let TaskResult::Admitted { answer: edit, .. } =
+        book_structure_task::run(&mut asker, "en", &headings, 1, &limits, max_tokens())
+    else {
+        panic!("the first chunk alone was refused");
+    };
+    assert_eq!(asker.calls, 1);
+    assert_eq!(edit.labels.len(), 200);
+    assert!(!edit.labels.contains_key(&250));
+}
+
+/// Row 10.11. The boundary shape bounds the answer whatever the book: for 1 200 headings the
+/// question is asked in chunks of at most `llm.book_structure_chunk_headings`, every request
+/// carries `llm.max_output_tokens_per_call` as its cap, and the **longest answer the grammar
+/// admits** — every index at its widest, every part slot filled — is shorter in bytes than that
+/// cap is in tokens, which bounds it in tokens (a token is at least one byte). The per-item shape
+/// RT A8.4 replaced would not fit: one `{"idx":…,"role":…}` per heading is some thirty thousand
+/// bytes.
+#[test]
+fn structure_output_tokens_bounded_on_1200_headings() {
+    let limits = structure_limits();
+    let headings = reference_work(1200);
+    let cap = u32::try_from(T.llm.max_output_tokens_per_call).unwrap_or_default();
+
+    let windows = chunks(headings.len(), &limits);
+    assert!(windows.len() > 1, "1 200 headings are chunked");
+    for window in &windows {
+        assert!(window.len() <= limits.chunk_headings);
+        let input = book_structure_task::chunk_input("en", &headings, window);
+        let request = oc_ai::prompt::v1::book_structure::request(&input, cap).expect("renders");
+        assert_eq!(request.max_tokens, cap);
+    }
+    assert_eq!(
+        windows.last().map(|window| window.end),
+        Some(1200),
+        "every heading is covered"
+    );
+
+    let grammar = oc_ai::gbnf::Grammar::parse(oc_ai::prompt::v1::book_structure::ARTIFACTS.grammar)
+        .expect("the grammar parses");
+    let widest = format!(
+        r#"{{"frontmatter_end_idx":9999,"part_boundaries":[{}],"backmatter_start_idx":9999}}"#,
+        vec!["9999"; 64].join(",")
+    );
+    assert!(
+        grammar.accepts(&widest),
+        "the widest answer is one the grammar admits"
+    );
+    assert!(
+        !grammar.accepts(&widest.replacen("9999]", "9999,9999]", 1)),
+        "and nothing wider"
+    );
+    assert!(
+        widest.len() < usize::try_from(cap).unwrap_or_default(),
+        "{} bytes against a cap of {cap} tokens",
+        widest.len()
+    );
+
+    let per_item: usize = headings
+        .iter()
+        .map(|heading| format!(r#"{{"idx":{},"role":"chapter"}},"#, heading.idx).len())
+        .sum();
+    assert!(per_item > usize::try_from(cap).unwrap_or_default() * 10);
 }

@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 10
-CURRENT_ITEM: P10.5 — `oc-ai::task::book_structure` (rows 10.9–10.11). Phase 10 is on branch
+CURRENT_ITEM: P10.6 — `oc-ai::task::verse_quote` (rows 10.12, 10.13). Phase 10 is on branch
               `phase/10-ai-decisions`; Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
@@ -177,7 +177,7 @@ Work items, in order, with the plan's test rows against each:
       `EscalationRecord`, in `Conversion` and the report with AI off — rows 10.1, 10.2
 - [x] **P10.3** `oc-ai::task::metadata`: the verbatim-substring check — rows 10.3, 10.4
 - [x] **P10.4** `oc-ai::task::heading_roles`: pre-gate, held-out check, label ≠ deletion — rows 10.5–10.8
-- [ ] **P10.5** `oc-ai::task::book_structure`: boundaries, chunking with overlap — rows 10.9–10.11
+- [x] **P10.5** `oc-ai::task::book_structure`: boundaries, chunking with overlap — rows 10.9–10.11
 - [ ] **P10.6** `oc-ai::task::verse_quote`: counter-evidence, the 30-block cap — rows 10.12, 10.13
 - [ ] **P10.7** the plan: degradation order, language gate, wall-clock meter — rows 10.21, 10.22
 - [ ] **P10.8** `openconvert`: the AI step in the pipeline — rows 10.14, 10.15, 10.20
@@ -1370,3 +1370,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P10.1     oc-structure: the verse band read through oc_core::escalation; --no-ai EPUB hashes pinned (+ 2)  33b00ce
 2026-09-23  P10.2     oc-structure: escalate.rs, EscalationRecord in Conversion and the report (10.1, 10.2 + 2)  d91276e
 2026-09-23  P10.3     oc-ai: task 1, the verbatim-substring check and apply_metadata (10.3, 10.4 + 1)  85f2e3a
+2026-09-23  P10.4     oc-ai: task 2, pre-gate, held-out check, role rules; structure_with (10.5-10.8 + 4)  d8e4567

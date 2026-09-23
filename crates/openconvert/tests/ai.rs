@@ -195,6 +195,7 @@ fn running_head_label_never_deletes_text() {
                 let edit = oc_ai::task::heading_roles::role_edit(&answer, &heading_clusters);
                 let edits = oc_structure::stage::StructureEdits {
                     headings: openconvert::ai::heading_edits(&edit),
+                    ..Default::default()
                 };
                 let after = oc_structure::stage::structure_with(input, &T, &edits);
 

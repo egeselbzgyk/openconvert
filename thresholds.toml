@@ -797,6 +797,20 @@ evidence = "ARCHITECTURE 9.6, task 1: a model's title must be 1-200 characters l
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[llm.book_structure_chunk_headings]
+value = 200
+source = "provisional"
+evidence = "PHASE 10 detail 4 / ARCHITECTURE 9.6 / PIPELINE 9: above 200 headings the book-structure list is chunked with overlap. The design's number, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.book_structure_chunk_overlap]
+value = 20
+source = "provisional"
+evidence = "PHASE 10 detail 4: chunks overlap and must agree on the overlap. The width is invented here - a tenth of a chunk, enough headings to carry a part or back-matter boundary across a seam - and is to be measured on the first reference works converted"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [inventory.max_clusters]
 value = 24
 source = "provisional"

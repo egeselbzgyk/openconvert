@@ -21,7 +21,7 @@ use oc_model::ids::BlockId;
 use oc_model::lang::LangTag;
 use oc_model::text::Run;
 
-use crate::book::{book_structure, FlowItem};
+use crate::book::FlowItem;
 use crate::build::{para_of, Minter};
 use crate::claims::{Claim, ClaimKind, Claimant, Claims};
 use crate::figures::associate_captions;
@@ -338,11 +338,13 @@ fn collect_list(list: &List, out: &mut Vec<String>) {
 pub struct StructureEdits {
     /// Task 2: heading levels and demotions by style cluster.
     pub headings: crate::headings::levels::HeadingEdits,
+    /// Task 3: each heading's zone, by its index among the flow's headings.
+    pub zones: crate::book::ZoneEdits,
 }
 
 impl StructureEdits {
     pub fn is_empty(&self) -> bool {
-        self.headings.is_empty()
+        self.headings.is_empty() && self.zones.is_empty()
     }
 }
 
@@ -733,7 +735,7 @@ pub fn structure_with(
     }
 
     let (sections, book_warnings, book_confidence) =
-        book_structure(&flow, &input.labels, &input.lang, t);
+        crate::book::book_structure_with(&flow, &input.labels, &input.lang, t, &edits.zones);
 
     let mut warnings = Vec::new();
     warnings.extend(inventory.warnings.clone());

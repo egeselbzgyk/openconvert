@@ -3873,3 +3873,33 @@ Evidence: rows 10.5–10.8 and `role_rules_refuse_what_the_design_forbids` in `c
 `running_head_label_never_deletes_text` in `crates/openconvert/tests/ai.rs`.
 Affects: ARCHITECTURE §9.6 task 2, PIPELINE §8.2, `oc-ai::task::heading_roles`,
 `oc-structure::headings::levels`, `oc-structure::stage::structure_with`.
+
+## 2026-09-23 · Task 3: strictly increasing boundaries, local chunk indices, a partial answer · Phase 10
+Context: test 10.9 asserts `frontmatter_end_idx >= part_boundaries[0]` is rejected, and ARCHITECTURE
+§9.6 says "all indices strictly increasing". The frozen v1 prompt defines the front boundary as
+"the index of the first heading after the front matter (0 if there is none)" — an *exclusive* end.
+Under that definition a book whose body opens with a part answers `front == parts[0]` correctly.
+Decisions:
+1. **PROVISIONAL — needs maintainer ratification:** the rule is strict, as the test and
+   ARCHITECTURE state it, equality included. A book whose body opens with a part has its correct
+   answer refused (`S.order`) and keeps the deterministic structure — a lost improvement, never a
+   wrong edit. Two ways out, both outside this phase: ratify `front ≤ parts[0]`, or a v2 prompt
+   whose front boundary is the last front-matter heading.
+2. **Each chunk is its own question with indices from zero**, as the prompt's "0 if there is
+   none" and "the number of headings if there is none" read; the answer is mapped back to global
+   indices before stitching. Global indices in a middle chunk would make both conventions
+   ambiguous.
+3. **Stitching compares per-heading places** — zone and part flag — over every heading two chunks
+   both saw; one difference rejects the whole answer (`S.overlap`, test 10.10). The stitched zones
+   must still run front, body, back (`S.order`).
+4. **A chunk the call budget did not grant is not asked**, and the headings only it covered keep
+   the deterministic zones (the degradation order drops "`book_structure` chunks beyond the first",
+   D13.6). The first chunk's answer is still applied to the headings it saw.
+5. **The edit is a zone and a part flag per heading** (`oc_structure::book::ZoneEdits`), applied by
+   `book_structure_with` on the same headings at the same levels; a heading the numbering reads as
+   `Part` stays a part whatever the label says.
+New thresholds: `llm.book_structure_chunk_headings` (200, the design's) and
+`llm.book_structure_chunk_overlap` (20, invented).
+Evidence: rows 10.9–10.11, `agreeing_chunks_stitch_and_ungranted_chunks_are_not_asked`,
+`zone_labels_place_the_headings_they_cover`.
+Affects: ARCHITECTURE §9.6 task 3, PIPELINE §9, `oc-ai::task::book_structure`, `oc-structure::book`.
