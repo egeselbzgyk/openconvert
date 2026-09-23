@@ -319,6 +319,19 @@ def manifest_entry(spec: ScanSpec, pdf: bytes, pages: int) -> dict[str, Any]:
     }
 
 
+def merge_manifest_files(
+    existing: list[dict[str, Any]], entries: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Replace or add `entries` among `existing`, in the manifest's one order: sorted by id.
+
+    `xtask fixtures` and `manifest.dump` sort the same way, so whichever writer ran last the
+    file is byte-identical — CI runs two of them in a row and then checks the tree is clean.
+    """
+    ids = {entry["id"] for entry in entries}
+    kept = [entry for entry in existing if entry["id"] not in ids]
+    return sorted(kept + entries, key=lambda entry: str(entry["id"]))
+
+
 def scanned_fixtures(*, check: bool = False) -> list[str]:
     """Write (or, with `check`, compare) every scanned fixture.
 
@@ -349,9 +362,7 @@ def scanned_fixtures(*, check: bool = False) -> list[str]:
         entries.append(manifest_entry(spec, pdf, pages))
 
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    ids = {entry["id"] for entry in entries}
-    kept = [entry for entry in manifest["files"] if entry["id"] not in ids]
-    manifest["files"] = kept + entries
+    manifest["files"] = merge_manifest_files(manifest["files"], entries)
     rendered = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
     if MANIFEST.read_text(encoding="utf-8") != rendered:
         changed.append(str(MANIFEST.relative_to(REPO_ROOT)))
