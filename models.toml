@@ -20,6 +20,7 @@ size_bytes    = 0                               # filled at Phase 9
 context       = 8192
 parallel      = 1
 min_ram_bytes = 3221225472
+cpu_expectation = "moderate"                    # UI_UX §2's words; G4 measures it on machine L
 thinking_off  = { chat_template_kwargs = { enable_thinking = false }, prompt_suffix = "/no_think" }
 prompt_profile = "qwen3-chatml"
 cache_reuse   = true                            # dense: KV shifting works (RT A3)
@@ -40,6 +41,7 @@ size_bytes = 0
 context = 8192
 parallel = 1
 min_ram_bytes = 1610612736
+cpu_expectation = "fast"
 thinking_off  = { chat_template_kwargs = { enable_thinking = false }, prompt_suffix = "/no_think" }
 prompt_profile = "qwen3-chatml"
 cache_reuse = true
@@ -60,6 +62,7 @@ size_bytes = 0
 context = 8192
 parallel = 1
 min_ram_bytes = 6442450944
+cpu_expectation = "slower, higher quality"
 thinking_off  = { chat_template_kwargs = { enable_thinking = false }, prompt_suffix = "/no_think" }
 prompt_profile = "qwen3-chatml"
 cache_reuse = true
@@ -81,6 +84,7 @@ size_bytes = 1288490188   # ~1.28 GB per V1 §1
 context = 8192
 parallel = 1
 min_ram_bytes = 3221225472
+cpu_expectation = "not yet measured"
 thinking_off  = { chat_template_kwargs = { enable_thinking = false } }
 prompt_profile = "qwen3-chatml"
 cache_reuse   = false                           # RT A3: recurrent layers cannot be KV-shifted

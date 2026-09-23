@@ -80,6 +80,10 @@ pub const CODES: &[WarningSpec] = &[
         args: &["task", "calls"],
     },
     WarningSpec {
+        code: "W_LLM_PREFIX_COLD",
+        args: &["call", "task"],
+    },
+    WarningSpec {
         code: "W_LOW_RETENTION",
         args: &["retention", "floor"],
     },

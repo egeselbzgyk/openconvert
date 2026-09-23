@@ -175,13 +175,18 @@ jobs:
         run: |
           sudo unshare -n -- sudo -u "$USER" env "PATH=$PATH" \
             cargo nextest run -p oc-ai --locked
-      # `xtask assert-no-net-deps` does not exist yet. Until it does, the socket ban is
-      # enforced by `deny.toml`'s `wrappers` rule in the `deny` job, which is a build-time
-      # property and not a weaker one. Phase 14 (security hardening) owns the task and turns
-      # this step on.
+      # Row 9.7: `oc-core` — the conversion path — cannot reach a socket crate. The test walks
+      # Cargo.lock on every platform; this is the same claim in the form the plan states it,
+      # `cargo tree -p oc-core -i ureq` printing nothing. `cargo tree -i` exits non-zero when the
+      # package is absent from the graph, so the check is on its output, not its status.
       - name: assert oc-core cannot reach a socket crate
-        if: false
-        run: cargo run -p xtask -- assert-no-net-deps
+        run: |
+          cargo nextest run -p oc-core --locked -E 'test(oc_core_has_no_net_dependency)'
+          for crate in ureq rustls oc-net; do
+            if cargo tree -p oc-core --locked -e normal,build -i "$crate" 2>/dev/null | grep -q .; then
+              echo "oc-core reaches $crate"; exit 1
+            fi
+          done
 
   poppler-oracle:                                      # D15: CI-only oracle, never shipped
     runs-on: ubuntu-latest

@@ -74,6 +74,10 @@ pub struct LlmResponse {
     pub tokens_out: u32,
     /// Whether the answer came from the cache or a cassette rather than from a model.
     pub cached: bool,
+    /// How many prompt tokens the server found already in its KV cache — `llama-server` reports
+    /// it as `timings.cache_n`, and OpenAI-compatible servers as
+    /// `usage.prompt_tokens_details.cached_tokens`. `None` when the reply says neither.
+    pub cached_tokens: Option<u32>,
     /// Why the model stopped: `stop` at the end of an answer, `length` when `max_tokens` cut it
     /// off — in which case gate S will find it unparseable.
     pub finish_reason: Option<String>,

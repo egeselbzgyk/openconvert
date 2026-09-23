@@ -143,6 +143,18 @@ impl<T: Transport> LlmProvider for OpenAiCompatible<T> {
 struct Completion {
     choices: Vec<Choice>,
     usage: Option<Usage>,
+    /// llama-server's own per-request timings, where `cache_n` is the prompt tokens it reused.
+    timings: Option<Timings>,
+}
+
+#[derive(Deserialize)]
+struct Timings {
+    cache_n: Option<u32>,
+}
+
+#[derive(Deserialize)]
+struct PromptTokensDetails {
+    cached_tokens: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -161,6 +173,7 @@ struct Message {
 struct Usage {
     prompt_tokens: u32,
     completion_tokens: u32,
+    prompt_tokens_details: Option<PromptTokensDetails>,
 }
 
 /// A chat completion's first choice, as a response. An absent `content` is an empty answer —
@@ -174,6 +187,16 @@ fn read_completion(reply: &str) -> Result<LlmResponse, LlmError> {
             "the completion has no choices".to_owned(),
         ));
     };
+    let cached_tokens = completion
+        .timings
+        .and_then(|timings| timings.cache_n)
+        .or_else(|| {
+            completion
+                .usage
+                .as_ref()
+                .and_then(|usage| usage.prompt_tokens_details.as_ref())
+                .and_then(|details| details.cached_tokens)
+        });
     let (tokens_in, tokens_out) = completion.usage.map_or((0, 0), |usage| {
         (usage.prompt_tokens, usage.completion_tokens)
     });
@@ -186,6 +209,7 @@ fn read_completion(reply: &str) -> Result<LlmResponse, LlmError> {
         tokens_in,
         tokens_out,
         cached: false,
+        cached_tokens,
         finish_reason: choice.finish_reason,
     })
 }

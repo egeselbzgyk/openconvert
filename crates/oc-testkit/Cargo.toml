@@ -8,9 +8,33 @@ repository.workspace   = true
 description  = "Test-only: fixture builders, assertion runner, structural digest, stub LLM server"
 publish      = false
 
+# The stub llama-server and the minimal engine that drives `oc_core::sidecar` in the lifecycle tests
+# (PHASE 9 rows 9.8–9.13). This crate is dev-only and never shipped, and `CARGO_BIN_EXE_*` is only
+# visible to this package's own tests, which is why the sidecar tests live here.
+[[bin]]
+name = "oc-stub-llama-server"
+path = "src/bin/oc-stub-llama-server.rs"
+test = false
+
+[[bin]]
+name = "oc-sidecar-engine"
+path = "src/bin/oc-sidecar-engine.rs"
+test = false
+
+[features]
+default = []
+# Rows 9.15 and 9.16 need a real llama-server and a real model, named by `OC_LLAMA_SERVER` and
+# `OC_LIVE_MODEL`. Gated rather than ignored (§0.2): the nightly `live-llm-cassette-refresh` job turns
+# it on, and a developer with a model can too. With the feature on and either variable unset, the
+# tests fail — a live test that quietly passes without a model is not a live test.
+live-llm = []
+
 [dependencies]
 oc-model = { path = "../oc-model", version = "0.1.0" }
 oc-core = { path = "../oc-core", version = "0.1.0" }
+oc-net = { path = "../oc-net", version = "0.1.0" }
+oc-ai = { path = "../oc-ai", version = "0.1.0" }
+secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

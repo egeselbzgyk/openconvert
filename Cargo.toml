@@ -62,8 +62,20 @@ tauri-build        = "2"
 tauri-plugin-shell = "2"
 # --- parallelism / process ---
 rayon = "1"
+# The sidecar supervisor (PHASE 9 detail 5). `ctrlc` is one safe API over SIGINT/SIGTERM and the
+# Windows console-ctrl handler; `getrandom` is the CSPRNG the per-run key comes from.
+ctrlc     = { version = "3.5", features = ["termination"] }
+getrandom = "0.3"
 # --- net (oc-net only) ---
-ureq = { version = "3", features = ["rustls"] }
+# TLS roots come from the platform verifier, not `webpki-roots`: that crate is CDLA-Permissive-2.0,
+# which D15's allow-list does not name (docs/DECISIONS_LOG.md, 2026-09-09 and Phase 9). `rustls`
+# is named beside `ureq` only to pick its crypto provider, `ring`, without reaching for ureq's
+# private `_ring` feature.
+ureq   = { version = "3", default-features = false, features = ["rustls-no-provider", "platform-verifier"] }
+# A key read from `--llm-api-key-file`, or minted per run for the sidecar: zeroed on drop and
+# redacted from `Debug`, so it cannot reach a log line by accident (PHASE 9 detail 3).
+secrecy = "0.10"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 # --- fixtures (xtask only; never shipped) ---
 # Typst-sourced fixtures are compiled in-process so regeneration needs no external tool
 # (DECISIONS.md Appendix A, TEST_CORPUS 6.1). Pinned exactly: a Typst bump changes fixture

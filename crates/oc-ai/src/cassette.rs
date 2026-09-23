@@ -303,6 +303,7 @@ impl LlmProvider for Replay {
             tokens_in: cassette.response.tokens_in,
             tokens_out: cassette.response.tokens_out,
             cached: true,
+            cached_tokens: None,
             finish_reason: cassette.response.finish_reason,
         })
     }

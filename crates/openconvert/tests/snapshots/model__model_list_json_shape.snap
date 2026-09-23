@@ -1,0 +1,33 @@
+---
+source: crates/openconvert/tests/model.rs
+assertion_line: 116
+expression: value
+---
+[
+  {
+    "id": "tiny-default",
+    "display_name": "Tiny default",
+    "tier": "default",
+    "is_default": true,
+    "installed": true,
+    "size_bytes": 1000,
+    "ram_estimate_bytes": 3221225472,
+    "cpu_expectation": "moderate",
+    "license": "Apache-2.0",
+    "license_path": "[store]/tiny-default/LICENSE",
+    "warn": null
+  },
+  {
+    "id": "tiny-experimental",
+    "display_name": "Tiny experimental",
+    "tier": "experimental",
+    "is_default": false,
+    "installed": false,
+    "size_bytes": 2000,
+    "ram_estimate_bytes": 1610612736,
+    "cpu_expectation": "not yet measured on the reference machines",
+    "license": "Apache-2.0",
+    "license_path": null,
+    "warn": "Experimental."
+  }
+]
