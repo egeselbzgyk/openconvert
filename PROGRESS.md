@@ -211,7 +211,7 @@ Work items, in order, with the plan's test rows against each:
       `QueueRow`/`StageList`/`ProgressBar`/`Spinner`/`BlockingError`. The UI's numbers arrive
       from `thresholds.toml` through the `ui_config` command; component tests drive `App` through
       `test/fake-backend.ts`
-- [ ] **P12.8** the screens, in six commits:
+- [x] **P12.8** the screens, in seven commits:
   - [x] **P12.8a** route `queue`: DropZone (full, strip, drag-over all-PDF / mixed, "Select PDF…"
         through the native picker — `pick_pdfs`, `tauri-plugin-dialog` called from Rust only),
         PrivacyNote, QueueList (roving tabindex, ↑/↓/Home/End, Delete), "Remove all waiting…"
@@ -248,7 +248,12 @@ Work items, in order, with the plan's test rows against each:
         the handshake and OS/arch/cores — never the PDF, the EPUB, settings or keys; review screen
         (result.html §4); offered on the result panel, failed rows, the blocking screen and
         Settings › About "Report a problem…" (+ 1 Rust, 2 UI tests)
-  - [ ] **P12.8g** the locked-PDF row: inline password, used for one job, never saved
+  - [x] **P12.8g** the locked-PDF row (`E_PASSWORD_REQUIRED`): an inline password field on the
+        row, "Used for this job only, never saved."; Unlock replaces the row with a new job that
+        holds the password in memory until its engine starts, which gets it in its environment
+        (`OC_PDF_PASSWORD`) — never in the spec, on the command line or on disk; a second failure
+        says the password did not open it. The engine's job-spec form reads the password from
+        `password_file` or that variable (+ 1 engine, 2 Rust, 1 UI test)
 - [ ] **P12.9** metadata and TOC overrides — rows 12.10, 12.11
 - [ ] **P12.10** Playwright under the shipped CSP — rows 12.14 (keyboard), 12.15, 12.16
 - [ ] **P12.11** CI wiring, the signing dry-run workflow (row 12.14 signing, unverified here)

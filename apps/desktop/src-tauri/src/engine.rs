@@ -59,6 +59,9 @@ pub enum UiError {
     IrMismatch { engine: u64, app: u64 },
     #[error("no job {0}")]
     UnknownJob(String),
+    /// A job that has not finished cannot be started again.
+    #[error("job {0} has not finished")]
+    JobBusy(String),
 }
 
 impl From<std::io::Error> for UiError {
@@ -73,8 +76,19 @@ pub type LineSink = Box<dyn FnMut(String) + Send + 'static>;
 /// Something that can start the engine on a spec. [`ProcessLauncher`] in the app; a recording
 /// double in the tests that must prove a spawn did *not* happen.
 pub trait Launch: Send + Sync {
-    fn launch(&self, spec: &Path, on_line: LineSink) -> Result<Box<dyn Running>, UiError>;
+    /// Start the engine on `spec`. `password`, when given, is for this one run: it reaches the
+    /// engine in its environment (`OC_PDF_PASSWORD`, D13.11) — never in the spec, never on the
+    /// command line, never on disk.
+    fn launch(
+        &self,
+        spec: &Path,
+        password: Option<&str>,
+        on_line: LineSink,
+    ) -> Result<Box<dyn Running>, UiError>;
 }
+
+/// The variable a password reaches the engine in (D13.11).
+pub const PASSWORD_VAR: &str = "OC_PDF_PASSWORD";
 
 /// One running engine, as its supervisor sees it.
 pub trait Running: Send {
@@ -106,12 +120,13 @@ impl<L: Launch> Engine<L> {
         &self,
         job_id: &str,
         spec: &JobSpec,
+        password: Option<&str>,
         on_line: LineSink,
     ) -> Result<Box<dyn Running>, UiError> {
         spec.validate()
             .map_err(|error| UiError::InvalidJobSpec(error.to_string()))?;
         let path = write_spec(&self.jobs_dir, job_id, spec)?;
-        self.launcher.launch(&path, on_line)
+        self.launcher.launch(&path, password, on_line)
     }
 }
 
@@ -151,7 +166,7 @@ impl ProcessLauncher {
 
     /// The command that runs `spec`: the engine and **one argument**, the spec's path, which must
     /// be inside the job directory (RT B15).
-    pub fn command(&self, spec: &Path) -> Result<Command, UiError> {
+    pub fn command(&self, spec: &Path, password: Option<&str>) -> Result<Command, UiError> {
         if !is_inside(&self.jobs_dir, spec) {
             return Err(UiError::OutsideJobsDir(spec.display().to_string()));
         }
@@ -161,6 +176,12 @@ impl ProcessLauncher {
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::piped());
+        // Only the job the user unlocked gets a password; every other job gets none, not even one
+        // the app itself happened to inherit.
+        match password {
+            Some(password) => command.env(PASSWORD_VAR, password),
+            None => command.env_remove(PASSWORD_VAR),
+        };
         #[cfg(unix)]
         {
             use std::os::unix::process::CommandExt;
@@ -177,8 +198,13 @@ impl ProcessLauncher {
 }
 
 impl Launch for ProcessLauncher {
-    fn launch(&self, spec: &Path, on_line: LineSink) -> Result<Box<dyn Running>, UiError> {
-        let mut child = self.command(spec)?.spawn()?;
+    fn launch(
+        &self,
+        spec: &Path,
+        password: Option<&str>,
+        on_line: LineSink,
+    ) -> Result<Box<dyn Running>, UiError> {
+        let mut child = self.command(spec, password)?.spawn()?;
         let stdin = child.stdin.take();
         let reader = child
             .stderr
@@ -372,7 +398,12 @@ mod tests {
     struct Recorder(Arc<Mutex<Vec<PathBuf>>>);
 
     impl Launch for Recorder {
-        fn launch(&self, spec: &Path, _on_line: LineSink) -> Result<Box<dyn Running>, UiError> {
+        fn launch(
+            &self,
+            spec: &Path,
+            _password: Option<&str>,
+            _on_line: LineSink,
+        ) -> Result<Box<dyn Running>, UiError> {
             self.0
                 .lock()
                 .expect("not poisoned")
@@ -394,7 +425,7 @@ mod tests {
 
         let launcher =
             ProcessLauncher::new("/opt/openconvert/openconvert".into(), dirs.jobs.clone());
-        let command = launcher.command(&spec_path).expect("a command");
+        let command = launcher.command(&spec_path, None).expect("a command");
         let args: Vec<PathBuf> = command.get_args().map(PathBuf::from).collect();
         assert_eq!(args.len(), 1, "exactly one argument: {args:?}");
         assert_eq!(args[0], spec_path);
@@ -403,7 +434,7 @@ mod tests {
         // And a spec anywhere else is not launched at all.
         let elsewhere = std::env::temp_dir().join("oc-desktop-elsewhere.json");
         assert!(matches!(
-            launcher.command(&elsewhere),
+            launcher.command(&elsewhere, None),
             Err(UiError::OutsideJobsDir(_))
         ));
     }
@@ -425,7 +456,7 @@ mod tests {
         bad_id.job_id = Some("../../etc".to_owned());
 
         for invalid in [remote, bad_id] {
-            let result = engine.start("job-1", &invalid, Box::new(|_| {}));
+            let result = engine.start("job-1", &invalid, None, Box::new(|_| {}));
             assert!(
                 matches!(result, Err(UiError::InvalidJobSpec(_))),
                 "refused as invalid"
@@ -443,8 +474,38 @@ mod tests {
 
         // The converse, so the test cannot pass by refusing everything.
         let valid = JobSpec::new("/in/book.pdf".into(), "/out/book.epub".into());
-        let _ = engine.start("job-2", &valid, Box::new(|_| {}));
+        let _ = engine.start("job-2", &valid, None, Box::new(|_| {}));
         assert_eq!(recorder.0.lock().expect("not poisoned").len(), 1);
+    }
+
+    /// D13.11 — a password the user typed reaches the engine in its environment for that one job,
+    /// and nowhere else: not an argument, not the spec on disk.
+    #[test]
+    fn a_password_travels_in_the_environment_only() {
+        let dirs = scratch("password");
+        let spec = JobSpec::new("/in/locked.pdf".into(), "/out/locked.epub".into());
+        let path = write_spec(&dirs.jobs, "job-1", &spec).expect("written");
+        let launcher =
+            ProcessLauncher::new("/opt/openconvert/openconvert".into(), dirs.jobs.clone());
+
+        let unlocked = launcher
+            .command(&path, Some("hunter22"))
+            .expect("a command");
+        assert_eq!(unlocked.get_args().count(), 1, "still exactly one argument");
+        assert!(unlocked
+            .get_envs()
+            .any(|(key, value)| key == PASSWORD_VAR && value == Some("hunter22".as_ref())));
+        assert!(!std::fs::read_to_string(&path)
+            .expect("reads")
+            .contains("hunter22"));
+
+        let ordinary = launcher.command(&path, None).expect("a command");
+        assert!(
+            ordinary
+                .get_envs()
+                .any(|(key, value)| key == PASSWORD_VAR && value.is_none()),
+            "an inherited password is removed from every other job"
+        );
     }
 
     #[test]

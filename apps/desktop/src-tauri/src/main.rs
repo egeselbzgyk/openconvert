@@ -123,6 +123,17 @@ async fn pick_pdfs(app: AppHandle) -> Result<Vec<PathBuf>, UiError> {
         .collect())
 }
 
+/// "Unlock" on a password-protected row: convert that PDF again with the password typed there,
+/// for that one job (design decision 13).
+#[tauri::command]
+fn unlock(
+    job: String,
+    password: String,
+    queue: tauri::State<'_, Queue>,
+) -> Result<String, UiError> {
+    with_queue(&queue, |queue| queue.unlock(&job, password))
+}
+
 #[tauri::command]
 fn cancel(job: String, queue: tauri::State<'_, Queue>) -> Result<(), UiError> {
     with_queue(&queue, |queue| queue.cancel(&job, Instant::now()))
@@ -399,6 +410,7 @@ fn main() {
             quit,
             enqueue,
             pick_pdfs,
+            unlock,
             cancel,
             remove,
             queue_rows,

@@ -23,6 +23,9 @@ use crate::cmd_convert::{hello, run_job, ConvertJob, E_PDFIUM};
 /// Every refusal of the spec itself, whatever the reason (§2.2).
 pub const E_JOBSPEC: &str = "E_JOBSPEC";
 
+/// The environment variable a password may arrive in (D13.11).
+const PASSWORD_VAR: &str = "OC_PDF_PASSWORD";
+
 /// Run one job spec, returning the process exit code.
 pub fn run<W: Write + Send>(path: &Path, events: &EventSink<W>) -> ExitCode {
     let backend = match PdfiumBackend::bind() {
@@ -80,9 +83,13 @@ pub fn resolve(spec: &JobSpec) -> Result<ConvertJob, String> {
         return Err(unsupported("overrides_path"));
     }
 
+    // A password comes from a file the spec names, or from `OC_PDF_PASSWORD` — the same variable
+    // `convert` reads (D13.11) — and never from the spec itself or the command line, where anything
+    // that can list processes or read the job directory would see it. The desktop app uses the
+    // variable for the one job a user unlocks, so the password never touches the disk.
     let password = match &spec.input.password_file {
         Some(file) => Some(read_password(file)?),
-        None => None,
+        None => std::env::var(PASSWORD_VAR).ok(),
     };
 
     let mut limits = Limits::default();

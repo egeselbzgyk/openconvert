@@ -48,6 +48,8 @@ export type JobView = {
   input: string;
   output: string;
   renamed: boolean;
+  /** This run was given the password typed on the row (never the password itself). */
+  unlocked: boolean;
 } & QueueState;
 
 export type Phase = "queued" | "running" | "cancelling" | "cancelled" | "complete" | "failed";
@@ -65,6 +67,8 @@ export interface Row {
   input: string;
   output: string;
   renamed: boolean;
+  /** This run was given a password, so a password failure means that password was wrong. */
+  unlocked: boolean;
   phase: Phase;
   /** Waiting position, the running job counted as #1 (design decision 6). */
   position: number | null;
@@ -103,6 +107,7 @@ export function newRow(view: JobView): Row {
       input: view.input,
       output: view.output,
       renamed: view.renamed,
+      unlocked: view.unlocked,
       phase: "queued",
       position: null,
       current: null,
@@ -127,7 +132,13 @@ export function newRow(view: JobView): Row {
 
 /** The queue's state change, folded in. The engine's own events win where both speak. */
 export function applyView(row: Row, view: JobView): Row {
-  const next: Row = { ...row, input: view.input, output: view.output, renamed: view.renamed };
+  const next: Row = {
+    ...row,
+    input: view.input,
+    output: view.output,
+    renamed: view.renamed,
+    unlocked: view.unlocked,
+  };
   switch (view.state) {
     case "queued":
       return { ...next, phase: "queued", position: view.position };

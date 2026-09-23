@@ -21,7 +21,7 @@ describe("diagnostic bundle", () => {
     backend.reports.set("job-1", f08 as unknown as Report);
     app = mount(App, { target: document.body, props: { backend, clock: () => 0 } });
     await settle();
-    backend.change({ id: "job-1", input: "/b/a.pdf", output: "/b/a.epub", renamed: false, state: "running" });
+    backend.change({ id: "job-1", input: "/b/a.pdf", output: "/b/a.epub", renamed: false, unlocked: false, state: "running" });
     backend.line("job-1", { t: "done", status: "ok", report_path: "/b/a.epub.report.json" });
     await settle();
     flushSync();

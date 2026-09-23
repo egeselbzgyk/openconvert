@@ -25,6 +25,7 @@
     ondetails,
     onpreview,
     onexport,
+    onunlock = () => undefined,
     onpage = null,
   }: {
     store: JobStore;
@@ -40,6 +41,7 @@
     ondetails: (id: string) => void;
     onpreview: (id: string) => void;
     onexport: (id: string) => void;
+    onunlock?: (id: string, password: string) => void;
     onpage?: ((id: string, page: string) => void) | null;
   } = $props();
 
@@ -54,7 +56,7 @@
   {:else}
     <QueueList rows={store.rows} onremoveall={() => (confirming = true)}>
       {#snippet row(row: Row, active: boolean)}
-        <QueueRow {row} {active} now={store.now} {oncancel} {onremove} {onretry} {ontoggle} {onopen} {onshow} {ondetails} {onpreview} {onexport} {onpage} />
+        <QueueRow {row} {active} now={store.now} {oncancel} {onremove} {onretry} {ontoggle} {onopen} {onshow} {ondetails} {onpreview} {onexport} {onunlock} {onpage} />
       {/snippet}
     </QueueList>
   {/if}

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../App.svelte";
 import { CONFIG, FakeBackend, settle } from "../test/fake-backend";
 
-const job = { id: "job-1", input: "/books/moby-dick.pdf", output: "/books/moby-dick.epub", renamed: false };
+const job = { id: "job-1", input: "/books/moby-dick.pdf", output: "/books/moby-dick.epub", renamed: false, unlocked: false };
 
 let app: ReturnType<typeof mount> | null = null;
 afterEach(() => {

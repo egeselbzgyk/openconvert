@@ -64,6 +64,7 @@ fn cancel_reaches_done_cancelled_and_cleans_temp() {
         .start(
             "job-cancel",
             &spec,
+            None,
             Box::new(move |line| {
                 let _ = lines.send(line);
             }),

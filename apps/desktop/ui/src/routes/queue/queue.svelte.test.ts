@@ -61,6 +61,7 @@ describe("queue route", () => {
         input: `/b/${name}.pdf`,
         output: `/b/${name}.epub`,
         renamed: false,
+        unlocked: false,
         ...(index === 0 ? { state: "running" as const } : { state: "queued" as const, position: index + 1 }),
       });
     }
@@ -80,7 +81,7 @@ describe("queue route", () => {
     expect(backend.calls).toContainEqual(["remove", "job-2"]);
     expect(status()).toContain("b.pdf removed.");
 
-    backend.change({ id: "job-4", input: "/b/d.pdf", output: "/b/d.epub", renamed: false, state: "queued", position: 3 });
+    backend.change({ id: "job-4", input: "/b/d.pdf", output: "/b/d.epub", renamed: false, unlocked: false, state: "queued", position: 3 });
     flushSync();
     const bulk = [...document.querySelectorAll("button")].find((b) => b.textContent === "Remove all waiting…");
     bulk?.click();
@@ -88,5 +89,51 @@ describe("queue route", () => {
     const dialog = document.querySelector('[role="dialog"]');
     expect(dialog?.textContent).toContain("Remove 2 waiting files from the queue?");
     expect(document.activeElement?.textContent, "opens on the safe button").toBe("Cancel");
+  });
+
+  it("a locked PDF asks for its password on the row, hands it over once, and says when it was wrong", async () => {
+    const backend = await start();
+    const locked = { id: "job-1", input: "/b/annual-report-locked.pdf", output: "/b/annual-report-locked.epub", renamed: false };
+    backend.change({ ...locked, unlocked: false, state: "running" });
+    backend.line("job-1", { t: "fatal", code: "E_PASSWORD_REQUIRED", message: "the PDF needs a password" });
+    backend.change({ ...locked, unlocked: false, state: "exited", code: 2 });
+    flushSync();
+
+    const row = () => document.querySelector<HTMLElement>(".oc-queue > li");
+    const field = () => document.querySelector<HTMLInputElement>('input[type="password"]');
+    const button = () => row()?.querySelector<HTMLButtonElement>('button[type="submit"]');
+    expect(row()?.textContent).toContain("This PDF is password-protected.");
+    expect(row()?.textContent).toContain("An empty password was tried first.");
+    expect(row()?.textContent).not.toContain("Export diagnostic bundle");
+    const label = document.querySelector(`label[for="${field()?.id}"]`);
+    expect(label?.textContent).toBe("Password for annual-report-locked.pdf");
+    expect(row()?.textContent).toContain("Used for this job only, never saved.");
+    expect(button()?.disabled, "an empty password was already tried").toBe(true);
+
+    const input = field() as HTMLInputElement;
+    input.value = "hunter22";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    flushSync();
+    expect(button()?.disabled).toBe(false);
+    button()?.click();
+    await settle();
+    flushSync();
+
+    expect(backend.unlocked).toEqual([["job-1", "hunter22"]]);
+    expect(backend.calls.some(([, arg]) => JSON.stringify(arg).includes("hunter22")), "only unlock carries it").toBe(false);
+    const rows = [...document.querySelectorAll<HTMLElement>(".oc-queue > li")];
+    expect(rows.map((item) => item.dataset.job), "the locked row is replaced").toEqual(["job-1-unlocked"]);
+    expect(document.activeElement, "focus follows the new job").toBe(rows[0]);
+    expect(field(), "no password field while it converts").toBeNull();
+
+    // The typed password did not open it either: the field comes back, marked, with the reason.
+    backend.line("job-1-unlocked", { t: "fatal", code: "E_PASSWORD_REQUIRED", message: "the PDF needs a password" });
+    backend.change({ ...locked, id: "job-1-unlocked", unlocked: true, state: "exited", code: 2 });
+    flushSync();
+    expect(field()?.value, "nothing typed is kept").toBe("");
+    expect(field()?.getAttribute("aria-invalid")).toBe("true");
+    const error = document.getElementById(field()?.getAttribute("aria-describedby") ?? "");
+    expect(error?.textContent).toBe("That password didn't open the file. Try again.");
+    expect(row()?.textContent).not.toContain("An empty password was tried first.");
   });
 });

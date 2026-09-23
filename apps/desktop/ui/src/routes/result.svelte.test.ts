@@ -16,7 +16,7 @@ afterEach(() => {
   setLanguage("en");
 });
 
-const job = { id: "job-1", input: "/books/f08_footnotes.pdf", output: "/books/f08_footnotes.epub", renamed: false };
+const job = { id: "job-1", input: "/books/f08_footnotes.pdf", output: "/books/f08_footnotes.epub", renamed: false, unlocked: false };
 
 /** Run a job to completion through the fake backend, with a real engine report. */
 async function complete(report: Report, language: "en" | "de" | "tr" = "en", backend = new FakeBackend()) {

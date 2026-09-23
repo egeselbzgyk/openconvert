@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Event } from "./events";
 import { applyEvent, applyView, checkHeartbeat, newRow, stepState, type Row } from "./jobstate";
 
-const view = { id: "job-1", input: "/b/book.pdf", output: "/b/book.epub", renamed: false };
+const view = { id: "job-1", input: "/b/book.pdf", output: "/b/book.epub", renamed: false, unlocked: false };
 
 function event(e: Record<string, unknown>): Event {
   return { v: 1, seq: 0, ts_ms: 0, ...e } as Event;

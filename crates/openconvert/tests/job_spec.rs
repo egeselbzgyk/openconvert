@@ -195,3 +195,43 @@ fn version_answers_the_handshake_with_hello() {
     assert_eq!(hello["t"], "hello");
     assert_eq!(hello["engine_version"], env!("CARGO_PKG_VERSION"));
 }
+
+/// D13.11: a job spec never carries a password. It comes from a file the spec names or from
+/// `OC_PDF_PASSWORD`, which is how the desktop app passes the one a user typed for one job.
+#[test]
+fn a_locked_pdf_opens_with_the_password_from_the_environment() {
+    let encrypted = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/fixtures/mutations/h01__encrypted_password.pdf");
+    assert!(encrypted.is_file(), "missing {}", encrypted.display());
+    let directory = scratch("password");
+    let output = directory.join("locked.epub");
+    let spec = write_spec(
+        &directory,
+        &serde_json::json!({
+            "schema": "openconvert.job/1",
+            "input": {"path": encrypted},
+            "output": {"path": output}
+        }),
+    );
+
+    let refused = Command::new(binary())
+        .arg(&spec)
+        .env_remove("OC_PDF_PASSWORD")
+        .output()
+        .expect("runs");
+    assert_eq!(refused.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("E_PASSWORD_REQUIRED"));
+
+    let opened = Command::new(binary())
+        .arg(&spec)
+        .env("OC_PDF_PASSWORD", "secret")
+        .output()
+        .expect("runs");
+    assert_eq!(
+        opened.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&opened.stderr)
+    );
+    assert!(output.is_file());
+}

@@ -2,7 +2,7 @@
   // The window. Before anything else: is the converter the one this app was built with? If not,
   // the blocking error is the whole window (firstrun.html §2, RT A5.7). If it is, the routes of
   // screen-map.md — `queue` first — with the header last in the DOM and drawn first.
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
 
   import AppHeader from "./components/AppHeader.svelte";
   import BlockingError from "./components/BlockingError.svelte";
@@ -175,6 +175,14 @@
     }
     store?.keepOnly(new Set((await backend.rows()).map((view) => view.id)));
   }
+  /** Convert a locked row's PDF again with the typed password; the new job takes its place, and
+      focus moves to it, since the field that had focus is gone. */
+  async function unlock(id: string, password: string) {
+    const again = await backend.unlock(id, password);
+    store?.load(await backend.rows());
+    await tick();
+    document.querySelector<HTMLElement>(`.oc-queue > li[data-job="${again}"]`)?.focus();
+  }
   async function retry(row: Row) {
     await backend.enqueue([row.input]);
     await remove(row.id);
@@ -213,6 +221,7 @@
         onpreview={(id) => (route = { name: "preview", job: id, page: null, from: "queue" })}
         onpage={(id, page) => (route = { name: "preview", job: id, page, from: "queue" })}
         onexport={(id) => void exportBundle(id, { name: "queue" })}
+        onunlock={(id, password) => void unlock(id, password)}
       />
       <AppHeader onsettings={() => (route = { name: "settings" })} />
     {:else if route.name === "report"}

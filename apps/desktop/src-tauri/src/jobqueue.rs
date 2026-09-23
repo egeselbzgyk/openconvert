@@ -55,6 +55,9 @@ pub struct JobView {
     pub output: PathBuf,
     /// The output name differs from `<input>.epub` because that file already existed.
     pub renamed: bool,
+    /// This run was given the password the user typed on the row; a password failure now means
+    /// that password was wrong, not that none was tried.
+    pub unlocked: bool,
     #[serde(flatten)]
     pub state: JobState,
 }
@@ -74,6 +77,11 @@ struct Job {
     renamed: bool,
     preset: PresetName,
     limits: Option<LimitsSpec>,
+    /// The password a user typed for this job: kept in memory until the engine starts, then
+    /// dropped (design decision 13: "used for this job only, never saved").
+    password: Option<String>,
+    /// Started from [`JobQueue::unlock`]. Only the fact is kept, never the password.
+    unlocked: bool,
     phase: Phase,
 }
 
@@ -145,6 +153,8 @@ impl<L: Launch> JobQueue<L> {
                 output,
                 preset,
                 limits,
+                password: None,
+                unlocked: false,
                 phase: Phase::Queued,
             });
             ids.push(id);
@@ -152,6 +162,39 @@ impl<L: Launch> JobQueue<L> {
         self.pump();
         self.announce_all();
         ids
+    }
+
+    /// Convert job `id`'s PDF again with the password the user typed on its row. The old row is
+    /// replaced by the new job, which keeps the password in memory only until its engine starts.
+    pub fn unlock(&mut self, id: &str, password: String) -> Result<String, UiError> {
+        let index = self
+            .jobs
+            .iter()
+            .position(|job| job.id == id)
+            .ok_or_else(|| UiError::UnknownJob(id.to_owned()))?;
+        if !matches!(self.jobs[index].phase, Phase::Done(_)) {
+            return Err(UiError::JobBusy(id.to_owned()));
+        }
+        let old = self
+            .jobs
+            .remove(index)
+            .ok_or_else(|| UiError::UnknownJob(id.to_owned()))?;
+        self.next += 1;
+        let new_id = format!("job-{}", self.next);
+        self.jobs.push_back(Job {
+            id: new_id.clone(),
+            input: old.input,
+            output: old.output,
+            renamed: old.renamed,
+            preset: old.preset,
+            limits: old.limits,
+            password: Some(password),
+            unlocked: true,
+            phase: Phase::Queued,
+        });
+        self.pump();
+        self.announce_all();
+        Ok(new_id)
     }
 
     /// Whether a job not yet finished will write `path`.
@@ -288,7 +331,11 @@ impl<L: Launch> JobQueue<L> {
                     .push(line.clone());
                 sink.line(&id, line);
             });
-            job.phase = match self.engine.start(&job.id, &spec, on_line) {
+            let password = job.password.take();
+            job.phase = match self
+                .engine
+                .start(&job.id, &spec, password.as_deref(), on_line)
+            {
                 Ok(running) => Phase::Running(running),
                 Err(error) => Phase::Done(JobState::FailedToStart { error }),
             };
@@ -343,6 +390,7 @@ impl<L: Launch> JobQueue<L> {
                     input: job.input.clone(),
                     output: job.output.clone(),
                     renamed: job.renamed,
+                    unlocked: job.unlocked,
                     state,
                 }
             })
@@ -372,6 +420,8 @@ mod tests {
         killed: Vec<usize>,
         /// Per launch: `None` while running, then the exit as `try_wait` reports it.
         exited: Vec<Option<Option<i32>>>,
+        /// Per launch: the password it was given.
+        passwords: Vec<Option<String>>,
     }
 
     #[derive(Clone, Default)]
@@ -383,9 +433,15 @@ mod tests {
     }
 
     impl Launch for FakeLauncher {
-        fn launch(&self, spec: &Path, _on_line: LineSink) -> Result<Box<dyn Running>, UiError> {
+        fn launch(
+            &self,
+            spec: &Path,
+            password: Option<&str>,
+            _on_line: LineSink,
+        ) -> Result<Box<dyn Running>, UiError> {
             let mut script = self.0.lock().expect("not poisoned");
             script.launched.push(spec.to_path_buf());
+            script.passwords.push(password.map(str::to_owned));
             script.exited.push(None);
             Ok(Box::new(FakeRunning {
                 index: script.launched.len() - 1,
@@ -530,6 +586,38 @@ mod tests {
         assert_eq!(launcher.0.lock().expect("not poisoned").killed, [0]);
         queue.tick(asked + kill_after);
         assert_eq!(queue.views()[0].state, JobState::Exited { code: None });
+    }
+
+    #[test]
+    fn an_unlocked_job_gets_its_password_once_and_keeps_none() {
+        let (mut queue, launcher) = queue("unlock");
+        let ids = queue.enqueue(&[PathBuf::from("/b/locked.pdf")], PresetName::Auto);
+        assert_eq!(
+            queue.unlock(&ids[0], "early".to_owned()),
+            Err(UiError::JobBusy(ids[0].clone())),
+            "a running job is not restarted under it"
+        );
+        launcher.0.lock().expect("not poisoned").exited[0] = Some(Some(2));
+        queue.tick(Instant::now());
+
+        let again = queue.unlock(&ids[0], "hunter22".to_owned()).expect("known");
+        let script = launcher.0.lock().expect("not poisoned");
+        assert_eq!(script.passwords, [None, Some("hunter22".to_owned())]);
+        drop(script);
+        assert_eq!(
+            queue.views().len(),
+            1,
+            "the locked row is replaced, not duplicated"
+        );
+        assert_eq!(queue.views()[0].id, again);
+        assert!(
+            queue.views()[0].unlocked,
+            "the row knows a password was given"
+        );
+        assert!(
+            queue.jobs.iter().all(|job| job.password.is_none()),
+            "the password is dropped once the engine has it"
+        );
     }
 
     #[test]

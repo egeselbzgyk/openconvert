@@ -25,6 +25,7 @@
     ondetails = () => undefined,
     onpreview = () => undefined,
     onexport = () => undefined,
+    onunlock = () => undefined,
     onpage = null,
   }: {
     row: Row;
@@ -40,6 +41,8 @@
     ondetails?: (id: string) => void;
     onpreview?: (id: string) => void;
     onexport?: (id: string) => void;
+    /** Convert again with the password typed on this row (design decision 13). */
+    onunlock?: (id: string, password: string) => void;
     onpage?: ((id: string, page: string) => void) | null;
   } = $props();
 
@@ -64,6 +67,19 @@
 
   const name = $derived(row.input.split(/[\\/]/).pop() ?? row.input);
 
+  /** Encrypted, and the password (empty, or the one typed here) did not open it: ask on the row. */
+  const locked = $derived(row.phase === "failed" && row.fatal?.code === "E_PASSWORD_REQUIRED");
+  /** What is being typed. Lives only in this input until Unlock hands it to the Rust side. */
+  let password = $state("");
+
+  function unlock(event: SubmitEvent) {
+    event.preventDefault();
+    if (password === "") return;
+    const typed = password;
+    password = "";
+    onunlock(row.id, typed);
+  }
+
   /** The failure's headline and its second sentence, from the fatal code. */
   const failure = $derived.by(() => {
     const code = row.fatal?.code ?? "";
@@ -71,7 +87,8 @@
       case "E_PDF":
         return { head: t("error.notPdf"), note: t("error.sameResult"), retry: false };
       case "E_PASSWORD_REQUIRED":
-        return { head: t("error.password"), note: t("error.passwordTried"), retry: false };
+        // Once a typed password has failed, the field says so; the note is for the first ask.
+        return { head: t("error.password"), note: row.unlocked ? "" : t("error.passwordTried"), retry: false };
       case "E_LIMIT_EXCEEDED":
         return { head: t("error.limit"), note: t("error.limitHint"), retry: true };
       case "E_INPUT":
@@ -114,7 +131,8 @@
   class:oc-row--stalled={row.stalled}
   class:oc-row--cancelling={row.phase === "cancelling"}
   class:oc-row--cancelled={row.phase === "cancelled"}
-  class:oc-row--failed={row.phase === "failed"}
+  class:oc-row--failed={row.phase === "failed" && !locked}
+  class:oc-row--locked={locked}
   class:oc-row--compact={row.phase === "queued"}
   class:oc-row--expanded={row.phase === "complete" && row.expanded}
   aria-label={t("row.label", { file: name, status })}
@@ -137,6 +155,8 @@
       <span class="oc-tile oc-tile--err"><Icon name="xcircle" size="md" /></span>
     {:else if row.phase === "complete"}
       <span class="oc-tile oc-tile--ok"><Icon name="check" size="md" /></span>
+    {:else if locked}
+      <span class="oc-tile" class:oc-tile--err={row.unlocked}><Icon name="lock" size="md" /></span>
     {:else}
       <span class="oc-tile oc-tile--err"><Icon name="x" size="md" /></span>
     {/if}
@@ -182,6 +202,8 @@
         aria-expanded={row.expanded}
         onclick={() => ontoggle(row.id)}
       ><Icon name={row.expanded ? "chevup" : "chevdown"} size="md" /></button>
+    {:else if locked}
+      <button class="oc-btn oc-btn--quiet oc-btn--sm" tabindex={tab} aria-label={t("queue.removeFile", { file: name })} onclick={() => onremove(row.id)}>{t("queue.remove")}</button>
     {:else if row.phase === "failed"}
       <button class="oc-btn oc-btn--sm" tabindex={tab} onclick={() => onexport(row.id)}>{t("action.exportDiag")}</button>
       {#if failure.retry}<button class="oc-btn oc-btn--sm" tabindex={tab} onclick={() => onretry(row)}>{t("queue.again")}</button>{/if}
@@ -191,6 +213,28 @@
 
   {#if row.phase === "running" && !row.stalled}
     <StageList {row} />
+  {:else if locked}
+    <div class="oc-row__detail">
+      <!-- A form so Enter in the field unlocks; it never submits anywhere (form-action 'none'). -->
+      <form class="oc-filepick oc-row__unlock" onsubmit={unlock}>
+        <label class="oc-sr-only" for="pw-{row.id}">{t("error.passwordFor", { file: name })}</label>
+        <input
+          id="pw-{row.id}"
+          class="oc-input"
+          type="password"
+          autocomplete="off"
+          tabindex={tab}
+          bind:value={password}
+          aria-invalid={row.unlocked ? "true" : undefined}
+          aria-describedby={row.unlocked ? `pw-${row.id}-error` : `pw-${row.id}-help`}
+        />
+        <button class="oc-btn oc-btn--primary" type="submit" tabindex={tab} disabled={password === ""}>{t("error.unlock")}</button>
+        {#if !row.unlocked}<span class="oc-field__help" id="pw-{row.id}-help">{t("error.passwordOnce")}</span>{/if}
+      </form>
+      {#if row.unlocked}
+        <span class="oc-field__error" id="pw-{row.id}-error"><Icon name="xcircle" />{t("error.passwordWrong")}</span>
+      {/if}
+    </div>
   {:else if row.phase === "complete" && row.expanded}
     {#if report !== null}
       <ResultPanel

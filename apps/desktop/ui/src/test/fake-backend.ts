@@ -138,6 +138,18 @@ export class FakeBackend implements Backend {
     this.calls.push(["remove", job]);
     this.views = this.views.filter((view) => view.id !== job);
   }
+  /** Unlock calls, with the password, so a test can see what reached the Rust side. */
+  unlocked: Array<[string, string]> = [];
+  async unlock(job: string, password: string): Promise<string> {
+    this.unlocked.push([job, password]);
+    const old = this.views.find((view) => view.id === job);
+    this.views = this.views.filter((view) => view.id !== job);
+    const id = `${job}-unlocked`;
+    if (old !== undefined) {
+      this.views = [...this.views, { ...old, id, unlocked: true, state: "running" }];
+    }
+    return id;
+  }
   async onLine(handler: (job: string, line: string) => void) {
     this.lines.push(handler);
     return () => undefined;

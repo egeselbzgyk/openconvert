@@ -94,6 +94,12 @@ export interface Backend {
   showBundle(): Promise<void>;
   cancel(job: string): Promise<void>;
   remove(job: string): Promise<void>;
+  /**
+   * Convert a password-protected job's PDF again with the password typed on its row. The row is
+   * replaced by the new job, whose id is returned; the password lives in the Rust side's memory
+   * until the engine starts and is never written anywhere (design decision 13).
+   */
+  unlock(job: string, password: string): Promise<string>;
   onLine(handler: (job: string, line: string) => void): Promise<Unlisten>;
   onJobChanged(handler: (view: JobView) => void): Promise<Unlisten>;
   onDragDrop(handler: (event: DropEvent) => void): Promise<Unlisten>;
@@ -119,6 +125,7 @@ export function tauriBackend(): Backend {
     showBundle: () => invoke<void>("show_bundle"),
     cancel: (job) => invoke<void>("cancel", { job }),
     remove: (job) => invoke<void>("remove", { job }),
+    unlock: (job, password) => invoke<string>("unlock", { job, password }),
     onLine: (handler) =>
       listen<{ job: string; line: string }>("engine-line", (event) =>
         handler(event.payload.job, event.payload.line),

@@ -302,5 +302,6 @@
  "bundle.excluded": "Not included: the PDF, the EPUB, your settings file, any API key.",
  "bundle.done": "Done",
  "bundle.where": "{folder} · {size}",
- "size.kb": "{n} KB"
+ "size.kb": "{n} KB",
+ "error.passwordWrong": "That password didn't open the file. Try again."
 }

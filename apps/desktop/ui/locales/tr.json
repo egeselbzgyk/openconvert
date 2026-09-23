@@ -302,5 +302,6 @@
  "bundle.excluded": "Dahil değil: PDF, EPUB, ayar dosyanız, hiçbir API anahtarı.",
  "bundle.done": "Tamam",
  "bundle.where": "{folder} · {size}",
- "size.kb": "{n} KB"
+ "size.kb": "{n} KB",
+ "error.passwordWrong": "Bu parola dosyayı açmadı. Yeniden deneyin."
 }
