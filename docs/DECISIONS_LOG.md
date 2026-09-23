@@ -5504,3 +5504,20 @@ Evidence: `grep` of `thresholds.toml` and `crates/` for an output cap (only `epu
 the VD entries of 2026-09-09 and 2026-09-18; `packs.toml`.
 Affects: `PROGRESS.md` (Appendix D evaluation, `## Blocked`), `docs/CHANGELOG.md` (the 1.0.0 Security
 section), `docs/RELEASE_CHECKLIST.md`.
+
+## 2026-09-23 · CI runs on pushes to `main` only · maintainer's decision
+
+Decision (maintainer): `.github/workflows/ci.yml` triggers on `push` to `main` and nothing else.
+The `pull_request` trigger and the `phase/**` branch pattern are removed. The private repository
+had exhausted its Actions minutes: every push to a phase branch ran about nineteen jobs, four of
+them on macOS and Windows runners, and a pull request on a phase branch ran them twice.
+The repository is also being made public.
+What this gives up: a phase or fix branch is no longer built by CI before it merges (the reason
+`phase/**` was added in Phase 0), and a contributor's pull request is not checked until it merges.
+Mitigation: every merge into `main` is a `--no-ff` merge whose push runs the full workflow, and the
+gates are run locally on the branch before merging (CLAUDE.md §2). The concurrency group no longer
+needs its event prefix (it guarded against a forked pull request cancelling the `main` run, and
+pull requests no longer trigger the workflow); `main`'s run is still never cancelled.
+Unchanged: `nightly.yml` (schedule + manual), `release.yml` (version tags + manual),
+`signing-dryrun.yml` (manual).
+Affects: `.github/workflows/ci.yml`.

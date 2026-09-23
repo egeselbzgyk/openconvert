@@ -1,28 +1,15 @@
 name: ci
-# `phase/**` is here because of what its absence cost. Phases 0, 1 and 2 were all developed on
-# `phase/00-bootstrap`, which matched neither trigger, so this workflow did not run once in four
-# days — and three Definition-of-Done entries said "Linux and macOS are CI's job" the whole time.
-# When it finally ran, five of eight jobs failed, two of them on code from Phase 1.
-on: { pull_request: {}, push: { branches: [main, "phase/**"] } }
-# Namespaced by event, and deliberately so. `github.head_ref` is the *pull request author's*
-# branch name, and this repository is public: anyone may fork it, name a branch `main`, and open
-# a pull request. A group keyed on the bare name would then put that stranger's run in the same
-# group as a push to `main` and, with `cancel-in-progress`, let them cancel the run that gates a
-# release, from the outside, at will. Prefixing the event puts `ci-pull_request-main` and
-# `ci-push-main` beyond each other's reach.
-#
-# `refs/heads/…` is not a fix for this: a branch may legally be *named* `refs/heads/main`, and
-# `head_ref` reports the short name, so the forged value collides just as well.
-#
-# The cost is that a pull request on a phase branch runs CI twice, once per event. That is minutes
-# of runner time against an availability hole reachable by anyone on the internet.
-#
-# `cancel-in-progress` is off for `main`: superseding the gate run of a merged commit loses the
-# only evidence that the merged tree is green. Every other ref keeps it, so a phase branch still
-# cancels its own superseded runs.
+# Runs on pushes to `main` only — the maintainer's decision of 2026-09-23, to spend runner minutes
+# on the gate and nothing else (docs/DECISIONS_LOG.md). Phase and fix branches are not built here:
+# each lands on `main` as a `--no-ff` merge, and that push is the gate, so run the gates locally on
+# the branch before merging (CLAUDE.md §2). Pull requests do not trigger it either: a
+# contributor's pull request is checked by this workflow only once it is merged.
+on: { push: { branches: [main] } }
+# One group, never cancelled: superseding the gate run of a merged commit loses the only evidence
+# that the merged tree is green.
 concurrency:
-  group: "ci-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}"
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: "ci-${{ github.ref_name }}"
+  cancel-in-progress: false
 env: { CARGO_TERM_COLOR: always, RUSTFLAGS: "-D warnings", INSTA_UPDATE: "no" }
 
 # Why the engine jobs say `--exclude openconvert-desktop`:
