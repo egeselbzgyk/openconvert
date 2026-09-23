@@ -17,6 +17,7 @@
     onopen,
     onshow,
     ondetails,
+    onpreview,
     onpage = null,
   }: {
     row: Row;
@@ -25,6 +26,7 @@
     onopen: () => void;
     onshow: () => void;
     ondetails: () => void;
+    onpreview: () => void;
     onpage?: ((page: string) => void) | null;
   } = $props();
 
@@ -65,4 +67,5 @@
 <QualityFacts {report} />
 <div class="oc-actions">
   <button class="oc-btn oc-btn--sm" onclick={ondetails}>{t("action.details")}</button>
+  <button class="oc-btn oc-btn--sm" onclick={onpreview}>{t("action.preview")}</button>
 </div>

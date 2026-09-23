@@ -89,8 +89,18 @@ fn webview_has_no_network_permission() {
     let csp = csp();
     assert_eq!(csp.get("connect-src"), Some(&vec!["'none'".to_owned()]));
     assert_eq!(csp.get("default-src"), Some(&vec!["'self'".to_owned()]));
+    // The one non-'self' source anywhere: the app's own preview protocol, which WebView2 spells
+    // `http://ocpreview.localhost`. It is served by this app from the finished EPUB, not fetched.
+    const PREVIEW: [&str; 2] = ["ocpreview:", "http://ocpreview.localhost"];
+    assert_eq!(
+        csp.get("frame-src"),
+        Some(&PREVIEW.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>())
+    );
     for (directive, sources) in &csp {
         for source in sources {
+            if directive == "frame-src" && PREVIEW.contains(&source.as_str()) {
+                continue;
+            }
             let remote = source.contains("://")
                 || ["http:", "https:", "ws:", "wss:"].contains(&source.as_str())
                 || source == "*";

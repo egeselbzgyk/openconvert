@@ -20,11 +20,17 @@
   import type { Row } from "./lib/jobstate";
   import { i18n, setLanguage, t, tn } from "./lib/locale.svelte";
   import Queue from "./routes/queue/Queue.svelte";
+  import Preview from "./routes/preview/Preview.svelte";
   import Report from "./routes/report/Report.svelte";
+  import { pageNumber } from "./lib/report";
 
   let { backend = tauriBackend(), clock = () => Date.now() }: { backend?: Backend; clock?: () => number } = $props();
 
-  type Route = { name: "queue" } | { name: "settings" } | { name: "report"; job: string };
+  type Route =
+    | { name: "queue" }
+    | { name: "settings" }
+    | { name: "report"; job: string }
+    | { name: "preview"; job: string; page: string | null; from: "queue" | "report" };
 
   let config = $state<UiConfig | null>(null);
   let settings = $state<Settings | null>(null);
@@ -183,15 +189,36 @@
         onopen={open}
         onshow={(id) => void backend.showOutput(id)}
         ondetails={(id) => (route = { name: "report", job: id })}
+        onpreview={(id) => (route = { name: "preview", job: id, page: null, from: "queue" })}
+        onpage={(id, page) => (route = { name: "preview", job: id, page, from: "queue" })}
       />
       <AppHeader onsettings={() => (route = { name: "settings" })} />
     {:else if route.name === "report"}
       {@const job = route.job}
       {@const row = store.rows.find((candidate) => candidate.id === job)}
       {#if row !== undefined && config !== null}
-        <Report {row} appVersion={config.appVersion} />
+        <Report {row} appVersion={config.appVersion} onpage={(page) => (route = { name: "preview", job, page, from: "report" })} />
       {/if}
       <AppHeader title={t("report.title")} back={{ label: t("queue.title"), onclick: () => (route = { name: "queue" }) }} />
+    {:else if route.name === "preview"}
+      {@const target = route}
+      {@const row = store.rows.find((candidate) => candidate.id === target.job)}
+      {@const report = row?.report !== null && row?.report !== "unavailable" ? row?.report : undefined}
+      {#if row !== undefined}
+        <Preview
+          {row}
+          {backend}
+          page={target.page}
+          warning={report?.warnings.find((warning) => pageNumber(warning.page) === target.page) ?? null}
+        />
+      {/if}
+      <AppHeader
+        title={row === undefined ? t("action.preview") : (row.output.split(/[\\/]/).pop() ?? row.output)}
+        back={{
+          label: t("preview.close"),
+          onclick: () => (route = target.from === "report" ? { name: "report", job: target.job } : { name: "queue" }),
+        }}
+      />
     {:else}
       <main class="oc-main"></main>
       <AppHeader title={t("settings.title")} back={{ label: t("queue.title"), onclick: () => (route = { name: "queue" }) }} />

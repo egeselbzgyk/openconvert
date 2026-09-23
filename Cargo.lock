@@ -3950,6 +3950,7 @@ dependencies = [
  "oc-core",
  "oc-model",
  "oc-testkit",
+ "quick-xml 0.42.0",
  "serde",
  "serde_json",
  "tauri",
@@ -3957,6 +3958,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
  "thiserror 2.0.20",
+ "zip",
 ]
 
 [[package]]

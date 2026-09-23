@@ -47,6 +47,13 @@ export interface Settings {
   firstrunDismissed: boolean;
 }
 
+/** The book's navigation, read from its nav document (`src-tauri/src/preview.rs`). */
+export interface PreviewIndex {
+  chapters: Array<{ title: string; href: string; level: number }>;
+  pages: Array<{ label: string; href: string }>;
+  lang: string;
+}
+
 export interface Enqueued {
   jobs: string[];
   skipped: string[];
@@ -72,6 +79,8 @@ export interface Backend {
   report(job: string): Promise<Report>;
   openOutput(job: string): Promise<void>;
   showOutput(job: string): Promise<void>;
+  previewIndex(job: string): Promise<PreviewIndex>;
+  previewBase(): Promise<string>;
   cancel(job: string): Promise<void>;
   remove(job: string): Promise<void>;
   onLine(handler: (job: string, line: string) => void): Promise<Unlisten>;
@@ -93,6 +102,8 @@ export function tauriBackend(): Backend {
     report: (job) => invoke<Report>("read_report", { job }),
     openOutput: (job) => invoke<void>("open_output", { job }),
     showOutput: (job) => invoke<void>("show_output", { job }),
+    previewIndex: (job) => invoke<PreviewIndex>("preview_index", { job }),
+    previewBase: () => invoke<string>("preview_base"),
     cancel: (job) => invoke<void>("cancel", { job }),
     remove: (job) => invoke<void>("remove", { job }),
     onLine: (handler) =>

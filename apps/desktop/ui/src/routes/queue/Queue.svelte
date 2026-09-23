@@ -23,6 +23,7 @@
     onopen,
     onshow,
     ondetails,
+    onpreview,
     onpage = null,
   }: {
     store: JobStore;
@@ -36,6 +37,7 @@
     onopen: (id: string) => void;
     onshow: (id: string) => void;
     ondetails: (id: string) => void;
+    onpreview: (id: string) => void;
     onpage?: ((id: string, page: string) => void) | null;
   } = $props();
 
@@ -50,7 +52,7 @@
   {:else}
     <QueueList rows={store.rows} onremoveall={() => (confirming = true)}>
       {#snippet row(row: Row, active: boolean)}
-        <QueueRow {row} {active} now={store.now} {oncancel} {onremove} {onretry} {ontoggle} {onopen} {onshow} {ondetails} {onpage} />
+        <QueueRow {row} {active} now={store.now} {oncancel} {onremove} {onretry} {ontoggle} {onopen} {onshow} {ondetails} {onpreview} {onpage} />
       {/snippet}
     </QueueList>
   {/if}

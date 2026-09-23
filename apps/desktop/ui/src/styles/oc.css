@@ -442,3 +442,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .oc-report__raw { color: var(--oc-text-tertiary); }
 .oc-report__para { margin: 0; }
 .oc-report__warnings { padding: 0; }
+
+/* PreviewView: the page is a sandboxed frame holding the book's own XHTML; the book's document
+   supplies its padding, so the frame has none. The bar under the label (was inline). */
+.oc-preview__frame { width: 100%; padding: 0; }
+.oc-preview__bar { display: flex; align-items: center; gap: var(--oc-space-2); }
+.oc-preview__where { font-size: var(--oc-text-sm); color: var(--oc-text-secondary); }
+.oc-preview__spacer { flex: 1; }
+.oc-preview__warning { font-size: var(--oc-text-sm); }
+.oc-preview__toc .oc-preview__chapter--2 { padding-left: var(--oc-space-6); }
+.oc-preview__toc .oc-preview__chapter--3 { padding-left: var(--oc-space-8); }

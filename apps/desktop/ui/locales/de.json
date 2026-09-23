@@ -220,5 +220,13 @@
  "reason.watermark": "Wasserzeichen",
  "reason.clipped_off_page": "Text außerhalb der Seite",
  "reason.hidden_text": "Versteckter Text",
- "reason.user_override": "Ihre Korrekturen"
+ "reason.user_override": "Ihre Korrekturen",
+ "preview.close": "Vorschau schließen",
+ "preview.chapters": "Kapitel",
+ "preview.previous": "Vorherige Seite",
+ "preview.next": "Nächste Seite",
+ "preview.pageOf": "S. {page} von {pages} (Quellseite)",
+ "preview.frame": "Vorschau von {chapter}",
+ "preview.unavailable": "Die Vorschau konnte nicht geöffnet werden.",
+ "preview.book": "des Buchs"
 }

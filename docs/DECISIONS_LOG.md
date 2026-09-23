@@ -3647,3 +3647,24 @@ arguments of `W_TABLE_AS_IMAGE` rather than the plan's illustrative `{count:3}`.
 English fallback anywhere: a missing key renders as a visible `⟦key⟧` marker (A12.3).
 Evidence: `warnings_are_localised_from_code_and_args`, `every_warning_code_has_every_locale`.
 Affects: docs/design/handoff/docs/strings.md (`warn.*` rows superseded), Phase 12 rows 12.8, 12.9.
+
+## 2026-09-23 · The preview is the EPUB served to a sandboxed frame by an app protocol · Phase 12
+Context: Phase 12 detail 7 wants a normal, visible webview rendering the generated XHTML, labelled
+approximate; the design draws it as route `preview` inside the main window with chapter navigation
+and a fixed label. The main window runs under `default-src 'self'; connect-src 'none'`, has IPC
+access, and must never execute or style itself from a book's markup.
+Decision: the app registers one custom protocol, `ocpreview`, that serves the finished EPUB of a
+job, entry by entry, straight from the archive (`src-tauri/src/preview.rs`): only names the archive
+contains, nothing with `..`, `/`-rooted or `\`; every response carries its own CSP that allows no
+script and nothing outside the book, plus a small stylesheet that marks `:target` in system colours
+so a page link lands visibly. The main window shows it in an `<iframe sandbox="">` — no scripts,
+an opaque origin, no IPC, no top navigation — and its CSP gains exactly `frame-src ocpreview:
+http://ocpreview.localhost` (WebView2 spells custom schemes as `http://<scheme>.localhost`, which is
+served in-process and never reaches a network). The privacy test pins that as the only non-'self'
+source in the policy. The page list in the book's navigation document drives page steps, so "p. 34"
+means the book's own page 34. The design's highlighted `<mark>` becomes the `:target` of the page
+anchor; the block-level highlight a warning's `block_ids` could drive needs the engine to anchor
+blocks by id in the XHTML, which it does not today. Unverified here: rendering in WebKitGTK, WKWebView
+and WebView2 (no display on this machine; the component tests run in jsdom).
+Evidence: `preview::tests`, `webview_has_no_network_permission`, `preview.svelte.test.ts`.
+Affects: Phase 12 detail 7, D13.9 (CSP, narrowed widening), UI_UX §2.3, report.html §3.

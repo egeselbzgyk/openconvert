@@ -227,7 +227,13 @@ Work items, in order, with the plan's test rows against each:
         (Tier 1, EPUBCheck not run), warnings by page, time per step (timeline flex via `style:`;
         `epub+validate+repair` is one timing and shown as "Building and checking"), the ledger by
         reason with share of C₀, run details (+ 1 test)
-  - [ ] **P12.8d** route `preview`
+  - [x] **P12.8d** route `preview`: the finished EPUB served file by file from the app's own
+        `ocpreview` protocol (`preview.rs`: nav → chapters + page list; only the archive's own
+        entries; served CSP allows no script; `:target` marked in system colours) into a
+        `sandbox=""` frame; chapter nav, page steps (buttons, ←/→), the fixed "Approximate preview"
+        note, the originating warning; opened from Preview or any page link. Main-window CSP gains
+        exactly `frame-src ocpreview: http://ocpreview.localhost` (test 12.13 updated to allow only
+        that) (+ 2 Rust, 1 UI test)
   - [ ] **P12.8e** route `settings` (+ `models`/`firstrun` shells for part B)
   - [ ] **P12.8f** the diagnostic bundle (export, review)
 - [ ] **P12.9** metadata and TOC overrides — rows 12.10, 12.11

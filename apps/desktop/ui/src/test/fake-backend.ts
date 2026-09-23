@@ -3,7 +3,15 @@
  * emit `engine-line` and `job-changed` exactly as the Rust side would.
  */
 
-import type { Backend, DropEvent, Enqueued, Settings, UiConfig, UiError } from "../lib/backend";
+import type {
+  Backend,
+  DropEvent,
+  Enqueued,
+  PreviewIndex,
+  Settings,
+  UiConfig,
+  UiError,
+} from "../lib/backend";
 import type { Hello } from "../lib/events";
 import type { JobView } from "../lib/jobstate";
 import type { Report } from "../lib/report";
@@ -85,6 +93,24 @@ export class FakeBackend implements Backend {
   }
   async showOutput(job: string): Promise<void> {
     this.calls.push(["show", job]);
+  }
+  preview: PreviewIndex = {
+    chapters: [
+      { title: "Preface", href: "text/c0001.xhtml#sec0h", level: 1 },
+      { title: "Chapter One", href: "text/c0002.xhtml#sec1h", level: 1 },
+    ],
+    pages: [
+      { label: "1", href: "text/c0001.xhtml#page0" },
+      { label: "2", href: "text/c0002.xhtml#page1" },
+      { label: "3", href: "text/c0002.xhtml#page2" },
+    ],
+    lang: "en",
+  };
+  async previewIndex(): Promise<PreviewIndex> {
+    return this.preview;
+  }
+  async previewBase(): Promise<string> {
+    return "ocpreview://localhost/";
   }
   async cancel(job: string): Promise<void> {
     this.calls.push(["cancel", job]);

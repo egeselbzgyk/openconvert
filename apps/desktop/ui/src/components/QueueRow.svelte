@@ -23,6 +23,7 @@
     onopen = () => undefined,
     onshow = () => undefined,
     ondetails = () => undefined,
+    onpreview = () => undefined,
     onpage = null,
   }: {
     row: Row;
@@ -36,6 +37,7 @@
     onopen?: (id: string) => void;
     onshow?: (id: string) => void;
     ondetails?: (id: string) => void;
+    onpreview?: (id: string) => void;
     onpage?: ((id: string, page: string) => void) | null;
   } = $props();
 
@@ -195,6 +197,7 @@
         onopen={() => onopen(row.id)}
         onshow={() => onshow(row.id)}
         ondetails={() => ondetails(row.id)}
+        onpreview={() => onpreview(row.id)}
         onpage={onpage === null ? null : (page) => onpage(row.id, page)}
       />
     {:else if row.report === "unavailable"}

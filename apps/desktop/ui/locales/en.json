@@ -220,5 +220,13 @@
  "reason.watermark": "Watermarks",
  "reason.clipped_off_page": "Text outside the page",
  "reason.hidden_text": "Hidden text",
- "reason.user_override": "Your corrections"
+ "reason.user_override": "Your corrections",
+ "preview.close": "Close preview",
+ "preview.chapters": "Chapters",
+ "preview.previous": "Previous page",
+ "preview.next": "Next page",
+ "preview.pageOf": "p. {page} of {pages} (source page)",
+ "preview.frame": "Preview of {chapter}",
+ "preview.unavailable": "The preview could not be opened.",
+ "preview.book": "the book"
 }

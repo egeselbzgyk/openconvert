@@ -26,6 +26,7 @@ use openconvert_desktop::engine::{
 };
 use openconvert_desktop::fs_scope::{partition_drop, AppDirs};
 use openconvert_desktop::jobqueue::{JobQueue, JobView, QueueSink};
+use openconvert_desktop::preview::{self, PreviewIndex};
 use openconvert_desktop::settings::{self, Settings};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -165,6 +166,75 @@ fn show_output(job: String, app: AppHandle, queue: tauri::State<'_, Queue>) -> R
         .map_err(|error| UiError::Io(error.to_string()))
 }
 
+/// The book's chapters and page list, for the preview's navigation.
+#[tauri::command]
+fn preview_index(job: String, queue: tauri::State<'_, Queue>) -> Result<PreviewIndex, UiError> {
+    let (output, _) = with_queue(&queue, |queue| queue.outputs(&job))?;
+    preview::index(&output)
+}
+
+/// Where the preview protocol is reachable on this platform: WebView2 maps a custom scheme to
+/// `http://<scheme>.localhost`, the other webviews use the scheme itself.
+#[tauri::command]
+fn preview_base() -> &'static str {
+    if cfg!(windows) {
+        "http://ocpreview.localhost/"
+    } else {
+        "ocpreview://localhost/"
+    }
+}
+
+/// `%XX` decoding for the preview protocol's path segments; anything malformed is left as is and
+/// then fails to name an entry.
+fn percent_decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        let escaped = (byte == b'%')
+            .then(|| text.get(index + 1..index + 3))
+            .flatten()
+            .and_then(|hex| u8::from_str_radix(hex, 16).ok());
+        match escaped {
+            Some(decoded) => {
+                out.push(decoded);
+                index += 3;
+            }
+            None => {
+                out.push(byte);
+                index += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// The preview protocol: `/<job>/<path in that job's EPUB>`, served with the preview's own CSP.
+fn serve_preview(app: &AppHandle, path: &str) -> tauri::http::Response<Vec<u8>> {
+    let decoded = percent_decode(path.trim_start_matches('/'));
+    let served = decoded
+        .split_once('/')
+        .ok_or_else(|| UiError::Io(decoded.clone()))
+        .and_then(|(job, entry)| {
+            let state = app.state::<Queue>();
+            let (output, _) = with_queue(&state, |queue| queue.outputs(job))?;
+            preview::serve(&output, entry)
+        });
+    let response = tauri::http::Response::builder()
+        .header("Content-Security-Policy", preview::SERVED_CSP)
+        .header("X-Content-Type-Options", "nosniff");
+    match served {
+        Ok((bytes, media)) => response
+            .header(tauri::http::header::CONTENT_TYPE, media)
+            .body(bytes),
+        Err(_) => response
+            .status(tauri::http::StatusCode::NOT_FOUND)
+            .body(Vec::new()),
+    }
+    .unwrap_or_default()
+}
+
 /// The thresholds the webview needs (`openconvert_desktop::config`).
 #[tauri::command]
 fn ui_config() -> UiConfig {
@@ -222,6 +292,9 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .register_uri_scheme_protocol("ocpreview", |context, request| {
+            serve_preview(context.app_handle(), request.uri().path())
+        })
         .manage(Startup(startup))
         .manage(Queue(Mutex::new(None)))
         .manage(Prefs {
@@ -270,7 +343,9 @@ fn main() {
             queue_rows,
             read_report,
             open_output,
-            show_output
+            show_output,
+            preview_index,
+            preview_base
         ])
         .run(tauri::generate_context!())
         .expect("the Tauri application starts");
