@@ -10,9 +10,22 @@
 //! measurably degrades OCR text across fourteen models and eight languages, German among them
 //! (D16, R10 §6.14), and nothing in this module has a path to one.
 
+pub mod lang;
 pub mod tsv;
 
 use oc_model::geom::Rect;
+
+/// A page needed OCR and no usable Tesseract 5 was found, so it is carried as an image (D4). The
+/// arguments say why (`reason`), how to install one (`hint`) and which pages (`pages`).
+pub const W_OCR_ENGINE_MISSING: &str = "W_OCR_ENGINE_MISSING";
+
+/// Tesseract failed on one region — it hung past `ocr.region_deadline_secs`, crashed, or printed
+/// something that is not its TSV — and the region is carried as an image instead.
+pub const W_OCR_FAILED: &str = "W_OCR_FAILED";
+
+/// A region's mean word confidence is under `ocr.region_conf_min`, so its image is emitted beside
+/// the text for a reader who does not trust it (detail 9).
+pub const W_OCR_LOW_CONFIDENCE: &str = "W_OCR_LOW_CONFIDENCE";
 
 /// One word Tesseract read, already in the pipeline's units.
 ///
@@ -29,4 +42,27 @@ pub struct OcrWord {
     pub block: u32,
     pub par: u32,
     pub line: u32,
+}
+
+/// The platform a hint is written for. The engine's own platform is [`Os::current`]; the others
+/// exist so every hint can be tested on every machine.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Os {
+    Linux,
+    MacOs,
+    Windows,
+}
+
+impl Os {
+    /// The platform this engine was built for. Anything that is neither macOS nor Windows gets the
+    /// Linux hints, which are the ones a BSD user can most easily translate.
+    pub fn current() -> Os {
+        if cfg!(target_os = "macos") {
+            Os::MacOs
+        } else if cfg!(windows) {
+            Os::Windows
+        } else {
+            Os::Linux
+        }
+    }
 }

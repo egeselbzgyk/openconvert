@@ -73,7 +73,7 @@ LAST_UPDATED: 2026-09-23
 Work items, in order, with the plan's test rows against each:
 
 - [x] **P13.1** `[ocr.*]` thresholds and the TSV parser (`oc_core::ocr::tsv`) — rows 13.5–13.8
-- [ ] **P13.2** language selection and the `W_OCR_*` warning codes — row 13.9
+- [x] **P13.2** language selection and the `W_OCR_*` warning codes — row 13.9
 - [ ] **P13.3** system-Tesseract discovery, VD-g — rows 13.1–13.4, A13.7
 - [ ] **P13.4** invocation: fixed argv, deadline, process ownership, the fake engine — rows 13.10, 13.18, 13.19
 - [ ] **P13.5** `oc-pdf` rasterization (`render_region`)

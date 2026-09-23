@@ -96,6 +96,22 @@ pub const CODES: &[WarningSpec] = &[
         args: &[],
     },
     WarningSpec {
+        code: "W_OCR_ENGINE_MISSING",
+        args: &["reason", "hint", "pages"],
+    },
+    WarningSpec {
+        code: "W_OCR_FAILED",
+        args: &["page", "reason"],
+    },
+    WarningSpec {
+        code: "W_OCR_LANG_MISSING",
+        args: &["lang", "hint"],
+    },
+    WarningSpec {
+        code: "W_OCR_LOW_CONFIDENCE",
+        args: &["page", "confidence", "floor"],
+    },
+    WarningSpec {
         code: "W_ORNAMENT_DROPPED",
         args: &["pages", "page_count"],
     },

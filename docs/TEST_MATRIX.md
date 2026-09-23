@@ -550,3 +550,4 @@ back on.
 | 13.6 | `ocr_tsv::tsv_parses_words_and_confidences` | `oc-core` | unit (golden TSV, a real Tesseract 5.3.4 capture) | `test` | green |
 | 13.7 | `ocr_tsv::tsv_drops_non_word_and_negative_conf_rows` | `oc-core` | unit | `test` | green |
 | 13.8 | `ocr_tsv::pixel_boxes_map_into_normalized_page_space` | `oc-core` | property (2 000 cases) | `test` | green |
+| 13.9 | `ocr_lang::language_selection_maps_and_falls_back` | `oc-core` | unit (table) | `test` | green |
