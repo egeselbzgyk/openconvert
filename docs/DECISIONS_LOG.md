@@ -4106,3 +4106,38 @@ Evidence: `the_app_server_listens_on_loopback_and_hands_its_key_over_a_private_f
 model (no GGUF can be fetched).
 Affects: PHASE 9 detail 3, PHASE 12 Files, `thresholds.toml` (`llm.load_timeout_secs`,
 `llm.health_probe_timeout_millis`), `apps/desktop/src-tauri/src/{llm.rs,fs_scope.rs,main.rs}`.
+
+## 2026-09-23 · The app ends an engine's whole process tree · Phase 12
+Context: ARCHITECTURE §8.2 and PHASE 9 detail 5: the app puts each engine in a job object
+(Windows) or its own process group (Unix) and ends it with the job or `kill(-pgid)`; a `Drop` guard
+alone is insufficient. Phase 9 built the engine's side (`oc_core::sidecar::supervise`) and left the
+app's to Phase 12. CLAUDE.md keeps `#![forbid(unsafe_code)]` in the desktop crate.
+Decision:
+1. `apps/desktop/src-tauri/src/tree.rs`. **Unix:** the engine leads a new process group (it
+   already did); a kill is `kill_process_group(pgid, SIGKILL)` from `rustix` (safe API). An engine
+   that exits by itself has its group **swept before it is reaped**, looked at with
+   `waitid(P_PID, WEXITED | WNOHANG | WNOWAIT)`: until the reap the engine's zombie holds the group
+   id, so a sweep can never reach a group that reused the number. Once reaped, the tree never
+   signals the group again. Every unreaped group is listed process-wide for `end_all`.
+2. **Windows:** a job object per engine with `KILL_ON_JOB_CLOSE`, through `win32job` 2.0.3
+   (MIT OR Apache-2.0, a safe wrapper over `windows` 0.61, which Tauri already pulls in). Ending
+   the tree is closing the job; Windows closes it when the app dies however it dies. The engine is
+   assigned just after spawn (no `CREATE_SUSPENDED` without FFI of our own); the engine reads its
+   spec before it starts anything, so nothing escapes. The plan's `PROCESS_MEMORY` and `JOB_TIME`
+   limits are resource limits, and stay with Phase 14's hardening (SECURITY §4).
+3. `oc_core::sidecar::supervise::on_teardown(hook)`: `kill_all` — and so the panic hook and the
+   signal handler — also run registered hooks. The app registers `tree::end_all` at start and runs
+   it at `RunEvent::Exit`, before stopping its model server. A SIGINT/SIGTERM to the app now tears
+   everything down and exits 3 (supervise's "a signal to stop is a cancellation").
+4. **PROVISIONAL — needs maintainer ratification:** `win32job` is the "reviewed wrapper crate"
+   the Phase 9 entry of the same date anticipates for job objects; nobody has reviewed it, and it
+   has not run here. `tree.rs` compiles and is clippy-clean for `x86_64-pc-windows-msvc` and
+   `aarch64-apple-darwin` (checked with a scratch crate that includes the file; the desktop crate
+   itself cannot be cross-checked because `ring` needs the MSVC C toolchain).
+Evidence: `a_killed_engine_takes_its_whole_process_tree_with_it` and
+`an_engine_that_crashes_leaves_nothing_behind` (both fail — 30 s hangs, the stderr pipe held open
+by the orphan — with the group kill or the sweep removed), `quitting_the_app_ends_every_running_engine`,
+`a_dropped_engine_handle_ends_its_tree`, `teardown_hooks_run_with_the_registered_children`. Linux.
+**Unverified here:** macOS (same code) and Windows (job objects).
+Affects: ARCHITECTURE §8.2, PHASE 9 detail 5, `Cargo.toml` (`rustix`, `win32job`),
+`crates/oc-core/src/sidecar/supervise.rs`, `apps/desktop/src-tauri/src/{tree.rs,engine.rs,main.rs}`.

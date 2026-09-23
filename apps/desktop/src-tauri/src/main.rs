@@ -31,6 +31,7 @@ use openconvert_desktop::jobqueue::{JobQueue, JobView, QueueSink, Rebuild};
 use openconvert_desktop::llm::{self, LlmHost};
 use openconvert_desktop::preview::{self, PreviewIndex};
 use openconvert_desktop::settings::{self, Settings};
+use openconvert_desktop::tree;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
@@ -402,6 +403,9 @@ fn with_queue<R>(
 }
 
 fn main() {
+    // Every engine's process tree ends with the app, however it ends: this teardown runs from the
+    // panic hook and the signal handler `supervise` installs (D13.2), and at `RunEvent::Exit`.
+    oc_core::sidecar::supervise::on_teardown(tree::end_all);
     let engine = sidecar_path();
     let startup = engine
         .clone()
@@ -502,7 +506,9 @@ fn main() {
         .expect("the Tauri application starts")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
-                // Nothing the app started outlives it: the model server and its key go first.
+                // Nothing the app started outlives it: every engine's tree, then the model server
+                // and its key.
+                tree::end_all();
                 let llm = app.state::<Llm>();
                 let mut guard = llm.0.lock().unwrap_or_else(PoisonError::into_inner);
                 if let Some(host) = guard.as_mut() {

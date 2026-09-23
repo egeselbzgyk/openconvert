@@ -15,3 +15,4 @@ pub mod jobqueue;
 pub mod llm;
 pub mod preview;
 pub mod settings;
+pub mod tree;

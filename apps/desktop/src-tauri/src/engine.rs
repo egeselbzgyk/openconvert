@@ -15,11 +15,10 @@
 //! protocol it does not speak. stdin is the control channel: [`Running::cancel`] writes
 //! `{"t":"cancel"}` on it (D13.2).
 //!
-//! **Process groups and job objects are Phase 9's** (`oc-core::sidecar::supervise`). Until that
-//! lands here, a Unix engine is started in its own process group and a kill ends the engine
-//! itself; the engine does not spawn children of its own while AI is off, which it always is in
-//! v1's default, so nothing is orphaned today. Part B of Phase 12 threads the Phase 9 supervisor
-//! through [`ProcessLauncher`].
+//! **An engine is a process tree** ([`crate::tree`]): a Unix engine leads a process group of its
+//! own and a Windows engine is put in a job object of its own, so a kill ends whatever the engine
+//! started along with it, an engine that crashes leaves nothing behind, and the app's exit ends
+//! every tree still running (D13.2, ARCHITECTURE §8.2).
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -30,6 +29,7 @@ use oc_core::jobspec::JobSpec;
 use serde::Serialize;
 
 use crate::fs_scope::is_inside;
+use crate::tree::{self, Tree};
 
 /// What can go wrong between the UI asking for something and the engine running.
 ///
@@ -225,6 +225,7 @@ impl Launch for ProcessLauncher {
         on_line: LineSink,
     ) -> Result<Box<dyn Running>, UiError> {
         let mut child = self.command(spec, password)?.spawn()?;
+        let tree = tree::adopt(&child);
         let stdin = child.stdin.take();
         let reader = child
             .stderr
@@ -234,6 +235,7 @@ impl Launch for ProcessLauncher {
             child,
             stdin,
             reader,
+            tree,
         }))
     }
 }
@@ -255,6 +257,9 @@ struct Process {
     child: Child,
     stdin: Option<ChildStdin>,
     reader: Option<JoinHandle<()>>,
+    /// Everything the engine started, ended with it. `None` only where the system could not make
+    /// one (a Windows job object that could not be created): then the engine alone is killed.
+    tree: Option<Tree>,
 }
 
 impl Running for Process {
@@ -268,6 +273,9 @@ impl Running for Process {
     }
 
     fn kill(&mut self) -> Result<(), UiError> {
+        if let Some(tree) = self.tree.as_mut() {
+            tree.end();
+        }
         match self.child.kill() {
             Ok(()) => Ok(()),
             // Already gone: the kill's purpose is met.
@@ -277,7 +285,11 @@ impl Running for Process {
     }
 
     fn try_wait(&mut self) -> Result<Option<Option<i32>>, UiError> {
-        match self.child.try_wait()? {
+        let exited = match self.tree.as_mut() {
+            Some(tree) => tree.try_wait(&mut self.child)?,
+            None => self.child.try_wait()?,
+        };
+        match exited {
             Some(status) => {
                 // The stderr reader ends when the pipe closes, which the exit guarantees; joining
                 // it here means every event line has been forwarded before the exit is reported.
@@ -292,14 +304,19 @@ impl Running for Process {
 }
 
 impl Drop for Process {
-    /// An engine is never left running behind a dropped handle — the app quitting, a job removed
-    /// mid-run. `Drop` alone is not enough supervision (panic-abort skips it; D13.2), which is what
-    /// Phase 9's process groups add; it is the floor.
+    /// An engine is never left running behind a dropped handle — a job removed mid-run, the queue
+    /// torn down. `Drop` alone is not enough supervision (panic-abort skips it; D13.2): the app's
+    /// exit and `supervise`'s hooks end every tree through [`tree::end_all`] as well.
     fn drop(&mut self) {
-        if matches!(self.child.try_wait(), Ok(None)) {
-            let _ = self.child.kill();
-            let _ = self.child.wait();
+        if matches!(self.try_wait(), Ok(Some(_))) {
+            return;
         }
+        if let Some(tree) = self.tree.as_mut() {
+            tree.end();
+            tree.release();
+        }
+        let _ = self.child.kill();
+        let _ = self.child.wait();
     }
 }
 

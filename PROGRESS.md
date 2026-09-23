@@ -426,7 +426,13 @@ oc-testkit --bins` (the stub llama-server).
       (`RunEvent::Exit`) and on panic/signal (`supervise`). Two new provisional thresholds
       (`llm.load_timeout_secs`, `llm.health_probe_timeout_millis`; report snapshot now 188). Not
       started by anything until the AI toggle (B2) (+ 5 tests, Linux, against `oc-stub-llama-server`)
-- [ ] **P12.13** process groups / job objects in `ProcessLauncher`
+- [x] **P12.13** process trees in `ProcessLauncher` (`tree.rs`): Unix `kill(-pgid)` via `rustix`,
+      the group swept before an exited engine is reaped (`waitid … WNOWAIT`), every live group ended
+      by `tree::end_all` at `RunEvent::Exit` and from `supervise`'s panic hook / signal handler
+      (new `supervise::on_teardown`); Windows job object with `KILL_ON_JOB_CLOSE` via `win32job`
+      (PROVISIONAL, see Blocked; compile- and clippy-checked for windows-msvc and apple-darwin with
+      a scratch crate, **unverified here** at run time). Resource limits on the job stay Phase 14
+      (+ 4 desktop tests, Linux, + 1 oc-core test)
 - [ ] **P12.14** the model manager — row **12.12** `model_download_progress_streams_and_cancels`
 - [ ] **P12.15** packs through the same download mechanism
 - [ ] **P12.16** the Models and Packs screens and the first-run route
@@ -991,6 +997,9 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 - The partial re-run's save lives in `<OC_CACHE_DIR>/structure/<sha256>.json`, named by an
   environment variable (not a job-spec field) and written only when that variable is set; the
   desktop app points it at its own cache directory. No document says where R-15's cache lives.
+- **Part B1:** Windows job objects come from `win32job` 2.0.3 (MIT OR Apache-2.0), the "reviewed
+  wrapper crate" Phase 9's deferral anticipated — not reviewed by a maintainer and never run here
+  (DECISIONS_LOG 2026-09-23, "The app ends an engine's whole process tree").
 
 The NFC question raised on 2026-09-20 was ruled the same day — `C(·)` is taken after
 canonical **de**composition — and is implemented. `docs/DECISIONS_LOG.md` 2026-09-20 and the
