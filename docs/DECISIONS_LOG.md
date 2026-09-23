@@ -5444,3 +5444,19 @@ published as it stands.
 Evidence: `release_notes_come_from_the_changelog_and_refuse_a_placeholder`; run on the real file it
 refuses, naming the placeholder line.
 Affects: `docs/CHANGELOG.md`, `xtask/src/release.rs`, `.github/workflows/release.yml`.
+
+## 2026-09-23 · The update check in the network audit log · Phase 15 (part B, P15.17)
+Context: Phase 14 added `oc_net::audit` — one line per connection, `{ts, host, purpose, bytes, outcome,
+loopback}` — with the purposes `download`, `llm-request`, `llm-probe`, written by `HttpFetch`, which
+labelled every connection a download.
+Decision: a fourth purpose, `update`, and `HttpFetch::with_purpose` so the same client records what it
+is for; the desktop's `update_check` uses `HttpFetch::new(..).with_purpose(Purpose::Update)`, so the
+manifest, each redirect and the payload are each a line under `update`. Settings › Network log names it
+("Update check" / "Suche nach Updates" / "Güncelleme denetimi"), and its empty-log sentence now lists
+the update check among the connections that are recorded.
+Evidence: `every_update_connection_is_in_the_network_audit_log` (the real HTTP client against a loopback
+server: three lines, `update`, `ok` / `HTTP 302` / `ok` with the payload's size), Phase 14's
+`net_audit_log_records_downloads_and_nothing_else` unchanged and green; UI: the network-log test lists
+an `update` line as "Update check".
+Affects: `crates/oc-net/src/{audit,download}.rs`, `crates/oc-net/tests/{updater.rs,common/mod.rs}`,
+`apps/desktop/src-tauri/src/main.rs`, `apps/desktop/ui/locales/*.json`, the settings UI test.

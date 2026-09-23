@@ -77,6 +77,15 @@ impl Server {
             inner: HttpFetch::new(Duration::from_secs(5)),
         })
     }
+
+    /// [`Server::fetch`], recording its connections under `purpose`.
+    #[allow(dead_code)] // Used by the updater tests; each test binary compiles this module.
+    pub fn fetch_for(&self, purpose: oc_net::audit::Purpose) -> Box<dyn Fetch> {
+        Box::new(Loopback {
+            port: self.port,
+            inner: HttpFetch::new(Duration::from_secs(5)).with_purpose(purpose),
+        })
+    }
 }
 
 fn serve(stream: TcpStream, routes: &Mutex<BTreeMap<String, Answer>>) {

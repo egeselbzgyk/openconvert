@@ -174,6 +174,9 @@ Work items, in order, with the plan's test rows against each:
       installing and verifying, and a **Security** section that is only the placeholder
       `TODO_PHASE14_SECURITY_CLAIMS`; `xtask release changelog` (used by `release.yml`) refuses a
       missing, empty or placeholder-carrying section — `release_notes_come_from_the_changelog_and_refuse_a_placeholder`
+- [x] **P15.17** (after Phase 14's merge) the update check in the network audit log: purpose `update`,
+      `HttpFetch::with_purpose`, "Update check" in Settings › Network log —
+      `every_update_connection_is_in_the_network_audit_log`, the network-log UI test
 - [x] **P15.16** row 15.19's scripted half: `packaging/smoke/fresh-install.{sh,ps1}` (hash check,
       install, `--smoke-convert`, EPUB check), referenced by RELEASE_CHECKLIST.md —
       `fresh_install_script_checks_the_hash_and_the_epub` (Linux, stand-in AppImage); the `.ps1` and

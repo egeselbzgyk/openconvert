@@ -621,7 +621,9 @@ async fn update_check(app: AppHandle) -> Result<updater::Checked, UiError> {
     off_main(move || {
         let connect =
             Duration::from_secs(u64::try_from(T.net.connect_timeout_secs).unwrap_or_default());
-        let fetch = oc_net::download::HttpFetch::new(connect);
+        // Recorded in the network audit log as `update` (Settings › Network log).
+        let fetch =
+            oc_net::download::HttpFetch::new(connect).with_purpose(oc_net::audit::Purpose::Update);
         let (checked, verified) = updater::check(&setup, env!("CARGO_PKG_VERSION"), &fetch);
         *handle
             .state::<updater::Pending>()

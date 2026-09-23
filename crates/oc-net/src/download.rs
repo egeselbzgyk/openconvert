@@ -90,6 +90,9 @@ pub trait Fetch: Send + Sync {
 /// [`Fetch`] with `ureq`, trusting the platform's roots and never following a redirect itself.
 pub struct HttpFetch {
     agent: ureq::Agent,
+    /// What the audit log says each connection was for: a download unless told otherwise
+    /// ([`HttpFetch::with_purpose`]).
+    purpose: crate::audit::Purpose,
 }
 
 impl HttpFetch {
@@ -105,7 +108,16 @@ impl HttpFetch {
             .tls_config(tls)
             .build()
             .new_agent();
-        Self { agent }
+        Self {
+            agent,
+            purpose: crate::audit::Purpose::Download,
+        }
+    }
+
+    /// The same client, recording its connections under `purpose` (the updater's are `Update`).
+    pub fn with_purpose(mut self, purpose: crate::audit::Purpose) -> Self {
+        self.purpose = purpose;
+        self
     }
 }
 
@@ -113,17 +125,18 @@ impl Fetch for HttpFetch {
     /// One GET, and one line in the audit log for it (PHASE 14 detail 12): a refused or failed
     /// connection now, a redirect now, a body when it has been read (with its size).
     fn get(&self, url: &str) -> Result<Fetched, NetError> {
-        use crate::audit::{record, Entry, Purpose};
+        use crate::audit::{record, Entry};
 
+        let purpose = self.purpose;
         let response = self.agent.get(url).call().map_err(|error| {
-            record(Entry::now(url, Purpose::Download, 0, error.to_string()));
+            record(Entry::now(url, purpose, 0, error.to_string()));
             NetError::Transport(error.to_string())
         })?;
         let status = response.status();
         if status.is_redirection() {
             record(Entry::now(
                 url,
-                Purpose::Download,
+                purpose,
                 0,
                 format!("HTTP {}", status.as_u16()),
             ));
@@ -137,7 +150,7 @@ impl Fetch for HttpFetch {
         if !status.is_success() {
             record(Entry::now(
                 url,
-                Purpose::Download,
+                purpose,
                 0,
                 format!("HTTP {}", status.as_u16()),
             ));
@@ -146,6 +159,7 @@ impl Fetch for HttpFetch {
         Ok(Fetched::Body(Box::new(AuditedBody {
             inner: response.into_body().into_reader(),
             url: url.to_owned(),
+            purpose,
             bytes: 0,
             ended: false,
         })))
@@ -157,6 +171,7 @@ impl Fetch for HttpFetch {
 struct AuditedBody<R: Read> {
     inner: R,
     url: String,
+    purpose: crate::audit::Purpose,
     bytes: u64,
     ended: bool,
 }
@@ -179,7 +194,7 @@ impl<R: Read> Drop for AuditedBody<R> {
         let outcome = if self.ended { "ok" } else { "incomplete" };
         crate::audit::record(crate::audit::Entry::now(
             &self.url,
-            crate::audit::Purpose::Download,
+            self.purpose,
             self.bytes,
             outcome,
         ));

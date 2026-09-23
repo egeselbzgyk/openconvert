@@ -17,6 +17,8 @@ use oc_net::update::{
 };
 use oc_net::NetError;
 
+mod common;
+
 const ENDPOINT: &str =
     "https://github.com/openconvert/openconvert/releases/latest/download/latest.json";
 const ASSET: &str = "https://github.com/openconvert/openconvert/releases/download/v9.9.9/\
@@ -313,4 +315,66 @@ fn an_update_off_the_release_hosts_or_over_the_budget_is_refused() {
         .err(),
         Some(UpdateError::TooLarge(100))
     );
+}
+
+/// PHASE 14 detail 12 meets PHASE 15 detail 5: an update check is a connection like any other, and
+/// the network audit log has a line for every hop of it — the manifest, the release page's redirect,
+/// the payload — under its own purpose, `update`, so Settings › Network log can say what it was. Run
+/// through the real HTTP client against a loopback server.
+#[test]
+fn every_update_connection_is_in_the_network_audit_log() {
+    let key = ReleaseKey::generate();
+    let signed = payload();
+    let dir = scratch("audit");
+    let path = dir.join("network-audit.log");
+    oc_net::audit::install(oc_net::audit::AuditLog::new(path.clone(), 1 << 20));
+
+    let server = common::Server::start();
+    let path_of = |url: &str| url.trim_start_matches("https://github.com").to_owned();
+    server.route(
+        "github.com",
+        &path_of(ENDPOINT),
+        common::Answer::Body(latest_json("9.9.9", &key.sign_b64(&signed))),
+    );
+    server.route(
+        "github.com",
+        &path_of(ASSET),
+        common::Answer::Redirect(CDN.to_owned()),
+    );
+    server.route(
+        "release-assets.githubusercontent.com",
+        CDN.trim_start_matches("https://release-assets.githubusercontent.com"),
+        common::Answer::Body(signed.clone()),
+    );
+    let fetch = server.fetch_for(oc_net::audit::Purpose::Update);
+    let update = fetch_update(
+        fetch.as_ref(),
+        ENDPOINT,
+        "1.0.0",
+        &platform_keys(None),
+        &key.pubkey_b64(),
+        &CONFIG,
+    )
+    .expect("verifies")
+    .expect("newer");
+    assert_eq!(update.bytes(), signed.as_slice());
+
+    let lines: Vec<serde_json::Value> = std::fs::read_to_string(&path)
+        .expect("the log was written")
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("a JSON line"))
+        .collect();
+    assert_eq!(lines.len(), 3, "one line per connection: {lines:?}");
+    for line in &lines {
+        assert_eq!(line["purpose"], "update", "{line}");
+    }
+    assert_eq!(lines[0]["outcome"], "ok");
+    assert_eq!(lines[1]["outcome"], "HTTP 302");
+    assert_eq!(lines[2]["outcome"], "ok");
+    assert_eq!(
+        lines[2]["bytes"],
+        serde_json::json!(signed.len()),
+        "the payload's size"
+    );
+    let _ = std::fs::remove_dir_all(dir);
 }
