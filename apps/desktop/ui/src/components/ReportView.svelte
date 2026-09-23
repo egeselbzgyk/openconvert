@@ -41,7 +41,10 @@
   const c0 = $derived(report.conservation.c0_chars);
 </script>
 
-<div class="oc-report">
+<!-- The report scrolls and may hold nothing focusable, so the scroll region itself takes focus:
+     a keyboard user scrolls it with the arrow keys (axe `scrollable-region-focusable`). -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<main class="oc-report" tabindex="0" aria-label={t("report.title")}>
   <div class="oc-report__title">
     <span class="oc-report__file">{base(input)}</span>
     <span class="oc-report__arrow">→ {base(output)}</span>
@@ -141,4 +144,4 @@
       </section>
     </div>
   </div>
-</div>
+</main>

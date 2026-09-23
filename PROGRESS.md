@@ -275,7 +275,17 @@ Work items, in order, with the plan's test rows against each:
         `OC_CACHE_DIR=<data>/cache`, emptied at start; the rebuild row shows only the steps it runs,
         "from cache"; the result says what was applied, or that saved corrections were refused
         (+ 4 Rust, 3 UI tests; report fixtures regenerated from the engine)
-- [ ] **P12.10** Playwright under the shipped CSP — rows 12.14 (keyboard), 12.15, 12.16
+- [x] **P12.10** Playwright under the shipped CSP — rows **12.14** (keyboard), **12.15**, **12.16**:
+      `tests/dom/specs/ui.spec.ts` serves the built `apps/desktop/ui/dist` with the CSP from
+      `tauri.conf.json` and plays the Rust side in the page (`tests/dom/ui/tauri-mock.ts`, installed
+      as `__TAURI_INTERNALS__`, so the real `tauriBackend()` runs) with a recorded engine run of f09
+      and its report; every test also asserts no `securitypolicyviolation`. Keyboard-only: Tab to
+      "Select PDF…" → convert → Details → report → back. axe (`@axe-core/playwright` 4.13.0,
+      MPL-2.0, dev only): no serious/critical on queue, result, report, settings; contrast in light
+      and dark. Fixed on the way: the report is a focusable `main` (axe
+      `scrollable-region-focusable`), Settings is a `main`. Projects `chromium-ui` (PR) and
+      `webkit-ui` (nightly, **unverified here** — no WebKit on this machine); `npm run test:ui`
+      (+ 3 Playwright tests)
 - [ ] **P12.11** CI wiring, the signing dry-run workflow (row 12.14 signing, unverified here)
 
 ## Phase 8 — built on `worktree-phase8`, merged 2026-09-23

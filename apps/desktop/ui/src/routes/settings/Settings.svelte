@@ -51,7 +51,7 @@
   }
 </script>
 
-<div class="oc-settings">
+<main class="oc-settings">
   <nav class="oc-nav" aria-label={t("settings.sections")}>
     {#each SECTIONS as item (item)}
       <a
@@ -218,7 +218,7 @@
       </div>
     {/if}
   </div>
-</div>
+</main>
 
 {#if licenses}
   <Dialog title={t("settings.about.licensesTitle")} confirm={t("dialog.close")} cancel={null} oncancel={() => (licenses = false)} onconfirm={() => (licenses = false)} wide>
