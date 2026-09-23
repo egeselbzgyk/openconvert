@@ -3791,3 +3791,40 @@ manager exists. Phase 12 wires it, with the engine receiving the app's server th
 `--llm-endpoint` and `--llm-api-key-file`. Those two `convert` flags arrive with Phase 10's use of
 a model, not before, because a flag that does nothing is worse than no flag.
 Affects: PHASE 9 detail 3, Phase 10 (CLI flags), Phase 12 (`apps/desktop/src-tauri/src/llm.rs`).
+
+## 2026-09-23 · llama.cpp `b10456` digests filled, then checked by download · Phase 9 follow-up
+Context: the entry "llama.cpp pinned at `b10456`, digests unfilled" left `xtask/llama.lock` with
+`TODO_SHA256` and `size_bytes = 0` for all four assets. `fetch-llama-server` refused to run, so the
+nightly live job failed at its first step.
+Decision:
+1. The four digests and sizes are the `digest` (`sha256:…`) and `size` fields that GitHub's releases
+   API reports for each asset (`api.github.com/repos/ggml-org/llama.cpp/releases/tags/b10456`). They
+   were read twice, and the two reads matched.
+2. **Then they were checked by download.** When this follow-up ran, the sandbox's proxy let
+   github.com release downloads through, which the Phase 9 run had found refused.
+   `cargo run -p xtask -- fetch-llama-server` fetched the ubuntu-x64 asset, `verify` accepted its
+   size and SHA-256, and it unpacked the archive. The unpacked `llama-server --version` reports
+   build 10456, commit `f275595dd`. All four assets were then downloaded with `curl` and hashed
+   with `sha256sum`, and each digest and byte size matches the lock:
+   ubuntu-x64 `d07b3f80…c577` 16 645 205, macos-arm64 `5ab514e2…eb6f` 11 072 436, macos-x64
+   `5913d397…f489` 11 379 321, win-cpu-x64 `52ea16a7…2a2d` 18 464 144. The sizes also agree with
+   V1 §3's 10.6 / 15.9 / 17.6 MB.
+3. The digest and the download both come from GitHub, so the pin records what GitHub served on
+   2026-09-23. It catches a corrupted transfer or a later change to the asset. It cannot catch a
+   release that was already bad when it was uploaded. The PDFium and EPUBCheck pins have the same
+   limit.
+4. The pinned build's `--help` lists `(env: LLAMA_API_KEY)` under `--api-key`, which is the
+   variable `oc_core::sidecar::llama::command` sets. Whether a running server enforces the key
+   still needs a model to test, and none can be fetched here.
+**PROVISIONAL — needs maintainer ratification: verify by downloading.** Run
+`cargo run -p xtask -- fetch-llama-server` on a maintainer machine. It verifies that host's asset
+against the lock. The download check above was done by an unattended run, not by a maintainer
+reviewing the pin. The lock's header says moving a pin is a reviewed commit, and this commit fills
+the pin for the first time.
+Still blocked: `models.toml`. huggingface.co is still refused (`CONNECT` 403, checked again with
+`curl` for this entry), so the registry pins stay `TODO_`. The nightly live job now gets past the
+server fetch and fails at `model pull`.
+Evidence: `the_shipped_lock_pins_all_four_assets_by_sha256_and_size` (asserts four distinct
+lower-case SHA-256s and non-zero sizes, all accepted by `pinned`), and the `sha256sum` / `stat`
+output above.
+Affects: D8, D9, PHASE 9 detail 1, `xtask/llama.lock`, PROGRESS.md Blocked items 2 and 3.

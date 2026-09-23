@@ -1066,10 +1066,14 @@ None. `oc_ai::provider::LlmResponse` gained `cached_tokens` (read from `timings.
 
 ### Known gaps, carried forward
 
-- **This sandbox's egress policy refuses huggingface.co and github.com release downloads.** So
-  `models.toml`'s pins and `xtask/llama.lock`'s digests are still `TODO_` (`model list`/`pull` on
-  the bundled registry exit 2 until they are filled). No live test ran against a real model, and no
-  gate result is recorded. Qwen3-1.7B stays the default.
+- **This sandbox's egress policy refuses huggingface.co** (and refused github.com release downloads
+  during the phase). So `models.toml`'s pins are still `TODO_` (`model list`/`pull` on the bundled
+  registry exit 2 until they are filled). No live test ran against a real model, and no gate result
+  is recorded. Qwen3-1.7B stays the default.
+- **Follow-up after the merge:** `xtask/llama.lock`'s four `b10456` digests and sizes are filled.
+  They were read from GitHub's releases API and then checked against downloads of all four assets.
+  They stay provisional until a maintainer ratifies them. New test:
+  `the_shipped_lock_pins_all_four_assets_by_sha256_and_size`.
 - **An engine killed outright** (`SIGKILL`, a segfault) can still orphan its server:
   `PR_SET_PDEATHSIG` and Windows job objects need `unsafe`, which `forbid(unsafe_code)` excludes.
   They are Phase 14's hardening.
