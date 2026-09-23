@@ -11,11 +11,12 @@ use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use oc_core::sidecar::readiness::ModelReadiness;
 use oc_net::registry::ModelRegistry;
 use oc_net::store::ModelStore;
 use oc_testkit::download_stub::{self, Answer, Server};
 use openconvert_desktop::engine::UiError;
-use openconvert_desktop::models::{DownloadState, ModelManager, ModelRow, ModelSink};
+use openconvert_desktop::models::{DownloadState, ModelManager, ModelRow, RowSink};
 
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 /// Long enough to wait for an event that is coming; a test that waits this long has failed.
@@ -83,7 +84,7 @@ const PATH: &str = "/org/tiny-GGUF/resolve/0123456789abcdef0123456789abcdef01234
 
 /// Every row the manager announces, in order.
 struct Recorder(Mutex<mpsc::Sender<ModelRow>>);
-impl ModelSink for Recorder {
+impl RowSink<ModelReadiness> for Recorder {
     fn changed(&self, row: &ModelRow) {
         let _ = self.0.lock().expect("sender").send(row.clone());
     }

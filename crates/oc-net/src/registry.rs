@@ -116,20 +116,36 @@ impl ModelRegistry {
 }
 
 fn check(entry: &ModelEntry) -> Result<(), RegistryError> {
+    check_pins(&entry.id.0, &[], &entry.revision, &entry.sha256)
+}
+
+/// A registry entry the downloader may act on: no `fields` still a placeholder, the revision and
+/// hash filled in, and the revision a full commit. Shared by the model and the pack registries.
+pub(crate) fn check_pins(
+    id: &str,
+    fields: &[(&'static str, &str)],
+    revision: &str,
+    sha256: &str,
+) -> Result<(), RegistryError> {
     let unresolved = |field| RegistryError::Unresolved {
-        id: entry.id.0.clone(),
+        id: id.to_owned(),
         field,
     };
-    if entry.revision.starts_with(PLACEHOLDER) {
+    for (field, value) in fields {
+        if value.starts_with(PLACEHOLDER) {
+            return Err(unresolved(field));
+        }
+    }
+    if revision.starts_with(PLACEHOLDER) {
         return Err(unresolved("revision"));
     }
-    if entry.sha256.starts_with(PLACEHOLDER) {
+    if sha256.starts_with(PLACEHOLDER) {
         return Err(unresolved("sha256"));
     }
-    if !is_commit(&entry.revision) {
+    if !is_commit(revision) {
         return Err(RegistryError::UnpinnedRevision {
-            id: entry.id.0.clone(),
-            revision: entry.revision.clone(),
+            id: id.to_owned(),
+            revision: revision.to_owned(),
         });
     }
     Ok(())

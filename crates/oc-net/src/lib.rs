@@ -9,6 +9,7 @@
 pub mod allowlist;
 pub mod download;
 pub mod loopback;
+pub mod packs;
 pub mod registry;
 pub mod store;
 pub mod transport;

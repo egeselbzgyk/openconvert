@@ -19,6 +19,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
+use oc_core::sidecar::readiness::ModelReadiness;
 use oc_core::thresholds::T;
 use openconvert_desktop::config::UiConfig;
 use openconvert_desktop::corrections::{self, Patch};
@@ -29,9 +30,8 @@ use openconvert_desktop::engine::{
 use openconvert_desktop::fs_scope::{partition_drop, AppDirs, CacheUsage};
 use openconvert_desktop::jobqueue::{JobQueue, JobView, QueueSink, Rebuild};
 use openconvert_desktop::llm::{self, LlmHost};
-use openconvert_desktop::models::{
-    self, LicenseView, ModelManager, ModelRow, ModelSink, ModelsView,
-};
+use openconvert_desktop::models::{self, LicenseView, ModelManager, ModelsView, Row, RowSink};
+use openconvert_desktop::packs::{self, PackManager, PackReadiness, PacksView};
 use openconvert_desktop::preview::{self, PreviewIndex};
 use openconvert_desktop::settings::{self, Settings};
 use openconvert_desktop::tree;
@@ -81,10 +81,53 @@ struct Models(ModelManager);
 /// Relays the model manager's rows to the webview.
 struct WebviewModels(AppHandle);
 
-impl ModelSink for WebviewModels {
-    fn changed(&self, row: &ModelRow) {
+impl RowSink<ModelReadiness> for WebviewModels {
+    fn changed(&self, row: &Row<ModelReadiness>) {
         let _ = self.0.emit("model-changed", row);
     }
+}
+
+/// The pack manager: the model manager's mechanism over the pack registry.
+struct Packs(PackManager);
+
+/// Relays the pack manager's rows to the webview.
+struct WebviewPacks(AppHandle);
+
+impl RowSink<PackReadiness> for WebviewPacks {
+    fn changed(&self, row: &Row<PackReadiness>) {
+        let _ = self.0.emit("pack-changed", row);
+    }
+}
+
+/// Settings › Packs: the pack registry's rows, or why there are none.
+#[tauri::command]
+fn packs_list(packs: tauri::State<'_, Packs>) -> PacksView {
+    packs.0.view()
+}
+
+#[tauri::command]
+fn pack_license(id: String, packs: tauri::State<'_, Packs>) -> Result<LicenseView, UiError> {
+    packs.0.license(&id)
+}
+
+#[tauri::command]
+fn pack_accept_license(id: String, packs: tauri::State<'_, Packs>) -> Result<(), UiError> {
+    packs.0.accept_license(&id)
+}
+
+#[tauri::command]
+fn pack_pull(id: String, packs: tauri::State<'_, Packs>) -> Result<(), UiError> {
+    packs.0.pull(&id)
+}
+
+#[tauri::command]
+fn pack_cancel(id: String, packs: tauri::State<'_, Packs>) -> Result<(), UiError> {
+    packs.0.cancel(&id)
+}
+
+#[tauri::command]
+fn pack_remove(id: String, packs: tauri::State<'_, Packs>) -> Result<(), UiError> {
+    packs.0.remove(&id)
 }
 
 /// The models screen: every registry entry's `ModelReadiness`, or why there are none.
@@ -491,6 +534,13 @@ fn main() {
                 Some(models::accepted_path(&config_dir)),
                 Arc::new(WebviewModels(app.handle().clone())),
             )));
+            app.manage(Packs(PackManager::new(
+                packs::bundled_registry(),
+                oc_net::store::ModelStore::new(oc_net::store::default_packs_root()),
+                models::http_fetch(),
+                Some(packs::accepted_path(&config_dir)),
+                Arc::new(WebviewPacks(app.handle().clone())),
+            )));
             let prefs = app.state::<Prefs>();
             *prefs.current.lock().unwrap_or_else(PoisonError::into_inner) =
                 settings::load(&settings_file);
@@ -567,7 +617,13 @@ fn main() {
             model_accept_license,
             model_pull,
             model_cancel,
-            model_remove
+            model_remove,
+            packs_list,
+            pack_license,
+            pack_accept_license,
+            pack_pull,
+            pack_cancel,
+            pack_remove
         ])
         .build(tauri::generate_context!())
         .expect("the Tauri application starts")

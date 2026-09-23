@@ -443,7 +443,12 @@ oc-testkit --bins` (the stub llama-server).
       `model_cancel`, `model_remove`. Test double: `oc_testkit::download_stub` (loopback host, slow
       bodies). The shipped registry still has `TODO_` pins, so the app says models are unavailable
       in this build (+ 5 desktop, 1 engine-integration, 1 oc-net test)
-- [ ] **P12.15** packs through the same download mechanism
+- [x] **P12.15** packs through the same download mechanism: `oc_net::download::Artifact` +
+      `pull_artifact` (a model entry is one), `oc_net::packs` over a compiled-in `packs.toml`; the app's
+      manager is generic (`models::Manager<C: Catalog>`), `PackManager` over the pack registry
+      (`PackReadiness`, `pack-changed`, commands `packs_list` … `pack_remove`, store
+      `<data>/openconvert/packs`). The shipped `packs.toml` pins nothing (PROVISIONAL, see Blocked),
+      so the validation pack reads "not available in this version" (+ 2 desktop, 2 oc-net tests)
 - [ ] **P12.16** the Models and Packs screens and the first-run route
 
 ### Part B — what remains, after Phase 9 and Phase 11 merge
@@ -1006,6 +1011,10 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 - The partial re-run's save lives in `<OC_CACHE_DIR>/structure/<sha256>.json`, named by an
   environment variable (not a job-spec field) and written only when that variable is set; the
   desktop app points it at its own cache directory. No document says where R-15's cache lives.
+- **Part B1:** the validation pack is not available: `packs.toml` ships with `TODO_` pins until its
+  Java runtime's licence is verified per vendor and bundled, the pack is built and hosted on an
+  allowlisted host, and a job-spec field lets a conversion use it (DECISIONS_LOG 2026-09-23,
+  "Packs: the model mechanism over a pack registry").
 - **Part B1:** Windows job objects come from `win32job` 2.0.3 (MIT OR Apache-2.0), the "reviewed
   wrapper crate" Phase 9's deferral anticipated — not reviewed by a maintainer and never run here
   (DECISIONS_LOG 2026-09-23, "The app ends an engine's whole process tree").

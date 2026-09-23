@@ -18,6 +18,9 @@
 //!   "cancelling" until then.
 //! - **Downloads never happen during a conversion** (D9): nothing on the conversion path calls
 //!   this, and the engine is only ever handed a model that is already on disk.
+//!
+//! The manager is generic over its [`Catalog`]: the model registry here, the pack registry in
+//! [`crate::packs`] — one download mechanism, several payloads (PHASE 12 detail 9).
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -27,8 +30,8 @@ use std::time::Duration;
 
 use oc_core::sidecar::readiness::ModelReadiness;
 use oc_core::thresholds::T;
-use oc_net::download::{DownloadConfig, DownloadProgress, Downloader, Fetch};
-use oc_net::registry::{ModelEntry, ModelId, ModelRegistry};
+use oc_net::download::{Artifact, DownloadConfig, DownloadProgress, Downloader, Fetch};
+use oc_net::registry::{ModelId, ModelRegistry};
 use oc_net::store::{self, ModelStore};
 use oc_net::NetError;
 use serde::{Deserialize, Serialize};
@@ -42,9 +45,29 @@ const PERCENT: u64 = 100;
 /// Makes the fetcher a download uses: `HttpFetch` in the app, a loopback stub in the tests.
 pub type FetchFactory = Arc<dyn Fn() -> Box<dyn Fetch> + Send + Sync>;
 
+/// What a manager downloads from, and how its rows read.
+pub trait Catalog: Send + Sync + 'static {
+    /// The fields a row shows about an item, read from the registry and the store only.
+    type Readiness: Clone + std::fmt::Debug + PartialEq + Eq + Serialize + Send;
+    /// Every item, in registry order.
+    fn artifacts(&self) -> Vec<Artifact>;
+    /// One readiness per item, in the same order.
+    fn readiness(&self, store: &ModelStore) -> Vec<Self::Readiness>;
+}
+
+impl Catalog for ModelRegistry {
+    type Readiness = ModelReadiness;
+    fn artifacts(&self) -> Vec<Artifact> {
+        self.entries().iter().map(Artifact::from).collect()
+    }
+    fn readiness(&self, store: &ModelStore) -> Vec<ModelReadiness> {
+        readiness(self, store)
+    }
+}
+
 /// Told whenever a row changes: a download's progress, its end, a licence accepted, a delete.
-pub trait ModelSink: Send + Sync {
-    fn changed(&self, row: &ModelRow);
+pub trait RowSink<R>: Send + Sync {
+    fn changed(&self, row: &Row<R>);
 }
 
 /// Where a model's download is.
@@ -84,23 +107,33 @@ pub enum FailKind {
     Refused,
 }
 
-/// One row of the models screen: Phase 9's readiness, and what the manager knows on top.
+/// One row: the catalog's readiness (for a model, Phase 9's `ModelReadiness`), and what the
+/// manager knows on top.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct ModelRow {
+pub struct Row<R> {
     #[serde(flatten)]
-    pub readiness: ModelReadiness,
+    pub readiness: R,
     pub license_accepted: bool,
     pub download: DownloadState,
 }
 
-/// The models screen.
+/// A row of the models screen.
+pub type ModelRow = Row<ModelReadiness>;
+
+/// A screen of rows.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct ModelsView {
-    /// Why no model can be downloaded in this build, when none can: the registry it ships still
+pub struct View<R> {
+    /// Why nothing can be downloaded in this build, when nothing can: the registry it ships still
     /// has placeholder pins. `None` when the registry is usable.
     pub unavailable: Option<String>,
-    pub rows: Vec<ModelRow>,
+    pub rows: Vec<Row<R>>,
 }
+
+/// The models screen.
+pub type ModelsView = View<ModelReadiness>;
+
+/// The model manager.
+pub type ModelManager = Manager<ModelRegistry>;
 
 /// A model's licence, as it is shown before the download.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -118,35 +151,35 @@ struct Active {
     state: DownloadState,
 }
 
-struct Inner {
-    registry: Result<ModelRegistry, String>,
+struct Inner<C: Catalog> {
+    registry: Result<C, String>,
     store: ModelStore,
     fetch: FetchFactory,
-    /// Model id → the SPDX licence the user accepted for it.
+    /// Item id → the SPDX licence the user accepted for it.
     accepted: Mutex<BTreeMap<String, String>>,
     accepted_path: Option<PathBuf>,
     downloads: Mutex<BTreeMap<String, Active>>,
-    sink: Arc<dyn ModelSink>,
+    sink: Arc<dyn RowSink<C::Readiness>>,
 }
 
-/// The app's model manager. Cheap to share: every method takes `&self`.
-pub struct ModelManager {
-    inner: Arc<Inner>,
+/// A download manager over one catalog. Cheap to share: every method takes `&self`.
+pub struct Manager<C: Catalog> {
+    inner: Arc<Inner<C>>,
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-impl ModelManager {
+impl<C: Catalog> Manager<C> {
     /// A manager over `registry` (or why there is none) and `store`, keeping accepted licences in
     /// `accepted_path` when one is given.
     pub fn new(
-        registry: Result<ModelRegistry, String>,
+        registry: Result<C, String>,
         store: ModelStore,
         fetch: FetchFactory,
         accepted_path: Option<PathBuf>,
-        sink: Arc<dyn ModelSink>,
+        sink: Arc<dyn RowSink<C::Readiness>>,
     ) -> Self {
         let accepted = accepted_path
             .as_deref()
@@ -168,13 +201,13 @@ impl ModelManager {
     }
 
     /// Every row, in registry order.
-    pub fn view(&self) -> ModelsView {
+    pub fn view(&self) -> View<C::Readiness> {
         match &self.inner.registry {
-            Ok(registry) => ModelsView {
+            Ok(registry) => View {
                 unavailable: None,
                 rows: self.inner.rows(registry),
             },
-            Err(why) => ModelsView {
+            Err(why) => View {
                 unavailable: Some(why.clone()),
                 rows: Vec::new(),
             },
@@ -208,10 +241,10 @@ impl ModelManager {
         Ok(())
     }
 
-    /// Start downloading model `id` on a thread of its own. Refused unless its licence was
+    /// Start downloading item `id` on a thread of its own. Refused unless its licence was
     /// accepted, and while it is already downloading.
     pub fn pull(&self, id: &str) -> Result<(), UiError> {
-        let entry = self.inner.entry(id)?.clone();
+        let entry = self.inner.entry(id)?;
         if !self.inner.accepted(&entry) {
             return Err(UiError::LicenseNotAccepted(id.to_owned()));
         }
@@ -246,7 +279,7 @@ impl ModelManager {
                 cancel: &cancel,
                 last_percent: Mutex::new(None),
             };
-            let outcome = downloader.pull(&entry, &progress);
+            let outcome = downloader.pull_artifact(&entry, &progress);
             inner.finish(&entry.id.0, outcome);
         });
         Ok(())
@@ -293,10 +326,10 @@ impl ModelManager {
         Ok(())
     }
 
-    /// Where an installed model's file is, for the model server.
+    /// Where an installed item's file is — for a model, what the model server loads.
     pub fn installed_path(&self, id: &str) -> Option<PathBuf> {
         let entry = self.inner.entry(id).ok()?;
-        let path = self.inner.store.path_of(entry).ok()?;
+        let path = self.inner.store.path_for(&entry.id.0, &entry.file).ok()?;
         path.is_file().then_some(path)
     }
 }
@@ -310,36 +343,51 @@ impl Active {
     }
 }
 
-impl Inner {
-    fn registry(&self) -> Result<&ModelRegistry, UiError> {
+impl<C: Catalog> Inner<C> {
+    fn registry(&self) -> Result<&C, UiError> {
         self.registry
             .as_ref()
             .map_err(|why| UiError::ModelsUnavailable(why.clone()))
     }
 
-    fn entry(&self, id: &str) -> Result<&ModelEntry, UiError> {
+    fn entry(&self, id: &str) -> Result<Artifact, UiError> {
+        let wanted = ModelId(id.to_owned());
         self.registry()?
-            .get(&ModelId(id.to_owned()))
+            .artifacts()
+            .into_iter()
+            .find(|artifact| artifact.id == wanted)
             .ok_or_else(|| UiError::UnknownModel(id.to_owned()))
     }
 
     /// Accepted, and for the licence the registry names today.
-    fn accepted(&self, entry: &ModelEntry) -> bool {
+    fn accepted(&self, entry: &Artifact) -> bool {
         lock(&self.accepted).get(&entry.id.0) == Some(&entry.license)
     }
 
-    fn rows(&self, registry: &ModelRegistry) -> Vec<ModelRow> {
+    /// Every row, with the id each belongs to.
+    fn rows_by_id(&self, registry: &C) -> Vec<(String, Row<C::Readiness>)> {
         let downloads = lock(&self.downloads);
-        readiness(registry, &self.store)
+        registry
+            .readiness(&self.store)
             .into_iter()
-            .zip(registry.entries())
-            .map(|(readiness, entry)| ModelRow {
-                license_accepted: self.accepted(entry),
-                download: downloads
-                    .get(&readiness.id)
-                    .map_or(DownloadState::Idle, |active| active.state.clone()),
-                readiness,
+            .zip(registry.artifacts())
+            .map(|(readiness, entry)| {
+                let row = Row {
+                    license_accepted: self.accepted(&entry),
+                    download: downloads
+                        .get(&entry.id.0)
+                        .map_or(DownloadState::Idle, |active| active.state.clone()),
+                    readiness,
+                };
+                (entry.id.0, row)
             })
+            .collect()
+    }
+
+    fn rows(&self, registry: &C) -> Vec<Row<C::Readiness>> {
+        self.rows_by_id(registry)
+            .into_iter()
+            .map(|(_, row)| row)
             .collect()
     }
 
@@ -348,10 +396,10 @@ impl Inner {
         let Ok(registry) = self.registry() else {
             return;
         };
-        if let Some(row) = self
-            .rows(registry)
+        if let Some((_, row)) = self
+            .rows_by_id(registry)
             .into_iter()
-            .find(|row| row.readiness.id == id)
+            .find(|(row_id, _)| row_id == id)
         {
             self.sink.changed(&row);
         }
@@ -395,14 +443,14 @@ fn fail_kind(error: &NetError) -> FailKind {
 }
 
 /// Streams a download's progress into its row, and carries Cancel back to the downloader.
-struct Progress<'a> {
-    inner: &'a Inner,
+struct Progress<'a, C: Catalog> {
+    inner: &'a Inner<C>,
     id: &'a str,
     cancel: &'a AtomicBool,
     last_percent: Mutex<Option<u64>>,
 }
 
-impl DownloadProgress for Progress<'_> {
+impl<C: Catalog> DownloadProgress for Progress<'_, C> {
     fn bytes(&self, done: u64, total: u64) {
         let percent = done.saturating_mul(PERCENT) / total.max(1);
         {
@@ -494,7 +542,7 @@ fn save_accepted(path: &std::path::Path, models: BTreeMap<String, String>) -> Re
     Ok(())
 }
 
-/// Where accepted licences are kept, beside the settings.
+/// Where accepted model licences are kept, beside the settings.
 pub fn accepted_path(config_dir: &std::path::Path) -> PathBuf {
-    config_dir.join("licenses.json")
+    config_dir.join("model-licenses.json")
 }

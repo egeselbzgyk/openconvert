@@ -65,7 +65,8 @@ pub enum UiError {
     /// The registry this build ships cannot be downloaded from: its pins are not filled in.
     #[error("models are not available in this build: {0}")]
     ModelsUnavailable(String),
-    #[error("no model {0} in the registry")]
+    /// A model or pack the registry does not name.
+    #[error("no model or pack {0} in the registry")]
     UnknownModel(String),
     /// A download before its licence was shown and accepted (UI_UX §2.4).
     #[error("the licence of {0} has not been accepted")]

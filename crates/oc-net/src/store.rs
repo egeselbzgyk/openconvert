@@ -28,12 +28,22 @@ impl ModelStore {
     /// The directory an entry lives in. The id and file name are checked to be plain names, so
     /// no registry entry can place a file outside the store.
     pub fn dir_of(&self, entry: &ModelEntry) -> Result<PathBuf, NetError> {
-        Ok(self.root.join(plain_name(&entry.id.0)?))
+        self.dir_for(&entry.id.0)
     }
 
     /// Where an entry's model file lives once it is verified.
     pub fn path_of(&self, entry: &ModelEntry) -> Result<PathBuf, NetError> {
-        Ok(self.dir_of(entry)?.join(plain_name(&entry.file)?))
+        self.path_for(&entry.id.0, &entry.file)
+    }
+
+    /// The directory of the download with this id, a plain name.
+    pub fn dir_for(&self, id: &str) -> Result<PathBuf, NetError> {
+        Ok(self.root.join(plain_name(id)?))
+    }
+
+    /// Where download `id`'s `file` lives once it is verified.
+    pub fn path_for(&self, id: &str, file: &str) -> Result<PathBuf, NetError> {
+        Ok(self.dir_for(id)?.join(plain_name(file)?))
     }
 }
 
@@ -131,6 +141,11 @@ fn model_file(dir: &Path) -> Option<(PathBuf, u64)> {
 /// a model is downloaded once whichever of them fetched it.
 pub fn default_root() -> PathBuf {
     data_dir().join("openconvert").join("models")
+}
+
+/// Where optional packs live (LICENSE_AND_DEPENDENCIES §6): `openconvert/packs` beside the models.
+pub fn default_packs_root() -> PathBuf {
+    data_dir().join("openconvert").join("packs")
 }
 
 #[cfg(target_os = "linux")]

@@ -4182,3 +4182,36 @@ here:** a download from huggingface.co (egress 403, and no pins).
 Affects: PHASE 12 detail 9, row 12.12, UI_UX §2.4/§4, `docs/design/handoff/firstrun.html` step 2b,
 `crates/oc-net/src/{download.rs,verify.rs,store.rs,registry.rs,lib.rs}`,
 `crates/openconvert/src/cmd_model.rs`, `apps/desktop/src-tauri/src/{models.rs,main.rs}`.
+
+## 2026-09-23 · Packs: the model mechanism over a pack registry; the validation pack not yet available · Phase 12
+Context: PHASE 12 detail 9: "the same mechanism installs the optional validation pack (jlink'd
+minimal JRE + `epubcheck.jar`, ~40–50 MB) and later the OCR pack — one download mechanism, three
+payloads, all SHA-256 pinned". LICENSE_AND_DEPENDENCIES §6 says the runtime's licence must be
+verified per vendor before the pack ships. No document says where the pack is built or hosted,
+and nothing lets a conversion use an installed EPUBCheck (the job spec has no field for it; the
+engine's Tier 2 is `--tier 2` with `java` and a jar found the CI way).
+Decision:
+1. `oc_net::download::Artifact` is what the downloader fetches; a model entry and a pack entry
+   both become one (`pull` is `pull_artifact` of the model's). `oc_net::packs` parses `packs.toml`
+   (compiled in, like `models.toml`) with the model registry's pin rules plus placeholders refused
+   in `license`, `repo` and `file`. Packs live in `<data dir>/openconvert/packs/<id>/`.
+2. The app's manager is generic over a `Catalog` (`models::Manager<C>`): `ModelManager` over the
+   model registry, `PackManager` over the pack registry — the same licence-first rule, progress
+   events (`pack-changed`), Cancel and store. A pack row is `PackReadiness` (id, name, contents,
+   installed, size, licence, licence path), read from the registry and the store.
+3. **PROVISIONAL — needs maintainer ratification:** `packs.toml` ships with the validation pack's
+   `license`, `repo`, `revision`, `file` and `sha256` as `TODO_` placeholders, so the Packs screen
+   says it is not available in this version. Before it can be filled: choose the Java runtime's
+   vendor and verify its licence, bundle that licence's text with EPUBCheck's BSD-3-Clause in
+   `oc-net` (the downloader writes only licences whose text it carries), build and publish the pack
+   on a host the allowlist names (today only the model host), and decide how a conversion is told
+   to use it (a job-spec field and the engine's Tier-2 runner reading the pack's runtime and jar).
+   The pack is installed as one verified file; unpacking it belongs with that engine step.
+   `xtask ci-lint --release-branch` does not refuse `TODO_` in `packs.toml`: v1 can ship without
+   the optional pack, as it ships without the OCR pack.
+Evidence: `pack_registry_rejects_placeholders`, `a_pack_installs_through_the_model_downloader`
+(oc-net), `the_validation_pack_installs_through_the_model_mechanism` (licence refused then
+accepted, progress streamed, `LICENSE` beside it), `the_shipped_validation_pack_is_not_available_in_this_version`.
+Affects: PHASE 12 detail 9, D6, LICENSE_AND_DEPENDENCIES §6, `packs.toml`,
+`crates/oc-net/src/{packs.rs,download.rs,store.rs,registry.rs}`,
+`apps/desktop/src-tauri/src/{packs.rs,models.rs,main.rs}`.
