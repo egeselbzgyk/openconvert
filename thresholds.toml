@@ -790,6 +790,13 @@ evidence = "PHASE 9 detail 2 / RT A3: `--cache-reuse N` is passed only to entrie
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[metadata.llm_title_max_chars]
+value = 200
+source = "provisional"
+evidence = "ARCHITECTURE 9.6, task 1: a model's title must be 1-200 characters long, besides being a verbatim substring of pages 1-3. The bound is the design's, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [inventory.max_clusters]
 value = 24
 source = "provisional"

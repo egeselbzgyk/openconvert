@@ -1,0 +1,34 @@
+{
+  "cassette_version": 1,
+  "task": "metadata",
+  "fixture": "fabricated_publisher",
+  "prompt_sha256": "cef935ceebafe893ed76c3569dfc265bb5d8d092e501e5c68e66e5415eee5ea5",
+  "prompt_version": 1,
+  "grammar_sha256": "b6a3567916a86cfd0db835cc67771b88258a0d081fe7cb3a678f79e29928b33d",
+  "model_id": "stub",
+  "params": {
+    "temperature": 0.0,
+    "max_tokens": 1500,
+    "enable_thinking": false,
+    "top_p": null,
+    "seed": null,
+    "n_ctx": null,
+    "n_parallel": null
+  },
+  "request": {
+    "system_sha256": "e1ab692d8fcf406006ad51129b6054c6f1952cbafc7a00a03f6540615d56f9bf",
+    "user": "[LARGE][CENTERED] Der Prozess\n[MEDIUM][CENTERED] Roman\n[SMALL][CENTERED] Franz  Kafka\n[SMALL][CENTERED] Berlin 1925\nErstes Kapitel\nJemand mußte Josef K. verleumdet haben, denn ohne daß er\nExtract title, subtitle, authors, translator, publisher and date. Copy exactly. Null if absent.\n"
+  },
+  "response": {
+    "content": "{\"title\":\"Der Prozess\",\"subtitle\":\"Roman\",\"authors\":[\"Franz Kafka\"],\"translator\":null,\"publisher\":\"S. Fischer Verlag\",\"date\":\"1925\"}",
+    "reasoning": null,
+    "finish_reason": "stop",
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "cached_prefix": null
+  },
+  "recorded_at": "2026-09-23T00:00:00Z",
+  "llama_cpp_build": null,
+  "threads": null,
+  "machine": "stub"
+}

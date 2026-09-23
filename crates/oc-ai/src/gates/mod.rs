@@ -79,6 +79,28 @@ pub enum GateFailure {
     /// Gate L: every character is still there, and the book no longer reads in the same order.
     #[error("the edit moved text: every character is present, and not in the order it was")]
     TextReordered,
+    /// Task 1's substitute for gate V: a metadata field that is not a verbatim substring of the
+    /// pages it was read from (ARCHITECTURE §9.6). Metadata is outside `C`, so the statistics have
+    /// nothing to measure; a fabricated author cannot be a substring of a page it was not on.
+    #[error("`{field}` is not a verbatim substring of the pages it was read from")]
+    NotVerbatim { field: &'static str },
+    /// A task's validation: a value outside the range the task allows — a title longer than
+    /// the bound, a boundary past the last heading.
+    #[error("`{field}` is out of range: {detail}")]
+    OutOfRange { field: &'static str, detail: String },
+    /// Task 3's validation: the boundaries are not strictly increasing front ≺ parts ≺ back.
+    #[error("the boundaries are not strictly increasing: {0}")]
+    NotOrdered(String),
+    /// Task 3's validation: two chunks of a long heading list disagree about a heading both saw.
+    #[error("two chunks disagree about heading {index}")]
+    OverlapDisagrees { index: u32 },
+    /// Task 2's validation: the held-out lines disagree with their clusters' labels on more than
+    /// `inventory.holdout_disagree_max` of them — the clustering or the mapping is wrong (RT A8.2).
+    #[error("the held-out probe disagrees with the cluster labels on {rate} of its lines")]
+    HoldoutDisagrees { rate: f32 },
+    /// Task 2's validation: the mapping breaks one of ARCHITECTURE §9.6's role rules.
+    #[error("the mapping breaks a role rule: {0}")]
+    RoleRule(&'static str),
     /// Gate V: a component of the region's statistics worsened by more than its epsilon. The
     /// first such component in the tuple's fixed order is the one named.
     #[error("the edit made `{statistic}` worse: {before} before, {after} after")]
@@ -100,6 +122,12 @@ impl GateFailure {
             GateFailure::NotBijective { .. } => "S.bijection",
             GateFailure::CharactersChanged { .. } => "L.characters",
             GateFailure::TextReordered => "L.order",
+            GateFailure::NotVerbatim { .. } => "V.verbatim",
+            GateFailure::OutOfRange { .. } => "S.range",
+            GateFailure::NotOrdered(_) => "S.order",
+            GateFailure::OverlapDisagrees { .. } => "S.overlap",
+            GateFailure::HoldoutDisagrees { .. } => "S.holdout",
+            GateFailure::RoleRule(_) => "S.roles",
             GateFailure::Worsened { .. } => "V.worsened",
         }
     }

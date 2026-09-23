@@ -19,4 +19,5 @@ pub mod openai;
 pub mod prefix;
 pub mod prompt;
 pub mod provider;
+pub mod task;
 pub mod transport;
