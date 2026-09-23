@@ -59,7 +59,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "TODO_UPDATER_PUBKEY",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM2QzY5Q0ExMjJDMTFCMApSV1N3RVN3U3ltbHNERkhyak5LRnlSdU1xdXJucXVuTEErak9mRU9BQWVWVXlGVSttbEtjZktUZwo=",
       "endpoints": [
         "https://github.com/openconvert/openconvert/releases/latest/download/latest.json"
       ]

@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { ref: "${{ env.TAG }}" }
       # Row 15.18: no TODO_ in models.toml, packs.toml, thresholds.toml or the updater key, and no
-      # lapsed review_by. Fails by design until the maintainer pastes the updater public key into
+      # lapsed review_by. Clean since 2026-09-23, when the maintainer's updater public key went into
       # tauri.conf.json (docs/RELEASE_CHECKLIST.md, "Keys and signing").
       - name: "row 15.18 no_todo_placeholders_on_a_release_tag"
         run: cargo run -p xtask --locked -- ci-lint --release-branch

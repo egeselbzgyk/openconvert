@@ -1409,10 +1409,9 @@ fn the_tag_is_the_version_both_manifests_declare() {
 /// app's configuration (the updater key), and no threshold whose `review_by` has passed. Checked on
 /// a scratch tree built to fail each way, and clean once everything is filled.
 ///
-/// The repository itself fails this gate today, correctly: the validation pack is unbuilt, and the
-/// updater keypair is the maintainer's to generate (`models.toml` has been pinned since 2026-09-23).
-/// `cargo run -p xtask -- ci-lint --release-branch` lists them; PROGRESS.md carries them as release
-/// blockers.
+/// The repository itself passes it since 2026-09-23: `models.toml` is pinned, the validation pack is
+/// a `[[deferred]]` entry with no pins (maintainer decision), and the updater's public key is the
+/// maintainer's (`the_shipped_updater_key_is_the_maintainers_minisign_key`).
 #[test]
 fn no_todo_placeholders_on_a_release_tag() {
     use xtask::ci_lint::{release_placeholders, RELEASE_PLACEHOLDER_FILES};
@@ -1680,6 +1679,51 @@ fn every_release_gate_row_is_a_named_release_step() {
     // Windows is unsigned in v1 and the release says so (D12), rather than half-signing it.
     assert!(!text.contains("signtool"));
     assert!(text.contains("not code-signed"));
+}
+
+/// The updater's public key in `tauri.conf.json` (`plugins.updater.pubkey`) is the maintainer's: the
+/// keypair was generated on the maintainer's own machine (2026-09-23) and only its public half is in
+/// the tree. It is Tauri's base64 wrapping of a minisign Ed25519 public key whose key id is
+/// `0C6C69CA122C11B0` (Tauri prints it as `C6C69CA122C11B0`), the verifier the app and
+/// `release verify-latest` use accepts it, and the release gate (row 15.18) no longer finds a
+/// placeholder anywhere in the tree. A rotated key fails here on purpose: rotation strands every
+/// install (RELEASE_CHECKLIST, "Keys and signing").
+#[test]
+fn the_shipped_updater_key_is_the_maintainers_minisign_key() {
+    use base64::Engine as _;
+    use xtask::ci_lint::release_placeholders;
+    use xtask::release::configured_pubkey;
+
+    const KEY_ID: u64 = 0x0C6C_69CA_122C_11B0;
+    let root = workspace_root();
+    let wrapped = configured_pubkey(&root).expect("a pubkey");
+    oc_net::update::public_key(&wrapped).expect("the verifier accepts it");
+
+    let text = String::from_utf8(
+        base64::engine::general_purpose::STANDARD
+            .decode(wrapped.trim())
+            .expect("base64"),
+    )
+    .expect("UTF-8");
+    let mut lines = text.lines();
+    assert_eq!(
+        lines.next(),
+        Some("untrusted comment: minisign public key: C6C69CA122C11B0")
+    );
+    let key = base64::engine::general_purpose::STANDARD
+        .decode(lines.next().expect("the key line"))
+        .expect("base64 key");
+    assert_eq!(key.len(), 2 + 8 + 32, "algorithm, key id, Ed25519 key");
+    assert_eq!(&key[..2], b"Ed", "an Ed25519 minisign key");
+    let id = u64::from_le_bytes(key[2..10].try_into().expect("eight bytes"));
+    assert_eq!(id, KEY_ID);
+
+    let placeholders: Vec<String> = release_placeholders(&root, "2026-09-23")
+        .expect("readable")
+        .into_iter()
+        .filter(|finding| finding.contains("TODO_"))
+        .collect();
+    assert_eq!(placeholders, Vec::<String>::new(), "row 15.18 on the tree");
 }
 
 /// Maintainer decision 2026-09-23 (D12 amendment): v1.0.0 ships Windows and Linux only. The build
