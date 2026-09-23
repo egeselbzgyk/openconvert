@@ -557,3 +557,6 @@ back on.
 | 13.4 | `ocr_discovery::discovery_rejects_writable_binary` | `oc-testkit` | unit (Unix) | `test` | green |
 | 13.3a | `discover::tests::every_platforms_version_banner_parses` | `oc-core` | unit — VD-g's banner forms | `test` | green |
 | 13.3b | `discover::tests::the_well_known_lists_are_the_documented_ones` | `oc-core` | unit — VD-g's paths | `test` | green |
+| 13.10 | `ocr_invoke::psm_follows_page_class` | `oc-testkit` | unit (argv spy, fake engine, Unix) | `test` | green |
+| 13.18a | `ocr_invoke::a_hung_call_is_killed_at_its_deadline` | `oc-testkit` | integration (a fake that sleeps, Unix) — the invocation half of 13.18 | `test` | green |
+| 13.19 | `ocr_invoke::ocr_child_dies_with_the_engine` | `oc-testkit` | integration (SIGTERM and panic; Linux here, macOS/Windows unverified) | `test` | green |

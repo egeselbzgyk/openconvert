@@ -19,6 +19,9 @@ thiserror.workspace = true
 secrecy.workspace = true
 ctrlc.workspace = true
 getrandom.workspace = true
+# PNG encoding of the raster handed to `tesseract` (PHASE 13 detail 2). Already in the graph through
+# `oc-epub` and `pdfium-render`, with the same two codecs.
+image.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

@@ -11,6 +11,7 @@
 //! (D16, R10 §6.14), and nothing in this module has a path to one.
 
 pub mod discover;
+pub mod invoke;
 pub mod lang;
 pub mod tsv;
 
@@ -93,6 +94,25 @@ impl Psm {
             Psm::SingleColumn => 4,
             Psm::SingleBlock => 6,
             Psm::SparseText => 11,
+        }
+    }
+}
+
+/// What an OCR call covers, which is what decides its segmentation mode (detail 6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OcrScope {
+    /// A whole `ImageOnly` (or re-OCR'd sandwich) page: automatic segmentation with OSD.
+    FullPage,
+    /// One image region of a `Mixed` page that no text covers: the PDF's geometry already says it
+    /// is one block.
+    ImageRegion,
+}
+
+impl OcrScope {
+    pub fn psm(self) -> Psm {
+        match self {
+            OcrScope::FullPage => Psm::AutoOsd,
+            OcrScope::ImageRegion => Psm::SingleBlock,
         }
     }
 }

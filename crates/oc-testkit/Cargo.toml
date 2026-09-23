@@ -21,6 +21,13 @@ name = "oc-sidecar-engine"
 path = "src/bin/oc-sidecar-engine.rs"
 test = false
 
+# The minimal engine for the OCR teardown test (PHASE 13 row 13.19): it runs one OCR call through
+# `oc_core::ocr::invoke` against a sleeping fake `tesseract`, and ends the way it is told to.
+[[bin]]
+name = "oc-ocr-engine"
+path = "src/bin/oc-ocr-engine.rs"
+test = false
+
 [features]
 default = []
 # Rows 9.15 and 9.16 need a real llama-server and a real model, named by `OC_LLAMA_SERVER` and
@@ -40,3 +47,4 @@ serde_json.workspace = true
 thiserror.workspace = true
 pdf-writer.workspace = true
 lopdf.workspace = true
+image.workspace = true
