@@ -13,6 +13,7 @@
 pub mod discover;
 pub mod invoke;
 pub mod lang;
+pub mod merge;
 pub mod tsv;
 
 use oc_model::geom::Rect;

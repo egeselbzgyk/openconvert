@@ -16,14 +16,16 @@
 //! the undeclared-reason message would be true but useless: the fault is that it wrote to
 //! the ledger, not which reason it wrote.
 //!
-//! I-5 (dehyphenation) and I-6 (OCR) belong to the stages that own those reasons and arrive
-//! with them, in Phases 3 and 13. I-7 is the end-to-end release gate, in Phase 5.
+//! I-5 (dehyphenation) is checked here as well, over the ledger alone. I-6 (OCR) needs the page's
+//! geometry as well as its ledger, so it is its own function, [`check_i6`], which `ingest` calls
+//! once its OCR regions are merged (Phase 13). I-7 is the end-to-end release gate, in Phase 5.
 
 use std::collections::BTreeMap;
 use std::fmt;
 
 use oc_model::extract::CharHistogram;
-use oc_model::ledger::{LedgerDelta, Reason, StageCheck, StageKind};
+use oc_model::geom::Rect;
+use oc_model::ledger::{LedgerDelta, LedgerEntry, Reason, StageCheck, StageKind};
 
 pub use oc_model::ledger::{c_of, c_of_parts};
 
@@ -92,6 +94,9 @@ pub struct ReasonTotals {
     c0_total: u64,
     per_group: BTreeMap<&'static str, u64>,
     non_ocr_removed: u64,
+    /// Characters OCR has added so far. Taken out of the retention numerator, because text this
+    /// pipeline read off pixels is not text it retained from the document (I-6, RT C1).
+    ocr_added: u64,
 }
 
 impl ReasonTotals {
@@ -101,7 +106,21 @@ impl ReasonTotals {
             c0_total: c0.total(),
             per_group: BTreeMap::new(),
             non_ocr_removed: 0,
+            ocr_added: 0,
         }
+    }
+
+    /// The same account, carrying forward what OCR added before `C_0` existed. `ingest` adds OCR
+    /// text and `text` opens the account; without this the characters `ingest` added would count
+    /// as retained from the stage after it on.
+    pub fn with_ocr_added(mut self, chars: u64) -> Self {
+        self.ocr_added = chars;
+        self
+    }
+
+    /// Characters OCR has added so far.
+    pub fn ocr_added(&self) -> u64 {
+        self.ocr_added
     }
 
     pub fn c0_total(&self) -> u64 {
@@ -158,6 +177,17 @@ pub enum ConservationError {
         budget: f64,
         measured: f64,
     },
+    /// I-6: an `Ocr` entry's region contains a text run that was on the page before OCR.
+    OcrRegionNotClean {
+        stage: &'static str,
+        page: u32,
+        region: Rect,
+        run: Rect,
+    },
+    /// I-6: an `Ocr` entry that removes. OCR only ever adds.
+    OcrNotAddedOnly { stage: &'static str, page: u32 },
+    /// I-6: an `Ocr` entry with no region, so its region scope cannot be checked.
+    OcrRegionMissing { stage: &'static str, page: u32 },
 }
 
 impl fmt::Display for ConservationError {
@@ -207,6 +237,26 @@ impl fmt::Display for ConservationError {
                 f,
                 "I-4: stage {stage} put total non-OCR removal at {measured} of |C_0|, over \
                  {budget}"
+            ),
+            ConservationError::OcrRegionNotClean {
+                stage,
+                page,
+                region,
+                run,
+            } => write!(
+                f,
+                "I-6: stage {stage} added OCR text on page {page} in the region [{}, {}, {}, {}], \
+                 which contains a text run the page already had at [{}, {}, {}, {}]",
+                region.x0, region.y0, region.x1, region.y1, run.x0, run.y0, run.x1, run.y1
+            ),
+            ConservationError::OcrNotAddedOnly { stage, page } => write!(
+                f,
+                "I-6: stage {stage} removed text under Ocr on page {page}; OCR only adds"
+            ),
+            ConservationError::OcrRegionMissing { stage, page } => write!(
+                f,
+                "I-6: stage {stage} added OCR text on page {page} with no region, so its region \
+                 scope cannot be checked"
             ),
         }
     }
@@ -292,6 +342,11 @@ pub fn check_invariants(
         });
     }
 
+    // What OCR added is carried for the retention ratio, which it must not inflate (I-6).
+    totals.ocr_added = totals
+        .ocr_added
+        .saturating_add(delta.reason_added(Reason::Ocr).total());
+
     // I-4 — cumulative net removal per budget group, then the global cap. Charged first and
     // tested afterwards so that every group this stage touched is measured against its true
     // running total, not against the order the reasons happened to arrive in.
@@ -337,8 +392,58 @@ pub fn check_invariants(
         kind: decl.kind,
         removed_chars: removed.total(),
         added_chars: added.total(),
-        retention: share(after.total(), totals.c0_total) as f32,
+        retention: share(
+            after.total().saturating_sub(totals.ocr_added),
+            totals.c0_total,
+        ) as f32,
     })
+}
+
+/// Invariant I-6, region-scoped (ARCHITECTURE §5.4, ratified note N-1).
+///
+/// Every `Ocr` entry must add rather than remove, must carry the region it covers, and that region
+/// must contain **no text run the page had before OCR** — the whole page on an `ImageOnly` page,
+/// each uncovered image region on a `Mixed` one. `pre_existing` is those runs, as `(page, bbox)`.
+///
+/// "Contains" is read as *overlaps with area*: a run that merely touches the region's edge is
+/// beside it, and a run that pokes into it is in it. The stricter reading is the safe one — a
+/// region that overlapped existing text would put OCR's copy of that text in the book beside the
+/// PDF's own.
+pub fn check_i6(
+    entries: &[LedgerEntry],
+    pre_existing: &[(u32, Rect)],
+) -> Result<(), ConservationError> {
+    for entry in entries.iter().filter(|entry| entry.reason == Reason::Ocr) {
+        if !entry.added {
+            return Err(ConservationError::OcrNotAddedOnly {
+                stage: entry.stage,
+                page: entry.page,
+            });
+        }
+        let Some(region) = entry.region else {
+            return Err(ConservationError::OcrRegionMissing {
+                stage: entry.stage,
+                page: entry.page,
+            });
+        };
+        if let Some((_, run)) = pre_existing
+            .iter()
+            .find(|(page, run)| *page == entry.page && overlaps(&region, run))
+        {
+            return Err(ConservationError::OcrRegionNotClean {
+                stage: entry.stage,
+                page: entry.page,
+                region,
+                run: *run,
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Whether two rectangles share an area, not just an edge.
+pub fn overlaps(a: &Rect, b: &Rect) -> bool {
+    a.x0.max(b.x0) < a.x1.min(b.x1) && a.y0.max(b.y0) < a.y1.min(b.y1)
 }
 
 /// `part / whole`, with an empty document scoring zero rather than dividing by it.
@@ -354,9 +459,6 @@ fn share(part: u64, whole: u64) -> f64 {
 // Phase 2 table, plus the unit-level I-1 and I-2 cases row 2.15 exercises over
 // whole documents once the `text` and `furniture` stages exist.
 // ---------------------------------------------------------------------------
-
-#[cfg(test)]
-use oc_model::ledger::LedgerEntry;
 
 /// A stage that removes nothing and adds nothing, used by the I-3 test.
 #[cfg(test)]

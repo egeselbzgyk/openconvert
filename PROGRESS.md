@@ -77,7 +77,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P13.3** system-Tesseract discovery, VD-g — rows 13.1–13.4, A13.7 *(VD-g closed, DECISIONS_LOG 2026-09-23)*
 - [x] **P13.4** invocation: fixed argv, deadline, process ownership, the fake engine — rows 13.10, 13.18 (invocation half), 13.19
 - [x] **P13.5** `oc-pdf` rasterization (`render_region`) — rows 13.23, 13.23a, 13.23b (additions)
-- [ ] **P13.6** merge, the `ingest` declaration, region-scoped I-6, retention — rows 13.13, 13.15
+- [x] **P13.6** merge, the `ingest` declaration, region-scoped I-6, retention — rows 13.13, 13.15
 - [ ] **P13.7** OCR routing in `ingest`, the `convert` flags, degradation — rows 13.11, 13.12, 13.14, 13.16, 13.17, 13.22
 - [ ] **P13.8** scanned fixtures, `.assert.json`, CER per stratum — rows 13.20, 13.21
 - [ ] **P13.9** `docs/OCR_PACK_SPIKE.md`, CI job, Definition of Done, CHANGELOG, merge

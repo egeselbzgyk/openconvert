@@ -563,3 +563,9 @@ back on.
 | 13.23 | `render::render_region_is_the_page_at_the_asked_resolution` | `oc-pdf` | fixture (f03) | `test` | green |
 | 13.23a | `render::a_rotated_page_renders_in_normalised_space` | `oc-pdf` | fixture (h02) | `test` | green |
 | 13.23b | `render::pixel_windows_are_clipped_to_the_page` | `oc-pdf` | unit | `test` | green |
+| 13.13 | `ocr_merge::i6_region_scope_rejects_overlapping_text` | `oc-core` | unit | `test` | green |
+| 13.15 | `ocr_merge::ocr_regions_excluded_from_source_retention` | `oc-core` | unit | `test` | green |
+| 13.15a | `structural::retention_excludes_ocr_added_characters` | `oc-validate` | unit — 13.15 end to end, through I-7 | `test` | green |
+| 13.24 | `ocr_merge::ocr_words_become_one_run_per_line_with_provenance_ocr` | `oc-core` | unit — detail 7 | `test` | green |
+| 13.24a | `ocr_merge::region_confidence_is_the_mean_and_the_sub_floor_count` | `oc-core` | unit — detail 9 | `test` | green |
+| 13.24b | `ocr_merge::a_full_page_region_is_cut_into_bands_around_existing_text` | `oc-core` | unit — I-6 on a scan with stray PDF glyphs | `test` | green |

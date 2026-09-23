@@ -3866,3 +3866,28 @@ There is no Windows machine and no CI runner; the list is asserted as data
 (`the_well_known_lists_are_the_documented_ones`) and the Windows row of A13.1/A13.2 is unverified
 here.
 Affects: IMPLEMENTATION_PLAN Phase 0 VD-g (closed), PHASE 13 detail 1, `oc_core::ocr::discover`.
+
+## 2026-09-23 · OCR's ledger entries carry their region; a whole page is read in clean bands · Phase 13
+Context: PHASE 13 detail 7 wants one `Ocr` entry per region "carrying the region bbox", and I-6
+(ratified note N-1) checks that region for pre-existing text. IR_SKETCH's `LedgerEntry` has no
+geometry. And an `ImageOnly` page is `visible_chars < pageclass.image_only_max_visible_chars`, not
+zero: a scan with a stamped folio or a producer's watermark line in real PDF text is still
+`ImageOnly`, so a whole-page region would contain pre-existing text and fail I-6.
+Decision:
+1. `LedgerEntry` gains `region: Option<Rect>`, set only by OCR and not serialised when `None`, so
+   every existing ledger, snapshot and report reads exactly as before. Additive, like Phase 8's
+   `Decision.fallback`. `LedgerEntry` and `LedgerDelta` lose `Eq` (a `Rect` is `f32`); nothing
+   compared them with more than `PartialEq`.
+2. I-6 is its own function, `oc_core::ledger_check::check_i6`, because it needs the page's runs as
+   well as the ledger. "Contains a run" is read as *overlaps with area*: the stricter reading, since
+   a region that overlapped PDF text would put OCR's copy of that text beside the PDF's own. An
+   `Ocr` entry that removes, or has no region, is also an I-6 failure.
+3. A whole-page OCR region is cut into full-width horizontal bands that avoid every pre-existing run
+   (`clean_bands`); each band with words is one entry. A word that straddles a cut is dropped — it
+   is on the line of text the PDF already carries. On a clean scan this is one band, the page.
+4. OCR-added characters are counted in `ReasonTotals::ocr_added` and `I7Result::ocr_chars` and are
+   taken out of the retention **numerator**; `C_0`, the denominator, never contains them (RT C1).
+   `ocr_chars` is omitted from the report when zero so born-digital snapshots do not change.
+Evidence: `i6_region_scope_rejects_overlapping_text`, `a_full_page_region_is_cut_into_bands_around_existing_text`,
+`ocr_regions_excluded_from_source_retention`, `retention_excludes_ocr_added_characters`.
+Affects: IR_SKETCH `LedgerEntry` (additive field), ARCHITECTURE §5.4 I-6, PHASE 13 details 7 and 8.
