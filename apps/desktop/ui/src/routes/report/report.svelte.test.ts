@@ -45,4 +45,31 @@ describe("report route", () => {
     expect(segments.every((segment) => segment.style.flexGrow !== "" || segment.style.flex !== "")).toBe(true);
     expect(document.querySelector(".oc-header")?.textContent).toContain("Conversion report");
   });
+
+  // PHASE 11's hand-off: the report page says which adapter and model answered, and — when text left
+  // this computer — the consent that named the host, when it was given.
+  it("names the provider and model that answered, and the consent text was sent under", async () => {
+    const backend = new FakeBackend();
+    const report = {
+      ...(f03 as unknown as Report),
+      ai: { provider: "openai_compatible", model_id: "qwen3-8b-instruct", all_tasks: false, calls: 3, cached_calls: 1, llm_ms: 812 },
+      consent: { host: "llm.example.org", granted_at: "2026-09-23T10:15:00Z", scope: "run" },
+    };
+    backend.reports.set("job-1", report);
+    backend.saved = { ...backend.saved, language: "de" };
+    app = mount(App, { target: document.body, props: { backend, clock: () => 0 } });
+    await settle();
+    backend.change({ id: "job-1", input: "/b/f03.pdf", output: "/b/f03.epub", renamed: false, unlocked: false, rebuild: false, state: "running" });
+    backend.line("job-1", { t: "done", status: "ok", report_path: "/b/f03.epub.report.json" });
+    await settle();
+    flushSync();
+    [...document.querySelectorAll("button")].find((b) => b.textContent === "Details")?.click();
+    flushSync();
+    const text = document.querySelector(".oc-report")?.textContent ?? "";
+    expect(text).toContain("Beantwortet von");
+    expect(text).toContain("ein OpenAI-kompatibler Server · qwen3-8b-instruct");
+    expect(text).toContain("3 gefragt, 1 aus dem Zwischenspeicher");
+    expect(text).toContain("Text aus diesem Buch wurde mit Ihrer Zustimmung an llm.example.org gesendet");
+    expect(text, "AI was on").not.toContain("KI-Unterstützung war für diesen Auftrag aus");
+  });
 });

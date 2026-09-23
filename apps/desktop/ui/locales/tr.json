@@ -429,5 +429,9 @@
  "consent.small": "Ana makine ve onay zamanınız, onu kullanan her dönüştürme raporuna yazılır. Durdurmak için sağlayıcıyı yeniden Yerleşik olarak ayarlayın.",
  "error.consent": "Başka bir bilgisayara metin göndermek için onayınız gerekiyor",
  "error.consentNote": "Hiçbir şey gönderilmedi.",
- "error.reviewConsent": "Onayı gözden geçir…"
+ "error.reviewConsent": "Onayı gözden geçir…",
+ "report.aiProvider": "Yanıtlayan",
+ "report.aiCalls": "Model çağrıları",
+ "report.aiCallsLine": "{n} soruldu, {cached} önbellekten",
+ "report.consent": "Bu kitaptan metin, onayınızla {host} adresine gönderildi ({at})."
 }

@@ -429,5 +429,9 @@
  "consent.small": "The host and the time of your consent are written into every conversion report that uses it. Switch the provider back to Built-in to stop.",
  "error.consent": "Sending text to another computer needs your consent",
  "error.consentNote": "Nothing was sent.",
- "error.reviewConsent": "Review consent…"
+ "error.reviewConsent": "Review consent…",
+ "report.aiProvider": "Answered by",
+ "report.aiCalls": "Model calls",
+ "report.aiCallsLine": "{n} asked, {cached} from the cache",
+ "report.consent": "Text from this book was sent to {host} ({at}), with your consent."
 }

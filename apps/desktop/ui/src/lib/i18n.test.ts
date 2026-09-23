@@ -47,6 +47,22 @@ describe("i18n", () => {
     expect(renderWarning("de", "W_NOT_A_CODE", {})).toBeNull();
   });
 
+  // PHASE 11's warnings, as a user in each language reads them: never an English fallback (A12.3).
+  it("the model warnings are localised in every locale", () => {
+    for (const [code, args] of [
+      ["W_LLM_UNCONSTRAINED", { model: "llama3.2:3b" }],
+      ["W_LLM_UNAVAILABLE", { reason: "Ollama serves no model" }],
+    ] as const) {
+      const rendered = LOCALES.map((locale) => renderWarning(locale, code, args));
+      for (const sentence of rendered) {
+        expect(sentence, code).not.toBeNull();
+        expect(sentence, code).not.toMatch(/\{[a-z_]+\}/);
+        expect(sentence, code).toContain(Object.values(args)[0]);
+      }
+      expect(new Set(rendered).size, `${code}: three languages, three sentences`).toBe(3);
+    }
+  });
+
   // 12.9 — CI gate: every warning code in every locale, and every UI key in every locale.
   it("every_warning_code_has_every_locale", () => {
     const codes = registeredCodes();

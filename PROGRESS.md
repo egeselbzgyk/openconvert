@@ -794,6 +794,10 @@ Part B2 work items:
       `grant_consent` (Rust records host + time), Cancel records nothing; "Test connection" =
       `probe`; `E_CONSENT_REQUIRED` / `consent_required` re-open the dialog and Allow converts the
       book again (+ 3 Rust unit, 1 engine-integration, 4 Vitest)
+- [x] **P12.20** the report page names who answered and the consent: "Answered by" (adapter ·
+      model), the calls (asked / cached), and "Text from this book was sent to {host} ({time}), with
+      your consent." from the report's `ai` and `consent`; `W_LLM_UNCONSTRAINED` and
+      `W_LLM_UNAVAILABLE` render in en/de/tr from the engine's templates (+ 2 Vitest)
 
 1. **The AI toggle** (Settings › AI assistance and the first-run route's "installed" step): it is
    drawn disabled, saying the converter has no AI support in this build. Enabling it needs Phase

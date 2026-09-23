@@ -429,5 +429,9 @@
  "consent.small": "Der Host und der Zeitpunkt Ihrer Zustimmung werden in jeden Umwandlungsbericht geschrieben, der ihn verwendet. Stellen Sie den Anbieter wieder auf „Integriert“, um das zu beenden.",
  "error.consent": "Das Senden von Text an einen anderen Computer braucht Ihre Zustimmung",
  "error.consentNote": "Es wurde nichts gesendet.",
- "error.reviewConsent": "Zustimmung prüfen…"
+ "error.reviewConsent": "Zustimmung prüfen…",
+ "report.aiProvider": "Beantwortet von",
+ "report.aiCalls": "Modellaufrufe",
+ "report.aiCallsLine": "{n} gefragt, {cached} aus dem Zwischenspeicher",
+ "report.consent": "Text aus diesem Buch wurde mit Ihrer Zustimmung an {host} gesendet ({at})."
 }

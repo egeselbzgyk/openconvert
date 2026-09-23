@@ -30,6 +30,15 @@
   const findings = $derived(report.validation.tier1.findings.length);
   const imagePages = $derived(report.page_classes["image-only"] ?? 0);
   const decisions = $derived(llmDecisions(report));
+  /** Who answered, when a model was asked (PHASE 10/11): the adapter and the model. */
+  const ai = $derived(report.ai ?? null);
+  /** When text left this computer, the consent that named the host (D10, PHASE 11). */
+  const consent = $derived(report.consent ?? null);
+  const consentAt = $derived(
+    consent === null
+      ? ""
+      : new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(consent.granted_at)),
+  );
   const language = $derived.by(() => {
     if (report.document.language === "und") return t("report.unknownLanguage");
     try {
@@ -63,8 +72,20 @@
       </section>
       <section class="oc-panel">
         <h2 class="oc-panel__title">{t("report.made")}</h2>
-        <div>{t("report.deterministicComplete")}{#if decisions !== null} · {t("result.aiDecisions", { n: decisions })}{/if}</div>
+        <div>{t("report.deterministicComplete")}{#if decisions !== null}{" · "}{t("result.aiDecisions", { n: decisions })}{/if}</div>
         {#if decisions === null}<div class="oc-panel__muted">{t("report.aiOff")}</div>{/if}
+        {#if ai !== null}
+          <dl class="oc-kv">
+            <div class="oc-kv__row">
+              <dt>{t("report.aiProvider")}</dt>
+              <dd>{#if ai.provider !== undefined}{t(`provider.kind.${ai.provider}`)}{" · "}{/if}<span class="oc-mono">{ai.model_id}</span></dd>
+            </div>
+            <div class="oc-kv__row"><dt>{t("report.aiCalls")}</dt><dd>{t("report.aiCallsLine", { n: ai.calls, cached: ai.cached_calls })}</dd></div>
+          </dl>
+        {/if}
+        {#if consent !== null}
+          <div class="oc-banner oc-banner--info" role="note"><span class="oc-banner__text">{t("report.consent", { host: consent.host, at: consentAt })}</span></div>
+        {/if}
       </section>
       <section class="oc-panel">
         <h2 class="oc-panel__title">{t("report.checks")}</h2>
