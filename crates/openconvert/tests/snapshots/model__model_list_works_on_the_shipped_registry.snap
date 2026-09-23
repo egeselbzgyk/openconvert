@@ -1,0 +1,58 @@
+---
+source: crates/openconvert/tests/model.rs
+expression: value
+---
+[
+  {
+    "id": "qwen3-1.7b-q4_k_m",
+    "display_name": "Qwen3 1.7B (Q4_K_M)",
+    "tier": "default",
+    "is_default": true,
+    "installed": false,
+    "size_bytes": 1282439264,
+    "ram_estimate_bytes": 3221225472,
+    "cpu_expectation": "moderate",
+    "license": "Apache-2.0",
+    "license_path": null,
+    "warn": null
+  },
+  {
+    "id": "qwen3-0.6b-q8_0",
+    "display_name": "Qwen3 0.6B (Q8_0)",
+    "tier": "small",
+    "is_default": false,
+    "installed": false,
+    "size_bytes": 639446688,
+    "ram_estimate_bytes": 2147483648,
+    "cpu_expectation": "fast",
+    "license": "Apache-2.0",
+    "license_path": null,
+    "warn": null
+  },
+  {
+    "id": "qwen3-4b-q4_k_m",
+    "display_name": "Qwen3 4B (Q4_K_M)",
+    "tier": "quality",
+    "is_default": false,
+    "installed": false,
+    "size_bytes": 2497280256,
+    "ram_estimate_bytes": 6442450944,
+    "cpu_expectation": "slower, higher quality",
+    "license": "Apache-2.0",
+    "license_path": null,
+    "warn": null
+  },
+  {
+    "id": "qwen3.5-2b-q4_k_m-unsloth",
+    "display_name": "Qwen3.5 2B (Q4_K_M, community quant)",
+    "tier": "experimental",
+    "is_default": false,
+    "installed": false,
+    "size_bytes": 1280835840,
+    "ram_estimate_bytes": 3221225472,
+    "cpu_expectation": "not yet measured",
+    "license": "Apache-2.0",
+    "license_path": null,
+    "warn": "Community quantisation of a new hybrid architecture. Not promoted to default; see docs/MODEL_GATE.md."
+  }
+]

@@ -5563,3 +5563,143 @@ Uncertain (not changed): the `oc-pdf` `limits` bomb tests and `hardening::no_par
 and at starting processes; their time on a real Windows runner is unknown.
 Affects: `crates/oc-testkit/tests/sandbox.rs`, `crates/oc-core/src/jobspec.rs`,
 `crates/oc-core/src/sandbox/rlimit.rs`, `crates/openconvert/tests/hardening.rs`, `xtask/tests/release.rs`.
+
+## 2026-09-23 · `models.toml` pinned: four commits and four hashes read from the Hugging Face API · Phase 9 follow-up
+Context: Phase 9 left all four `models.toml` entries with `TODO_` `revision`/`sha256` (and
+`size_bytes = 0` on three), because this sandbox could not reach huggingface.co. The maintainer has
+since allowed its API. `ModelRegistry::parse` refuses a registry with any placeholder, so until now
+`openconvert model list|pull` on the shipped registry exited 2 and the app's model manager offered
+nothing. D9 names the official `Qwen/Qwen3-1.7B-GGUF` Q4_K_M as the default, and that repository
+publishes only `Qwen3-1.7B-Q8_0.gguf` (its tree at `90862c4b9d2787eaed51d12237eafdfe7c5f6077`).
+Decision:
+1. **The default is `ggml-org/Qwen3-1.7B-GGUF`, file `Qwen3-1.7B-Q4_K_M.gguf` — the maintainer's
+   decision (2026-09-23, ratified, not provisional).** The llama.cpp project publishes it. The model
+   and the quantisation are the ones D9 chose, so D9's RAM and speed expectations stand. D9 carries a
+   dated amendment note that says so. The id stays `qwen3-1.7b-q4_k_m`, the `min_ram_bytes` stays
+   3 GiB, and `license_url` stays the base model's `Qwen/Qwen3-1.7B` LICENSE (the ggml-org repository
+   has no LICENSE file; its API tags say `license:apache-2.0`).
+2. **The 0.6B tier is the official `Qwen/Qwen3-0.6B-GGUF` `Qwen3-0.6B-Q8_0.gguf` — PROVISIONAL, needs
+   maintainer ratification.** Neither `Qwen/Qwen3-0.6B-GGUF` nor `ggml-org/Qwen3-0.6B-GGUF` publishes
+   a Q4_K_M (the official repository has Q8_0 only; ggml-org has Q4_0, Q8_0, f16 and BF16). The orchestrator
+   chose the official source over a third party's Q4_K_M. The entry's id is now `qwen3-0.6b-q8_0`
+   and its display name `Qwen3 0.6B (Q8_0)`: an id naming a quantisation the file is not would show a
+   user one model and install another. The new test `every_shipped_id_names_the_quantisation_it_downloads`
+   holds that. No code or UI referred to the old id. `min_ram_bytes` goes from 1.5 GiB to **2 GiB**
+   (2 147 483 648). This is the old estimate plus the larger file, rounded up to the half-GiB steps
+   the other entries use: Q8_0 is 639 446 688 bytes, and `unsloth/Qwen3-0.6B-GGUF`'s Q4_K_M is
+   396 705 472, so the file is 242 741 216 bytes bigger and the sum is 1 853 353 952. It also fits
+   the arithmetic from the model's `config.json`: 28 layers × 8 KV heads × 128 × K,V × 2 bytes ×
+   8 192 tokens = 896 MiB of f16 KV cache, plus 610 MiB of weights and the compute buffers, comes to
+   about 1.8 GiB. `cpu_expectation` stays "fast". It is still the smallest and fastest tier, but Q8_0
+   decodes somewhat slower than a Q4_K_M would. Nothing measured it (G4 is machine L's).
+3. **The 4B tier (`Qwen/Qwen3-4B-GGUF` Q4_K_M) and the experimental Qwen3.5-2B
+   (`unsloth/Qwen3.5-2B-GGUF` Q4_K_M) exist as registered**, and are pinned as they are. The
+   experimental entry's `size_bytes` was V1 §1's estimate (1 288 490 188) and is now the file's real
+   size.
+
+The pins, each read on 2026-09-23 from the API: the repository's current commit from
+`https://huggingface.co/api/models/<repo>` (`sha`), then that commit's tree from
+`…/api/models/<repo>/tree/<sha>` (`lfs.oid`, `lfs.size`). The file was confirmed present in that
+tree, as V1 §1(g) requires. Each value was then read a second way. A `HEAD`-style request of
+`https://huggingface.co/<repo>/resolve/<sha>/<file>` answers `302` with `X-Repo-Commit`,
+`X-Linked-Etag` and `X-Linked-Size`, and these equal the commit, the oid and the size below for all
+four.
+
+| id | repo @ commit | file | sha256 | bytes |
+|---|---|---|---|---|
+| `qwen3-1.7b-q4_k_m` (default) | `ggml-org/Qwen3-1.7B-GGUF` @ `daeb8e2d528a760970442092f6bf1e55c3b659eb` | `Qwen3-1.7B-Q4_K_M.gguf` | `d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5` | 1 282 439 264 |
+| `qwen3-0.6b-q8_0` | `Qwen/Qwen3-0.6B-GGUF` @ `23749fefcc72300e3a2ad315e1317431b06b590a` | `Qwen3-0.6B-Q8_0.gguf` | `9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031` | 639 446 688 |
+| `qwen3-4b-q4_k_m` | `Qwen/Qwen3-4B-GGUF` @ `bc640142c66e1fdd12af0bd68f40445458f3869b` | `Qwen3-4B-Q4_K_M.gguf` | `7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5` | 2 497 280 256 |
+| `qwen3.5-2b-q4_k_m-unsloth` | `unsloth/Qwen3.5-2B-GGUF` @ `f6d5376be1edb4d416d56da11e5397a961aca8ae` | `Qwen3.5-2B-Q4_K_M.gguf` | `aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223` | 1 280 835 840 |
+
+Each repository's last change according to the API: 2025-04-28 (ggml-org 1.7B), 2025-05-09 (0.6B),
+2025-05-21 (4B), 2026-03-02 (Qwen3.5-2B). All four are public, ungated and tagged `apache-2.0`.
+
+**Not the fill rule's hash — PROVISIONAL, needs maintainer ratification.** IMPLEMENTATION_PLAN §1.6
+has `--emit-registry` download each file and write the SHA-256 *we* produced. These hashes are the
+hub's own LFS object ids, read from the same host that serves the weights. SECURITY §7's circularity
+concern does not arise, because the pin is compiled in and never fetched at download time. But a file
+that was already wrong when it was uploaded would match its own oid. What is in place: the downloader
+hashes every byte while it streams and refuses a mismatch, so a wrong pin fails closed and installs
+nothing. Whether a real download matches is recorded in its own entry. No llama.cpp build was used to resolve the pins. The pinned build is `b10456`
+(`xtask/llama.lock`), and no gate has run on any of these files.
+Tests: `the_shipped_registry_loads_with_every_pin_filled`,
+`every_shipped_id_names_the_quantisation_it_downloads` (oc-net);
+`model_list_works_on_the_shipped_registry` with its snapshot, and `an_unresolved_registry_is_a_usage_error`
+now made from the shipped file with one pin put back (openconvert). That keeps it off the network,
+where the old conditional form would have started a real 1.3 GB download once the pins were filled.
+`the_shipped_registry_offers_every_model` and `an_unpinned_registry_offers_no_download` (desktop).
+`test_emit_registry_leaves_the_shipped_pins_alone` (eval), and the emit tests now start from the shipped
+file with its pins put back.
+Affects: D9 (amendment note), `models.toml`, IMPLEMENTATION_PLAN §1.6 (its sample keeps the old
+placeholders and ids; `models.toml` is authoritative), LICENSE_AND_DEPENDENCIES §5 and LLM_EVALUATION
+(both still name the official repository; the D9 amendment supersedes them).
+
+## 2026-09-23 · The allowlist names `us.aws.cdn.hf.co`, the host downloads redirect to today · Phase 9 follow-up
+Context: the Phase 9 entry "The allowlist is checked on every hop; the CDN host is unverified here"
+kept the plan's three hosts (`huggingface.co`, `cdn-lfs.huggingface.co`,
+`cdn-lfs-us-1.huggingface.co`) and recorded, PROVISIONAL, that today's redirect target could not be
+observed. It can now be. On 2026-09-23 each of the four pinned URLs,
+`https://huggingface.co/<repo>/resolve/<commit>/<file>`, answered `302 Found` with
+`Location: https://us.aws.cdn.hf.co/xet-bridge-us/<id>/<hash>?X-Xet-Cas-Uid=public&…` (Hugging
+Face's Xet storage bridge, with a signed query string). With the plan's list, `model pull` would have
+failed on every model with `HostNotAllowed { host: "us.aws.cdn.hf.co" }`.
+Decision: `HOST_ALLOWLIST` gains exactly `us.aws.cdn.hf.co`. It is matched as an exact name, as every
+entry is. The design has no suffix or wildcard matching, and this change adds none: `eu.aws.cdn.hf.co`,
+`cdn.hf.co`, `hf.co`, `x.us.aws.cdn.hf.co` and `us.aws.cdn.hf.co.example.com` are all refused. The two
+`cdn-lfs` hosts stay. They are Hugging Face's LFS CDN, and removing a host a download may still be
+sent to would only turn a working pull into a refusal. The hop is checked before the fetch that would
+open a socket to it, as before (`Downloader::open`), and the body is still hashed against the
+compiled-in pin, so the CDN is trusted for bytes and never for integrity. The list now departs from
+the snippet in IMPLEMENTATION_PLAN PHASE 9. `allowlist.rs` is authoritative.
+**PROVISIONAL — needs maintainer ratification:** the redirect's host is chosen by Hugging Face per
+request, and the `-us` in both the host and the `xet-bridge-us` path suggests other regions exist (an
+`eu.aws.cdn.hf.co`, say). A user whose download is sent to one fails closed: `model pull` exits 1
+with ``error [E_MODEL_DOWNLOAD]: `<host>` is not on the download allowlist``, the app's model row
+shows the same error, and nothing is installed. Widening the list is a one-line reviewed change, and each
+added host should come from an observed redirect, as this one did. Only the US host was observed here,
+from one network location.
+Tests: `download_follows_a_redirect_to_the_xet_cdn` — a redirect of the observed shape (path and
+signed query) to `us.aws.cdn.hf.co` is followed and the file verified, and a redirect to each of the
+five hosts above is refused by name without the host being asked.
+Evidence: `curl -D -` of the four resolve URLs, 2026-09-23. Whether a real transfer through that host
+succeeds and verifies is recorded in the next entry.
+Affects: D13.9, SECURITY §8 ("huggingface.co, its CDN"), `crates/oc-net/src/allowlist.rs`.
+
+## 2026-09-23 · The default model, downloaded and run: the pin verified, the live tests green · Phase 9 follow-up
+Context: the two entries above pinned `models.toml` from the API and allowed the Xet CDN host. The
+maintainer then added `us.aws.cdn.hf.co` to this sandbox's egress allowlist, and a ranged `GET` of the
+default's resolve URL followed the `302` and returned `206` with the `GGUF` magic.
+What was run, on this machine (Linux x86_64, 4 cores shared with another worker's build, 15 GB, no GPU):
+1. **`openconvert model pull qwen3-1.7b-q4_k_m --dir <scratch>`** used the engine built from this
+   branch, so it ran with the new allowlist, the compiled-in registry and `HttpFetch`. It exited 0 in
+   50 s. The downloader hashed the 1 282 439 264 bytes while they streamed, and they matched the pinned
+   `d2387ca2…c7b5`. `LICENSE` (Apache-2.0) and `NOTICE` (repository, revision, file, sha256) were
+   written beside the file. An independent `sha256sum` of the installed file gives the same digest.
+   `model list` then shows the default as installed. **The download verification that the entry "`models.toml`
+   pinned" left open is done for the default.** The 0.6B, 4B and Qwen3.5-2B files were not downloaded,
+   so their pins remain unverified by download.
+2. **Rows 9.15 and 9.16** (`cargo nextest run -p oc-testkit --features live-llm -E 'binary(live_llm)'
+   --test-threads 1`, `OC_LLAMA_SERVER` = the verified `b10456` build, `OC_LIVE_MODEL` = the pulled
+   file) both pass. `thinking_is_absent_in_200_generations` took 2 152 s: 200 grammar-constrained
+   generations, none with a `<think>` block or separated reasoning. `prefix_is_cached_on_second_call`
+   took 173 s: the second call found the shared prefix in the KV cache. These runs are not gate
+   results. The machine is not L, the CPU was shared, and no timing here stands for G4/G5.
+   `llama-server`'s RSS at `-c 8192 -np 1` was about 3.1 GB during the runs, above G6's 2.5 GB. That
+   figure comes from `ps` and is not a G6 measurement; G6 is machine L's to measure.
+3. **The Phase 10 live test** (`cargo nextest run -p openconvert --features live-llm --test ai_cli -E
+   'test(ai_against_a_live_model_conserves_every_book)'`) passes in 30 s. f03, f07 and f10 each exit 0,
+   with no `W_LLM_UNAVAILABLE`, calls within budget and I-7 holding. The same three conversions, re-run
+   by hand to read their reports, asked 1, 1 and 0 calls (6.0 s and 7.2 s of model time), and f03
+   stopped at the wall-clock limit (`W_LLM_TIME_EXHAUSTED`). The engine matched `--model-path` to the
+   registry entry by file name (`model_id = qwen3-1.7b-q4_k_m`).
+4. **`LLAMA_API_KEY` is enforced** (Phase 9 Blocked item 3). A server the engine started has no key in
+   its argv. It answers `/v1/chat/completions` and `/slots` with `401 Invalid API Key` when the key is
+   missing or wrong. `/health` and `/v1/models` stay open, by llama-server's design.
+The GGUF was deleted afterwards (the orchestrator's instruction; nothing in the repository refers to
+it).
+Still open: G1–G9 on machines L and M and `docs/MODEL_GATE.md`. G3/G7/G9 also lack their inputs. The
+provisional items of the two entries above also stay open.
+Evidence: the pull's stderr (`installed qwen3-1.7b-q4_k_m at …`), the `NOTICE`, `sha256sum`, and the
+nextest summaries (`2 tests run: 2 passed`; `1 test run: 1 passed`).
+Affects: PROGRESS.md (Phase 9 Blocked items 1–4, Appendix D), `docs/CHANGELOG.md`, `docs/RELEASE_CHECKLIST.md`.

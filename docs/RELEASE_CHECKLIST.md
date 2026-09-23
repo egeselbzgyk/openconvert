@@ -95,7 +95,8 @@ Before tagging:
 - [ ] Every phase's DoD ticked — **no:** Phase 7.5 is parked; Appendix D fails (PROGRESS.md).
 - [ ] No placeholder — **no:** `ci-lint --release-branch` finds 15: 8 model pins in `models.toml`
       (huggingface.co unreachable here), 6 in `packs.toml` (validation pack unbuilt), 1 updater key.
-      No lapsed `review_by`.
+      No lapsed `review_by`. *(Since then, 2026-09-23: `models.toml` is pinned
+      (`fix/phase-09-registry-pins`), and the gate finds 7.)*
 - [x] Version bumps — `bump-rules-check` clean against the unreleased baseline (re-recorded after
       Phase 14; unchanged). The tree is still 0.1.0: bump to 1.0.0 when tagging.
 - [x] `## [1.0.0]` section — present, Security section written from Phase 14's evidence;
@@ -132,8 +133,9 @@ After the job:
 
 ## Known release blockers (as of 2026-09-23, after Phase 14 and Phase 15)
 
-- `models.toml` model pins are `TODO_` (huggingface.co is unreachable from the machine that built
-  Phase 9), so `ci-lint --release-branch` fails; `docs/MODEL_GATE.md` has no G1–G9 for the default model.
+- `docs/MODEL_GATE.md` has no G1–G9 for the default model. (`models.toml` is pinned since 2026-09-23 and
+  the default model's download was verified against its pin; the other three have not been
+  downloaded.)
 - `packs.toml`'s validation pack is unbuilt (`TODO_`) and its JRE licence (VD-f) unverified.
 - The updater keypair has not been generated (`TODO_UPDATER_PUBKEY`).
 - The Linux AppImage is 112.95 MB against the 45 MB budget (WebKitGTK); a maintainer decision.

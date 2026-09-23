@@ -61,7 +61,9 @@ LAST_UPDATED: 2026-09-23
       could be fetched here, because huggingface.co is refused by the sandbox's egress policy. So
       the registry pins, the live tests and every gate run are unverified and listed in the Blocked
       section. A follow-up (`fix/phase-09-llama-pins`) filled the llama.lock digests and checked
-      them against downloads.)*
+      them against downloads. A second (`fix/phase-09-registry-pins`, 2026-09-23) pinned
+      `models.toml` from the Hugging Face API, allowed the CDN host `us.aws.cdn.hf.co`, and pulled
+      the default model for real, verified against its pin; the live tests then passed on this CPU: 9.15, 9.16 and the Phase 10 live conversion (DECISIONS_LOG 2026-09-23, "The default model, downloaded and run"))*
 - [x] **Phase 10** — AI-assisted decisions (the four tasks)
       *(all 22 named tests exist and pass, 10.17/10.18 as pytest functions; 40 Rust and 6 Python
       tests added, plus one live test behind `live-llm`; built on `phase/10-ai-decisions` and merged
@@ -298,7 +300,7 @@ not **Yes** is in `## Blocked` › "v1.0 — Appendix D".
 |---|---|
 | `ai.enabled = false`; zero LLM calls by default | **Yes** — `ai_default_is_off` (A10.1). |
 | Every enabled task McNemar non-inferior, false repair ≤ 1 %; language map committed | **Holds only vacuously:** no task is enabled for any language (the maps are committed, empty); A10.4/A10.5 are unmeasured (no model here). |
-| G1–G9 recorded for the default model; `docs/MODEL_GATE.md` regenerated | **No** — no model can be downloaded here (huggingface.co refused). |
+| G1–G9 recorded for the default model; `docs/MODEL_GATE.md` regenerated | **No** — the default model can now be downloaded and verified here (2026-09-23), but no gate run is recorded: G1–G9 are measured on machines L and M, and G3/G7/G9 lack their inputs. The live rows 9.15/9.16 and the Phase 10 live test pass here against it. |
 | Cassettes complete for every task × fixture; canaries green | **No** — 12 scripted cassettes through the stub plus the four seeds; one per task × gold fixture needs a real model's answers. |
 | No task promoted on fewer than 200 gold instances | **Yes** — no task is promoted; each gold set holds its seed items only, and the eval report says how far each is from `calibration.min_gold_instances_per_task`. |
 
@@ -321,7 +323,7 @@ not **Yes** is in `## Blocked` › "v1.0 — Appendix D".
 | Linux: AppImage headless; Flatpak manifest validated, no network | **Partly** — the AppImage converts headless (15.7, here); the manifest has no network finish-arg (15.8); `flatpak-builder-lint` unverified. |
 | Updater manifest signed; tampered payload refused | **No** — the verifier accepts a signed manifest and refuses a tampered payload (15.9/15.10, in-test key), but there is no release key (`TODO_UPDATER_PUBKEY`) and so no signed manifest. |
 | SBOM (CycloneDX 1.6) attached, every vendored native | **No** — generated and validated here (15.11/15.12, 776 components); there is no release to attach it to. |
-| No `TODO_` in `models.toml`; no expired `review_by` | **No** — 8 `TODO_` model pins (and 6 in `packs.toml`, 1 updater key: `ci-lint --release-branch` finds 15). No expired `review_by` (`thresholds-lint` clean). |
+| No `TODO_` in `models.toml`; no expired `review_by` | **Yes** — `models.toml`'s 8 pins filled 2026-09-23 (`fix/phase-09-registry-pins`; the default's download verified, the other three not downloaded). No expired `review_by` (`thresholds-lint` clean). `ci-lint --release-branch` still finds 7, none in `models.toml`: 6 in `packs.toml`, 1 updater key (rows above and below). |
 | `docs/CHANGELOG.md` complete; every artefact's SHA-256 published | **No** — the `## [1.0.0]` notes are complete and `xtask release changelog` accepts them; no release, so no published hashes. |
 
 Also outside Appendix D's list but a release gate: row 15.15 / A15.6, the installer budget — the
@@ -329,8 +331,8 @@ AppImage is 112 953 848 bytes against 45 000 000.
 
 ### Phase 15 — release blockers (need the maintainer)
 
-- `ci-lint --release-branch` (row 15.18) **fails today with 15 findings**: 8 `TODO_` model pins in
-  `models.toml` (huggingface.co unreachable here), 6 in `packs.toml` (validation pack unbuilt, VD-f),
+- `ci-lint --release-branch` (row 15.18) **fails today with 7 findings** (15 before `models.toml`'s
+  8 pins were filled on 2026-09-23): 6 in `packs.toml` (validation pack unbuilt, VD-f),
   1 `TODO_UPDATER_PUBKEY` in `tauri.conf.json` (the maintainer generates the keypair; private half only
   into CI secrets; record the fingerprint in RELEASE_CHECKLIST.md).
 - Row 15.15 **fails on Linux**: the AppImage is 112 953 848 bytes (rebuilt after Phase 14) against
@@ -587,12 +589,13 @@ What a fresh session needs:
   `unsafe`: a PDEATHSIG trampoline (Linux) and a job object (Windows, unverified).* The idle-kill
   *loop* is Phase 10's.
 - **`openconvert model`** is `crates/openconvert/src/cmd_model.rs`, with the registry compiled
-  in. The bundled `models.toml` still has `TODO_` pins, so on it `list`/`pull` exit 2. That is
-  correct until the fill (Blocked).
+  in. The bundled `models.toml` is pinned since 2026-09-23 (`fix/phase-09-registry-pins`): `list`
+  works on it, and `pull qwen3-1.7b-q4_k_m` was run against the real host and verified.
 - **Live tests** are `crates/oc-testkit/tests/live_llm.rs` (`--features live-llm`, env
   `OC_LLAMA_SERVER`, `OC_LIVE_MODEL`), run by the nightly `live-llm-cassette-refresh` job after
   `xtask fetch-llama-server` and `model pull`. `xtask/llama.lock`'s `b10456` digests are filled and
-  download-checked, so that job now fails at `model pull` until `models.toml` is filled (Blocked).
+  download-checked, and `models.toml` is pinned, so that job no longer stops at `model pull` for a
+  placeholder (the job itself is unverified until the nightly runs).
 - **The promotion gate** is `eval/model_gate.py` → `oc_eval.model_gate`. Probes and prompt
   fixtures are generated (`python -m oc_eval.model_gate.{probes,fixtures} --write`) and held equal to
   the committed files. `docs/MODEL_GATE.md` is rendered (`--render-table`), and no run is recorded:
@@ -621,6 +624,8 @@ What a fresh session needs:
 - **A9.1** — `download_writes_license_and_notice`: through the real `ureq` client over loopback,
   a verified GGUF, `LICENSE` and `NOTICE` land in the store. **Unverified here:** a real
   `model pull qwen3-1.7b-q4_k_m` from huggingface.co (egress 403, and `models.toml` has no pins).
+  *Done 2026-09-23 (`fix/phase-09-registry-pins`): the real pull through `us.aws.cdn.hf.co`
+  verified, with `LICENSE` and `NOTICE` beside it; and rows 9.15/9.16 pass against it.*
 - **A9.2** — `download_refuses_host_off_allowlist` counts zero requests before a refusal and one
   (the allowlisted hop) before an off-list redirect is refused. `model_pull_refuses_a_host_off_the_allowlist`
   shows the same at the CLI.
@@ -828,7 +833,8 @@ What a fresh session needs:
 - **Task validations are gate failures with codes**: `V.verbatim`, `S.range`, `S.order`,
   `S.overlap`, `S.holdout`, `S.roles` (`oc_ai::gates::GateFailure`).
 - **The pinned llama-server is fetchable and verified** since main's `fix/phase-09-llama-pins`
-  (`cargo run -p xtask -- fetch-llama-server`); a model still cannot be (huggingface.co refused).
+  (`cargo run -p xtask -- fetch-llama-server`), and since `fix/phase-09-registry-pins` so is the
+  default model (`openconvert model pull qwen3-1.7b-q4_k_m`, 1 282 439 264 bytes).
 - Build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` (disk is shared with two other
   worktrees; the whole workspace is ~3.6 GB that way).
 
@@ -856,7 +862,9 @@ What a fresh session needs:
   `dc:title` with `source = llm`), `wallclock_share_hard_stop` (injected clock),
   `task_priority_order_on_budget_overflow`; every admitted edit passes S, the task validation, L
   and V, and every escalation ends in a `Decision`. **Unverified here:** the same against a real
-  model (the live test).
+  model (the live test). *Run 2026-09-23 against the real default model:
+  `ai_against_a_live_model_conserves_every_book` passes (1, 1 and 0 calls; f03 hit the wall-clock
+  stop, `W_LLM_TIME_EXHAUSTED`).*
 - **A10.3** — `ai_edits_are_conserving_end_to_end`: every fixture, as filed and with outline and
   title removed, with a cooperative in-process model whose answers are applied (all four tasks are
   applied somewhere across the twenty variants): I-7 holds on every one.
@@ -1862,11 +1870,12 @@ so `STATUS` stays `IN_PROGRESS`; most need a maintainer, a machine this one is n
    owner phase.
 4. **Isartor not run** (P14-a pins); **nightly fuzzing** not yet run; Landlock's skip below 5.13 seen
    only through `OC_LANDLOCK=off`, never on a real old kernel.
-5. **AI:** no model reachable here — G1–G9 and `docs/MODEL_GATE.md` not produced; cassettes per task ×
-   gold fixture not recorded; McNemar holds only because nothing is enabled.
+5. **AI:** the default model is now reachable and verified (2026-09-23), but G1–G9 and
+   `docs/MODEL_GATE.md` are not produced (machines L and M, and G3/G7/G9's inputs); cassettes per
+   task × gold fixture not recorded; McNemar holds only because nothing is enabled.
 6. **Release:** macOS signing/notarization (no Mac, no Developer ID); Windows installers never built;
    `flatpak-builder-lint` not run; no updater keypair (`TODO_UPDATER_PUBKEY`) and so no signed
-   manifest; 8 `TODO_` pins in `models.toml` (and 6 in `packs.toml`); no release, so no attached SBOM
+   manifest; 6 `TODO_` pins in `packs.toml` (`models.toml` pinned 2026-09-23); no release, so no attached SBOM
    and no published hashes; `--no-ai` byte identity across three OSes unverified.
 7. **Installer budget** (row 15.15, A15.6): the AppImage is 112 953 848 bytes against 45 000 000.
 8. **CI** — GitHub Actions is disabled here (Phases 12 and 14 record it); every row that Phases 7–15
@@ -1911,22 +1920,31 @@ D13.4 amendment in `docs/DECISIONS.md`.
 DECISIONS.md, logged in `docs/DECISIONS_LOG.md` (2026-09-23) as **PROVISIONAL — needs maintainer
 ratification**, and worked around. None of them blocks Phase 11's work.
 
-1. **Registry pins** — `models.toml` still has `TODO_` `revision`/`sha256` and `size_bytes = 0` for
-   all four entries: huggingface.co is refused by this sandbox's egress policy. Fill them on a
-   machine that can reach it with `eval/model_gate.py --emit-registry`, which hashes the download
-   itself. Until then `model list`/`pull` on the bundled registry exit 2.
+1. **Registry pins** — *filled 2026-09-23 (`fix/phase-09-registry-pins`).* All four entries carry a
+   commit and a SHA-256 read from the Hugging Face API (DECISIONS_LOG 2026-09-23, "`models.toml`
+   pinned"). The default is `ggml-org/Qwen3-1.7B-GGUF` Q4_K_M (maintainer's decision; D9 amended).
+   Still open, each **PROVISIONAL — needs maintainer ratification**: (a) the 0.6B tier is the
+   official **Q8_0** (`qwen3-0.6b-q8_0`, RAM estimate 2 GiB), because no Q4_K_M exists in the
+   official or ggml-org repository; (b) the hashes are the hub's LFS oids, not ones we produced
+   (§1.6's fill rule). The default's download **was verified**: `openconvert model pull` streamed
+   it through `us.aws.cdn.hf.co` and its SHA-256 matched the pin (and `sha256sum` agrees). The
+   0.6B, 4B and Qwen3.5-2B files have not been downloaded.
 2. **llama.cpp digests** — filled after the merge (`fix/phase-09-llama-pins`). They were read from
    GitHub's releases API and then checked by download: all four `b10456` assets match in digest and
    size. **PROVISIONAL — needs maintainer ratification: verify by downloading** (run
    `cargo run -p xtask -- fetch-llama-server` on a maintainer machine; DECISIONS_LOG 2026-09-23,
-   "llama.cpp `b10456` digests filled, then checked by download"). The nightly live job now fails
-   at `model pull` (item 1), not at the server fetch.
+   "llama.cpp `b10456` digests filled, then checked by download"). With item 1 filled, the nightly
+   live job's server fetch and `model pull` both have their pins (the job itself is unverified).
 3. **`LLAMA_API_KEY`** — the sidecar's key goes in that environment variable, never in argv. The
-   pinned build's `--help` lists `(env: LLAMA_API_KEY)` under `--api-key`. Whether a running server
-   enforces the key still needs a model, which cannot be fetched here. `--api-key-file` is the
-   fallback.
-4. **The allowlist's CDN hosts** are the plan's three, and today's redirect target could not be
-   observed. An off-list redirect fails closed and names the host.
+   pinned build's `--help` lists `(env: LLAMA_API_KEY)` under `--api-key`. *Checked 2026-09-23 with
+   the real model:* a server the engine started (key in the environment, none in argv) answers
+   `/v1/chat/completions` and `/slots` with `401` without the key or with a wrong one; `/health`
+   and `/v1/models` stay open, as llama-server keeps them. `--api-key-file` is the fallback.
+4. **The allowlist's CDN hosts** — *the redirect target is now observed:* every pinned URL
+   redirects to `us.aws.cdn.hf.co` (Xet bridge), which is now on the list as an exact name
+   (2026-09-23). **PROVISIONAL:** other regional hosts (an `eu.*`, say) may exist; a redirect to
+   one fails closed and names the host (DECISIONS_LOG 2026-09-23, "The allowlist names
+   `us.aws.cdn.hf.co`").
 5. **PDEATHSIG and Windows job objects** (crash and SIGKILL teardown) need `unsafe` and are
    deferred to Phase 14. *Resolved in Phase 14 without `unsafe` (rustix, win32job).*
 6. **G3/G7/G9 inputs, and G7's numbers** — no reference tokenizations, no paired answers, no own
@@ -2571,3 +2589,7 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P15.20    docs: the release checklist run against the post-Phase-14 AppImage  1e6111d
 2026-09-23  P15.21    docs: Appendix D evaluated; first-run test (15.27); CHANGELOG; the DoD  (the commit that adds this line)
 2026-09-23  PHASE 15  COMPLETE on phase/15-packaging-release - DoD checked; macOS/Windows, VMs, certificates, a published release and CI unverified here. v1.0 (Appendix D) NOT met
+2026-09-23  FIX-P9b   oc-net: pin every models.toml entry by commit and SHA-256  a78a800
+2026-09-23  FIX-P9b   oc-net: allow the Xet CDN host that model downloads redirect to  9c05ad2
+2026-09-23  FIX-P9b   docs: amend D9's default repository to ggml-org's Q4_K_M  19a8c1b
+2026-09-23  FIX-P9b   docs: the default model downloaded and run; PROGRESS, CHANGELOG  (the commit that adds this line)

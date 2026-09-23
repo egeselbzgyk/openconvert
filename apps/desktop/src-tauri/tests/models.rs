@@ -4,7 +4,8 @@
 //!
 //! Downloads go to `oc-testkit`'s stub model host on loopback, through `oc-net`'s real client and
 //! the real allowlist: the registry's URLs are the real `https://huggingface.co/...` ones. A real
-//! download from huggingface.co is unverified here (the sandbox's egress policy refuses the host).
+//! download goes through the same `oc-net` downloader as `openconvert model pull`, which is where
+//! it was checked (DECISIONS_LOG 2026-09-23); none happens here.
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver};
@@ -286,10 +287,38 @@ fn model_rows_are_the_readiness_fields() {
     assert_eq!(other.warn.as_deref(), Some("Experimental."));
 }
 
-/// The registry shipped today still has placeholder pins: the manager says models are not
-/// available in this build, and why, instead of offering a download that cannot be verified.
+/// A registry with a placeholder pin: the manager says models are not available in this build,
+/// and why, instead of offering a download that cannot be verified. The shipped registry with one
+/// pin put back to its placeholder.
 #[test]
 fn an_unpinned_registry_offers_no_download() {
+    let bundled = oc_net::registry::BUNDLED;
+    let sha = ModelRegistry::parse(bundled)
+        .expect("the shipped registry is pinned")
+        .entries()[0]
+        .sha256
+        .clone();
+    let unpinned = bundled.replacen(&sha, "TODO_SHA256", 1);
+    let (tx, _rx) = mpsc::channel();
+    let manager = ModelManager::new(
+        ModelRegistry::parse(&unpinned).map_err(|error| error.to_string()),
+        ModelStore::new(scratch("unpinned")),
+        Arc::new(|| download_stub::loopback_fetch(1)),
+        None,
+        Arc::new(Recorder(Mutex::new(tx))),
+    );
+    let view = manager.view();
+    assert!(view.unavailable.is_some());
+    assert!(view.rows.is_empty());
+    assert!(matches!(
+        manager.pull("qwen3-1.7b-q4_k_m"),
+        Err(UiError::ModelsUnavailable(_))
+    ));
+}
+
+/// The registry the app ships is pinned (2026-09-23): every model is a row, the default is D9's.
+#[test]
+fn the_shipped_registry_offers_every_model() {
     let (tx, _rx) = mpsc::channel();
     let manager = ModelManager::new(
         ModelRegistry::parse(oc_net::registry::BUNDLED).map_err(|error| error.to_string()),
@@ -299,14 +328,21 @@ fn an_unpinned_registry_offers_no_download() {
         Arc::new(Recorder(Mutex::new(tx))),
     );
     let view = manager.view();
-    if ModelRegistry::parse(oc_net::registry::BUNDLED).is_err() {
-        assert!(view.unavailable.is_some());
-        assert!(view.rows.is_empty());
-        assert!(matches!(
-            manager.pull("qwen3-1.7b-q4_k_m"),
-            Err(UiError::ModelsUnavailable(_))
-        ));
-    } else {
-        assert_eq!(view.unavailable, None);
-    }
+    assert_eq!(view.unavailable, None);
+    let ids: Vec<&str> = view
+        .rows
+        .iter()
+        .map(|row| row.readiness.id.as_str())
+        .collect();
+    assert_eq!(
+        ids,
+        [
+            "qwen3-1.7b-q4_k_m",
+            "qwen3-0.6b-q8_0",
+            "qwen3-4b-q4_k_m",
+            "qwen3.5-2b-q4_k_m-unsloth"
+        ]
+    );
+    assert!(view.rows[0].readiness.is_default);
+    assert!(view.rows.iter().all(|row| !row.readiness.installed));
 }

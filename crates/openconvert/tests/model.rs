@@ -2,8 +2,9 @@
 //! first-run screen and a CLI user see of the model manager. Row 9.18 and the CLI half of 9.19 and
 //! A9.2.
 //!
-//! These run the built binary against a registry written here, with synthetic pins: the bundled
-//! `models.toml` is exactly what the engine must refuse until its hashes are filled in.
+//! These run the built binary against a registry written here, with synthetic pins, except
+//! `model_list_works_on_the_shipped_registry`, which reads the `models.toml` compiled in. Nothing
+//! here downloads a real model.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -176,16 +177,24 @@ fn model_pull_refuses_a_host_off_the_allowlist() {
     assert!(!store.join("tiny-default").exists());
 }
 
-/// A registry with a placeholder is a configuration error, exit 2, whatever the subcommand.
+/// A registry with a placeholder is a configuration error, exit 2, whatever the subcommand. The
+/// shipped registry is taken with one pin put back to a placeholder, so the refusal is exercised on
+/// the real file's shape and never reaches the network.
 #[test]
 fn an_unresolved_registry_is_a_usage_error() {
     let dir = scratch("unresolved");
     let registry = dir.join("models.toml");
-    std::fs::write(
-        &registry,
-        std::fs::read_to_string(super_registry()).expect("the bundled registry"),
-    )
-    .expect("copy");
+    let shipped = std::fs::read_to_string(super_registry()).expect("the bundled registry");
+    let sha = shipped
+        .lines()
+        .find_map(|line| {
+            let (key, value) = line.split_once('=')?;
+            let quoted = value.split('"').nth(1)?;
+            (key.trim() == "sha256").then(|| quoted.to_owned())
+        })
+        .expect("a sha256 line");
+    assert!(!sha.starts_with("TODO_"), "the shipped registry is pinned");
+    std::fs::write(&registry, shipped.replacen(&sha, "TODO_SHA256", 1)).expect("copy");
     for sub in ["list", "pull"] {
         let mut args = vec![sub];
         if sub == "pull" {
@@ -196,16 +205,39 @@ fn an_unresolved_registry_is_a_usage_error() {
         let store = store.to_string_lossy();
         args.extend(["--registry", &registry, "--dir", &store]);
         let output = model(&args);
-        let unresolved = std::fs::read_to_string(super_registry())
-            .expect("registry")
-            .contains("TODO_");
-        if unresolved {
-            assert_eq!(output.status.code(), Some(2), "{sub}");
-            assert!(String::from_utf8_lossy(&output.stderr).contains("placeholder"));
-        } else {
-            assert_ne!(output.status.code(), Some(2), "{sub}");
-        }
+        assert_eq!(output.status.code(), Some(2), "{sub}");
+        assert!(String::from_utf8_lossy(&output.stderr).contains("placeholder"));
     }
+}
+
+/// The registry compiled into the engine loads: `model list` answers with every entry, the
+/// default marked, nothing installed in an empty store. The snapshot is the shipped pins' sizes,
+/// RAM estimates and licences as a first-run screen reads them.
+#[test]
+fn model_list_works_on_the_shipped_registry() {
+    let dir = scratch("shipped");
+    let store = dir.join("store");
+    let output = model(&["list", "--json", "--dir", &store.to_string_lossy()]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON on stdout");
+    let rows = value.as_array().expect("one row per entry");
+    let defaults: Vec<&str> = rows
+        .iter()
+        .filter(|row| row["is_default"] == true)
+        .filter_map(|row| row["id"].as_str())
+        .collect();
+    assert_eq!(defaults, ["qwen3-1.7b-q4_k_m"]);
+    assert!(rows.iter().all(|row| row["installed"] == false));
+    insta::assert_json_snapshot!(value);
+
+    let human = model(&["list", "--dir", &store.to_string_lossy()]);
+    assert_eq!(human.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&human.stdout).contains("qwen3-1.7b-q4_k_m (default)"));
 }
 
 fn super_registry() -> PathBuf {
