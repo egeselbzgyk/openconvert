@@ -592,3 +592,55 @@ back on.
 | 13.26d | `tesseract::tests::every_call_caps_openmp_at_one_thread` | `oc-core` | unit | `test` | green |
 | 13.26e | `ocr_tesseract::mixed_page_with_system_tesseract_reads_only_the_plate` | `openconvert` (feature `tesseract`) | fixture (f11, real Tesseract) — A13.3 | `ocr` | green |
 | 13.26f | `ocr_e2e::an_old_tesseract_converts_as_if_none_existed` | `openconvert` | binary (a fake 4.1.1, Unix) — A13.7 | `test` | green |
+
+## Phase 15 — Packaging & release
+
+Most of Phase 15's rows are gates over real release artefacts. They are tests behind the `xtask`
+feature `release-artifacts`, which read what the release job produced from `OC_BUNDLE_DIR`,
+`OC_SBOM`, `OC_REPRO_DIR`, `OC_RELEASE_BODY` and `OC_RELEASE_ASSETS`, fail when those are unset, and
+run as steps of `.github/workflows/release.yml` named `row 15.N <test>`. Rows 15.1–15.4 are shell
+steps of the macOS release leg. Each gate's logic also has a default-suite test on synthetic input.
+`Status` "green here" means it ran against real artefacts on this Linux machine; "release job" means
+it has not run anywhere yet.
+
+| # | Test | Crate | Kind | Job | Status |
+|---|---|---|---|---|---|
+| 15.1 | `every_nested_macho_is_signed_with_one_team_id` | — | CI step (macOS) | `release`/`build` | release job |
+| 15.2 | `codesign_verify_deep_strict_passes` | — | CI step (macOS) | `release`/`build` | release job |
+| 15.3 | `spctl_assess_accepts_the_bundle` | — | CI step (macOS) | `release`/`build` | release job |
+| 15.4 | `notarization_ticket_is_stapled` | — | CI step (macOS) | `release`/`build` | release job |
+| 15.5 | `entitlements_do_not_disable_library_validation` | `xtask` | unit (plist parse) | `test` | green |
+| 15.5a | `sign_nested_signs_every_macho_inside_out` | `xtask` | the script on fake Mach-O files, recording `codesign` (Unix) | `test` | green |
+| 15.6 | `windows_installers_are_produced_and_hashed` | `xtask` (`release-artifacts`, Windows) | CI gate | `release`/`build` | release job |
+| 15.6a | `release_manifest_requires_every_declared_installer` | `xtask` | unit | `test` | green |
+| 15.7 | `appimage_launches_and_converts_headless` | `xtask` (`release-artifacts`, Linux) | integration (xvfb-run, the AppImage) | `release`/`build` | green here |
+| 15.7a | `appimage_carries_the_bundle_layout` | `xtask` (`release-artifacts`, Linux) | integration | `release`/`build` | green here |
+| 15.7b | `smoke::tests::only_the_smoke_flag_asks_for_a_smoke_conversion`, `a_smoke_job_ends_with_the_engines_exit_code` | `openconvert-desktop` | unit | `desktop` | green |
+| 15.8 | `flatpak_manifest_has_no_network_finish_arg` | `xtask` | unit (YAML parse) | `test` | green |
+| 15.9 | `updater_manifest_signature_verifies` | `oc-net` | integration (keypair made in the test) | `test` | green |
+| 15.10 | `updater_rejects_tampered_payload` | `oc-net` | integration | `test` | green |
+| 15.10a | `an_update_off_the_release_hosts_or_over_the_budget_is_refused` | `oc-net` | integration | `test` | green |
+| 15.10b | `update::tests::{versions_order_as_semver_does, the_placeholder_key_verifies_nothing, this_build_looks_itself_up_most_specific_first}` | `oc-net` | unit | `test` | green |
+| 15.10c | `updater::tests::the_updater_reads_the_key_and_endpoint_tauri_conf_carries` | `openconvert-desktop` | unit | `desktop` | green |
+| 15.10d | `the_release_latest_json_is_what_the_updater_verifies` | `xtask` | unit (release tooling → the updater's parser and verifier) | `test` | green |
+| 15.11 | `sbom_is_valid_cyclonedx_1_6` | `xtask` (`release-artifacts`) | CI gate (`OC_SBOM`) | `release`/`sbom` | green here |
+| 15.11a | `the_merged_sbom_validates_offline_and_names_no_build_path`, `the_sbom_schema_check_rejects_an_invalid_document` | `xtask` | unit | `test` | green |
+| 15.12 | `sbom_lists_every_vendored_native` | `xtask` (`release-artifacts`) | CI gate (`OC_SBOM`) | `release`/`sbom` | green here |
+| 15.12a | `a_pinned_pack_joins_the_sbom_and_a_placeholder_does_not` | `xtask` | unit | `test` | green |
+| 15.13 | `reproducible_no_ai_output_across_os` | `xtask` (`release-artifacts`) | CI gate (three OS tables) | `release`/`repro-compare` | release job (the Linux half ran here) |
+| 15.13a | `repro_check_names_the_first_differing_zip_entry` | `xtask` | unit | `test` | green |
+| 15.14 | `release_job_needs_no_python` | `xtask` | unit (YAML parse) + the containers' own assertion | `test`, `release` | green (YAML); release job |
+| 15.14a | `every_release_gate_row_is_a_named_release_step` | `xtask` | unit (YAML parse) | `test` | green |
+| 15.15 | `installer_size_within_budget` | `xtask` (`release-artifacts`) | CI gate | `release`/`build` | **red here, correctly: AppImage 112 695 800 B > 45 000 000** |
+| 15.15a | `the_installer_budget_counts_installers_only` | `xtask` | unit | `test` | green |
+| 15.16 | `ir_version_bump_is_enforced` | `xtask` | rehearsal on a copy of the tree | `test` | green |
+| 15.17 | `protocol_bump_is_enforced` | `xtask` | rehearsal on a copy of the tree | `test` | green |
+| 15.17a | `prompt_and_job_spec_changes_follow_their_rules`, `the_committed_baseline_describes_this_tree` | `xtask` | rehearsal / unit | `test` | green |
+| 15.18 | `no_todo_placeholders_on_a_release_tag` | `xtask` | unit (scratch trees) + `ci-lint --release-branch` in `release` | `test`, `release` | green (logic); **the tree fails the gate today, correctly** |
+| 15.19 | `fresh_install_converts_a_book` | — | manual + scripted VM (`--smoke-convert`) | — | not run (no VMs) |
+| 15.20 | `release_artifacts_all_have_published_hashes` | `xtask` (`release-artifacts`) | CI gate | `release`/`publish` | release job |
+| 15.20a | `a_release_body_missing_one_hash_is_refused` | `xtask` | unit | `test` | green |
+| 15.21 | `no_sidecar_shares_a_name_with_a_workspace_binary` | `xtask` | unit — the stale-engine carry-over | `test` | green |
+| 15.21a | `engine::tests::the_sidecar_the_app_runs_is_the_one_tauri_bundles` | `openconvert-desktop` | unit | `desktop` | green |
+| 15.22 | `the_bundle_layout_is_the_same_on_every_os` | `xtask` | unit (merged Tauri configs) | `test` | green |
+| 15.22a | `stage_sidecars::tests::{the_llama_runtime_is_the_server_and_what_it_loads_on_every_os, the_rpc_backend_and_other_tools_are_never_bundled}` | `xtask` | unit | `test` | green |

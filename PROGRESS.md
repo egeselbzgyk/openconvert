@@ -149,7 +149,85 @@ Work items, in order, with the plan's test rows against each:
       today with 15 findings, correctly**: release blockers), row 15.14 `release_job_needs_no_python`
       (YAML; the container run is unverified here), `every_release_gate_row_is_a_named_release_step`,
       `xtask release {latest-json,verify-latest,hash-dir}` — `the_release_latest_json_is_what_the_updater_verifies`
-- [ ] **P15.12** `docs/RELEASE_CHECKLIST.md`, `docs/INSTALL.md`, the part-B hand-off
+- [x] **P15.12** `docs/RELEASE_CHECKLIST.md` (binary items, which job checks each, the key-rotation
+      consequence, Azure Artifact Signing = one secret + one step), `docs/INSTALL.md` (SmartScreen in
+      plain words, checksums, the Flatpak's no-network cost), `docs/VERSIONING.md` (P15.10),
+      `docs/TEST_MATRIX.md` Phase 15 section, this hand-off
+
+### Phase 15 — what part B must do (in this order)
+
+1. **Merge `main` (with Phase 14) into `phase/15-packaging-release`** (merge procedure; keep both sides
+   of PROGRESS.md / DECISIONS_LOG.md / CHANGELOG.md; regenerate Cargo.lock with cargo). Expected
+   conflicts: `thresholds.toml` (part A added `[release.max_installer_bytes]` after `desktop.*` and
+   `[net.update_manifest_max_bytes]` after `net.connect_timeout_secs`), `crates/oc-net/src/lib.rs`
+   (`pub mod update;`), `apps/desktop/src-tauri/src/{main,lib}.rs` (smoke mode, updater commands,
+   `run_return`), `.github/workflows/ci.yml` (desktop job stages natives; lint job runs
+   `bump-rules-check`). Then re-run `cargo run -p xtask -- vendor-pdfium`, `fetch-llama-server`,
+   `stage-sidecars` (the desktop crate needs `bin/llama-server-<triple>` and `bin/native/` now).
+2. **`bump-rules-check` after the merge**: Phase 14 may change oc-model/events; the baseline says
+   `released = "none"`, so it only notes drift. Re-record it (`--record none`) so the committed digests
+   describe the merged tree (`the_committed_baseline_describes_this_tree` checks versions only).
+3. **Wire Phase 14 into Phase 15's pieces**: (a) the updater's connections (`oc_net::update`, GitHub
+   release hosts) into PHASE 14's network audit log and Settings › Network log's list of the
+   connections the app can make; (b) if Phase 14 adds Landlock/sandboxing or new caps to the engine,
+   run the AppImage smoke (`--smoke-convert`, row 15.7) again — rebuild the AppImage (see "What a fresh
+   session needs"); (c) the Flatpak's finish-args against whatever Phase 14 decides about sandboxing.
+4. **Settings row for the updater** (not in part A): "Check for updates" → `update_check`, then
+   "Install and restart" → `update_install`; the `Checked` codes (`up_to_date`, `ready`, `no_key`,
+   `bad_signature`, `too_large`, `no_platform`, `bad_manifest`, `network`) localised in EN/DE/TR; a
+   Vitest test; hidden when the build has no `updater` feature (the Flatpak). INSTALL.md and
+   RELEASE_CHECKLIST.md already describe it.
+5. **Rust third-party notices**: `apps/desktop/ui/THIRD-PARTY-NOTICES.txt` says the Rust side's
+   notices "are generated at packaging time (Phase 15)" — not done in part A. Generate them from the
+   shipped crates' licence files (e.g. an `xtask notices` over `cargo metadata`, or cargo-about if its
+   licence passes `deny.tools.toml`) into `bin/licenses/` so they ride in every bundle; also the root
+   `NOTICE` LICENSE_AND_DEPENDENCIES §5 names (PdfPig credit) does not exist yet.
+6. **Release notes' security claims**: write the `## [1.0.0]` section of `docs/CHANGELOG.md` (the release
+   job refuses an empty one) with the security properties Phase 14 actually delivered, each claim
+   pointing at the test/CI job that proves it; plus the Windows-unsigned disclosure.
+7. **The checklist**: tick `docs/RELEASE_CHECKLIST.md` items that can be ticked on this machine and
+   mark the rest unverified; update "Known release blockers".
+8. **Appendix D (v1.0 DoD) evaluation**, item by item, in PROGRESS — including VD-f (validation-pack
+   JRE licence, deferred to Phase 15: still open; the pack is not built, so it must be deferred past v1
+   with the reason, or closed) and Phase 7.5 (parked).
+9. **Phase 15 Definition of Done** table (§0.3), CHANGELOG Phase 15 entry, gates on the merge commit,
+   merge into `main`. Do **not** tick Phase 15 unless the DoD holds; with the blockers below it cannot
+   be `STATUS: COMPLETE`.
+
+### Phase 15 — release blockers found in part A (need the maintainer)
+
+- `ci-lint --release-branch` (row 15.18) **fails today with 15 findings**: 8 `TODO_` model pins in
+  `models.toml` (huggingface.co unreachable here), 6 in `packs.toml` (validation pack unbuilt, VD-f),
+  1 `TODO_UPDATER_PUBKEY` in `tauri.conf.json` (the maintainer generates the keypair; private half only
+  into CI secrets; record the fingerprint in RELEASE_CHECKLIST.md).
+- Row 15.15 **fails on Linux**: the AppImage is 112 695 800 bytes against 45 000 000 — WebKitGTK alone
+  compresses to ~58 MB. Needs a decision: a Linux-specific budget, or another primary Linux format.
+- The engine sidecar name `openconvert-engine`, the `io.openconvert.OpenConvert` identifier, the updater
+  built on `oc-net` instead of `tauri-plugin-updater`, no `.deb`/`.rpm`, the Flatpak's no-network
+  consequences, and the coarse bump-rule digests are provisional (Blocked section, DECISIONS_LOG).
+
+### Phase 15 — unverified here (no Actions, macOS, Windows, certificates or VMs)
+
+Rows 15.1–15.4 (macOS signing/notarization/Gatekeeper/stapling), 15.6 (Windows installers), 15.13's
+cross-OS half, 15.14's container run, 15.19 (fresh VMs), 15.20 (a published release), the real-key half
+of 15.9, `flatpak-builder-lint`, the Windows and macOS updater install paths, and the whole of
+`release.yml` beyond its unit tests. **Verified here:** 15.5, 15.7 (the real AppImage, xvfb-run), 15.8,
+15.9/15.10 (in-test keypair), 15.11/15.12 (the real merged SBOM, 776 components), 15.13's Linux half,
+15.15 measured (red), 15.16, 15.17, 15.18 (logic green; the tree red).
+
+### Phase 15 — what a fresh session needs
+
+- Tools installed here for part A: `cargo-cyclonedx` 0.5.9 (`~/.cargo/bin`), the Tauri CLI 2.11.5 from npm
+  at `scratchpad/p15/tauricli/node_modules/.bin/tauri`, `xdg-utils` (apt). `vendor/llama-server` is a
+  symlink to the main checkout's (read-only use).
+- Rebuild the AppImage: `cargo build -p openconvert --release && cargo run -p xtask -- stage-sidecars
+  --release`, then in `apps/desktop/src-tauri`: `tauri build --bundles appimage --config
+  '{"bundle":{"createUpdaterArtifacts":false}}'` (no key here), then
+  `OC_BUNDLE_DIR=$PWD/target/release/bundle cargo nextest run -p xtask --features release-artifacts
+  --test release -E 'test(appimage) or test(installer_size)'`. `target/release` is ~2.5 GB: delete it
+  afterwards. A stale `target/release/bundle/appimage_deb` makes the bundler fail with "File exists".
+- Disk is tight: run the suite per package (`scratchpad/p15/test_all.sh` deletes each package's test
+  binaries after it runs).
 
 ## Phase 13 — on branch `phase/13-ocr`
 
@@ -1470,6 +1548,23 @@ sampled floor is printed as a floor.
 Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 
 ## Blocked
+
+**Phase 15 part A — provisional decisions awaiting maintainer ratification** (each in
+`docs/DECISIONS_LOG.md` 2026-09-23; work continued on the conservative reading):
+
+- The engine is bundled as `openconvert-engine` (not `openconvert`), so `tauri-build` can never
+  overwrite the workspace's engine (P15.1).
+- `.deb`/`.rpm` are not built: Tauri would install `llama-server` and its libraries into the system
+  `/usr/bin` (P15.2).
+- The bundle identifier is `io.openconvert.OpenConvert` (was `dev.openconvert.app`) (P15.5).
+- The updater uses Tauri's format, keys and verifier but fetches through `oc-net`, because
+  `tauri-plugin-updater` needs the banned `reqwest`; the alternative is a `deny.toml` wrapper exception
+  (P15.7). A check happens only when the user asks.
+- The Flatpak has no network: no model/pack download and no host Ollama inside it (P15.6).
+- Bump-rule digests are coarse (a behaviour-preserving refactor of `canonical.rs` or an `emit` call asks
+  for a bump); before v1.0.0 drift is a note (P15.10).
+- `release.max_installer_bytes` = 45 000 000 (decimal MB, the stricter reading of D12); the AppImage
+  exceeds it — **release blocker**, see the Phase 15 section.
 
 **Phase 12 part A — provisional decisions awaiting maintainer ratification** (each in
 `docs/DECISIONS_LOG.md` 2026-09-23; work continued on the conservative reading):
