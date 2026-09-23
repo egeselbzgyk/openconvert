@@ -4,8 +4,8 @@
 
 use xtask::{
     ci_lint, dom_fixtures, epubcheck_parity, fetch_epubcheck, fetch_epubcheck_corpus,
-    fetch_llama_server, fixtures, handmade_fixtures, mutations, stage_sidecars, thresholds_lint,
-    vendor_pdfium,
+    fetch_isartor, fetch_llama_server, fixtures, handmade_fixtures, mutations, stage_sidecars,
+    thresholds_lint, vendor_pdfium,
 };
 
 use std::path::{Path, PathBuf};
@@ -22,6 +22,8 @@ tasks:
   fetch-epubcheck   fetch the pinned EPUBCheck release and unpack it to vendor/epubcheck/
   fetch-epubcheck-corpus
                     fetch EPUBCheck's own public test corpus to vendor/epubcheck-corpus/
+  fetch-isartor     fetch the pinned Isartor suite (xtask/isartor.lock) to target/isartor/
+                    for the crash-regression tier (PHASE 14 row 14.16)
   fetch-llama-server
                     fetch the pinned llama.cpp release for this host (xtask/llama.lock),
                     unpack it to vendor/llama-server/ and print llama-server's path
@@ -54,6 +56,7 @@ fn main() -> Result<()> {
         }
         Some("fetch-epubcheck") => fetch_epubcheck::run(&root),
         Some("fetch-epubcheck-corpus") => fetch_epubcheck_corpus::run(&root),
+        Some("fetch-isartor") => fetch_isartor::run(&root),
         Some("fetch-llama-server") => fetch_llama_server::run(&root),
         Some("epubcheck-parity") => {
             let check = std::env::args().any(|a| a == "--check");

@@ -5045,3 +5045,30 @@ Evidence: `crates/openconvert/tests/hardening.rs` (14.7, 14.9, 14.11, 14.19 and 
 suite under Landlock.
 Affects: D13.2, D13.9, SECURITY §4 and §11, PHASE 14 details 5–7 and 9–10, `cmd_convert.rs`,
 `openconvert::{sandbox, report, deliver, input}`, `oc_pdf::glyph_budget`, `thresholds.toml`.
+
+## 2026-09-23 · The crash-regression corpus, and the Isartor pins that could not be taken · Phase 14
+Context: PHASE 14 detail 9 and rows 14.16–14.18: Isartor plus a mutated set, keyed `(name, sha256)`
+in `corpus/fixtures/crash/manifest.json`; Isartor fetched by `xtask fetch-isartor` with a pinned
+SHA-256 and never vendored.
+Decisions:
+1. **The mutated set is generated, deterministic and committed** (`python -m oc_eval.mutate.crash`,
+   29 files, 168 KB): `xref_cycle` (self loop, two-section cycle, 200-deep chain, `/Prev` past the
+   end and negative), `xref_flip` (seeded byte flips in three seeds' xref tables), `truncate_stream`
+   (a file ending mid-stream, no xref, lying `/Length`s, a Flate stream cut in half), `objstm_nest`
+   (the catalogue 200 object streams deep, a loop of three, a shallow nesting inside the cap) and
+   `pages_loop` (kids that are themselves, each other, the catalogue; a node its own parent). The
+   seeds are the committed hand-made fixtures. `--check` regenerates in memory and fails on any
+   difference (pytest).
+2. **What the corpus proves is behaviour, not quality**: every file terminates with exit 0 or 1 and
+   a report, no 101, no hang, no book at the output path after exit 1. Here: 17 convert, 12 are
+   refused (6 by `max_xref_chain`, 5 by PDFium as unreadable).
+3. **PROVISIONAL — needs maintainer ratification: the Isartor pins are empty.** The PDF
+   Association's site is refused by this sandbox's egress policy, and reading the suite from the
+   veraPDF corpus mirror was not permitted here. `xtask/isartor.lock` has the source template
+   (veraPDF-corpus at a commit, per-file SHA-256) with `commit = "TODO_ISARTOR_COMMIT"` and no
+   files, and `fetch-isartor` refuses until it is filled. The nightly `isartor` job fails at the
+   fetch until then; row 14.16 is **unverified here**.
+Evidence: `crash_fixtures_are_manifest_keyed`, `mutated_crash_corpus_terminates_cleanly`,
+`eval/tests/test_crash_corpus.py`.
+Affects: `corpus/fixtures/crash/`, `eval/src/oc_eval/mutate/`, `xtask/isartor.lock`,
+`.github/workflows/nightly.yml`.

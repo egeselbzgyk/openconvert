@@ -21,6 +21,10 @@ ace = []
 # assertion on a shared CI runner measures the runner, and a gate that fails for that
 # reason is one people learn to re-run until it passes. The nightly `bench` job turns it on.
 bench = []
+# PHASE 14 row 14.16: the Isartor suite is fetched (`cargo run -p xtask -- fetch-isartor`, pinned,
+# never committed) into `target/isartor/`, so the test is gated on the job that fetches it. On,
+# with nothing fetched, it fails.
+isartor = []
 # PHASE 10: `convert --ai --ai-all-tasks` against a real llama-server and model (`OC_LLAMA_SERVER`,
 # `OC_LIVE_MODEL`). Gated like `oc-testkit`'s live tests, and run by the same nightly job.
 live-llm = []

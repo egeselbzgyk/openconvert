@@ -104,7 +104,7 @@ items, in order, with the plan's test rows against each:
 - [x] **P14.8** Landlock: `ScopeSet`, self-restriction — rows 14.10, 14.12 *(14.11, the engine's recorded skip, is P14.10)*
 - [x] **P14.9** `oc-net` audit log — row 14.21
 - [x] **P14.10** the engine: `--max-memory`/`--max-pages`, Landlock and deadlines wired into `convert`; caps end in exit 1 with a report and no output; the 40 M-glyph PDF — rows 14.7, 14.9, 14.11, 14.19, 14.6's exit 1
-- [ ] **P14.11** crash corpus: `oc-eval mutate`, `corpus/fixtures/crash/`, Isartor fetch — rows 14.16–14.18
+- [x] **P14.11** crash corpus: `oc-eval mutate`, `corpus/fixtures/crash/`, Isartor fetch — rows 14.16–14.18 *(14.16 unverified here: no Isartor pins)*
 - [ ] **P14.12** `fuzz/`: three targets, seeded corpora — rows 14.13–14.15
 - [ ] **P14.13** `unshare -n` over the AI cassette path — row 14.20
 - [ ] **P14.14** `unsafe` confined to declared modules — row 14.22
@@ -170,6 +170,11 @@ What a fresh session needs:
   `limits.max_page_glyphs` (`oc_pdf::glyph_budget`, counted before PDFium loads a page;
   PROVISIONAL). Hostile PDF builders: `oc_testkit::hostile`. The engine tests are
   `crates/openconvert/tests/hardening.rs`; row 14.19 runs 1 000 violations in ~25 s on 4 threads.
+- **Crash corpus:** `python -m oc_eval.mutate.crash [--check]` writes 29 mutated files to
+  `corpus/fixtures/crash/mutated/` and the `(name, sha256)` manifest; minimised fuzz crashes go in
+  `corpus/fixtures/crash/fuzz/` and are keyed on the next run. Rust tests:
+  `crates/openconvert/tests/crash_corpus.rs` (14.17, 14.18; 14.16 behind `--features isartor`).
+  `xtask fetch-isartor` refuses until `xtask/isartor.lock` is pinned (Blocked).
 - `openconvert::sandbox` is the report's `sandbox` section and `--max-memory` parsing
   (`parse_bytes`, binary units only); not wired into `convert` yet (P14.10).
 

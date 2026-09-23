@@ -142,3 +142,15 @@ def test_every_job_this_phase_owns_exists_by_name() -> None:
 
     assert {"full-corpus", "bench", "proptest-deep", "mutation-testing"} <= nightly_jobs
     assert {"python", "corpus-lint"} <= ci_jobs
+
+
+# --------------------------------------------------------------------------- PHASE 14
+
+
+def test_the_isartor_job_fetches_the_pinned_suite_and_turns_the_test_on() -> None:
+    """Row 14.16: a feature-gated test is only a gate if a job fetches its input and turns it on."""
+    commands = run_text(NIGHTLY, "isartor")
+    assert "fetch-isartor" in commands
+    assert "--features isartor" in commands
+    fetch = commands.index("fetch-isartor")
+    assert fetch < commands.index("isartor_corpus_terminates_cleanly")
