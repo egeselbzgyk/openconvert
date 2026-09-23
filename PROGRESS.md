@@ -154,6 +154,16 @@ Work items, in order, with the plan's test rows against each:
       plain words, checksums, the Flatpak's no-network cost), `docs/VERSIONING.md` (P15.10),
       `docs/TEST_MATRIX.md` Phase 15 section, this hand-off
 
+**Part A gates (2026-09-23, branch head before the hand-off commit):** `cargo fmt --check` clean;
+workspace clippy (`--exclude openconvert-desktop --all-targets --all-features -D warnings`) clean;
+`cargo nextest` per package **775 tests, all green** (oc-model 22, oc-core 66, oc-pdf 65, oc-text 70,
+oc-layout 39, oc-structure 45, oc-epub 38, oc-validate 44, oc-ai 98, oc-net 30, oc-testkit 16,
+openconvert 202, xtask 40); `openconvert-desktop` clippy (all features, and `--no-default-features`)
+clean and 62 tests green with `engine-integration`; UI Vitest 53, `lint`, `check` clean; `ci-lint`,
+`thresholds-lint`, `bump-rules-check` clean; `cargo deny --all-features check` and the tooling policy
+clean. The `release-artifacts` gates that could run here: 15.7 + layout green, 15.11/15.12 green,
+15.15 red (measured).
+
 ### Phase 15 — what part B must do (in this order)
 
 1. **Merge `main` (with Phase 14) into `phase/15-packaging-release`** (merge procedure; keep both sides
