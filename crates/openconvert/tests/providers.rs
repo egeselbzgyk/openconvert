@@ -835,3 +835,62 @@ fn provider_probe_answers_what_convert_would_open() {
         assert_eq!(code, Some(2), "{wrong:?}");
     }
 }
+
+/// A11.1 against a **real** Ollama (nightly, `--features live-llm`): Ollama on `localhost:11434`
+/// serving `OC_LIVE_OLLAMA_MODEL`, found by `--llm-provider ollama` with no endpoint given. Every
+/// fixture that escalates a task comes back whole — exit 0, no `W_LLM_UNAVAILABLE`, the report
+/// naming Ollama, at most `llm.max_calls_per_book` calls, and I-7 holding. That every request
+/// overrode `num_ctx` and carried the schema in `format` is rows 11.2 and 11.3, over the same
+/// adapter code.
+///
+/// With the feature on and the variable unset this fails: a live test that passes without a
+/// model is not a live test.
+#[cfg(feature = "live-llm")]
+#[test]
+fn ai_against_a_live_ollama_converts_every_book() {
+    let model = std::env::var("OC_LIVE_OLLAMA_MODEL")
+        .unwrap_or_else(|_| panic!("--features live-llm needs OC_LIVE_OLLAMA_MODEL"));
+    let scratch = Scratch::new("live-ollama");
+    for stem in [
+        "f03_image_only",
+        "f07_verse_and_quote",
+        "f10_lists_and_table",
+    ] {
+        let output = Command::new(binary())
+            .arg("convert")
+            .arg(common::fixture(stem))
+            .arg("-o")
+            .arg(scratch.join(&format!("{stem}.epub")))
+            .args(["--lang", "en", "--ai", "--ai-all-tasks"])
+            .args(["--llm-provider", "ollama", "--llm-model", &model])
+            .env("XDG_DATA_HOME", scratch.join("data"))
+            .output()
+            .expect("the binary runs");
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{stem}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let report: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(scratch.join(&format!("{stem}.epub.report.json")))
+                .expect("the report"),
+        )
+        .expect("JSON");
+        assert!(
+            report["warnings"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .all(|warning| warning["code"] != "W_LLM_UNAVAILABLE"),
+            "{stem}"
+        );
+        assert_eq!(report["ai"]["provider"], "ollama", "{stem}");
+        let calls = report["ai"]["calls"].as_u64().unwrap_or(u64::MAX);
+        assert!(
+            calls <= u64::try_from(T.llm.max_calls_per_book).unwrap_or(0),
+            "{stem}: {calls} calls"
+        );
+        assert_eq!(report["conservation"]["i7"]["holds"], true, "{stem}: I-7");
+    }
+}

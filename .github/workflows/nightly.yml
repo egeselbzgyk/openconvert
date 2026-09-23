@@ -170,6 +170,26 @@ jobs:
           cargo run -q -p xtask -- fixtures
           cargo nextest run -p openconvert --features live-llm --locked -E 'binary(ai_cli)'
 
+  # PHASE 11, A11.1: convert --ai through a real Ollama on localhost:11434, found by
+  # `--llm-provider ollama`. Ollama's own installer and its registry are the one place this job
+  # trusts a third party's download; nothing it installs is shipped.
+  live-ollama:                 # Phase 11
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+      - name: install Ollama and pull the default model family's small tier
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama pull qwen3:1.7b
+          echo "OC_LIVE_OLLAMA_MODEL=qwen3:1.7b" >> "$GITHUB_ENV"
+      - run: cargo run -q -p xtask -- vendor-pdfium && cargo run -q -p xtask -- fixtures
+      - name: A11.1 - convert --ai against a live Ollama
+        run: cargo nextest run -p openconvert --features live-llm --locked -E 'binary(providers)'
+
 
   # Tier 3 (D6, PIPELINE §11): zero serious violations, and every required accessibility metadata
   # field present. Ace is a Node application, so the gate is behind the `ace` cargo feature — a
