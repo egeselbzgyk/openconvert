@@ -26,6 +26,8 @@ export interface UiConfig {
   killAfterMs: number;
   copiedRevertMs: number;
   supervisorTickMs: number;
+  /** `std::env::consts::OS`: "linux", "macos", "windows". */
+  os: string;
   maxPages: number;
   maxMemoryBytes: number;
 }

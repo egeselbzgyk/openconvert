@@ -234,7 +234,15 @@ Work items, in order, with the plan's test rows against each:
         note, the originating warning; opened from Preview or any page link. Main-window CSP gains
         exactly `frame-src ocpreview: http://ocpreview.localhost` (test 12.13 updated to allow only
         that) (+ 2 Rust, 1 UI test)
-  - [ ] **P12.8e** route `settings` (+ `models`/`firstrun` shells for part B)
+  - [x] **P12.8e** route `settings` (SettingsNav, SettingRow, Toggle, RadioGroup, Select,
+        NumberWithUnit, CopyCommand, Dialog): **live** — Presets (document type → job spec
+        `preset`), Advanced (max pages / max memory → job spec `limits`, from `thresholds.toml`
+        defaults, invalid refused), Language (System/English/Deutsch/Türkçe, immediate), About
+        (versions from `hello`, third-party notices); **drawn but disabled, saying why** — AI
+        assistance (all four tasks named), Models, Provider, Packs (OCR: not in this version + the
+        OS's Tesseract command; validation pack: not in this version), Network log (empty: this
+        build opens no connection). Route `models` is the Models section; `firstrun` has no entry
+        point until part B (+ 3 tests)
   - [ ] **P12.8f** the diagnostic bundle (export, review)
 - [ ] **P12.9** metadata and TOC overrides — rows 12.10, 12.11
 - [ ] **P12.10** Playwright under the shipped CSP — rows 12.14 (keyboard), 12.15, 12.16

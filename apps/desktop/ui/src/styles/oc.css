@@ -452,3 +452,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .oc-preview__warning { font-size: var(--oc-text-sm); }
 .oc-preview__toc .oc-preview__chapter--2 { padding-left: var(--oc-space-6); }
 .oc-preview__toc .oc-preview__chapter--3 { padding-left: var(--oc-space-8); }
+
+/* RadioGroup: a disabled option (the radios have no disabled state in the handoff). */
+.oc-radio.is-disabled { cursor: default; color: var(--oc-text-disabled); }
+.oc-radio.is-disabled .oc-radio__dot { border-color: var(--oc-border); }
+
+/* Settings: the section hints sit flush (were inline margin:0); the licence text dialog is wider. */
+.oc-settings__hint { margin: 0; }
+.oc-dialog--wide { width: 44rem; }
+/* PackRow: a sentence among the facts wraps (the facts' spans do not). */
+.oc-model__facts .oc-model__note { white-space: normal; }

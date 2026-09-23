@@ -23,6 +23,7 @@ export const CONFIG: UiConfig = {
   killAfterMs: 5000,
   copiedRevertMs: 2000,
   supervisorTickMs: 250,
+  os: "linux",
   maxPages: 3000,
   maxMemoryBytes: 4294967296,
 };

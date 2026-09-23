@@ -19,6 +19,8 @@ pub struct UiConfig {
     pub supervisor_tick_ms: u64,
     pub max_pages: u64,
     pub max_memory_bytes: u64,
+    /// `std::env::consts::OS`, for the one OS-specific thing the UI says: how to install Tesseract.
+    pub os: String,
 }
 
 /// Seconds as milliseconds, saturating; a negative threshold is a malformed file, not a runtime
@@ -43,6 +45,7 @@ impl UiConfig {
             supervisor_tick_ms: u64::try_from(T.desktop.supervisor_tick_ms).unwrap_or_default(),
             max_pages: u64::try_from(T.limits.max_pages).unwrap_or_default(),
             max_memory_bytes: u64::try_from(T.limits.max_memory_bytes).unwrap_or_default(),
+            os: std::env::consts::OS.to_owned(),
         }
     }
 }

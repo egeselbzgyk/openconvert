@@ -10,11 +10,11 @@
     tauriBackend,
     type Backend,
     type DropEvent,
-    type Settings,
+    type Settings as UserSettings,
     type UiConfig,
     type UiError,
   } from "./lib/backend";
-  import { IR_VERSION, PROTOCOL_VERSION } from "./lib/events";
+  import { IR_VERSION, PROTOCOL_VERSION, type Hello } from "./lib/events";
   import { SPRITE } from "./lib/icons";
   import { JobStore, type Blocking } from "./lib/jobs.svelte";
   import type { Row } from "./lib/jobstate";
@@ -22,6 +22,7 @@
   import Queue from "./routes/queue/Queue.svelte";
   import Preview from "./routes/preview/Preview.svelte";
   import Report from "./routes/report/Report.svelte";
+  import Settings, { type Section } from "./routes/settings/Settings.svelte";
   import { pageNumber } from "./lib/report";
 
   let { backend = tauriBackend(), clock = () => Date.now() }: { backend?: Backend; clock?: () => number } = $props();
@@ -33,12 +34,14 @@
     | { name: "preview"; job: string; page: string | null; from: "queue" | "report" };
 
   let config = $state<UiConfig | null>(null);
-  let settings = $state<Settings | null>(null);
+  let settings = $state<UserSettings | null>(null);
   let store = $state<JobStore | null>(null);
   let startupError = $state<Blocking | null>(null);
   let route = $state<Route>({ name: "queue" });
   let dragging = $state<{ pdfs: number; skipped: string[] } | null>(null);
   let announcement = $state("");
+  let hello = $state<Hello | null>(null);
+  let settingsSection = $state<Section>("ai");
 
   const blocking = $derived(startupError ?? store?.blocking ?? null);
 
@@ -70,7 +73,7 @@
       settings = await backend.settings();
       setLanguage(settings.language ?? "system");
       try {
-        await backend.startup();
+        hello = await backend.startup();
       } catch (error) {
         startupError = fromStartup(error as UiError);
         return;
@@ -219,8 +222,17 @@
           onclick: () => (route = target.from === "report" ? { name: "report", job: target.job } : { name: "queue" }),
         }}
       />
-    {:else}
-      <main class="oc-main"></main>
+    {:else if settings !== null && config !== null}
+      <Settings
+        {settings}
+        {config}
+        {hello}
+        bind:section={settingsSection}
+        onsave={(next) => {
+          settings = next;
+          void backend.saveSettings(next);
+        }}
+      />
       <AppHeader title={t("settings.title")} back={{ label: t("queue.title"), onclick: () => (route = { name: "queue" }) }} />
     {/if}
   {/if}
