@@ -4093,3 +4093,30 @@ Decisions:
 4. **The provider's id is the model as Ollama names it** (`qwen3:1.7b`): the cache key carries it.
 Evidence: `crates/oc-ai/tests/ollama.rs` (rows 11.2, 11.3 and one more).
 Affects: PHASE 11 details 1–2, D10, `oc_ai::provider::ollama`, `thresholds.toml` (`llm.ollama_*`).
+
+## 2026-09-23 · Detection and the capability probe · Phase 11
+Context: PHASE 11 details 2 and 5 — Ollama auto-detected on `localhost:11434`; a health and
+capability probe once per session, cached, degrading on failure; "version drift … is handled by the
+capability probe rather than by version sniffing". The desktop's job spec carries an endpoint and a
+model and no provider kind (§2.2), so the engine has to learn the kind from the endpoint itself.
+Decisions:
+1. **`Transport` gains `get`** (default: 404, for the chat-only test doubles); `HttpTransport`
+   implements it with its existing GET.
+2. **`oc_net::detect::detect_ollama`** asks `GET /api/tags` and returns the model names; a reply that
+   is not a model list is "not detected", never an error. `ollama_transport()` is the default
+   `http://localhost:11434`, which is loopback and needs no consent.
+3. **`oc_net::detect::probe`** asks, in order and stopping at the first answer: `GET /props` — an
+   object with `default_generation_settings` is `llama-server` (it serves `/api/tags` too, so it is
+   asked first); `GET /api/tags` — Ollama; `GET /v1/models` — any other OpenAI-compatible server.
+   Nothing answering is the probe's error, which the caller turns into `W_LLM_UNAVAILABLE`.
+4. **PROVISIONAL — needs maintainer ratification: an OpenAI-compatible server that is neither
+   `llama-server` nor Ollama is probed as constraining nothing** (`ProviderCaps::neither`, schema in
+   the prompt, `W_LLM_UNCONSTRAINED`). LM Studio and vLLM document `response_format: json_schema`,
+   but a `GET` cannot show that a server honours it rather than ignoring it — only a generation
+   could — and claiming a constraint that silently is not applied would suppress the warning that
+   tells the user why more answers fail gate S. Sending `response_format` blind also risks a 400
+   from a server that rejects the field, which would disable AI for that server entirely.
+5. **A base URL is reduced to its root** (`api_root`: no trailing `/`, no trailing `/v1`), so
+   `https://host/v1` — how most servers document their base URL — and `https://host` both work.
+Evidence: `crates/oc-net/tests/detect.rs` (row 11.1 and three more).
+Affects: PHASE 11 details 2 and 5, D10, `oc_ai::transport`, `oc_net::detect`.

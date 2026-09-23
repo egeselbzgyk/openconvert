@@ -94,6 +94,10 @@ impl HttpTransport {
 }
 
 impl Transport for HttpTransport {
+    fn get(&self, path: &str, timeout: Duration) -> Result<String, TransportError> {
+        HttpTransport::get(self, path, timeout)
+    }
+
     fn post_json(
         &self,
         path: &str,

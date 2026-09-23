@@ -17,7 +17,18 @@ pub trait Transport: Send + Sync {
         body: &str,
         timeout: Duration,
     ) -> Result<String, TransportError>;
+
+    /// GET `path` on the endpoint and return the reply's body: the health and capability probe
+    /// (PHASE 11 detail 5), which reads what a server is before any question is sent to it. A
+    /// transport that only answers chat — a test double, a cassette — has nothing there.
+    fn get(&self, path: &str, timeout: Duration) -> Result<String, TransportError> {
+        let _ = (path, timeout);
+        Err(TransportError::Status { status: NOT_FOUND })
+    }
 }
+
+/// What a transport with nothing at a path answers.
+const NOT_FOUND: u16 = 404;
 
 /// Why no reply came back. None of these is an answer, and none is a gate failure: the question
 /// was never answered at all.

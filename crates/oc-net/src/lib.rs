@@ -9,6 +9,7 @@
 
 pub mod allowlist;
 pub mod consent;
+pub mod detect;
 pub mod download;
 pub mod loopback;
 pub mod registry;
