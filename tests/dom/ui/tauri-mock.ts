@@ -16,8 +16,14 @@ export interface MockFixture {
   report: unknown;
   /** What the native file picker "returns". */
   picked: string[];
-  /** Milliseconds between two replayed lines. */
+  /** Milliseconds between two replayed lines, and between two download progress events. */
   pace: number;
+  /** The model manager's rows (`models_list`), as the Rust side sends them. */
+  models: { unavailable: string | null; rows: Array<Record<string, unknown>> };
+  /** The pack registry's (`packs_list`). */
+  packs: { unavailable: string | null; rows: Array<Record<string, unknown>> };
+  /** The licence text `model_license` returns. */
+  licenseText: string;
 }
 
 export function installTauriMock(fixture: MockFixture): void {
@@ -67,7 +73,53 @@ export function installTauriMock(fixture: MockFixture): void {
     }, fixture.pace * (fixture.lines.length + 1));
   };
 
+  /** A download, played the way the model manager streams one: a few progress rows, then the
+      row installed — unless cancelled first, which leaves it not installed. */
+  const models = fixture.models.rows.map((row) => ({ ...row }));
+  const cancelled = new Set<string>();
+  const pull = (id: string) => {
+    const row = models.find((candidate) => candidate.id === id);
+    if (row === undefined) return;
+    cancelled.delete(id);
+    const total = row.size_bytes as number;
+    const steps = 5;
+    for (let step = 0; step <= steps; step += 1) {
+      setTimeout(() => {
+        if (cancelled.has(id)) return;
+        Object.assign(row, { download: { state: "downloading", done: Math.floor((total * step) / steps), total } });
+        emit("model-changed", { ...row });
+      }, fixture.pace * (step + 1) * 10);
+    }
+    setTimeout(() => {
+      if (cancelled.has(id)) return;
+      Object.assign(row, { installed: true, license_path: `/data/openconvert/models/${id}/LICENSE`, download: { state: "idle" } });
+      emit("model-changed", { ...row });
+    }, fixture.pace * (steps + 2) * 10);
+  };
+
   const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
+    models_list: () => ({ unavailable: fixture.models.unavailable, rows: models }),
+    packs_list: () => fixture.packs,
+    model_license: (args) => ({ id: args.id, license: "Apache-2.0", text: fixture.licenseText }),
+    model_accept_license: (args) => {
+      const row = models.find((candidate) => candidate.id === args.id);
+      if (row !== undefined) row.license_accepted = true;
+      return null;
+    },
+    model_pull: (args) => {
+      pull(args.id as string);
+      return null;
+    },
+    model_cancel: (args) => {
+      const row = models.find((candidate) => candidate.id === args.id);
+      cancelled.add(args.id as string);
+      if (row !== undefined) {
+        Object.assign(row, { download: { state: "idle" } });
+        emit("model-changed", { ...row });
+      }
+      return null;
+    },
+    model_remove: () => null,
     startup_status: () => fixture.hello,
     ui_config: () => fixture.config,
     settings_get: () => settings,

@@ -1,12 +1,15 @@
 <script lang="ts">
   // Route `queue` (screen-map.md): the drop zone — full size while the queue is empty, a strip
   // above it once jobs exist, so focus order stays drop zone → queue → Settings (design decision
-  // 4) — the privacy note, and the queue itself.
+  // 4) — the privacy note, the first-run card while the queue is empty (queue.html §1), and the
+  // queue itself.
   import Dialog from "../../components/Dialog.svelte";
   import DropZone from "../../components/DropZone.svelte";
+  import FirstRunCard from "../../components/FirstRunCard.svelte";
   import PrivacyNote from "../../components/PrivacyNote.svelte";
   import QueueList from "../../components/QueueList.svelte";
   import QueueRow from "../../components/QueueRow.svelte";
+  import type { ModelRow } from "../../lib/backend";
   import type { JobStore } from "../../lib/jobs.svelte";
   import type { Row } from "../../lib/jobstate";
   import { tn } from "../../lib/locale.svelte";
@@ -29,6 +32,9 @@
     oneditmeta = () => undefined,
     onedittoc = () => undefined,
     onpage = null,
+    firstrun = null,
+    onsetup = () => undefined,
+    onnotnow = () => undefined,
   }: {
     store: JobStore;
     dragging: { pdfs: number; skipped: string[] } | null;
@@ -47,6 +53,10 @@
     oneditmeta?: (id: string) => void;
     onedittoc?: (id: string) => void;
     onpage?: ((id: string, page: string) => void) | null;
+    /** The default model, while the first-run card is offered; `null` hides it. */
+    firstrun?: ModelRow | null;
+    onsetup?: () => void;
+    onnotnow?: () => void;
   } = $props();
 
   let confirming = $state(false);
@@ -57,6 +67,7 @@
   <DropZone strip={store.rows.length > 0} {dragging} {onselect} />
   {#if store.rows.length === 0}
     <PrivacyNote />
+    {#if firstrun !== null}<FirstRunCard model={firstrun} {onsetup} {onnotnow} />{/if}
   {:else}
     <QueueList rows={store.rows} onremoveall={() => (confirming = true)}>
       {#snippet row(row: Row, active: boolean)}

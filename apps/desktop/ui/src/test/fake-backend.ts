@@ -7,9 +7,17 @@ import type {
   Backend,
   Bundle,
   CacheUsage,
+  CatalogKind,
+  CatalogRow,
+  CatalogView,
   CorrectionPatch,
   DropEvent,
   Enqueued,
+  LicenseView,
+  ModelReadiness,
+  ModelRow,
+  PackReadiness,
+  PackRow,
   PreviewIndex,
   Settings,
   UiConfig,
@@ -41,6 +49,48 @@ export const HELLO: Hello = {
   protocol: 1,
   pdfium_version: "151.0.7881.0",
   capabilities: ["inspect"],
+};
+
+/** Rows as the model manager sends them, from a registry that pins two models. */
+export function modelRows(): ModelRow[] {
+  return [
+    {
+      id: "qwen3-1.7b-q4_k_m",
+      display_name: "Qwen3 1.7B (Q4_K_M)",
+      tier: "default",
+      is_default: true,
+      installed: false,
+      size_bytes: 1_181_116_006,
+      ram_estimate_bytes: 3_221_225_472,
+      cpu_expectation: "moderate",
+      license: "Apache-2.0",
+      license_path: null,
+      warn: null,
+      license_accepted: false,
+      download: { state: "idle" },
+    },
+    {
+      id: "qwen3.5-2b-q4_k_m",
+      display_name: "Qwen3.5 2B (Q4_K_M, community quant)",
+      tier: "experimental",
+      is_default: false,
+      installed: false,
+      size_bytes: 1_395_864_371,
+      ram_estimate_bytes: 3_758_096_384,
+      cpu_expectation: "not yet measured",
+      license: "Apache-2.0",
+      license_path: null,
+      warn: "Community quantisation of a new hybrid architecture.",
+      license_accepted: false,
+      download: { state: "idle" },
+    },
+  ];
+}
+
+export const APACHE: LicenseView = {
+  id: "qwen3-1.7b-q4_k_m",
+  license: "Apache-2.0",
+  text: "Apache License\nVersion 2.0, January 2004\n\nTERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION",
 };
 
 export class FakeBackend implements Backend {
@@ -186,6 +236,42 @@ export class FakeBackend implements Backend {
   }
   async quit(): Promise<void> {
     this.calls.push(["quit", null]);
+  }
+
+  /** The model manager's screen, and the pack registry's (unpinned, as it ships). */
+  models: CatalogView<ModelReadiness> = { unavailable: null, rows: modelRows() };
+  packs: CatalogView<PackReadiness> = { unavailable: "model `validation` still has a placeholder in `license`", rows: [] };
+  private catalogHandlers: { models: Array<(row: ModelRow) => void>; packs: Array<(row: PackRow) => void> } = {
+    models: [],
+    packs: [],
+  };
+  async catalog<K extends CatalogKind>(kind: K): Promise<CatalogView<K extends "models" ? ModelReadiness : PackReadiness>> {
+    return (kind === "models" ? this.models : this.packs) as never;
+  }
+  async license(kind: CatalogKind, id: string): Promise<LicenseView> {
+    this.calls.push(["license", [kind, id]]);
+    return { ...APACHE, id };
+  }
+  async acceptLicense(kind: CatalogKind, id: string): Promise<void> {
+    this.calls.push(["acceptLicense", [kind, id]]);
+  }
+  async download(kind: CatalogKind, id: string): Promise<void> {
+    this.calls.push(["download", [kind, id]]);
+  }
+  async cancelDownload(kind: CatalogKind, id: string): Promise<void> {
+    this.calls.push(["cancelDownload", [kind, id]]);
+  }
+  async removeDownload(kind: CatalogKind, id: string): Promise<void> {
+    this.calls.push(["removeDownload", [kind, id]]);
+  }
+  async onCatalogChanged<K extends CatalogKind>(kind: K, handler: (row: CatalogRow<K>) => void) {
+    (this.catalogHandlers[kind] as Array<(row: CatalogRow<K>) => void>).push(handler);
+    return () => undefined;
+  }
+  /** The Rust side announces a changed model row. */
+  modelChanged(row: ModelRow): void {
+    this.models = { ...this.models, rows: this.models.rows.map((known) => (known.id === row.id ? row : known)) };
+    this.catalogHandlers.models.forEach((handler) => handler(row));
   }
 
   /** The Rust side relays one engine line of job `job`. */

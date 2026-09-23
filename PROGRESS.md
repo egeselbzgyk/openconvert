@@ -449,7 +449,15 @@ oc-testkit --bins` (the stub llama-server).
       (`PackReadiness`, `pack-changed`, commands `packs_list` … `pack_remove`, store
       `<data>/openconvert/packs`). The shipped `packs.toml` pins nothing (PROVISIONAL, see Blocked),
       so the validation pack reads "not available in this version" (+ 2 desktop, 2 oc-net tests)
-- [ ] **P12.16** the Models and Packs screens and the first-run route
+- [x] **P12.16** the Models and Packs screens and the first-run route: `ModelRow.svelte` renders a
+      row's `ModelReadiness` fields only (bytes in the locale's units, UI_UX's CPU words translated,
+      licence + path), the licence in full before the first download ("Accept license and download
+      {size}"), progress from `model-changed`, Cancel, Retry, Delete; the Packs screen renders the
+      pack registry (today: validation pack not available); `FirstRunCard` on the empty queue with
+      costs from the default row, "Not now" persisted; route `firstrun` = Models at the default
+      model. `lib/catalog.svelte.ts` holds the rows; `tauriBackend` gains the catalog commands.
+      Registry prose (`warn`, pack `contents`) is shown as a localised sentence, never English
+      (+ 6 Vitest, + 1 Playwright test; axe/contrast now also on `models` and `firstrun`)
 
 ### Part B — what remains, after Phase 9 and Phase 11 merge
 

@@ -1,15 +1,19 @@
 <script lang="ts">
-  // Route `settings` (settings.html; `models` is its Models section). What part A of Phase 12 can
-  // honour is live: the document preset, the two resource caps, the app language, the versions,
-  // the third-party notices. What needs a model manager or a provider (Phase 9 / 11) is drawn as
-  // the design draws it, disabled, and says in words that this build cannot do it yet — never a
-  // number or a row it cannot back with real data.
+  // Route `settings` (settings.html; `models` is its Models section, and `firstrun` is that section
+  // opened at the default model — `setup`). Live: the document preset, the two resource caps, the
+  // app language, the versions, the third-party notices, and the model manager and packs, whose
+  // rows are exactly what the Rust side's manager reports. What needs the engine's AI support or a
+  // provider (Phase 10 / 11) is drawn as the design draws it, disabled, and says in words that this
+  // build cannot do it yet — never a number or a row it cannot back with real data.
   import CopyCommand from "../../components/CopyCommand.svelte";
   import Dialog from "../../components/Dialog.svelte";
+  import ModelRow from "../../components/ModelRow.svelte";
   import NumberWithUnit from "../../components/NumberWithUnit.svelte";
   import RadioGroup from "../../components/RadioGroup.svelte";
   import Toggle from "../../components/Toggle.svelte";
-  import type { CacheUsage, Preset, Settings, UiConfig } from "../../lib/backend";
+  import type { CacheUsage, CatalogKind, Preset, Settings, UiConfig } from "../../lib/backend";
+  import { formatBytes } from "../../lib/bytes";
+  import { defaultModel, type Catalog } from "../../lib/catalog.svelte";
   import type { Hello } from "../../lib/events";
   import { detectLocale, LOCALES, type Locale } from "../../lib/i18n";
   import { i18n, setLanguage, t, tn } from "../../lib/locale.svelte";
@@ -27,6 +31,10 @@
     onreport = null,
     cacheUsage = null,
     onclearcache = null,
+    models = null,
+    packs = null,
+    setup = false,
+    onback = null,
   }: {
     settings: Settings;
     config: UiConfig;
@@ -37,7 +45,38 @@
     /** What the engine's cache holds, asked for when Advanced opens. */
     cacheUsage?: (() => Promise<CacheUsage>) | null;
     onclearcache?: (() => Promise<void>) | null;
+    /** The model manager's rows (`null` before they load). */
+    models?: Catalog<"models"> | null;
+    packs?: Catalog<"packs"> | null;
+    /** Route `firstrun`: the Models section, opened at the default model with its licence shown. */
+    setup?: boolean;
+    /** "Back to the queue", offered once the first-run download is done. */
+    onback?: (() => void) | null;
   } = $props();
+
+  /** Rows whose licence is shown, awaiting acceptance, by "kind:id". */
+  let expanded = $state<Record<string, boolean>>({});
+  const key = (kind: CatalogKind, id: string) => `${kind}:${id}`;
+  const firstModel = $derived(defaultModel(models));
+
+  function catalog(kind: CatalogKind): Catalog<"models"> | Catalog<"packs"> | null {
+    return kind === "models" ? models : packs;
+  }
+  function expand(kind: CatalogKind, id: string) {
+    expanded = { ...expanded, [key(kind, id)]: true };
+    void catalog(kind)?.showLicense(id);
+  }
+  function collapse(kind: CatalogKind, id: string) {
+    expanded = { ...expanded, [key(kind, id)]: false };
+  }
+
+  // The first-run route opens with the default model's licence shown (firstrun.html step 1).
+  let opened = false;
+  $effect(() => {
+    if (!setup || opened || firstModel === undefined) return;
+    opened = true;
+    if (!firstModel.installed && firstModel.download.state === "idle") expand("models", firstModel.id);
+  });
 
   const SECTIONS: Section[] = ["ai", "models", "provider", "presets", "advanced", "packs", "language", "network", "about"];
   const PRESETS: Preset[] = ["auto", "novel", "academic", "textbook", "poetry", "scanned"];
@@ -93,7 +132,7 @@
     {/each}
   </nav>
   <div class="oc-settings__body">
-    <h2 class="oc-settings__title">{t(`settings.nav.${section}`)}</h2>
+    <h2 class="oc-settings__title">{setup && section === "models" ? t("firstrun.title") : t(`settings.nav.${section}`)}</h2>
 
     {#if section === "ai"}
       <div class="oc-card">
@@ -109,8 +148,37 @@
         <Toggle checked={false} label={t("settings.ai.label")} disabled describedby={aiHelp} />
       </div>
     {:else if section === "models"}
-      <p class="oc-settings__hint">{t("settings.models.hint")}</p>
-      <div class="oc-empty"><span class="oc-empty__title">{t("settings.models.none")}</span><span>{t("settings.models.noneLine")}</span></div>
+      {#if setup && firstModel !== undefined}
+        <p class="oc-settings__hint">
+          {t("firstrun.hint", {
+            name: firstModel.display_name,
+            license: firstModel.license,
+            size: formatBytes(firstModel.size_bytes, i18n.locale),
+            ram: formatBytes(firstModel.ram_estimate_bytes, i18n.locale),
+          })}
+        </p>
+      {:else}
+        <p class="oc-settings__hint">{t("settings.models.hint")}</p>
+      {/if}
+      {#if models !== null && models.unavailable !== null}
+        <div class="oc-empty"><span class="oc-empty__title">{t("settings.models.none")}</span><span>{t("settings.models.noneLine")}</span></div>
+      {:else if models !== null && models.rows !== null}
+        {#each models.rows.filter((row) => !setup || row.is_default) as row (row.id)}
+          {@render downloadable("models", row)}
+        {/each}
+        {#if setup && firstModel?.installed}
+          <div class="oc-setting">
+            <div class="oc-setting__text">
+              <div class="oc-setting__label">{t("settings.ai.label")}</div>
+              <div class="oc-setting__help" id={aiHelp}>{t("settings.ai.unavailable")}</div>
+            </div>
+            <Toggle checked={false} label={t("settings.ai.label")} disabled describedby={aiHelp} />
+          </div>
+          {#if onback !== null}
+            <div class="oc-actions"><button class="oc-btn oc-btn--primary" onclick={onback}>{t("firstrun.back")}</button></div>
+          {/if}
+        {/if}
+      {/if}
     {:else if section === "provider"}
       <div class="oc-setting oc-setting--stack">
         <RadioGroup
@@ -192,14 +260,21 @@
         {#if command !== null}<CopyCommand {command} revertMs={config.copiedRevertMs} />{/if}
         <div class="oc-model__facts"><span class="oc-model__note">{t("settings.packs.ocrNote")}</span></div>
       </div>
-      <div class="oc-model oc-model--unavailable">
-        <div class="oc-model__head">
-          <span class="oc-model__name">{t("settings.packs.validation")}</span><span class="oc-model__tier">EPUBCheck</span>
-          <span class="oc-model__spacer"></span>
-          <span class="oc-model__state">{t("settings.packs.notAvailable")}</span>
+      {#if packs !== null && packs.unavailable === null && packs.rows !== null}
+        {#each packs.rows as row (row.id)}
+          {@render downloadable("packs", row)}
+        {/each}
+      {:else}
+        <!-- The pack registry this build ships pins no pack (packs.toml): nothing to download. -->
+        <div class="oc-model oc-model--unavailable">
+          <div class="oc-model__head">
+            <span class="oc-model__name">{t("settings.packs.validation")}</span><span class="oc-model__tier">EPUBCheck</span>
+            <span class="oc-model__spacer"></span>
+            <span class="oc-model__state">{t("settings.packs.notAvailable")}</span>
+          </div>
+          <div class="oc-model__facts"><span class="oc-model__note">{t("settings.packs.validationNote")}</span></div>
         </div>
-        <div class="oc-model__facts"><span class="oc-model__note">{t("settings.packs.validationNote")}</span></div>
-      </div>
+      {/if}
     {:else if section === "language"}
       <div class="oc-setting">
         <div class="oc-setting__text">
@@ -257,6 +332,28 @@
     {/if}
   </div>
 </main>
+
+{#snippet downloadable(kind: CatalogKind, row: NonNullable<Catalog<"models">["rows"]>[number] | NonNullable<Catalog<"packs">["rows"]>[number])}
+  {@const owner = catalog(kind)}
+  <ModelRow
+    {row}
+    license={owner?.licenses[row.id] ?? null}
+    expanded={expanded[key(kind, row.id)] ?? false}
+    error={owner?.errors[row.id] ?? null}
+    onexpand={() => expand(kind, row.id)}
+    oncollapse={() => collapse(kind, row.id)}
+    onaccept={() => {
+      collapse(kind, row.id);
+      void owner?.acceptAndDownload(row.id);
+    }}
+    ondownload={() => {
+      collapse(kind, row.id);
+      void owner?.download(row.id);
+    }}
+    oncancel={() => void owner?.cancel(row.id)}
+    onremove={() => void owner?.remove(row.id)}
+  />
+{/snippet}
 
 {#if clearing && usage !== null}
   <!-- Clearing asks once (design decision 14): it deletes text, which cannot be undone. -->

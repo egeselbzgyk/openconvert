@@ -89,6 +89,63 @@ export interface CacheUsage {
   books: number;
 }
 
+/** Where a model's or pack's download is (`src-tauri/src/models.rs`, `DownloadState`). */
+export type DownloadState =
+  | { state: "idle" }
+  | { state: "downloading"; done: number; total: number }
+  | { state: "cancelling"; done: number; total: number }
+  | { state: "failed"; kind: "unreachable" | "verification" | "disk" | "refused"; detail: string };
+
+/** Phase 9's `ModelReadiness`, exactly: what `openconvert model list --json` prints. */
+export interface ModelReadiness {
+  id: string;
+  display_name: string;
+  /** `default`, `small`, `quality` or `experimental` (D9). */
+  tier: string;
+  is_default: boolean;
+  installed: boolean;
+  size_bytes: number;
+  ram_estimate_bytes: number;
+  /** UI_UX §2's words: "fast", "moderate", "slower, higher quality", or "not yet measured". */
+  cpu_expectation: string;
+  license: string;
+  license_path: string | null;
+  warn: string | null;
+}
+
+/** What a pack row shows (`src-tauri/src/packs.rs`, `PackReadiness`). */
+export interface PackReadiness {
+  id: string;
+  display_name: string;
+  contents: string;
+  installed: boolean;
+  size_bytes: number;
+  license: string;
+  license_path: string | null;
+}
+
+/** A row: the readiness fields, and what the manager knows on top. */
+export type Downloadable<R> = R & { license_accepted: boolean; download: DownloadState };
+export type ModelRow = Downloadable<ModelReadiness>;
+export type PackRow = Downloadable<PackReadiness>;
+
+/** A screen of rows, or why nothing can be downloaded in this build. */
+export interface CatalogView<R> {
+  unavailable: string | null;
+  rows: Array<Downloadable<R>>;
+}
+
+/** A licence, in full, as it is shown before a download. */
+export interface LicenseView {
+  id: string;
+  license: string;
+  text: string;
+}
+
+/** The two things that download: models and packs, by one mechanism (Phase 12 detail 9). */
+export type CatalogKind = "models" | "packs";
+export type CatalogRow<K extends CatalogKind> = K extends "models" ? ModelRow : PackRow;
+
 export interface Enqueued {
   jobs: string[];
   skipped: string[];
@@ -138,7 +195,42 @@ export interface Backend {
   onJobChanged(handler: (view: JobView) => void): Promise<Unlisten>;
   onDragDrop(handler: (event: DropEvent) => void): Promise<Unlisten>;
   quit(): Promise<void>;
+  /** The models or packs screen: every registry entry's row, or why there are none. */
+  catalog<K extends CatalogKind>(kind: K): Promise<CatalogView<K extends "models" ? ModelReadiness : PackReadiness>>;
+  license(kind: CatalogKind, id: string): Promise<LicenseView>;
+  /** The user was shown the licence and accepted it; kept in the app's local state. */
+  acceptLicense(kind: CatalogKind, id: string): Promise<void>;
+  /** Start a download. Refused by the Rust side until the licence is accepted. */
+  download(kind: CatalogKind, id: string): Promise<void>;
+  /** Stop a download; its partial file is deleted (row 12.12). */
+  cancelDownload(kind: CatalogKind, id: string): Promise<void>;
+  /** Delete an installed model or pack. */
+  removeDownload(kind: CatalogKind, id: string): Promise<void>;
+  /** A row changed: progress, the end of a download, an acceptance, a delete. */
+  onCatalogChanged<K extends CatalogKind>(kind: K, handler: (row: CatalogRow<K>) => void): Promise<Unlisten>;
 }
+
+/** The Rust commands and event of each catalog (`src-tauri/src/main.rs`). */
+const CATALOG = {
+  models: {
+    list: "models_list",
+    license: "model_license",
+    accept: "model_accept_license",
+    pull: "model_pull",
+    cancel: "model_cancel",
+    remove: "model_remove",
+    event: "model-changed",
+  },
+  packs: {
+    list: "packs_list",
+    license: "pack_license",
+    accept: "pack_accept_license",
+    pull: "pack_pull",
+    cancel: "pack_cancel",
+    remove: "pack_remove",
+    event: "pack-changed",
+  },
+} as const;
 
 /** The real one, over Tauri's IPC. */
 export function tauriBackend(): Backend {
@@ -186,5 +278,12 @@ export function tauriBackend(): Backend {
         }
       }),
     quit: () => invoke<void>("quit"),
+    catalog: (kind) => invoke(CATALOG[kind].list),
+    license: (kind, id) => invoke<LicenseView>(CATALOG[kind].license, { id }),
+    acceptLicense: (kind, id) => invoke<void>(CATALOG[kind].accept, { id }),
+    download: (kind, id) => invoke<void>(CATALOG[kind].pull, { id }),
+    cancelDownload: (kind, id) => invoke<void>(CATALOG[kind].cancel, { id }),
+    removeDownload: (kind, id) => invoke<void>(CATALOG[kind].remove, { id }),
+    onCatalogChanged: (kind, handler) => listen(CATALOG[kind].event, (event) => handler(event.payload as never)),
   };
 }

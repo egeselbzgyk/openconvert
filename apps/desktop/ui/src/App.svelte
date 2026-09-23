@@ -18,6 +18,7 @@
   } from "./lib/backend";
   import { IR_VERSION, PROTOCOL_VERSION, type Hello } from "./lib/events";
   import { SPRITE } from "./lib/icons";
+  import { Catalog, defaultModel } from "./lib/catalog.svelte";
   import { JobStore, type Blocking } from "./lib/jobs.svelte";
   import type { Row } from "./lib/jobstate";
   import { i18n, setLanguage, t, tn } from "./lib/locale.svelte";
@@ -36,6 +37,7 @@
     | { name: "bundle"; bundle: Bundle; back: Route | null }
     | { name: "queue" }
     | { name: "settings" }
+    | { name: "firstrun" }
     | { name: "report"; job: string }
     | { name: "preview"; job: string; page: string | null; from: "queue" | "report" }
     | { name: "editmeta"; job: string }
@@ -50,6 +52,13 @@
   let announcement = $state("");
   let hello = $state<Hello | null>(null);
   let settingsSection = $state<Section>("ai");
+  let models = $state<Catalog<"models"> | null>(null);
+  let packs = $state<Catalog<"packs"> | null>(null);
+  /** The first-run card: offered while the default model is not installed, until "Not now". */
+  const firstrun = $derived.by(() => {
+    const model = defaultModel(models);
+    return settings === null || settings.firstrunDismissed || model === undefined || model.installed ? null : model;
+  });
 
   const blocking = $derived(startupError ?? store?.blocking ?? null);
 
@@ -92,6 +101,14 @@
       unlisten.push(await backend.onLine((job, line) => jobs.line(job, line, clock())));
       unlisten.push(await backend.onDragDrop(dragDrop));
       jobs.load(await backend.rows());
+      // The model manager and packs: rows now, changes as the Rust side announces them.
+      const modelCatalog = new Catalog(backend, "models");
+      const packCatalog = new Catalog(backend, "packs");
+      unlisten.push(await backend.onCatalogChanged("models", (row) => modelCatalog.apply(row)));
+      unlisten.push(await backend.onCatalogChanged("packs", (row) => packCatalog.apply(row)));
+      await Promise.all([modelCatalog.load(), packCatalog.load()]);
+      models = modelCatalog;
+      packs = packCatalog;
       // Heartbeats are judged on the supervisor's own tick; the rows never move on it.
       timer = setInterval(() => jobs.tick(clock()), config.supervisorTickMs);
       if (closed) unlisten.forEach((stop) => stop());
@@ -238,6 +255,13 @@
         onunlock={(id, password) => void unlock(id, password)}
         oneditmeta={(id) => (route = { name: "editmeta", job: id })}
         onedittoc={(id) => (route = { name: "edittoc", job: id })}
+        {firstrun}
+        onsetup={() => (route = { name: "firstrun" })}
+        onnotnow={() => {
+          if (settings === null) return;
+          settings = { ...settings, firstrunDismissed: true };
+          void backend.saveSettings(settings);
+        }}
       />
       <AppHeader onsettings={() => (route = { name: "settings" })} />
     {:else if route.name === "report"}
@@ -280,11 +304,30 @@
         {/if}
       {/if}
       <AppHeader title={target.name === "editmeta" ? t("action.editMeta") : t("action.reviewToc")} {back} />
+    {:else if route.name === "firstrun" && settings !== null && config !== null}
+      <!-- Route `firstrun`: the Models section at the default model, the queue still running. -->
+      <Settings
+        {settings}
+        {config}
+        {hello}
+        {models}
+        {packs}
+        setup
+        section="models"
+        onback={() => (route = { name: "queue" })}
+        onsave={(next) => {
+          settings = next;
+          void backend.saveSettings(next);
+        }}
+      />
+      <AppHeader title={t("settings.title")} back={{ label: t("queue.title"), onclick: () => (route = { name: "queue" }) }} />
     {:else if settings !== null && config !== null}
       <Settings
         {settings}
         {config}
         {hello}
+        {models}
+        {packs}
         bind:section={settingsSection}
         onreport={() => void exportBundle(null, { name: "settings" })}
         cacheUsage={() => backend.cacheUsage()}

@@ -462,6 +462,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .oc-dialog--wide { width: 44rem; }
 /* PackRow: a sentence among the facts wraps (the facts' spans do not). */
 .oc-model__facts .oc-model__note { white-space: normal; }
+/* ModelRow: the licence shown before a download (firstrun.html step 1; the details card's padding
+   and summary were inline), and a row's sentences — its warning, a refusal. */
+.oc-card--license { padding: var(--oc-space-3) var(--oc-space-5); }
+.oc-card--license > summary { cursor: pointer; font-weight: var(--oc-weight-strong); min-height: 1.5rem; }
+.oc-model__warn { margin: 0; font-size: var(--oc-text-sm); color: var(--oc-text-secondary); }
 
 /* Diagnostic bundle review: the notes sit flush (were inline margin:0). */
 .oc-bundle__para { margin: 0; }

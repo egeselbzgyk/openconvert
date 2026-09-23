@@ -4215,3 +4215,38 @@ accepted, progress streamed, `LICENSE` beside it), `the_shipped_validation_pack_
 Affects: PHASE 12 detail 9, D6, LICENSE_AND_DEPENDENCIES §6, `packs.toml`,
 `crates/oc-net/src/{packs.rs,download.rs,store.rs,registry.rs}`,
 `apps/desktop/src-tauri/src/{packs.rs,models.rs,main.rs}`.
+
+## 2026-09-23 · The Models, Packs and first-run screens render the manager's rows · Phase 12
+Context: PHASE 12 detail 9 ("the models screen renders exactly the `ModelReadiness` fields") and
+detail 2 of "Visual design" ("every number shown comes from an engine event, the report,
+`ModelReadiness` or `thresholds.toml`"); screen-map `models` and `firstrun`; the design strings'
+first-run costs ("~1,100 MB download", "~1–2 GB RAM") are mockup placeholders. Two registry fields
+are English prose: a model's `warn` and a pack's `contents`.
+Decision:
+1. `ModelRow.svelte` (components.md `ModelRow`/`PackRow`) renders a row's fields and nothing else:
+   size and RAM estimate as the locale writes bytes (binary units, as the cache and memory cap are
+   counted), the CPU expectation through UI_UX §2's four words in the user's language (any other
+   string as the registry has it), the licence and, once installed, its path. Download progress is
+   the bytes the manager reports (`role="progressbar"`, bytes as `aria-valuetext`).
+2. The first-run costs are `firstrun.cost.download`/`firstrun.cost.ram` with a `{size}` slot, filled
+   from the default model's `size_bytes` and `ram_estimate_bytes`; the design's figures are gone
+   from all three locales. The card shows only while the queue is empty, the registry is usable,
+   the default model is not installed and "Not now" was never pressed (design decision 10).
+   "Set up AI assistance" opens route `firstrun`: the Models section with only the default row, its
+   licence shown, and "Back to the queue" once it is installed.
+3. A model's `warn` and a pack's `contents` are registry prose in English. The UI shows a sentence
+   in the user's language instead — `models.warn` whenever `warn` is present, and
+   `packs.contents.<id>` for a pack it knows — never the English text (A12.3's "never an English
+   fallback"). The registry's words stay for maintainers and `openconvert model list`.
+4. The AI toggle stays disabled, and its help now says why: the converter has no AI support in this
+   build (part B2). The drafts of every new DE/TR string need the same native review as the rest.
+Evidence: `renders exactly the ModelReadiness fields of each row`,
+`model_download_progress_streams_and_cancels — the licence first, real bytes, a working Cancel`,
+`an installed model offers Delete; a failed download offers Retry`,
+`a registry without pins offers no model, and the validation pack is not available`,
+`the card's costs are the default model's row; Set up opens it with its licence shown`,
+`Not now hides the card and it stays hidden` (Vitest); `first_run_downloads_the_default_model_by_keyboard`
+and axe/contrast on the `models` and `firstrun` screens under the shipped CSP (Playwright, Chromium).
+Affects: PHASE 12 detail 9 and "Visual design" 2–3, `docs/design/handoff/strings/*.json`
+(`firstrun.cost.*`), `apps/desktop/ui/src/{components/ModelRow.svelte,components/FirstRunCard.svelte,
+routes/settings/Settings.svelte,routes/queue/Queue.svelte,App.svelte,lib/catalog.svelte.ts}`.
