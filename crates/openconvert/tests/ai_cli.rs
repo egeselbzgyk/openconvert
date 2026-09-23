@@ -235,3 +235,58 @@ fn ai_flags_need_ai_and_no_ai_wins() {
         .get("ai")
         .is_none());
 }
+
+/// A10.2 and A10.3 against a **real** model (nightly, `--features live-llm`): the engine starts
+/// the pinned `llama-server` (`OC_LLAMA_SERVER`) on the model `OC_LIVE_MODEL` names, converts three
+/// fixtures that escalate a task each — `f03` no title, `f07` an ambiguous block, `f10` several
+/// heading styles — with every task enabled, and every book comes back whole: exit 0, at most
+/// `llm.max_calls_per_book` calls, no `W_LLM_UNAVAILABLE`, and I-7 holding.
+///
+/// With the feature on and either variable unset this fails, as the Phase 9 live tests do: a live
+/// test that passes without a model is not a live test.
+#[cfg(feature = "live-llm")]
+#[test]
+fn ai_against_a_live_model_conserves_every_book() {
+    let required = |name: &str| {
+        std::env::var_os(name).unwrap_or_else(|| panic!("--features live-llm needs {name}"))
+    };
+    let server = required("OC_LLAMA_SERVER");
+    let model = required("OC_LIVE_MODEL");
+    let scratch = Scratch::new("live");
+    for stem in [
+        "f03_image_only",
+        "f07_verse_and_quote",
+        "f10_lists_and_table",
+    ] {
+        let output = Command::new(binary())
+            .arg("convert")
+            .arg(fixture(stem))
+            .arg("-o")
+            .arg(scratch.join(&format!("{stem}.epub")))
+            .arg("--report")
+            .arg(scratch.join(&format!("{stem}.report.json")))
+            .args(["--lang", "en", "--ai", "--ai-all-tasks", "--model-path"])
+            .arg(&model)
+            .env("XDG_DATA_HOME", scratch.join("data"))
+            .env("OC_LLAMA_SERVER", &server)
+            .output()
+            .expect("the binary runs");
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{stem}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let report = report(&scratch.join(&format!("{stem}.report.json")));
+        assert!(
+            !warning_codes(&report).contains(&"W_LLM_UNAVAILABLE".to_owned()),
+            "{stem}"
+        );
+        let calls = report["ai"]["calls"].as_u64().unwrap_or(u64::MAX);
+        assert!(
+            calls <= u64::try_from(oc_core::thresholds::T.llm.max_calls_per_book).unwrap_or(0),
+            "{stem}: {calls} calls"
+        );
+        assert_eq!(report["conservation"]["i7"]["holds"], true, "{stem}: I-7");
+    }
+}

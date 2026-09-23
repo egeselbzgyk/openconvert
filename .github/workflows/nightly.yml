@@ -165,6 +165,10 @@ jobs:
           echo "OC_LIVE_MODEL=$RUNNER_TEMP/models/qwen3-1.7b-q4_k_m/Qwen3-1.7B-Q4_K_M.gguf" >> "$GITHUB_ENV"
       - name: rows 9.15 and 9.16
         run: cargo nextest run -p oc-testkit --features live-llm --locked -E 'binary(live_llm)'
+      - name: PHASE 10 - convert --ai against the live model (A10.2, A10.3)
+        run: |
+          cargo run -q -p xtask -- fixtures
+          cargo nextest run -p openconvert --features live-llm --locked -E 'binary(ai_cli)'
 
 
   # Tier 3 (D6, PIPELINE §11): zero serious violations, and every required accessibility metadata
