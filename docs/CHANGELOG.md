@@ -1163,3 +1163,83 @@ empty: `--ai` alone asks nothing until an evaluation enables a task. Built on
 - The gold sets are 47 seed items from the Typst fixtures (`ours(typst)`); an evaluation needs 200
   per task from the real strata (D18).
 - Provisional decisions awaiting ratification are listed in `PROGRESS.md` → Blocked.
+
+## Phase 13 — OCR
+
+The user's own Tesseract 5 reads scanned pages and uncovered image regions inside `ingest`, under
+invariant I-6 at region scope; with no engine the book still converts, its scans as pictures, with
+an install hint. Synthetic-scan CER here: mean 0.0007 against a 0.03 gate.
+
+### CLI and events
+
+- New `convert` flags: `--ocr <auto|never|always>` (default `auto`, by page class),
+  `--ocr-path <PATH>` (replaces discovery), `--ocr-lang <SPEC>` (`deu`, `deu+eng`; plain
+  traineddata names only), `--re-ocr <never|auto|always>` (default `never`, D13.10). Added to §2.1.
+- `convert` now emits `hello` (it emitted none before), and its `capabilities` carry
+  `ocr:tesseract-<version>` when discovery found a usable engine.
+- `report.json` gains an `ocr` section (mode, engine or why there is none, languages, one record per
+  region with words, mean confidence, sub-floor words and outcome, the pages left as pictures,
+  OCR-added characters), present only when a page needed OCR. `conservation.per_stage` starts with
+  `ingest`.
+
+### Warning codes (en/de/tr)
+
+- `W_OCR_ENGINE_MISSING {reason, hint, pages}` — per-OS copy-pasteable install hint.
+- `W_OCR_LANG_MISSING {lang, hint}` — the selected traineddata is not installed; `eng` was used.
+- `W_OCR_LOW_CONFIDENCE {page, confidence, floor}` — the picture is kept beside the text.
+- `W_OCR_FAILED {page, reason}` — a hung, crashed or garbled call; the region stays a picture.
+
+### IR (`oc-model`)
+
+- `LedgerEntry.region: Option<Rect>` — set by OCR (one `Ocr` entry per region, I-6); not serialised
+  when absent. `LedgerEntry`/`LedgerDelta` are `PartialEq` only (a `Rect` is `f32`).
+- `Ledger::ocr_added`, `LedgerDelta::reason_added`, `Reason::folded_into_c0` (the two dedup reasons,
+  left out of I-7's `Removed_all` because `C_0` is taken after them, ARCHITECTURE §5.2).
+- OCR runs carry `TextProvenance::Ocr`; an OCR sandwich's layer now carries `OcrLayer`.
+
+### Engine (`oc-core`, `oc-pdf`, `openconvert`)
+
+- `oc_core::ocr::{discover, invoke, tsv, lang, merge}`: discovery (fixed order, trust rules, ≥ 5,
+  cached, `v5.x.y.DATE` banners), the `OcrEngine` trait and `Tesseract`, the schema-checked TSV
+  parser, language selection, the merge into runs, region confidence, clean bands, line-size
+  snapping. `oc_core::sidecar::tesseract`: the fixed argv, `OMP_THREAD_LIMIT=1`, drained pipes, a
+  deadline kill, and supervisor registration; `supervise::wait`.
+- `oc_core::stages::INGEST` and `ledger_check::check_i6`; `ReasonTotals` carries OCR-added characters,
+  and retention (per stage and `I7Result`) excludes them from the numerator — `C_0` never had them.
+- `oc_pdf::render` and `PdfDoc::render_region` — a grayscale raster of a page region at a stated dpi,
+  pixel-limit checked, returning the rectangle it really covers.
+- `openconvert::ocr::ocr_stage` — routing by page class inside `ingest`; `PageInput` gains `class`
+  and `ocr_runs`; images are numbered page-locally at extraction (`input::number_images`,
+  `structure_input::image_slots`).
+- `BrokenText` pages are not OCR'd (PROVISIONAL, `docs/DECISIONS_LOG.md`).
+
+### thresholds.toml
+
+- `ocr.render_dpi` (300, published), `ocr.word_conf_min` (0.60), `ocr.region_conf_min` (0.50),
+  `ocr.region_deadline_secs` (30), `ocr.max_cer_synthetic` (0.03) — the plan's five — plus
+  `ocr.second_lang_block_share` (0.20, detail 5's number) and `ocr.line_size_snap_ratio` (0.25).
+  All provisional but the first, each with an owner and `review_by`.
+
+### Fixtures, eval, CI
+
+- `corpus/fixtures/typst/f11_mixed_plate.typ` (a `mixed` page); `corpus/fixtures/scanned/` — four
+  synthetic scans (committed golden PDFs), their `.assert.json` and `.gt.txt`, and manifest entries
+  (`ours(Typst)`).
+- `oc-eval scan_sim --scanned-fixtures [--check]`; `metrics.cer.cer`; the report's `ocr_cer` section
+  (per stratum, real-minus-synthetic gap); the full-corpus run converts committed PDFs too.
+- `oc-testkit::fake_tesseract` and the `oc-ocr-engine` test binary.
+- CI: new `ocr` job (installs Tesseract `eng`/`deu`/`tur`, `scan_sim --check`, `--features tesseract`);
+  the nightly `full-corpus` job installs Tesseract and prints `ocr_cer`.
+- `docs/OCR_PACK_SPIKE.md` — D4's written spike checklist and go/no-go criteria.
+
+### Verification debt
+
+- **VD-g closed** — UB-Mannheim paths and version banner (`docs/DECISIONS_LOG.md`, 2026-09-23).
+
+### Known gaps, carried forward
+
+- The real-scan stratum's CER (A13.6's second half) is unverified here: no Internet Archive scan with
+  ground truth is on this machine. Windows and macOS discovery, invocation and teardown are
+  unverified here (no machine, no CI runner).
+- Two PROVISIONAL decisions await ratification: `BrokenText` pages are not OCR'd; re-OCR's
+  `OcrLayerDuplicate` removal is not budget-charged.

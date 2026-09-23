@@ -1,0 +1,18 @@
+[
+  {
+    "kind": "text_present",
+    "text": "Sonbahar bu yıl erken geldi",
+    "note": "a line of body text, recovered by OCR from pixels"
+  },
+  {
+    "kind": "heading_level",
+    "text": "Köyde Sonbahar",
+    "level": 1,
+    "note": "the chapter heading, recovered by OCR and recognised as one"
+  },
+  {
+    "kind": "image_count",
+    "equals": 0,
+    "note": "all 1 scanned pages were read, so none is carried as a picture"
+  }
+]

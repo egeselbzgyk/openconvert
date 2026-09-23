@@ -60,6 +60,17 @@ pub fn kill(pid: u32) {
     }
 }
 
+/// Take the child `pid` back from the registry and wait for it to exit, returning how it ended.
+///
+/// For a child that is expected to finish on its own — `tesseract` has closed its output and is
+/// exiting. The child is removed *before* the wait so that the registry lock is never held across
+/// a blocking call: the signal handler and the panic hook take the same lock, and a teardown that
+/// waited behind a `wait` would not be a teardown. `None` when the pid is not registered.
+pub fn wait(pid: u32) -> Option<std::process::ExitStatus> {
+    let child = children().remove(&pid);
+    child.and_then(|mut child| child.wait().ok())
+}
+
 /// Kill and reap every registered child.
 pub fn kill_all() {
     let drained = std::mem::take(&mut *children());

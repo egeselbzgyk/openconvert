@@ -210,6 +210,7 @@ fn options(stem: &str) -> ConvertOptions {
         language: Some(oc_model::lang::LangTag::EN),
         preset: oc_model::document::PresetName::Auto,
         epub: common::epub_options(),
+        ocr: openconvert::ocr::OcrOptions::off(),
     }
 }
 

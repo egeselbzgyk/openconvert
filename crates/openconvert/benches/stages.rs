@@ -32,6 +32,7 @@ fn stages(criterion: &mut Criterion) {
             warn_total_bytes: u64::try_from(T.epub.warn_total_bytes).unwrap_or(u64::MAX),
             modified: "2026-01-01T00:00:00Z".to_owned(),
         },
+        ocr: openconvert::ocr::OcrOptions::off(),
     };
 
     // One conversion, read once: what each stage spent, per page, printed where a reader of

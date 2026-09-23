@@ -4020,3 +4020,169 @@ Decisions:
    (`<task>__a3__v1`): Phase 10 recorded more cassettes beside the seeds, and the loader assumed one.
 Evidence: `eval/tests/test_ai_evaluation.py` (rows 10.17, 10.18 and four more).
 Affects: PHASE 10 detail 7, D18, `thresholds.toml` (`ai_eval.*`), CI's eval job, `docs/AI_EVALUATION.md`.
+
+## 2026-09-23 · VD-g closed: the UB-Mannheim installer's paths and version string · Phase 13
+Context: VD-g (Phase 0 verification-debt table; TECHNOLOGY_EVALUATION §10 / V2 §7) blocks Phase 13's
+system-Tesseract discovery: the Windows probe has to look where the UB-Mannheim installer actually
+puts `tesseract.exe`, for the version it actually delivers.
+Decision: the Windows well-known list is exactly the plan's two entries, in this order —
+`%ProgramFiles%\Tesseract-OCR\tesseract.exe` (label `program-files`), then
+`%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe` (label `local-app-data`) — and the version
+parser accepts the UB-Mannheim banner form `tesseract v5.x.y.YYYYMMDD` alongside `tesseract 5.x.y`.
+Evidence, each read 2026-09-23:
+1. **Install path.** The installer script, `nsis/tesseract.nsi` on the `main` branch of
+   `github.com/UB-Mannheim/tesseract`: `!define PRODUCT_NAME "Tesseract-OCR"`,
+   `!define MULTIUSER_INSTALLMODE_INSTDIR ${PRODUCT_NAME}`, `!define MULTIUSER_USE_PROGRAMFILES64`,
+   `!include MultiUser.nsh`, installed files under `$INSTDIR` with `tessdata\` beside the binary.
+   NSIS's own `Contrib/MultiUser/MultiUser.nsh` (`github.com/NSIS-Dev/nsis`, `master`) sets the
+   all-users `$INSTDIR` to `$PROGRAMFILES64\${MULTIUSER_INSTALLMODE_INSTDIR}` and the current-user
+   one to `GetKnownFolderPath {5CD7AEE2-2219-4A67-B85D-6C9CE15660CB}` (FOLDERID_UserProgramFiles,
+   i.e. `%LOCALAPPDATA%\Programs`) + `\Tesseract-OCR`. So the two install modes land exactly where
+   the plan's list looks. The installer writes `HKLM\…\Tesseract-OCR` `Path`/`InstallDir` registry
+   values and **does not modify `PATH`** (no `EnvVarUpdate` or equivalent in the script), which is
+   why on Windows the well-known list, not `PATH`, is the usual way it is found. Reading the
+   registry value would find a custom install directory; it needs a Windows API binding and is
+   left out of v1 (a custom directory is reachable with `--ocr-path`).
+2. **Version.** The UB-Mannheim wiki (`github.com/UB-Mannheim/tesseract/wiki`) lists the latest
+   installer as `tesseract-ocr-w64-setup-5.5.3.20260724.exe`, 64-bit only — Tesseract 5.5.3, well
+   above the ≥ 5 floor. Its builds print their version with a `v` and the build date: tesseract
+   issue #4034 quotes `tesseract v5.3.0.20221214` / `leptonica-1.78.0` from one. A parser written
+   against Linux's `tesseract 5.3.4` alone would have refused every Windows install as unreadable;
+   `every_platforms_version_banner_parses` holds both forms.
+3. **Language data.** English is a mandatory installer section and every other language is an
+   optional one (`SectionIn RO` for English, `/o` for the rest, each downloaded during install), so
+   a Windows user who did not tick German or Turkish has `eng` only. That is the case
+   `W_OCR_LANG_MISSING` exists for, and its Windows hint names the installer's option.
+Not verifiable here: that a real UB-Mannheim install on a Windows machine is found by the probe.
+There is no Windows machine and no CI runner; the list is asserted as data
+(`the_well_known_lists_are_the_documented_ones`) and the Windows row of A13.1/A13.2 is unverified
+here.
+Affects: IMPLEMENTATION_PLAN Phase 0 VD-g (closed), PHASE 13 detail 1, `oc_core::ocr::discover`.
+
+## 2026-09-23 · OCR's ledger entries carry their region; a whole page is read in clean bands · Phase 13
+Context: PHASE 13 detail 7 wants one `Ocr` entry per region "carrying the region bbox", and I-6
+(ratified note N-1) checks that region for pre-existing text. IR_SKETCH's `LedgerEntry` has no
+geometry. And an `ImageOnly` page is `visible_chars < pageclass.image_only_max_visible_chars`, not
+zero: a scan with a stamped folio or a producer's watermark line in real PDF text is still
+`ImageOnly`, so a whole-page region would contain pre-existing text and fail I-6.
+Decision:
+1. `LedgerEntry` gains `region: Option<Rect>`, set only by OCR and not serialised when `None`, so
+   every existing ledger, snapshot and report reads exactly as before. Additive, like Phase 8's
+   `Decision.fallback`. `LedgerEntry` and `LedgerDelta` lose `Eq` (a `Rect` is `f32`); nothing
+   compared them with more than `PartialEq`.
+2. I-6 is its own function, `oc_core::ledger_check::check_i6`, because it needs the page's runs as
+   well as the ledger. "Contains a run" is read as *overlaps with area*: the stricter reading, since
+   a region that overlapped PDF text would put OCR's copy of that text beside the PDF's own. An
+   `Ocr` entry that removes, or has no region, is also an I-6 failure.
+3. A whole-page OCR region is cut into full-width horizontal bands that avoid every pre-existing run
+   (`clean_bands`); each band with words is one entry. A word that straddles a cut is dropped — it
+   is on the line of text the PDF already carries. On a clean scan this is one band, the page.
+4. OCR-added characters are counted in `ReasonTotals::ocr_added` and `I7Result::ocr_chars` and are
+   taken out of the retention **numerator**; `C_0`, the denominator, never contains them (RT C1).
+   `ocr_chars` is omitted from the report when zero so born-digital snapshots do not change.
+Evidence: `i6_region_scope_rejects_overlapping_text`, `a_full_page_region_is_cut_into_bands_around_existing_text`,
+`ocr_regions_excluded_from_source_retention`, `retention_excludes_ocr_added_characters`.
+Affects: IR_SKETCH `LedgerEntry` (additive field), ARCHITECTURE §5.4 I-6, PHASE 13 details 7 and 8.
+
+## 2026-09-23 · OCR in `ingest`: where it runs, what it replaces, and what `ingest` now records · Phase 13
+Context: PHASE 13 details 3, 7–11 route OCR by page class inside `ingest` and merge its runs there.
+This codebase's `ingest` is `openconvert::input::page_inputs` (glyphs, fonts, images per page); the
+plan's `crates/oc-core/src/stages/ingest.rs` routing cannot live in `oc-core`, which `oc-pdf`
+depends on, so it cannot see a `PdfDoc`.
+Decision:
+1. **Routing is `openconvert::ocr::ocr_stage`**, called inside `convert`'s `ingest` timing, after
+   extraction and before `text`. `oc-core` keeps the engine adapter (`ocr::{discover, invoke, tsv,
+   lang, merge}`), the `INGEST` declaration (`stages/ingest.rs`) and I-6 (`check_i6`). OCR runs ride
+   on `PageInput.ocr_runs`; `text` appends them after the runs it assembles from glyphs.
+2. **`ingest` is now checked and recorded** — I-1, I-2 and I-6 over the OCR step — and its
+   `StageCheck` is the first entry of `per_stage_checks`. Before this phase `ingest` added nothing
+   and was not in the ledger at all. So a born-digital book's ledger gains one Conserving-looking
+   `ingest` entry (0 removed, 0 added), the report's per-stage list has nine entries, and the f07
+   report snapshot changed for that reason alone. The glyph filters' own removals (`GeneratedSpace`,
+   `HiddenText`, …) are still not pushed into the document ledger; that predates this phase and
+   `C_raw` bookkeeping is Phase 7.5's to settle.
+3. **The picture OCR replaced leaves the book** when the region's mean confidence is at or over
+   `ocr.region_conf_min`; under it, the picture stays beside the text with `W_OCR_LOW_CONFIDENCE`
+   (detail 9). A region that yields no words, or whose call fails or hangs, keeps its picture
+   (`W_OCR_FAILED` for the latter), and the book completes.
+4. **Image ids are numbered page-locally at extraction** (`input::number_images`), and decoding
+   reads that id (`structure_input::image_slots`). The old code recovered the page-local index from
+   positions in the document-wide list, which is only right while no image leaves the list; OCR
+   removing one would have made every later image on its page decode as its predecessor. Output is
+   unchanged for every existing fixture (the snapshot suite is green without edits for it).
+5. **I-7's `Removed_all` leaves out the two dedup reasons** (`OverdrawDedup`, `OcrLayerDuplicate`,
+   `Reason::folded_into_c0`). ARCHITECTURE §5.2 folds dedup into `C_0` "rather than recorded against
+   `C_raw`", so the baseline already lacks those characters; counting them again made a re-OCR'd
+   sandwich fail I-7 by exactly its old layer. The entries stay in the ledger as the record.
+   *Found, not fixed:* the same double count applies to `text`'s `SoftHyphen`/`LigatureExpand`
+   entries (`C_0` is taken after `N`), which would fail I-7 on any book with a soft hyphen or a
+   ligature code point. No fixture has one, and it is Phase 7.5's class, not OCR's.
+6. **A re-OCR's `OcrLayerDuplicate` removal is not charged to `conservation.budget.ocr_layer_duplicate_per_page`.**
+   PIPELINE §3 defers `ingest`'s budget checks to `text`, and the existing code never charged any
+   `ingest` removal; re-OCR replaces 100 % of a page's layer by design, which the 0.60 per-page
+   dedup allowance would forbid outright. No budget was widened. **PROVISIONAL — needs maintainer
+   ratification:** whether re-OCR's coupled removal should have a budget of its own.
+7. **`convert` now emits `hello`**, with `ocr:tesseract-<version>` in `capabilities` when discovery
+   found a usable engine (detail 1). `convert` emitted no `hello` before, against §2.3's "always the
+   first line"; `inspect` and `dump-stage` are unchanged.
+8. The rasters go into `<output>.oc-tmp-<token>/`, beside the output, removed after every call and
+   the directory after the conversion.
+Evidence: `ocr_e2e` (8 tests), `repair::the_ledger_records_validate_and_repair_as_conserving_stages`,
+`report::the_report_carries_every_part_the_plan_names`.
+Affects: PIPELINE §3, ARCHITECTURE §5.2/§5.4, PHASE 13 details 1, 3, 7–11, §2.1 (four new flags).
+
+## 2026-09-23 · `BrokenText` pages are not OCR'd in v1 · Phase 13 · PROVISIONAL
+Context: D13.10 routes `broken-text` → OCR, and PIPELINE §3's table says "OCR the whole page; the
+broken text layer is removed under `HiddenText` if invisible, else kept and flagged". A broken
+layer that is invisible has already been removed as `HiddenText` by extraction (render mode 3 on a
+non-sandwich page), so a page that still classifies `BrokenText` has a **visible** broken layer. A
+whole-page `Ocr` region over it contains pre-existing text runs, which I-6 (ratified N-1) forbids;
+keeping both would put the page in the book twice; and removing visible text for being unreadable
+has no reason in the closed `Reason` enum (`HiddenText` is "rendered but not visible", which this is
+not). The task rules forbid adding a `Reason`.
+Decision (the most conservative reading consistent with DECISIONS.md): `BrokenText` pages keep their
+extracted text and the existing `W_BROKEN_TEXT_PAGES` flag, and OCR does not read them. `ImageOnly`,
+`Mixed` and `--re-ocr` sandwich pages are read as the plan says.
+**PROVISIONAL — needs maintainer ratification:** one of (a) a `Reason` for "replaced by OCR" (an
+`ir_version` question), (b) extending `OcrLayerDuplicate` to a broken visible layer, or (c) ratifying
+that v1 does not OCR broken-text pages.
+Affects: D13.10, PIPELINE §3, PHASE 13 details 3 and 6.
+
+## 2026-09-23 · Scanned fixtures, their ground truth, and three things real Tesseract taught · Phase 13
+Context: PHASE 13 detail 12 and rows 13.20/13.21. Tesseract 5.3.4 (`eng`, `deu`, `tur`, `osd`) is
+installed on this machine, so the real engine ran here.
+Decision:
+1. **Four synthetic scans** — `f01` at 300 and 200 dpi, `f04` (de) and `f05` (tr) at 300 — made by
+   `python -m oc_eval.generate.scan_sim --scanned-fixtures`: pypdfium2 render in grayscale, a
+   rotation drawn from ±1.5°, a 12 % left-to-right brightness gradient, Gaussian noise σ 6, JPEG
+   quality 60, wrapped by img2pdf's *internal* engine at the source's page size (the pikepdf engine
+   writes a random `/ID` per run). Every random draw is seeded from the fixture's name.
+   **Committed** as golden binaries (1.5 MB together) under `corpus/fixtures/scanned/`, per
+   TEST_CORPUS §6.4's fallback: the render and the JPEG encoder are not promised to be the same bytes
+   across platforms, and D1 keeps Python out of the Rust test path. `--check` regenerates in memory
+   and fails on any difference; the `ocr` CI job runs it. They are `ours(Typst)` in the manifest and
+   count against `corpus.ours_max_share` (D18).
+2. **Ground truth is this pipeline's own text of the born-digital source**, OCR off (`<id>.gt.txt`),
+   not the source PDF's raw text layer: the scan and its source then lose the same running heads and
+   folios to `furniture`, so CER measures OCR and nothing else. `scanned_ground_truth_is_the_born_digital_text`
+   holds the committed files equal to the live pipeline (`OC_UPDATE_SCAN_GT=1` rewrites them).
+3. **`OMP_THREAD_LIMIT=1` in `tesseract`'s environment.** On this machine at load ~9 on 4 cores, a
+   page Tesseract reads in 0.96 s standalone was still running at the 30 s deadline inside a run —
+   OpenMP's spinning workers — and every page degraded to a picture. Tesseract's documentation
+   recommends the cap when it is not alone on the machine. Environment, not argv: the argument
+   vector stays detail 2's.
+4. **An OCR line's size is its median word's height**, and lines within `ocr.line_size_snap_ratio`
+   (0.25, provisional, new) of a region's median are snapped to it. The line box's height is wrong
+   on a skewed scan (a 1.5° climb adds ~8 pt over a 300 pt measure), and raw heights split one body
+   face into several clusters, so `structure` found no heading on three of the four scans. With both,
+   all four headings are found at level 1.
+Measured here: synthetic-scan CER **0.0000 / 0.0011 / 0.0000 / 0.0015** (f01@300, f01@200, f04, f05),
+mean **0.0007** against `ocr.max_cer_synthetic = 0.03`; all twelve `.assert.json` assertions pass.
+**Unverified here:** the real stratum. The manifest's `ABBYY-scanner` holdout documents are not on
+this machine (`corpus/downloads` is absent) and have no ground-truth text; the test and the nightly
+report print the real stratum as `n = 0` and refuse to state a gap rather than print one against
+nothing. Adding 6–10 Internet Archive volumes with hOCR-derived ground truth is the plan's
+"real scans" half of detail 12 and is left for the maintainer (their download needs a rights check
+per item, TEST_CORPUS §2).
+Evidence: `ocr_tesseract` (feature `tesseract`), `ocr_scanned`, `test_metrics`/`test_run` additions.
+Affects: PHASE 13 detail 12, TEST_CORPUS §6.3/§6.4, `thresholds.toml` (`ocr.line_size_snap_ratio`).

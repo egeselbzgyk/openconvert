@@ -209,7 +209,12 @@ pub fn dump(
     // The one decoder, which hashes only what the ornament rule reads. This site used to keep
     // its own copy of the decode-and-hash loop, which is how a change to one would have left
     // `dump-stage structure` disagreeing with `convert` about which images are ornaments.
-    let image_hashes = crate::convert::image_hashes(document, &images, t);
+    let image_hashes = crate::convert::image_hashes(
+        document,
+        &images,
+        &crate::structure_input::image_slots(&text),
+        t,
+    );
     let doc_info = document.doc_info();
 
     let stage_input = StructureInput {

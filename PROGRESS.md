@@ -69,9 +69,67 @@ LAST_UPDATED: 2026-09-23
       language maps ship empty, and every provisional decision is in the Blocked section.)*
 - [ ] **Phase 11** — BYO providers
 - [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
-- [ ] **Phase 13** — OCR  *(VD-g must close)*
+- [x] **Phase 13** — OCR  *(VD-g closed. All 22 named tests green, plus 27 additions (21 Rust, 6 Python); built on
+      `phase/13-ocr` and merged into `main` 2026-09-23. Tesseract 5.3.4 was on this machine, so the
+      real-engine tests ran: synthetic-scan CER 0.0007 against 0.03. The real-scan stratum, macOS
+      and Windows are unverified here; two provisional decisions are in the Blocked section.)*
 - [ ] **Phase 14** — Security hardening
 - [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
+
+## Phase 13 — on branch `phase/13-ocr`
+
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P13.1** `[ocr.*]` thresholds and the TSV parser (`oc_core::ocr::tsv`) — rows 13.5–13.8
+- [x] **P13.2** language selection and the `W_OCR_*` warning codes — row 13.9
+- [x] **P13.3** system-Tesseract discovery, VD-g — rows 13.1–13.4, A13.7 *(VD-g closed, DECISIONS_LOG 2026-09-23)*
+- [x] **P13.4** invocation: fixed argv, deadline, process ownership, the fake engine — rows 13.10, 13.18 (invocation half), 13.19
+- [x] **P13.5** `oc-pdf` rasterization (`render_region`) — rows 13.23, 13.23a, 13.23b (additions)
+- [x] **P13.6** merge, the `ingest` declaration, region-scoped I-6, retention — rows 13.13, 13.15
+- [x] **P13.7** OCR routing in `ingest`, the `convert` flags, degradation — rows 13.11, 13.12, 13.14, 13.16, 13.17, 13.18, 13.22
+- [x] **P13.8** scanned fixtures, `.assert.json`, CER per stratum — rows 13.20, 13.21 *(synthetic CER 0.0007; real stratum unverified here)*
+- [x] **P13.9** `docs/OCR_PACK_SPIKE.md`, CI job, Definition of Done, CHANGELOG, merge
+
+What a fresh session needs:
+
+- Tesseract 5.3.4 with `eng`, `deu`, `tur`, `osd` is installed here at `/usr/bin/tesseract`. Tests that
+  need it are behind the `openconvert` feature `tesseract`; nothing else may depend on it being
+  present, so the shared test helpers convert with OCR off.
+- Process-level tests (discovery, argv, deadline, teardown) use `oc_testkit::fake_tesseract`, a POSIX
+  shell script, and live in `crates/oc-testkit/tests/` (not `oc-core/tests` as the plan's file list
+  says): `oc-core` cannot dev-depend on `oc-testkit` without putting `oc-net` into the graph
+  `oc_core_has_no_net_dependency` walks. They are `#[cfg(unix)]`; Windows is unverified here.
+- OCR routing is `openconvert::ocr::ocr_stage`, inside `convert`'s `ingest`; tests use the in-process
+  `tests/common/ocr.rs::ScriptedEngine`. `common::build*` convert with `OcrOptions::off()`. New
+  fixture `f11_mixed_plate` (Typst, `mixed`); `h05_invisible_layer` is the sandwich.
+- Real-engine tests: `cargo nextest run -p openconvert --features tesseract -E 'binary(ocr_tesseract)'`.
+  Scanned fixtures: `PYTHONPATH=eval/src eval/.venv/bin/python -m oc_eval.generate.scan_sim
+  --scanned-fixtures [--check]` (the shared `eval/.venv` has the main checkout's `oc_eval` installed,
+  so the worktree's source must be put first on the path).
+- Disk: build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` and run the suite per package with
+  `scratchpad/p13_test_all.sh` (deletes each package's test binaries after it runs) — the whole
+  workspace's test binaries at once filled the disk.
+- VD-g is closed: UB-Mannheim installs to `%ProgramFiles%\Tesseract-OCR` (all users) or
+  `%LOCALAPPDATA%\Programs\Tesseract-OCR` (one user), does not touch `PATH`, ships 5.5.3, and prints
+  `tesseract v5.5.3.20260724` — the parser reads that form.
+
+### Phase 13 — Definition of Done
+
+`IMPLEMENTATION_PLAN.md` §0.3, row by row. Checked on this machine unless the row says otherwise.
+
+| Row | State |
+|---|---|
+| Every named test exists and passes | **Yes.** All 22 rows, 13.1–13.22, under their names, plus 27 additions (`docs/TEST_MATRIX.md`). 13.22 runs a scanned book with `--ai --ai-all-tasks` (Phase 10's `convert_with_ai`). 13.20 and 13.21 and A13.1/A13.3's real-engine tests are behind `--features tesseract` and pass here against Tesseract 5.3.4. The process-level tests (13.1–13.4, 13.10, 13.18, 13.19) are `#[cfg(unix)]`. |
+| `cargo nextest run --workspace` green | **Yes** on the merge commit: 672 tests (38 new in the default suite); with `--features tesseract` the 5 real-engine tests pass too. eval: 224 pytest tests (+ 6). |
+| Green on Linux/macOS/Windows CI | **Unverified here:** GitHub Actions is disabled. Windows/macOS discovery, invocation and teardown have no machine here. |
+| clippy `-D warnings` clean | **Yes**, workspace, all targets, all features (including `tesseract`). |
+| `cargo fmt --check` clean | **Yes.** ruff, ruff format and mypy clean on `eval/`. |
+| `cargo deny check` clean | **Yes.** No new crate: `image` was already in the graph (`oc-epub`, `pdfium-render`). |
+| `cargo xtask thresholds-lint` clean | **Yes.** Seven `ocr.*` entries. |
+| Every Given/When/Then demonstrated | **A13.1, A13.2, A13.3, A13.4, A13.7 yes** (Linux). **A13.5 yes on Linux** (13.18, 13.19); an engine killed outright is Phase 14's. **A13.6 partial:** synthetic CER 0.0007 ≤ 0.03; the real stratum is unverified here (no scan with ground truth on this machine). |
+| `docs/CHANGELOG.md` entry | **Yes.** |
+| No `TODO`/`FIXME` without an issue number | **Yes**, `xtask ci-lint` clean. |
+| VD-g closed | **Yes**, `docs/DECISIONS_LOG.md` 2026-09-23. |
 
 ## Phase 9 — on branch `phase/09-local-model`
 
@@ -943,6 +1001,16 @@ Phase 10's, each logged in `docs/DECISIONS_LOG.md` (2026-09-23):
 14. **Invented numbers**, each `provisional` with owner and `review_by`: the chunk overlap (20), the
     metadata size-category ratios and input cap, the deep-indent em, the centred-cluster ratio, the
     sidecar timeouts, and `ai_eval.{alpha, noninferiority_margin}`.
+
+### Blocked — Phase 13 (each PROVISIONAL, logged in `docs/DECISIONS_LOG.md` 2026-09-23)
+
+- **P13-a `BrokenText` pages are not OCR'd.** A visible broken layer cannot coexist with an `Ocr`
+  region under I-6, and no declared `Reason` removes visible text for being unreadable. The page
+  keeps its text and `W_BROKEN_TEXT_PAGES`. Ratify one of: a new `Reason`, widening
+  `OcrLayerDuplicate`, or "v1 does not OCR broken-text pages".
+- **P13-b re-OCR's `OcrLayerDuplicate` removal is not budget-charged.** `ingest` budgets are deferred
+  to `text` (PIPELINE §3) and re-OCR replaces a whole layer by design; decide whether it needs its
+  own budget.
 
 ## Phase 7 — Definition of Done
 

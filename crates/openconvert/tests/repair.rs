@@ -104,6 +104,7 @@ fn the_ledger_records_validate_and_repair_as_conserving_stages() {
         assert_eq!(
             stages,
             vec![
+                "ingest",
                 "text",
                 "furniture",
                 "layout",

@@ -183,6 +183,10 @@ pub struct Report {
     pub conservation: ConservationReport,
     /// How many pages of each class the document has (D13.10).
     pub page_classes: BTreeMap<String, u32>,
+    /// What OCR read and which pages stayed pictures (PHASE 13). Absent when no page needed it,
+    /// which is every born-digital book.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ocr: Option<crate::ocr::OcrReport>,
     pub validation: ValidationReport,
     pub repair: RepairReport,
     /// Every warning, as `code` + `args`. Never prose: the reader localises (R10 §6.20).
@@ -314,6 +318,7 @@ pub fn report(conversion: &Conversion, input: ReportInput<'_>) -> Report {
             },
         },
         page_classes: input.page_classes,
+        ocr: conversion.ocr.clone(),
         validation: ValidationReport {
             tier1: Tier1Summary {
                 valid: conversion.tier1.is_valid(),

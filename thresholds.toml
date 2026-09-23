@@ -1470,3 +1470,57 @@ source = "provisional"
 evidence = "A centred block of one or two lines is a folio, a title or a caption; PIPELINE §8.6's cues are about blocks indented on the left. Centred verse exists and is longer — §8.6 names 'centered short lines with a high line count' — so the exclusion stops at `verse.min_lines`"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+# --- OCR (PHASE 13) ------------------------------------------------------------------------------
+# The engine is the user's own Tesseract 5 (D4). These five are the plan's detail 13; the sixth is
+# detail 5's language-stacking share, which the plan states as a number in prose and which therefore
+# needs an entry of its own (D17).
+
+[ocr.render_dpi]
+value = 300
+source = "published"
+evidence = "R7 §C.2: 300 dpi is Tesseract's documented accuracy knee for book type; 200 dpi degrades small type"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ocr.word_conf_min]
+value = 0.60
+source = "provisional"
+evidence = "Tesseract per-word confidence floor below which tokens are flagged and never dehyphenated"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ocr.region_conf_min]
+value = 0.50
+source = "provisional"
+evidence = "mean-confidence floor below which the region is also emitted as an image (W_OCR_LOW_CONFIDENCE)"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ocr.region_deadline_secs]
+value = 30
+source = "provisional"
+evidence = "PIPELINE §3: 0.5-3 s/page expected; 30 s is a hang detector, not a performance target"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ocr.max_cer_synthetic]
+value = 0.03
+source = "provisional"
+evidence = "release gate on the synthetic scan stratum only; real strata are reported, not gated, in v1"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ocr.second_lang_block_share]
+value = 0.20
+source = "provisional"
+evidence = "PHASE 13 detail 5: languages are stacked with `+` only when per-block detection says a second language holds at least 20 % of blocks, because stacking costs Tesseract speed and accuracy and the default is one language"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ocr.line_size_snap_ratio]
+value = 0.25
+source = "provisional"
+evidence = "An OCR line's size is the median height of its words, which moves with the mix of ascenders, descenders and x-height-only words: on the synthetic-scan fixtures one 10 pt body face measured 7.2 and 8.9 pt on alternate lines (19 % apart) while their 14 pt headings measured 13-14 pt (1.5x). Lines within 25 % of a region's median are one body size; not measured on real scans"
+owner = "maintainer"
+review_by = "2027-06-30"

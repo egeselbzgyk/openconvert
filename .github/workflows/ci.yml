@@ -205,6 +205,28 @@ jobs:
       # it must find `pdftotext` or fail.
       - run: cargo nextest run -p oc-pdf --features poppler-oracle --locked -E 'test(differential_)'
 
+  # PHASE 13: the tests that need a real Tesseract 5 (A13.1, rows 13.20 and 13.21). The Linux runner
+  # installs the three v1 languages; the feature turns the tests on, and with it on a missing engine
+  # fails them. The scanned fixtures are committed, so this job needs no Python; `--check` proves the
+  # committed ones are still what the generator makes.
+  ocr:                                                 # D4, PHASE 13
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+      - run: sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-deu tesseract-ocr-tur
+      - run: tesseract --version && tesseract --list-langs
+      - run: cargo run -p xtask -- vendor-pdfium
+      - run: cargo run -p xtask -- fixtures
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --project eval
+      - run: uv run --project eval python -m oc_eval.generate.scan_sim --scanned-fixtures --check
+      - run: cargo nextest run -p openconvert --features tesseract --locked -E 'binary(ocr_tesseract)' --no-capture
+
   # D6's Tier-2 gate: EPUBCheck is authoritative and it is Java, so it runs here rather than
   # on the conversion path. `epubcheck.max_errors = 0` is a binary threshold — this is the one
   # gate in Phase 5 that is not this project's opinion of its own output.

@@ -80,6 +80,7 @@ fn prepared(stem: &str) -> openconvert::convert::Prepared {
             language: Some(oc_model::lang::LangTag::EN),
             preset: oc_model::document::PresetName::Auto,
             epub: common::epub_options(),
+            ocr: openconvert::ocr::OcrOptions::off(),
         },
         &oc_core::thresholds::T,
     )

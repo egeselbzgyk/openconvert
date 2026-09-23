@@ -59,6 +59,16 @@ pub struct ConvertArgs {
     /// How the model is reached, when it is (PHASE 10). `None` is `ai.enabled = false`: the v1
     /// default, and what `--no-ai` forces whatever else the line says.
     pub ai: Option<AiArgs>,
+    /// `--ocr`: whether scanned content is read (PHASE 13). Default `auto`, which follows the page
+    /// class.
+    pub ocr: oc_core::ocr::OcrMode,
+    /// `--ocr-path`: an explicit `tesseract`, which replaces discovery rather than being tried
+    /// first — a missing one is "no engine", not a reason to look elsewhere.
+    pub ocr_path: Option<PathBuf>,
+    /// `--ocr-lang`: traineddata names, `+`-joined. Default: from the document's language.
+    pub ocr_lang: Option<oc_core::ocr::lang::LangSpec>,
+    /// `--re-ocr`: whether an OCR sandwich's own layer is replaced. Default `never` (D13.10).
+    pub re_ocr: oc_core::ocr::ReOcr,
 }
 
 pub use openconvert::ai_endpoint::AiArgs;
@@ -177,6 +187,8 @@ usage:
                                   [--ai [--ai-all-tasks] [--llm-endpoint <URL>]
                                         [--llm-api-key-file <PATH>] [--model-path <PATH>]]
                                   [--no-ai]
+                                  [--ocr auto|never|always] [--ocr-path <PATH>]
+                                  [--ocr-lang <SPEC>] [--re-ocr never|auto|always]
   openconvert validate <INPUT.epub> [--tier 1|2] [--json] [--epubcheck-jar <PATH>]
   openconvert inspect <INPUT.pdf> [--json] [--pages <RANGE>] [--password <STRING>]
                                   [--progress none|json] [--max-pages <N>]
@@ -202,6 +214,11 @@ usage:
   --modified <STAMP>   force dcterms:modified, for byte-identical output
   --report <PATH>      where report.json goes; default <output>.report.json
   --locale <TAG>       en|de|tr; which language the warnings are printed in (default en)
+  --ocr <MODE>         auto|never|always; auto reads scanned pages and uncovered image
+                       regions with the system Tesseract 5, when one is found (default auto)
+  --ocr-path <PATH>    the tesseract binary to use instead of searching for one
+  --ocr-lang <SPEC>    Tesseract language data, e.g. deu or deu+eng (default: the book's language)
+  --re-ocr <MODE>      never|auto|always; replace an OCR sandwich's own text layer (default never)
   --tier <1|2>         1 = the internal validator (default), 2 = plus EPUBCheck
   --registry <PATH>    a models.toml to use instead of the one built into the engine
   --dir <PATH>         the model store; default the per-OS data directory
@@ -308,6 +325,10 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
         report: None,
         locale: oc_core::warnings::Locale::En,
         ai: None,
+        ocr: oc_core::ocr::OcrMode::Auto,
+        ocr_path: None,
+        ocr_lang: None,
+        re_ocr: oc_core::ocr::ReOcr::Never,
     };
     let mut ai = false;
     let mut no_ai = false;
@@ -317,6 +338,34 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
+            "--ocr" => {
+                let value = args.next().ok_or(CliError::MissingValue("--ocr"))?;
+                parsed.ocr = oc_core::ocr::OcrMode::parse(&value).ok_or(CliError::BadValue {
+                    what: "--ocr value",
+                    value,
+                })?;
+            }
+            "--ocr-path" => {
+                parsed.ocr_path = Some(PathBuf::from(
+                    args.next().ok_or(CliError::MissingValue("--ocr-path"))?,
+                ));
+            }
+            "--ocr-lang" => {
+                let value = args.next().ok_or(CliError::MissingValue("--ocr-lang"))?;
+                parsed.ocr_lang = Some(oc_core::ocr::lang::LangSpec::parse(&value).ok_or(
+                    CliError::BadValue {
+                        what: "--ocr-lang value",
+                        value,
+                    },
+                )?);
+            }
+            "--re-ocr" => {
+                let value = args.next().ok_or(CliError::MissingValue("--re-ocr"))?;
+                parsed.re_ocr = oc_core::ocr::ReOcr::parse(&value).ok_or(CliError::BadValue {
+                    what: "--re-ocr value",
+                    value,
+                })?;
+            }
             "-o" | "--output" => {
                 parsed.output = Some(PathBuf::from(
                     args.next().ok_or(CliError::MissingValue("--output"))?,

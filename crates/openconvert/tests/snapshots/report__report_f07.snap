@@ -35,6 +35,13 @@ expression: value
     "retention": 1.0,
     "per_stage": [
       {
+        "stage": "ingest",
+        "kind": "budgeted",
+        "removed_chars": 0,
+        "added_chars": 0,
+        "retention": 1.0
+      },
+      {
         "stage": "text",
         "kind": "budgeted",
         "removed_chars": 0,
@@ -237,5 +244,5 @@ expression: value
       "input_hash": "adc3de8ec21ab7d5d16b72e02fc20ac7bb4deb29d0b34a22a31535e227bfae2b"
     }
   ],
-  "thresholds": "[205 entries, redacted]"
+  "thresholds": "[212 entries, redacted]"
 }

@@ -54,6 +54,21 @@ def ned(truth: str, prediction: str) -> float:
     return _levenshtein(left, right) / longest
 
 
+def cer(truth: str, prediction: str) -> float:
+    """Character error rate: Levenshtein distance over the ground truth's length, after
+    `normalise`. Unlike `ned` it is not capped at 1 — an OCR run that invents a page of noise
+    scores worse than one that reads nothing, which is the order a reader would put them in.
+
+    The CER PHASE 13 row 13.21 reports per stratum (`ocr.max_cer_synthetic` gates the synthetic
+    one). A truth with no characters has no rate: `0.0` if nothing was read, `1.0` otherwise.
+    """
+    left = normalise(truth)
+    right = normalise(prediction)
+    if not left:
+        return 0.0 if not right else 1.0
+    return _levenshtein(left, right) / len(left)
+
+
 def text_score(truth: str, prediction: str) -> float:
     """`1 - ned`, which is the number TEST_STRATEGY §8.1 reports."""
     return 1.0 - ned(truth, prediction)
