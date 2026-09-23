@@ -11,7 +11,9 @@ import type {
   CatalogRow,
   CatalogView,
   CorrectionPatch,
+  Detected,
   DropEvent,
+  EndpointCheck,
   Enqueued,
   LicenseView,
   ModelReadiness,
@@ -19,6 +21,7 @@ import type {
   PackReadiness,
   PackRow,
   PreviewIndex,
+  ProbeResult,
   Settings,
   UiConfig,
   UiError,
@@ -275,6 +278,43 @@ export class FakeBackend implements Backend {
     (this.catalogHandlers[kind] as Array<(row: CatalogRow<K>) => void>).push(handler);
     return () => undefined;
   }
+  /** What `provider detect` answers. */
+  detected: Detected = { ollama: { url: "localhost:11434", models: ["qwen3:1.7b", "llama3.2:3b"] } };
+  async providerDetect(): Promise<Detected> {
+    this.calls.push(["providerDetect", null]);
+    return this.detected;
+  }
+  /** `provider check`, as the engine answers it: a host off this computer needs consent, plain http
+      off it is not usable. */
+  async providerCheck(url: string): Promise<EndpointCheck> {
+    this.calls.push(["providerCheck", url]);
+    const match = /^(https?):\/\/([^/:]+)/i.exec(url);
+    if (match === null) throw { kind: "provider", detail: "not a URL" };
+    const host = (match[2] ?? "").toLowerCase();
+    const loopback = host === "localhost" || host.startsWith("127.");
+    const https = (match[1] ?? "").toLowerCase() === "https";
+    return { url, host, loopback, requires_consent: !loopback, usable: loopback || https, reason: null };
+  }
+  probe: ProbeResult = { available: false, url: "", reason: "the endpoint did not answer the capability probe" };
+  async providerProbe(): Promise<ProbeResult> {
+    this.calls.push(["providerProbe", null]);
+    return this.probe;
+  }
+  async pickKeyFile(): Promise<Settings> {
+    this.saved = { ...this.saved, custom: { ...this.saved.custom, apiKeyFile: "/home/me/keys/llm.key" } };
+    return this.saved;
+  }
+  async clearKeyFile(): Promise<Settings> {
+    this.saved = { ...this.saved, custom: { ...this.saved.custom, apiKeyFile: null } };
+    return this.saved;
+  }
+  async grantConsent(): Promise<Settings> {
+    const check = await this.providerCheck(this.saved.custom.endpoint);
+    this.calls.push(["grantConsent", check.host]);
+    this.saved = { ...this.saved, custom: { ...this.saved.custom, consent: { host: check.host, grantedAt: "2026-09-23T10:00:00Z" } } };
+    return this.saved;
+  }
+
   /** The Rust side announces a changed model row. */
   modelChanged(row: ModelRow): void {
     this.models = { ...this.models, rows: this.models.rows.map((known) => (known.id === row.id ? row : known)) };

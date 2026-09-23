@@ -4879,3 +4879,33 @@ jobstate tests named in the commit.
 Affects: `apps/desktop/src-tauri/src/{ai,jobqueue,llm,models,settings,config,main}.rs`,
 `apps/desktop/ui/src/{routes/settings/Settings.svelte,components/{ResultPanel,QueueRow}.svelte,lib/*}`,
 `locales/*.json`, `crates/oc-testkit/src/bin/oc-stub-llama-server.rs`.
+
+## 2026-09-23 · Settings › Provider and the consent dialog · Phase 12 (P12.19)
+Context: PHASE 11's hand-off ("What Phase 12 must wire from Phase 11") and UI_UX §2.4: Built-in /
+Ollama (detected) / Custom endpoint; the consent dialog naming the host, saying plainly that document
+text leaves the computer (D10); `E_CONSENT_REQUIRED` re-opens it; the webview keeps
+`connect-src 'none'`.
+Decisions:
+1. **The engine answers every provider question** (`providers::ProviderCli` → `openconvert provider
+   detect|check|probe --json --progress json`), off the main thread. These are not conversions, so
+   they take more than one argument; the command is built in Rust, and the one value the webview
+   supplies — a URL — must be an `http(s)://` URL with no control character, so it can never be read
+   as a flag. A refusal is read by its NDJSON code, never by its prose.
+2. **Built-in and Ollama are chosen at once; a custom endpoint only through "Use this endpoint…"**:
+   `provider check` (sends nothing) → plain http off this computer is refused in the user's language;
+   a host off this computer without consent opens the dialog; Allow asks the Rust side to record the
+   consent (`grant_consent`, `Settings::granting_consent`: host + RFC 3339 time) and selects the
+   endpoint; Cancel records nothing. The key file is picked in a native dialog by the Rust side
+   (`pick_key_file`) and is never read by the app.
+3. **"Test connection"** is `provider probe` with the saved settings (the consent passed only to the
+   host it names); built-in has nothing to probe until a job starts it.
+4. **`E_CONSENT_REQUIRED`, or the queue's `consent_required` refusal, opens the dialog again** — once by
+   itself, and from the row's "Review consent…"; the row says "Sending text to another computer needs
+   your consent · Nothing was sent.", never a generic error. Allow converts that book again.
+Evidence: `a_provider_question_names_its_url_as_one_argument_and_refuses_anything_else`,
+`test_connection_probes_what_a_conversion_would_open`, `a_consent_refusal_names_its_host`,
+`the_providers_screen_reads_the_engines_answers` (engine-integration, the real engine); UI: the two
+provider-screen tests and the two consent tests in `queue.svelte.test.ts`.
+Affects: `apps/desktop/src-tauri/src/{providers,main}.rs`, `apps/desktop/ui/src/{routes/settings/
+Settings.svelte,components/{ConsentDialog,QueueRow}.svelte,App.svelte,lib/{backend,jobstate}.ts}`,
+`locales/*.json`, `tests/dom/ui/tauri-mock.ts`.

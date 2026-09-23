@@ -137,4 +137,58 @@ describe("queue route", () => {
     expect(error?.textContent).toBe("That password didn't open the file. Try again.");
     expect(row()?.textContent).not.toContain("An empty password was tried first.");
   });
+
+  // PHASE 11's hand-off: `E_CONSENT_REQUIRED` (or the queue refusing to start for that reason)
+  // re-opens the consent dialog, naming the host — never a generic error — and Allow converts the
+  // book again with the consent in its spec.
+  it("a job stopped for want of consent re-opens the consent dialog, and Allow converts it again", async () => {
+    const backend = new FakeBackend();
+    backend.saved = {
+      ...backend.saved,
+      aiEnabled: true,
+      provider: "custom",
+      custom: { endpoint: "https://llm.example.org/v1", model: "qwen3-8b", apiKeyFile: null, consent: null },
+    };
+    await start(backend);
+    const job = { id: "job-1", input: "/b/novel.pdf", output: "/b/novel.epub", renamed: false, unlocked: false, rebuild: false };
+    backend.change({ ...job, ai: { provider: "custom", unavailable: null }, state: "running" });
+    backend.line(job.id, { t: "hello", protocol: 1 });
+    backend.line(job.id, {
+      t: "fatal",
+      code: "E_CONSENT_REQUIRED",
+      message: "`llm.example.org` is not this computer: with --ai, text from the book would be sent there.",
+    });
+    await settle();
+    flushSync();
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog?.querySelector("h2")?.textContent).toBe("Send document text to llm.example.org?");
+    expect(dialog?.textContent).toContain("qwen3-8b");
+
+    [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Allow llm.example.org")?.click();
+    await settle();
+    flushSync();
+    expect(backend.saved.custom.consent?.host).toBe("llm.example.org");
+    expect(backend.calls, "converted again").toContainEqual(["enqueue", ["/b/novel.pdf"]]);
+    expect(document.querySelector(".oc-dropzone, .oc-queue"), "back on the queue").not.toBeNull();
+  });
+
+  it("the row itself says consent is needed and offers the dialog again", async () => {
+    const backend = await start();
+    const job = { id: "job-2", input: "/b/essay.pdf", output: "/b/essay.epub", renamed: false, unlocked: false, rebuild: false };
+    backend.change({
+      ...job,
+      ai: { provider: "custom", unavailable: null },
+      state: "failed_to_start",
+      error: { kind: "consent_required", detail: { host: "llm.example.org" } },
+    });
+    await settle();
+    flushSync();
+    // The dialog opened by itself once (settings route); back on the queue, the row explains.
+    [...document.querySelectorAll<HTMLButtonElement>(".oc-header button")].find((b) => b.textContent?.includes("Queue"))?.click();
+    flushSync();
+    const row = document.querySelector('[data-job="job-2"]');
+    expect(row?.textContent).toContain("Sending text to another computer needs your consent");
+    expect(row?.textContent).toContain("Nothing was sent.");
+    expect([...(row?.querySelectorAll("button") ?? [])].map((b) => b.textContent)).toContain("Review consent…");
+  });
 });

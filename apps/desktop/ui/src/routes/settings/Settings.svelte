@@ -5,13 +5,26 @@
   // the model manager and packs, whose rows are exactly what the Rust side's manager reports. What
   // this build cannot do is drawn as the design draws it and says so in words — never a number or a
   // row it cannot back with real data.
+  import ConsentDialog from "../../components/ConsentDialog.svelte";
   import CopyCommand from "../../components/CopyCommand.svelte";
   import Dialog from "../../components/Dialog.svelte";
   import ModelRow from "../../components/ModelRow.svelte";
   import NumberWithUnit from "../../components/NumberWithUnit.svelte";
   import RadioGroup from "../../components/RadioGroup.svelte";
   import Toggle from "../../components/Toggle.svelte";
-  import type { CacheUsage, CatalogKind, Preset, Settings, UiConfig } from "../../lib/backend";
+  import type {
+    Backend,
+    CacheUsage,
+    CatalogKind,
+    Detected,
+    EndpointCheck,
+    Preset,
+    ProbeResult,
+    Provider,
+    Settings,
+    UiConfig,
+    UiError,
+  } from "../../lib/backend";
   import { formatBytes } from "../../lib/bytes";
   import { defaultModel, type Catalog } from "../../lib/catalog.svelte";
   import type { Hello } from "../../lib/events";
@@ -36,6 +49,10 @@
     setup = false,
     onback = null,
     onsetup = null,
+    providers = null,
+    onsaved = () => undefined,
+    consent = $bindable(null),
+    onconsented = () => undefined,
   }: {
     settings: Settings;
     config: UiConfig;
@@ -56,6 +73,14 @@
     /** AI assistance was turned on with the built-in provider and no model installed: open the
         model download (settings.html, "Turning it on opens the model download"). */
     onsetup?: (() => void) | null;
+    /** Settings › Provider asks the engine through these (`openconvert provider …`). */
+    providers?: Pick<Backend, "providerDetect" | "providerCheck" | "providerProbe" | "pickKeyFile" | "clearKeyFile" | "grantConsent"> | null;
+    /** Settings the Rust side already saved (a key file picked, a consent granted). */
+    onsaved?: (next: Settings) => void;
+    /** The consent dialog, open for this endpoint check; set by the app when a job needed consent. */
+    consent?: EndpointCheck | null;
+    /** Allow was pressed in the dialog, and the consent is saved. */
+    onconsented?: () => void;
   } = $props();
 
   /** Rows whose licence is shown, awaiting acceptance, by "kind:id". */
@@ -126,6 +151,91 @@
     save({ aiEnabled: on });
     if (on && settings.provider === "builtin" && firstModel !== undefined && !firstModel.installed) onsetup?.();
   }
+  // Settings › Provider (settings.html; UI_UX §2.4). Built-in and Ollama are chosen at once; a custom
+  // endpoint only through "Use this endpoint…", which asks the engine whether the host is this
+  // computer and, when it is not, shows the consent dialog that names it (D10).
+  let customChosen = $state(false);
+  const providerChoice = $derived<Provider>(customChosen ? "custom" : settings.provider);
+  let detected = $state<Detected | null>(null);
+  $effect(() => {
+    if (section !== "provider" || providers === null || detected !== null) return;
+    providers
+      .providerDetect()
+      .then((found) => (detected = found))
+      .catch(() => (detected = { ollama: null }));
+  });
+  /** What the engine said about the custom endpoint when "Use this endpoint…" was pressed. */
+  let checked = $state<EndpointCheck | null>(null);
+  let endpointError = $state<string | null>(null);
+  let probe = $state<{ state: "testing" } | { state: "done"; result: ProbeResult } | null>(null);
+  const consented = $derived(
+    settings.custom.consent !== null && checked !== null && settings.custom.consent.host === checked.host,
+  );
+
+  function chooseProvider(value: string) {
+    probe = null;
+    if (value === "custom") {
+      customChosen = true;
+      return;
+    }
+    customChosen = false;
+    save({ provider: value as Provider });
+  }
+
+  async function useEndpoint() {
+    endpointError = null;
+    probe = null;
+    if (providers === null) return;
+    let answer: EndpointCheck;
+    try {
+      answer = await providers.providerCheck(settings.custom.endpoint);
+    } catch {
+      endpointError = t("provider.notUrl");
+      return;
+    }
+    checked = answer;
+    if (!answer.usable) {
+      endpointError = t("ai.why.plain_http");
+      return;
+    }
+    if (answer.requires_consent && settings.custom.consent?.host !== answer.host) {
+      consent = answer;
+      return;
+    }
+    customChosen = false;
+    save({ provider: "custom" });
+  }
+
+  async function allow() {
+    const asked = consent;
+    consent = null;
+    if (providers === null || asked === null) return;
+    const granted = await providers.grantConsent();
+    onsaved(granted);
+    customChosen = false;
+    onsave({ ...granted, provider: "custom" });
+    onconsented();
+  }
+
+  async function testConnection() {
+    if (providers === null) return;
+    probe = { state: "testing" };
+    try {
+      probe = { state: "done", result: await providers.providerProbe() };
+    } catch (error) {
+      probe = null;
+      if ((error as UiError).kind === "consent_required") void useEndpoint();
+      else endpointError = t("provider.notUrl");
+    }
+  }
+
+  async function pickKey() {
+    if (providers !== null) onsaved(await providers.pickKeyFile());
+  }
+  async function clearKey() {
+    if (providers !== null) onsaved(await providers.clearKeyFile());
+  }
+
   const aiState = $derived(
     settings.aiEnabled ? t("settings.ai.on", { provider: t(`provider.name.${settings.provider}`) }) : t("settings.ai.off"),
   );
@@ -188,16 +298,94 @@
       <div class="oc-setting oc-setting--stack">
         <RadioGroup
           label={t("settings.nav.provider")}
-          value="builtin"
-          disabled
+          value={providerChoice}
+          onchange={chooseProvider}
           options={[
             { value: "builtin", label: t("settings.provider.builtin"), hint: t("settings.provider.builtinHint") },
-            { value: "ollama", label: t("settings.provider.ollama"), hint: t("settings.provider.ollamaHint") },
+            {
+              value: "ollama",
+              label: `${t("settings.provider.ollama")} · ${detected?.ollama ? t("provider.detected") : t("provider.notDetected")}`,
+              hint: t("settings.provider.ollamaHint"),
+            },
             { value: "custom", label: t("settings.provider.custom"), hint: t("settings.provider.customHint") },
           ]}
         />
-        <span class="oc-field__help">{t("settings.provider.unavailable")}</span>
+        {#if providerChoice === "ollama"}
+          <div class="oc-field">
+            <label class="oc-field__label" for="oc-ollama-model">{t("provider.ollamaModel")}</label>
+            <select
+              id="oc-ollama-model"
+              class="oc-select"
+              disabled={!detected?.ollama}
+              value={settings.ollamaModel ?? ""}
+              onchange={(event) => {
+                const model = (event.currentTarget as HTMLSelectElement).value;
+                save({ ollamaModel: model === "" ? null : model });
+              }}
+            >
+              <option value="">{t("provider.ollamaAny")}</option>
+              {#each detected?.ollama?.models ?? [] as model (model)}<option value={model}>{model}</option>{/each}
+            </select>
+            <span class="oc-field__help">{detected?.ollama ? t("provider.ollamaModelHelp") : t("provider.ollamaNone")}</span>
+          </div>
+        {/if}
       </div>
+      {#if providerChoice === "custom"}
+        <div class="oc-setting oc-setting--stack">
+          <div class="oc-setting__label">{t("provider.customTitle")}</div>
+          <label class="oc-field">
+            <span class="oc-field__label">{t("provider.baseUrl")}</span>
+            <input
+              class="oc-input oc-input--mono"
+              value={settings.custom.endpoint}
+              aria-invalid={endpointError !== null ? "true" : undefined}
+              onchange={(event) => {
+                checked = null;
+                endpointError = null;
+                save({ custom: { ...settings.custom, endpoint: (event.currentTarget as HTMLInputElement).value.trim() } });
+              }}
+            />
+          </label>
+          <label class="oc-field">
+            <span class="oc-field__label">{t("provider.modelName")}</span>
+            <input
+              class="oc-input oc-input--mono"
+              value={settings.custom.model}
+              onchange={(event) => save({ custom: { ...settings.custom, model: (event.currentTarget as HTMLInputElement).value.trim() } })}
+            />
+          </label>
+          <div class="oc-field">
+            <span class="oc-field__label" id="oc-key-label">{t("provider.keyFile")}</span>
+            <div class="oc-filepick">
+              <span class="oc-filepick__value" class:is-set={settings.custom.apiKeyFile !== null} aria-labelledby="oc-key-label">{settings.custom.apiKeyFile ?? t("provider.keyFileNone")}</span>
+              <button class="oc-btn oc-btn--sm" onclick={() => void pickKey()}>{t("provider.keyFileChange")}</button>
+              {#if settings.custom.apiKeyFile !== null}<button class="oc-btn oc-btn--quiet oc-btn--sm" onclick={() => void clearKey()}>{t("provider.keyFileRemove")}</button>{/if}
+            </div>
+            <span class="oc-field__help">{t("provider.keyFileHelp")}</span>
+          </div>
+          <div class="oc-actions">
+            <button class="oc-btn oc-btn--primary oc-btn--sm" disabled={settings.custom.endpoint === ""} onclick={() => void useEndpoint()}>{t("provider.use")}</button>
+            {#if endpointError !== null}
+              <span class="oc-field__error" role="alert">{endpointError}</span>
+            {:else if checked !== null && !checked.loopback && consented}
+              <span class="oc-field__help">{t("provider.consented", { host: checked.host })}</span>
+            {:else if checked !== null && checked.loopback}
+              <span class="oc-field__help">{t("provider.onComputer", { host: checked.host })}</span>
+            {/if}
+          </div>
+        </div>
+      {/if}
+      {#if settings.provider !== "builtin" && !customChosen}
+        <div class="oc-actions">
+          <button class="oc-btn oc-btn--sm" disabled={probe?.state === "testing"} onclick={() => void testConnection()}>{t("provider.test")}</button>
+          <span class="oc-field__help" role="status">
+            {#if probe?.state === "testing"}{t("provider.testing")}{:else if probe?.state === "done" && probe.result.available}{t("provider.testOk", {
+                kind: t(`provider.kind.${probe.result.provider}`),
+                model: probe.result.model,
+              })}{:else if probe?.state === "done" && !probe.result.available}{t("provider.testFailed", { reason: probe.result.reason })}{/if}
+          </span>
+        </div>
+      {/if}
     {:else if section === "presets"}
       <p class="oc-settings__hint">{t("settings.presets.hint")}</p>
       <div class="oc-setting">
@@ -370,6 +558,16 @@
   />
 {/snippet}
 
+{#if consent !== null}
+  <ConsentDialog
+    host={consent.host}
+    url={consent.url}
+    model={settings.custom.model}
+    keyFile={settings.custom.apiKeyFile}
+    onallow={() => void allow()}
+    oncancel={() => (consent = null)}
+  />
+{/if}
 {#if clearing && usage !== null}
   <!-- Clearing asks once (design decision 14): it deletes text, which cannot be undone. -->
   <Dialog

@@ -787,6 +787,13 @@ Part B2 work items:
       task is enabled in this build (`UiConfig.aiTasksEnabled`); key file and consent are Rust-only
       settings. PROVISIONAL: built-in serves the default model only (no tier fallback). (+ 9 Rust
       incl. 1 engine-integration against the real engine and the stub server, + 4 Vitest)
+- [x] **P12.19** Settings › Provider and the consent dialog: `providers.rs` asks the engine
+      (`provider detect|check|probe --json`, URL validated so it is never a flag); Ollama shown as
+      detected with its models; a custom endpoint (base URL, model, key file from the native picker)
+      only through "Use this endpoint…" → `check` → the consent dialog naming the host (D10), Allow →
+      `grant_consent` (Rust records host + time), Cancel records nothing; "Test connection" =
+      `probe`; `E_CONSENT_REQUIRED` / `consent_required` re-open the dialog and Allow converts the
+      book again (+ 3 Rust unit, 1 engine-integration, 4 Vitest)
 
 1. **The AI toggle** (Settings › AI assistance and the first-run route's "installed" step): it is
    drawn disabled, saying the converter has no AI support in this build. Enabling it needs Phase

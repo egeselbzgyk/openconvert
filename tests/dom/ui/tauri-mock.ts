@@ -165,6 +165,18 @@ export function installTauriMock(fixture: MockFixture): void {
     },
     // Something to clear, so the danger button is drawn enabled and its contrast is checked.
     cache_usage: () => ({ bytes: 5 * 1024 * 1024, books: 2 }),
+    // Settings › Provider: nothing runs on this machine's loopback, and nothing is ever sent.
+    provider_detect: () => ({ ollama: null }),
+    provider_check: (args) => {
+      const url = String(args.url ?? "");
+      const host = (/^https?:\/\/([^/:]+)/i.exec(url)?.[1] ?? "").toLowerCase();
+      const loopback = host === "localhost" || host.startsWith("127.");
+      return { url, host, loopback, requires_consent: !loopback, usable: loopback || /^https:/i.test(url), reason: null };
+    },
+    provider_probe: () => ({ available: false, url: "", reason: "the endpoint did not answer the capability probe" }),
+    pick_key_file: () => settings,
+    clear_key_file: () => settings,
+    grant_consent: () => settings,
     clear_cache: () => null,
     quit: () => null,
   };

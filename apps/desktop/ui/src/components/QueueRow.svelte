@@ -5,7 +5,7 @@
   import { applied, refusedCorrections } from "../lib/corrections";
   import { formatValue } from "../lib/i18n";
   import type { Row } from "../lib/jobstate";
-  import { silentSeconds, visibleSteps } from "../lib/jobstate";
+  import { needsConsent, silentSeconds, visibleSteps } from "../lib/jobstate";
   import { totalMs } from "../lib/report";
   import { countText, stepLabel, stepOf } from "../lib/labels";
   import { i18n, t } from "../lib/locale.svelte";
@@ -29,6 +29,7 @@
     onpreview = () => undefined,
     onexport = () => undefined,
     onunlock = () => undefined,
+    onconsent = () => undefined,
     oneditmeta = () => undefined,
     onedittoc = () => undefined,
     onpage = null,
@@ -48,6 +49,8 @@
     onexport?: (id: string) => void;
     /** Convert again with the password typed on this row (design decision 13). */
     onunlock?: (id: string, password: string) => void;
+    /** "Review consent…": this job would have sent text to a host nobody consented to (D10). */
+    onconsent?: (row: Row) => void;
     /** "Edit metadata" / "Review TOC" on the result (result.html §2–3). */
     oneditmeta?: (id: string) => void;
     onedittoc?: (id: string) => void;
@@ -99,8 +102,11 @@
   }
 
   /** The failure's headline and its second sentence, from the fatal code. */
-  const failure = $derived.by(() => {
+  const failure = $derived.by((): { head: string; note: string; retry: boolean; consent?: boolean } => {
     const code = row.fatal?.code ?? "";
+    // D10: the engine refused a host nobody consented to, or the queue never started the job for
+    // that reason. Nothing was sent; the answer is the consent dialog, never a generic error.
+    if (needsConsent(row)) return { head: t("error.consent"), note: t("error.consentNote"), retry: false, consent: true };
     switch (code) {
       case "E_PDF":
         return { head: t("error.notPdf"), note: t("error.sameResult"), retry: false };
@@ -228,6 +234,9 @@
         onclick={() => ontoggle(row.id)}
       ><Icon name={row.expanded ? "chevup" : "chevdown"} size="md" /></button>
     {:else if locked}
+      <button class="oc-btn oc-btn--quiet oc-btn--sm" tabindex={tab} aria-label={t("queue.removeFile", { file: name })} onclick={() => onremove(row.id)}>{t("queue.remove")}</button>
+    {:else if row.phase === "failed" && failure.consent}
+      <button class="oc-btn oc-btn--primary oc-btn--sm" tabindex={tab} onclick={() => onconsent(row)}>{t("error.reviewConsent")}</button>
       <button class="oc-btn oc-btn--quiet oc-btn--sm" tabindex={tab} aria-label={t("queue.removeFile", { file: name })} onclick={() => onremove(row.id)}>{t("queue.remove")}</button>
     {:else if row.phase === "failed"}
       <button class="oc-btn oc-btn--sm" tabindex={tab} onclick={() => onexport(row.id)}>{t("action.exportDiag")}</button>

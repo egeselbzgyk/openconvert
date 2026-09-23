@@ -17,5 +17,6 @@ pub mod llm;
 pub mod models;
 pub mod packs;
 pub mod preview;
+pub mod providers;
 pub mod settings;
 pub mod tree;

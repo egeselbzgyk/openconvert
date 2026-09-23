@@ -469,3 +469,52 @@ cache_reuse = true
     assert!(running.tick(Instant::now() + idle), "idle: stopped");
     assert!(running.pid().is_none());
 }
+
+/// Settings › Provider reads the engine's own answers (PHASE 11's hand-off): whether Ollama runs on
+/// this computer, whether an endpoint needs consent — asked without sending anything — and what
+/// "Test connection" finds. A host nobody consented to is refused before anything is sent, and the
+/// refusal names the host, so the consent dialog can.
+#[test]
+fn the_providers_screen_reads_the_engines_answers() {
+    use openconvert_desktop::providers::ProviderCli;
+    use openconvert_desktop::settings::{Provider, Settings};
+
+    let cli = ProviderCli::new(engine_binary());
+    let detected = cli.detect().expect("detect answers");
+    assert!(
+        detected.get("ollama").is_some(),
+        "null, or Ollama's models: {detected}"
+    );
+
+    let remote = cli.check("https://llm.example.org/v1").expect("an answer");
+    assert_eq!(remote["host"], "llm.example.org");
+    assert_eq!(remote["requires_consent"], true);
+    assert_eq!(remote["usable"], true);
+    let plain = cli.check("http://llm.example.org/v1").expect("an answer");
+    assert_eq!(
+        plain["usable"], false,
+        "plain http off this computer: {plain}"
+    );
+    let local = cli.check("http://127.0.0.1:1234/v1").expect("an answer");
+    assert_eq!(local["requires_consent"], false);
+
+    let mut custom = Settings {
+        provider: Provider::Custom,
+        ..Settings::default()
+    };
+    custom.custom.endpoint = "https://llm.example.org/v1".to_owned();
+    assert_eq!(
+        cli.probe(&custom),
+        Err(UiError::ConsentRequired {
+            host: "llm.example.org".to_owned()
+        }),
+        "nothing is asked of a host nobody consented to"
+    );
+
+    let closed = std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|listener| listener.local_addr())
+        .expect("a loopback port");
+    custom.custom.endpoint = format!("http://{closed}/v1");
+    let probed = cli.probe(&custom).expect("an answer");
+    assert_eq!(probed["available"], false, "{probed}");
+}

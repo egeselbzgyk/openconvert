@@ -324,6 +324,18 @@ export function aiUnavailable(row: Row): AiUnavailable | "engine" | null {
   return row.warnings.some((warning) => warning.code === "W_LLM_UNAVAILABLE") ? "engine" : null;
 }
 
+/**
+ * Whether the job stopped because AI assistance would have sent text to a host nobody consented to:
+ * the engine's `E_CONSENT_REQUIRED`, or the queue refusing to start it (`consent_required`). The UI
+ * answers with the consent dialog (D10, PHASE 11's hand-off).
+ */
+export function needsConsent(row: Row): boolean {
+  if (row.phase !== "failed" || row.fatal === null) return false;
+  return (
+    row.fatal.code === "E_CONSENT_REQUIRED" || (row.fatal.code === "E_START" && row.fatal.message === "consent_required")
+  );
+}
+
 /** Seconds since the last heartbeat, for "no signal for {s} seconds". */
 export function silentSeconds(row: Row, now: number): number {
   return row.lastSignalMs === null ? 0 : Math.floor((now - row.lastSignalMs) / 1000);

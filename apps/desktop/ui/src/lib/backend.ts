@@ -73,6 +73,27 @@ export interface Settings {
   custom: CustomEndpoint;
 }
 
+/** `openconvert provider detect --json`: Ollama on this computer, or `null`. */
+export interface Detected {
+  ollama: { url: string; models: string[] } | null;
+}
+
+/** `openconvert provider check <URL> --json`: sends nothing. */
+export interface EndpointCheck {
+  url: string;
+  host: string;
+  loopback: boolean;
+  requires_consent: boolean;
+  /** `false` only for plain http off this computer. */
+  usable: boolean;
+  reason: string | null;
+}
+
+/** `openconvert provider probe … --json` ("Test connection"). */
+export type ProbeResult =
+  | { available: true; url: string; host: string | null; provider: string; model: string; models: string[] }
+  | { available: false; url: string; reason: string };
+
 /** The book's navigation, read from its nav document (`src-tauri/src/preview.rs`). */
 export interface PreviewIndex {
   chapters: Array<{ title: string; href: string; level: number }>;
@@ -233,6 +254,16 @@ export interface Backend {
   removeDownload(kind: CatalogKind, id: string): Promise<void>;
   /** A row changed: progress, the end of a download, an acceptance, a delete. */
   onCatalogChanged<K extends CatalogKind>(kind: K, handler: (row: CatalogRow<K>) => void): Promise<Unlisten>;
+  /** Settings › Provider: the engine's answers (`openconvert provider …`); the webview opens no socket. */
+  providerDetect(): Promise<Detected>;
+  providerCheck(url: string): Promise<EndpointCheck>;
+  /** "Test connection" with the saved settings. Rejects with `consent_required` for an unconsented host. */
+  providerProbe(): Promise<ProbeResult>;
+  /** The native picker for the API key file; the answer is the settings as saved. */
+  pickKeyFile(): Promise<Settings>;
+  clearKeyFile(): Promise<Settings>;
+  /** The consent dialog's Allow: consent to the saved custom endpoint's own host, now (D10). */
+  grantConsent(): Promise<Settings>;
 }
 
 /** The Rust commands and event of each catalog (`src-tauri/src/main.rs`). */
@@ -310,5 +341,11 @@ export function tauriBackend(): Backend {
     cancelDownload: (kind, id) => invoke<void>(CATALOG[kind].cancel, { id }),
     removeDownload: (kind, id) => invoke<void>(CATALOG[kind].remove, { id }),
     onCatalogChanged: (kind, handler) => listen(CATALOG[kind].event, (event) => handler(event.payload as never)),
+    providerDetect: () => invoke<Detected>("provider_detect"),
+    providerCheck: (url) => invoke<EndpointCheck>("provider_check", { url }),
+    providerProbe: () => invoke<ProbeResult>("provider_probe"),
+    pickKeyFile: () => invoke<Settings>("pick_key_file"),
+    clearKeyFile: () => invoke<Settings>("clear_key_file"),
+    grantConsent: () => invoke<Settings>("grant_consent"),
   };
 }

@@ -34,6 +34,7 @@ use openconvert_desktop::llm::{self, AppModelServer, LlmHost};
 use openconvert_desktop::models::{self, LicenseView, ModelManager, ModelsView, Row, RowSink};
 use openconvert_desktop::packs::{self, PackManager, PackReadiness, PacksView};
 use openconvert_desktop::preview::{self, PreviewIndex};
+use openconvert_desktop::providers::ProviderCli;
 use openconvert_desktop::settings::{self, Settings};
 use openconvert_desktop::tree;
 use serde::Serialize;
@@ -498,6 +499,104 @@ fn store_settings(prefs: &Prefs, next: Settings) -> Result<Settings, UiError> {
     Ok(next)
 }
 
+/// Settings › Provider asks the engine (`providers.rs`); `None` until the engine is known.
+struct Providers(Mutex<Option<ProviderCli>>);
+
+fn provider_cli(providers: &Providers) -> Result<ProviderCli, UiError> {
+    providers
+        .0
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()
+        .ok_or_else(|| UiError::Provider("the converter is not available".to_owned()))
+}
+
+/// Run a provider question off the main thread: it waits on the engine, which may wait on a network.
+async fn off_main<R: Send + 'static>(
+    work: impl FnOnce() -> Result<R, UiError> + Send + 'static,
+) -> Result<R, UiError> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|error| UiError::Io(error.to_string()))?
+}
+
+/// Is Ollama running on this computer, and which models does it serve (`provider detect`).
+#[tauri::command]
+async fn provider_detect(app: AppHandle) -> Result<serde_json::Value, UiError> {
+    let cli = provider_cli(&app.state::<Providers>())?;
+    off_main(move || cli.detect()).await
+}
+
+/// Does `url` need consent, and would the engine use it (`provider check`). Sends nothing.
+#[tauri::command]
+async fn provider_check(url: String, app: AppHandle) -> Result<serde_json::Value, UiError> {
+    let cli = provider_cli(&app.state::<Providers>())?;
+    off_main(move || cli.check(&url)).await
+}
+
+/// "Test connection": what a conversion would open with the saved settings (`provider probe`).
+#[tauri::command]
+async fn provider_probe(app: AppHandle) -> Result<serde_json::Value, UiError> {
+    let cli = provider_cli(&app.state::<Providers>())?;
+    let settings = app
+        .state::<Prefs>()
+        .current
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    off_main(move || cli.probe(&settings)).await
+}
+
+/// "Change…" on the API key file: the native picker, and the path kept in the settings. The key
+/// itself is never read here and never shown; the engine reads the file when it needs it.
+#[tauri::command]
+async fn pick_key_file(app: AppHandle) -> Result<Settings, UiError> {
+    let picker = app.clone();
+    let picked =
+        tauri::async_runtime::spawn_blocking(move || picker.dialog().file().blocking_pick_file())
+            .await
+            .map_err(|error| UiError::Io(error.to_string()))?;
+    let prefs = app.state::<Prefs>();
+    let mut next = prefs
+        .current
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    if let Some(path) = picked.and_then(|path| path.into_path().ok()) {
+        next.custom.api_key_file = Some(path);
+    }
+    store_settings(&prefs, next)
+}
+
+/// "Remove" on the API key file.
+#[tauri::command]
+fn clear_key_file(prefs: tauri::State<'_, Prefs>) -> Result<Settings, UiError> {
+    let mut next = prefs
+        .current
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    next.custom.api_key_file = None;
+    store_settings(&prefs, next)
+}
+
+/// The consent dialog's "Allow {host}": consent, now, to the saved custom endpoint's own host — the
+/// one the dialog named — kept with that configuration (D10).
+#[tauri::command]
+fn grant_consent(prefs: tauri::State<'_, Prefs>) -> Result<Settings, UiError> {
+    let current = prefs
+        .current
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    let next = current.granting_consent().ok_or_else(|| {
+        UiError::Provider(
+            "the endpoint is this computer, or not a URL: no consent is needed".to_owned(),
+        )
+    })?;
+    store_settings(&prefs, next)
+}
+
 /// "Quit" on the blocking startup screen.
 #[tauri::command]
 fn quit(app: AppHandle) {
@@ -536,6 +635,7 @@ fn main() {
         .manage(Queue(Mutex::new(None)))
         .manage(LastBundle(Mutex::new(None)))
         .manage(Llm(Arc::new(Mutex::new(None))))
+        .manage(Providers(Mutex::new(None)))
         .manage(Prefs {
             path: Mutex::new(None),
             current: Mutex::new(Settings::default()),
@@ -582,6 +682,13 @@ fn main() {
             }
             let model_server = Arc::new(AppModelServer::new(host, model_manager));
 
+            if let Ok(engine) = &engine {
+                *app.state::<Providers>()
+                    .0
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner) =
+                    Some(ProviderCli::new(engine.clone()));
+            }
             if let Ok(engine) = engine {
                 let launcher =
                     ProcessLauncher::new(engine, dirs.jobs.clone()).with_cache(dirs.cache.clone());
@@ -654,7 +761,13 @@ fn main() {
             pack_accept_license,
             pack_pull,
             pack_cancel,
-            pack_remove
+            pack_remove,
+            provider_detect,
+            provider_check,
+            provider_probe,
+            pick_key_file,
+            clear_key_file,
+            grant_consent
         ])
         .build(tauri::generate_context!())
         .expect("the Tauri application starts")

@@ -136,4 +136,98 @@ describe("settings route", () => {
     expect(body()).toContain("Empty.");
     expect(button("Clear cache…")?.disabled, "nothing left to clear").toBe(true);
   });
+
+  // PHASE 11's hand-off, UI_UX §2.4: Ollama is found on this computer and lists its models; a custom
+  // endpoint off this computer is used only after the consent dialog that names its host, and says
+  // plainly that document text leaves the computer (D10).
+  it("the provider screen: Ollama as detected, and a remote endpoint only through the consent dialog that names it", async () => {
+    const backend = await openSettings();
+    nav("Provider")?.click();
+    await settle();
+    flushSync();
+    const radio = (text: string) =>
+      [...document.querySelectorAll<HTMLElement>('[role="radio"]')].find((r) => r.textContent?.trim().startsWith(text));
+    expect(radio("Ollama")?.textContent).toContain("Detected on this computer");
+    radio("Ollama")?.click();
+    flushSync();
+    expect(backend.saved.provider).toBe("ollama");
+    const models = document.querySelector<HTMLSelectElement>("#oc-ollama-model");
+    expect([...(models?.options ?? [])].map((o) => o.value)).toEqual(["", "qwen3:1.7b", "llama3.2:3b"]);
+
+    radio("Custom endpoint")?.click();
+    flushSync();
+    expect(backend.saved.provider, "not chosen until it is checked").toBe("ollama");
+    const url = document.querySelector<HTMLInputElement>("input.oc-input--mono");
+    if (url !== null) {
+      url.value = "https://llm.example.org/v1";
+      url.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    await settle();
+    flushSync();
+    button("Use this endpoint…")?.click();
+    await settle();
+    flushSync();
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog?.querySelector("h2")?.textContent).toBe("Send document text to llm.example.org?");
+    expect(dialog?.textContent).toContain("text from the documents you convert will leave this computer and be sent to llm.example.org");
+    expect(document.activeElement?.textContent, "opens on the safe button").toBe("Cancel");
+
+    button("Cancel")?.click();
+    flushSync();
+    expect(backend.saved.custom.consent, "Cancel records nothing").toBeNull();
+    expect(backend.saved.provider).toBe("ollama");
+
+    button("Use this endpoint…")?.click();
+    await settle();
+    flushSync();
+    button("Allow llm.example.org")?.click();
+    await settle();
+    flushSync();
+    expect(backend.calls).toContainEqual(["grantConsent", "llm.example.org"]);
+    expect(backend.saved.provider).toBe("custom");
+    expect(backend.saved.custom.consent?.host).toBe("llm.example.org");
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+    // Test connection asks the engine, and says what it found in the user's language.
+    button("Test connection")?.click();
+    await settle();
+    flushSync();
+    expect(document.querySelector(".oc-settings__body")?.textContent).toContain(
+      "No answer: the endpoint did not answer the capability probe",
+    );
+  });
+
+  it("an endpoint on this computer needs no consent, and plain http off it is refused", async () => {
+    const backend = await openSettings();
+    nav("Provider")?.click();
+    await settle();
+    flushSync();
+    [...document.querySelectorAll<HTMLElement>('[role="radio"]')].find((r) => r.textContent?.trim().startsWith("Custom"))?.click();
+    flushSync();
+    const url = () => document.querySelector<HTMLInputElement>("input.oc-input--mono");
+    const set = async (value: string) => {
+      const input = url();
+      if (input === null) return;
+      input.value = value;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      await settle();
+      flushSync();
+    };
+    await set("http://llm.example.org/v1");
+    button("Use this endpoint…")?.click();
+    await settle();
+    flushSync();
+    expect(document.querySelector(".oc-field__error")?.textContent).toBe(
+      "The custom endpoint is not on this computer and does not use https.",
+    );
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+    await set("http://127.0.0.1:1234/v1");
+    button("Use this endpoint…")?.click();
+    await settle();
+    flushSync();
+    expect(document.querySelector('[role="dialog"]'), "no dialog for this computer").toBeNull();
+    expect(backend.saved.provider).toBe("custom");
+    expect(document.querySelector(".oc-settings__body")?.textContent).toContain("127.0.0.1 is this computer, so nothing leaves it.");
+  });
 });

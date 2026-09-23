@@ -12,6 +12,7 @@
     type Bundle,
     type CorrectionPatch,
     type DropEvent,
+    type EndpointCheck,
     type Settings as UserSettings,
     type UiConfig,
     type UiError,
@@ -20,7 +21,7 @@
   import { SPRITE } from "./lib/icons";
   import { Catalog, defaultModel } from "./lib/catalog.svelte";
   import { JobStore, type Blocking } from "./lib/jobs.svelte";
-  import type { Row } from "./lib/jobstate";
+  import { needsConsent, type Row } from "./lib/jobstate";
   import { i18n, setLanguage, t, tn } from "./lib/locale.svelte";
   import BundleReview from "./routes/bundle/Bundle.svelte";
   import MetadataEditor from "./routes/editor/MetadataEditor.svelte";
@@ -61,6 +62,40 @@
   });
 
   const blocking = $derived(startupError ?? store?.blocking ?? null);
+
+  // D10 / PHASE 11's hand-off: a job stopped because its endpoint's host has no consent opens the
+  // consent dialog again — once by itself, and again from the row's "Review consent…".
+  let consentCheck = $state<EndpointCheck | null>(null);
+  let consentRetry: Row | null = null;
+  const consentAsked = new Set<string>();
+  $effect(() => {
+    for (const row of store?.rows ?? []) {
+      if (needsConsent(row) && !consentAsked.has(row.id)) {
+        consentAsked.add(row.id);
+        void reviewConsent(row);
+      }
+    }
+  });
+  async function reviewConsent(row: Row) {
+    if (settings === null) return;
+    consentRetry = row;
+    settingsSection = "provider";
+    route = { name: "settings" };
+    try {
+      const check = await backend.providerCheck(settings.custom.endpoint);
+      consentCheck = check.requires_consent ? check : null;
+    } catch {
+      consentCheck = null;
+    }
+  }
+  /** Allow was pressed: convert the stopped job again, now that its host has consent. */
+  async function afterConsent() {
+    const again = consentRetry;
+    consentRetry = null;
+    if (again === null) return;
+    route = { name: "queue" };
+    await retry(again);
+  }
 
   /** The Rust side's startup verdict, as a blocking screen. */
   function fromStartup(error: UiError): Blocking {
@@ -250,6 +285,7 @@
         oncancel={cancel}
         onremove={remove}
         onretry={retry}
+        onconsent={(row) => void reviewConsent(row)}
         onremovewaiting={removeWaiting}
         ontoggle={(id) => store?.toggle(id)}
         onopen={open}
@@ -332,6 +368,10 @@
         {models}
         {packs}
         bind:section={settingsSection}
+        bind:consent={consentCheck}
+        providers={backend}
+        onsaved={(next) => (settings = next)}
+        onconsented={() => void afterConsent()}
         onsetup={() => (route = { name: "firstrun" })}
         onreport={() => void exportBundle(null, { name: "settings" })}
         cacheUsage={() => backend.cacheUsage()}

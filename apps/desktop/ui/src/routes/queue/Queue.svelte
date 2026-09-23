@@ -29,6 +29,7 @@
     onpreview,
     onexport,
     onunlock = () => undefined,
+    onconsent = () => undefined,
     oneditmeta = () => undefined,
     onedittoc = () => undefined,
     onpage = null,
@@ -50,6 +51,8 @@
     onpreview: (id: string) => void;
     onexport: (id: string) => void;
     onunlock?: (id: string, password: string) => void;
+    /** "Review consent…" on a row stopped for want of consent (D10). */
+    onconsent?: (row: Row) => void;
     oneditmeta?: (id: string) => void;
     onedittoc?: (id: string) => void;
     onpage?: ((id: string, page: string) => void) | null;
@@ -71,7 +74,7 @@
   {:else}
     <QueueList rows={store.rows} onremoveall={() => (confirming = true)}>
       {#snippet row(row: Row, active: boolean)}
-        <QueueRow {row} {active} now={store.now} {oncancel} {onremove} {onretry} {ontoggle} {onopen} {onshow} {ondetails} {onpreview} {onexport} {onunlock} {oneditmeta} {onedittoc} {onpage} />
+        <QueueRow {row} {active} now={store.now} {oncancel} {onremove} {onretry} {ontoggle} {onopen} {onshow} {ondetails} {onpreview} {onexport} {onunlock} {onconsent} {oneditmeta} {onedittoc} {onpage} />
       {/snippet}
     </QueueList>
   {/if}

@@ -182,7 +182,7 @@ pub const CACHE_VAR: &str = "OC_CACHE_DIR";
 /// Win32's `CREATE_NO_WINDOW` process-creation flag, from `winbase.h`: without it a console window
 /// flashes on every conversion (D13.2). An operating-system constant, not a tunable.
 #[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+pub(crate) const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 impl ProcessLauncher {
     pub fn new(program: PathBuf, jobs_dir: PathBuf) -> Self {
