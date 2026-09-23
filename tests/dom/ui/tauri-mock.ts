@@ -178,6 +178,8 @@ export function installTauriMock(fixture: MockFixture): void {
     clear_key_file: () => settings,
     grant_consent: () => settings,
     network_log: () => ({ state: "not_recorded" }),
+    update_check: () => ({ state: "up_to_date" }),
+    update_install: () => null,
     clear_cache: () => null,
     quit: () => null,
   };

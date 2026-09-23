@@ -259,3 +259,66 @@ describe("settings route", () => {
     expect(cells).toContain("model download");
   });
 });
+
+// PHASE 15 detail 5 (part B): Settings › About & updates. A check is a network request, so it is
+// made only when asked (SECURITY §8); an update is offered only once the Rust side has verified its
+// signature, and installed only when asked again. The Flatpak build, which Flathub updates, has no
+// updater at all, and the row is not there.
+describe("about & updates", () => {
+  it("checks only when asked, offers a verified update, and installs it on request", async () => {
+    const fake = new FakeBackend();
+    fake.update = { state: "ready", version: "1.0.1" };
+    const backend = await openSettings(fake);
+    nav("About & updates")?.click();
+    flushSync();
+    expect(backend.calls.filter(([name]) => name === "updateCheck"), "nothing is asked before the button").toEqual([]);
+
+    button("Check for updates")?.click();
+    await settle();
+    flushSync();
+    expect(backend.calls.filter(([name]) => name === "updateCheck")).toHaveLength(1);
+    const banner = document.querySelector(".oc-banner");
+    expect(banner?.textContent).toContain("OpenConvert 1.0.1 is available. Its signature has been verified.");
+
+    button("Later")?.click();
+    flushSync();
+    expect(document.querySelector(".oc-banner"), "Later dismisses the offer").toBeNull();
+
+    button("Check for updates")?.click();
+    await settle();
+    flushSync();
+    button("Install and restart")?.click();
+    await settle();
+    expect(backend.calls.filter(([name]) => name === "updateInstall")).toHaveLength(1);
+  });
+
+  it("says why no update is offered, in the user's language", async () => {
+    const fake = new FakeBackend();
+    fake.update = { state: "failed", code: "bad_signature" };
+    await openSettings(fake);
+    nav("About & updates")?.click();
+    flushSync();
+    button("Check for updates")?.click();
+    await settle();
+    flushSync();
+    expect(document.querySelector('[role="status"].oc-setting__help, .oc-setting [role="status"]')?.textContent).toContain(
+      "its signature did not verify, so it was not installed",
+    );
+
+    fake.update = { state: "up_to_date" };
+    button("Check for updates")?.click();
+    await settle();
+    flushSync();
+    expect(document.body.textContent).toContain("OpenConvert 0.1.0 is the newest version.");
+  });
+
+  it("is not there in a build without the updater (the Flatpak)", async () => {
+    const fake = new FakeBackend();
+    fake.configured = { ...CONFIG, updater: false };
+    await openSettings(fake);
+    nav("About & updates")?.click();
+    flushSync();
+    expect(button("Check for updates")).toBeUndefined();
+    expect(document.body.textContent).not.toContain("Updates");
+  });
+});

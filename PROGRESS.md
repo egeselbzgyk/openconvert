@@ -154,6 +154,18 @@ Work items, in order, with the plan's test rows against each:
       plain words, checksums, the Flatpak's no-network cost), `docs/VERSIONING.md` (P15.10),
       `docs/TEST_MATRIX.md` Phase 15 section, this hand-off
 
+**Part B, the items that do not need Phase 14 (done on the same branch while Phase 14 finished):**
+
+- [x] **P15.13** Settings › About & updates: "Check for updates" (a button, no automatic check —
+      provisional), the verified-update banner with "Install and restart" / "Later", failures
+      localised in EN/DE/TR, the row absent without the `updater` feature (`UiConfig.updater`); the
+      Network log names the update check — 3 UI tests, `the_ui_is_told_whether_this_build_has_an_updater`
+- [ ] **P15.14** Rust third-party notices (`xtask notices`, committed, checked up to date) and the root
+      `NOTICE`
+- [ ] **P15.15** `docs/CHANGELOG.md` `## [1.0.0]` draft with a marked placeholder for Phase 14's
+      security claims, which the release job refuses while it is there
+- [ ] **P15.16** row 15.19's scripted half: `packaging/smoke/fresh-install.{sh,ps1}`
+
 **Part A gates (2026-09-23, branch head before the hand-off commit):** `cargo fmt --check` clean;
 workspace clippy (`--exclude openconvert-desktop --all-targets --all-features -D warnings`) clean;
 `cargo nextest` per package **775 tests, all green** (oc-model 22, oc-core 66, oc-pdf 65, oc-text 70,
@@ -185,7 +197,7 @@ clean. The `release-artifacts` gates that could run here: 15.7 + layout green, 1
    connections the app can make; (b) if Phase 14 adds Landlock/sandboxing or new caps to the engine,
    run the AppImage smoke (`--smoke-convert`, row 15.7) again — rebuild the AppImage (see "What a fresh
    session needs"); (c) the Flatpak's finish-args against whatever Phase 14 decides about sandboxing.
-5. **Settings row for the updater** (not in part A): "Check for updates" → `update_check`, then
+5. ~~**Settings row for the updater**~~ — done in P15.13: "Check for updates" → `update_check`, then
    "Install and restart" → `update_install`; the `Checked` codes (`up_to_date`, `ready`, `no_key`,
    `bad_signature`, `too_large`, `no_platform`, `bad_manifest`, `network`) localised in EN/DE/TR; a
    Vitest test; hidden when the build has no `updater` feature (the Flatpak). INSTALL.md and

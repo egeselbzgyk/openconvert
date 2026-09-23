@@ -5170,3 +5170,27 @@ here**.
 Evidence: `no_todo_placeholders_on_a_release_tag`, `release_job_needs_no_python`,
 `every_release_gate_row_is_a_named_release_step`, `the_release_latest_json_is_what_the_updater_verifies`.
 Affects: `.github/workflows/release.yml`, `xtask/src/{ci_lint,release}.rs`, `xtask/tests/release.rs`.
+
+## 2026-09-23 · Settings › About & updates: a check when asked, an offer once verified · Phase 15 (part B, P15.13)
+Context: the design's "update available" frame (`settings.html`, decisions.md row "Update available",
+marked *Proposal*) shows a banner with "Install and restart" / "Later" and a **daily automatic check
+that can be turned off**, the row hidden in the Flatpak build. Part A built `update_check` /
+`update_install` with no UI.
+Decision: the row is there in every build with the `updater` feature (`UiConfig.updater`, from
+`cfg!(feature = "updater")`) and absent in the Flatpak's. **"Check for updates" is a button; there is
+no automatic check.** A check is a network request, and the app makes none the user did not ask for
+(SECURITY §8; the first-run promise names no update traffic); the design's daily check stays a
+proposal for the maintainer, who can add it as an opt-in toggle without changing anything else here.
+The banner appears only for `ready` — downloaded *and* signature-verified on the Rust side — and
+"Install and restart" is a second, explicit request; "Later" dismisses it. Every failure is a code
+localised in EN/DE/TR (`update.failed.{no_key,bad_signature,too_large,no_platform,bad_manifest,
+network}`), never the error's prose. Settings › Network log's list of connections now names the
+update check (to GitHub's release servers only). **PROVISIONAL — needs maintainer ratification**
+(no daily check).
+Evidence: UI `about & updates` — `checks only when asked, offers a verified update, and installs it on
+request`, `says why no update is offered, in the user's language`, `is not there in a build without the
+updater (the Flatpak)`; Rust `the_ui_is_told_whether_this_build_has_an_updater` (run with and without
+the feature).
+Affects: `apps/desktop/ui/src/{routes/settings/Settings.svelte,lib/backend.ts,test/fake-backend.ts}`,
+`apps/desktop/ui/locales/*.json`, `apps/desktop/src-tauri/src/config.rs`, `tests/dom/{specs/ui.spec.ts,
+ui/tauri-mock.ts}`.

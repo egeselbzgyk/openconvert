@@ -26,6 +26,7 @@ import type {
   Settings,
   UiConfig,
   UiError,
+  UpdateCheck,
 } from "../lib/backend";
 import type { Hello } from "../lib/events";
 import type { JobView } from "../lib/jobstate";
@@ -42,6 +43,7 @@ export const CONFIG: UiConfig = {
   maxPages: 3000,
   maxMemoryBytes: 4294967296,
   aiTasksEnabled: 0,
+  updater: true,
 };
 
 export const HELLO: Hello = {
@@ -110,8 +112,10 @@ export class FakeBackend implements Backend {
     if (this.startupError !== null) throw this.startupError;
     return HELLO;
   }
+  /** What `ui_config` answers; a test changes it to be another build (the Flatpak's). */
+  configured: UiConfig = { ...CONFIG };
   async config(): Promise<UiConfig> {
-    return CONFIG;
+    return this.configured;
   }
   async rows(): Promise<JobView[]> {
     return this.views;
@@ -320,6 +324,16 @@ export class FakeBackend implements Backend {
   network: NetworkLog = { state: "not_recorded" };
   async networkLog(): Promise<NetworkLog> {
     return this.network;
+  }
+
+  /** What the next update check finds. */
+  update: UpdateCheck = { state: "up_to_date" };
+  async updateCheck(): Promise<UpdateCheck> {
+    this.calls.push(["updateCheck", null]);
+    return this.update;
+  }
+  async updateInstall(): Promise<void> {
+    this.calls.push(["updateInstall", null]);
   }
 
   /** The Rust side announces a changed model row. */

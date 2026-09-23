@@ -32,6 +32,8 @@ export interface UiConfig {
   maxMemoryBytes: number;
   /** How many of the four AI tasks this build enables for any language (`ai.task.*.languages`). */
   aiTasksEnabled: number;
+  /** This build has the in-app updater (every build but the Flatpak's, which Flathub updates). */
+  updater: boolean;
 }
 
 /** The Rust side's error: a kind the UI words, and a detail it never shows as the message. */
@@ -98,6 +100,16 @@ export type ProbeResult =
 export type NetworkLog =
   | { state: "not_recorded" }
   | { state: "entries"; entries: Array<{ ts: string; host: string; purpose: string; bytes: number; outcome: string }> };
+
+/** What an update check found (`src-tauri/src/updater.rs`, `Checked`). `ready` means downloaded and
+    its signature verified; a failure is a code the UI localises (`update.failed.<code>`). */
+export type UpdateCheck =
+  | { state: "up_to_date" }
+  | { state: "ready"; version: string }
+  | {
+      state: "failed";
+      code: "no_key" | "bad_signature" | "too_large" | "no_platform" | "bad_manifest" | "network";
+    };
 
 /** The book's navigation, read from its nav document (`src-tauri/src/preview.rs`). */
 export interface PreviewIndex {
@@ -271,6 +283,10 @@ export interface Backend {
   grantConsent(): Promise<Settings>;
   /** Settings › Network log: the audit log's lines, or that this build keeps none. */
   networkLog(): Promise<NetworkLog>;
+  /** Settings › About & updates: ask for, download and verify an update — only when the user asks. */
+  updateCheck(): Promise<UpdateCheck>;
+  /** Install the update the last check verified, and restart into it. */
+  updateInstall(): Promise<void>;
 }
 
 /** The Rust commands and event of each catalog (`src-tauri/src/main.rs`). */
@@ -355,5 +371,7 @@ export function tauriBackend(): Backend {
     clearKeyFile: () => invoke<Settings>("clear_key_file"),
     grantConsent: () => invoke<Settings>("grant_consent"),
     networkLog: () => invoke<NetworkLog>("network_log"),
+    updateCheck: () => invoke<UpdateCheck>("update_check"),
+    updateInstall: () => invoke<void>("update_install"),
   };
 }
