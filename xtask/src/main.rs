@@ -37,8 +37,10 @@ tasks:
                     review_by that has not passed
   dom-fixtures      convert every fixture and unpack its container to target/dom/ for the
                     Playwright DOM checks, with a manifest of spine, nav order and noterefs
-  stage-sidecars    copy the built engine to apps/desktop/src-tauri/bin/ with the
-                    target-triple suffix Tauri expects, plus a build stamp
+  stage-sidecars    stage what the app bundles in apps/desktop/src-tauri/bin/: the built
+                    engine and llama-server with the target-triple suffix Tauri expects,
+                    PDFium and the server's libraries in native/, the natives' licences,
+                    and a build stamp (needs vendor-pdfium and fetch-llama-server first)
                       --release           stage the release build instead of debug
 ";
 

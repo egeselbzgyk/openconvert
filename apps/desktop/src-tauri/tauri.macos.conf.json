@@ -1,0 +1,16 @@
+{
+  "bundle": {
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "hardenedRuntime": true,
+      "entitlements": "../../../packaging/macos/entitlements.plist",
+      "files": {
+        "MacOS/": "bin/native/"
+      }
+    }
+  }
+}

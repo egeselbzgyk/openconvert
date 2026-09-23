@@ -31,14 +31,20 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "nsis",
-      "dmg",
-      "appimage"
-    ],
+    "publisher": "OpenConvert contributors",
+    "copyright": "Copyright OpenConvert contributors. Licensed under the Apache License, Version 2.0.",
+    "category": "Productivity",
+    "shortDescription": "Convert PDF books to reflowable EPUB, on this computer",
+    "longDescription": "OpenConvert turns a PDF into a reflowable EPUB 3.3 on your own computer. Nothing is uploaded, there is no telemetry, and the optional AI assistance runs a local model you choose to download.",
     "externalBin": [
-      "bin/openconvert-engine"
+      "bin/openconvert-engine",
+      "bin/llama-server"
     ],
+    "resources": {
+      "../../../models.toml": "models.toml",
+      "../../../thresholds.toml": "thresholds.toml",
+      "bin/licenses/": "licenses/"
+    },
     "licenseFile": "../../../LICENSE",
     "icon": [
       "icons/32x32.png",
@@ -46,6 +52,15 @@
       "icons/128x128@2x.png",
       "icons/icon.ico",
       "icons/icon.png"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "TODO_UPDATER_PUBKEY",
+      "endpoints": [
+        "https://github.com/openconvert/openconvert/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

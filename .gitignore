@@ -10,7 +10,7 @@
 # Fetched by `xtask fetch-epubcheck` and `xtask fetch-epubcheck-corpus`. Never committed:
 # EPUBCheck is 33 MB and its test corpus is several thousand files of other people's fixtures.
 /vendor/epubcheck/
-/vendor/llama-server/
+/vendor/llama-server
 /vendor/epubcheck-corpus/
 /vendor/.epubcheck-corpus-staging/
 __pycache__/

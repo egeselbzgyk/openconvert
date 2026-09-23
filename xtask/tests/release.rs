@@ -103,3 +103,108 @@ fn no_sidecar_shares_a_name_with_a_workspace_binary() {
     }
     assert!(sidecars > 0, "the app bundles its engine as an externalBin");
 }
+
+/// RFC 7396, which is how Tauri merges `tauri.<os>.conf.json` over `tauri.conf.json`.
+fn merge_patch(target: &mut serde_json::Value, patch: &serde_json::Value) {
+    match (target, patch) {
+        (serde_json::Value::Object(target), serde_json::Value::Object(patch)) => {
+            for (key, value) in patch {
+                if value.is_null() {
+                    target.remove(key);
+                } else {
+                    merge_patch(
+                        target.entry(key.clone()).or_insert(serde_json::Value::Null),
+                        value,
+                    );
+                }
+            }
+        }
+        (target, patch) => *target = patch.clone(),
+    }
+}
+
+/// The configuration Tauri builds with on `os`.
+fn merged_config(root: &Path, os: &str) -> serde_json::Value {
+    let dir = root.join("apps/desktop/src-tauri");
+    let mut config = json(&dir.join("tauri.conf.json"));
+    let overlay = dir.join(format!("tauri.{os}.conf.json"));
+    assert!(overlay.is_file(), "{} exists", overlay.display());
+    merge_patch(&mut config, &json(&overlay));
+    config
+}
+
+fn string_list(value: &serde_json::Value) -> Vec<&str> {
+    value
+        .as_array()
+        .map(|a| a.iter().filter_map(serde_json::Value::as_str).collect())
+        .unwrap_or_default()
+}
+
+/// PHASE 15 detail 1: one bundle shape on all three operating systems — the engine and
+/// `llama-server` as `externalBin`, the native libraries beside them, `models.toml`,
+/// `thresholds.toml` and the natives' licences as resources — and the installers D12 names.
+/// Nothing that is a download (a model, a pack) is in any of it.
+#[test]
+fn the_bundle_layout_is_the_same_on_every_os() {
+    let root = workspace_root();
+    let native = format!(
+        "{}/",
+        Path::new("bin")
+            .join(xtask::stage_sidecars::NATIVE_DIR)
+            .display()
+    );
+    for (os, targets) in [
+        ("linux", vec!["appimage"]),
+        ("macos", vec!["app", "dmg"]),
+        ("windows", vec!["nsis", "msi"]),
+    ] {
+        let config = merged_config(&root, os);
+        let bundle = &config["bundle"];
+        assert_eq!(string_list(&bundle["targets"]), targets, "{os}: installers");
+        assert_eq!(
+            string_list(&bundle["externalBin"]),
+            [
+                format!("bin/{}", xtask::stage_sidecars::SIDECAR_NAME),
+                format!("bin/{}", xtask::stage_sidecars::SERVER_NAME),
+            ],
+            "{os}: the engine and the model server are the sidecars"
+        );
+        let resources = bundle["resources"].as_object().expect("a resource map");
+        for (source, target) in [
+            ("../../../models.toml", "models.toml"),
+            ("../../../thresholds.toml", "thresholds.toml"),
+            ("bin/licenses/", "licenses/"),
+        ] {
+            assert_eq!(
+                resources.get(source).and_then(|v| v.as_str()),
+                Some(target),
+                "{os}: {source} is a resource"
+            );
+        }
+        // Beside the sidecars, wherever the platform puts them.
+        let beside = match os {
+            "linux" => bundle["linux"]["appimage"]["files"]["/usr/bin/"].as_str(),
+            "macos" => bundle["macOS"]["files"]["MacOS/"].as_str(),
+            _ => resources
+                .get(native.as_str())
+                .and_then(|v| v.as_str())
+                .map(|root| {
+                    assert_eq!(root, "", "{os}: the resource root is the install directory");
+                    native.as_str()
+                }),
+        };
+        assert_eq!(
+            beside,
+            Some(native.as_str()),
+            "{os}: natives beside the binaries"
+        );
+
+        let text = serde_json::to_string(bundle).expect("json");
+        for download in [".gguf", "tessdata", "epubcheck", "jre"] {
+            assert!(
+                !text.contains(download),
+                "{os}: {download} is a download, not bundled"
+            );
+        }
+    }
+}

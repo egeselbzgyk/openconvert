@@ -1,0 +1,22 @@
+{
+  "bundle": {
+    "targets": [
+      "nsis",
+      "msi"
+    ],
+    "resources": {
+      "bin/native/": ""
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "English",
+          "German",
+          "Turkish"
+        ],
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}

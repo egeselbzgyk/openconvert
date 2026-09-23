@@ -126,14 +126,16 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev
       # `frontendDist` points at `../ui/dist`, which is git-ignored build output.
       - run: npm ci --prefix apps/desktop/ui && npm --prefix apps/desktop/ui run build
-      # `externalBin` resolves at build time, so the engine has to exist and be staged under
-      # the target-triple name Tauri looks for before the shell will compile at all.
+      # `externalBin` resolves at build time, so the engine and `llama-server` have to exist and
+      # be staged under the target-triple names Tauri looks for before the shell will compile at
+      # all; `stage-sidecars` also stages PDFium and the server's libraries (PHASE 15 detail 1),
+      # which is why the two vendored natives are fetched first.
       # The stub llama-server the app's model-server tests start is an `oc-testkit` binary.
       - run: cargo build -p openconvert -p oc-testkit --bins --locked
+      - run: cargo run -p xtask -- vendor-pdfium
+      - run: cargo run -p xtask -- fetch-llama-server
       - run: cargo run -p xtask -- stage-sidecars
       - run: cargo clippy -p openconvert-desktop --all-targets --all-features --locked -- -D warnings
-      # The engine the integration tests drive binds PDFium at run time, from `vendor/pdfium`.
-      - run: cargo run -p xtask -- vendor-pdfium
       - uses: taiki-e/install-action@nextest
       - run: cargo nextest run -p openconvert-desktop --features engine-integration --locked --profile ci
 

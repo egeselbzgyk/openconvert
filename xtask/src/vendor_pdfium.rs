@@ -20,25 +20,26 @@ const LOCK: &str = include_str!("../pdfium.lock");
 const SUPPORTED_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Deserialize)]
-struct Lock {
-    schema_version: u32,
-    repo: String,
-    tag: String,
-    build: u32,
-    version: String,
+pub struct Lock {
+    pub schema_version: u32,
+    pub repo: String,
+    pub tag: String,
+    pub build: u32,
+    pub version: String,
     #[serde(rename = "asset")]
-    assets: Vec<LockedAsset>,
+    pub assets: Vec<LockedAsset>,
 }
 
 #[derive(Deserialize)]
-struct LockedAsset {
-    triple: String,
-    asset: String,
-    sha256: String,
-    size_bytes: u64,
+pub struct LockedAsset {
+    pub triple: String,
+    pub asset: String,
+    pub sha256: String,
+    pub size_bytes: u64,
 }
 
-pub fn run(workspace_root: &Path) -> Result<()> {
+/// `xtask/pdfium.lock`, parsed and checked for a schema this task understands.
+pub fn lock() -> Result<Lock> {
     let lock: Lock = toml::from_str(LOCK).context("xtask/pdfium.lock is not valid TOML")?;
     if lock.schema_version != SUPPORTED_SCHEMA_VERSION {
         bail!(
@@ -47,6 +48,16 @@ pub fn run(workspace_root: &Path) -> Result<()> {
             SUPPORTED_SCHEMA_VERSION
         );
     }
+    Ok(lock)
+}
+
+/// The Chromium build number the lock pins.
+pub fn pinned_build() -> Result<u32> {
+    Ok(lock()?.build)
+}
+
+pub fn run(workspace_root: &Path) -> Result<()> {
+    let lock = lock()?;
     check_cargo_feature_matches(workspace_root, lock.build)?;
 
     let triple = host_triple();
@@ -195,7 +206,7 @@ fn hex(bytes: &[u8]) -> String {
 /// looks for at runtime; naming it here rather than depending on that crate keeps `xtask`
 /// free of the PDF stack. If the two ever disagree, vendoring succeeds and test 0.7 fails
 /// with a clear "library not found", which is a loud enough failure.
-fn library_file_name() -> &'static str {
+pub fn library_file_name() -> &'static str {
     if cfg!(target_os = "windows") {
         "pdfium.dll"
     } else if cfg!(target_os = "macos") {

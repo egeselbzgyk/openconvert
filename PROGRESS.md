@@ -96,8 +96,10 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P15.1** carry-over: the engine sidecar is `openconvert-engine`, so `tauri-build` can never
       overwrite `target/<profile>/openconvert` with a stale staged engine —
       `no_sidecar_shares_a_name_with_a_workspace_binary`, `the_sidecar_the_app_runs_is_the_one_tauri_bundles`
-- [ ] **P15.2** bundle layout (detail 1): engine + `llama-server` as `externalBin`, `libpdfium`,
-      `models.toml`, `thresholds.toml` bundled; per-OS config files; `stage-sidecars` stages all of it
+- [x] **P15.2** bundle layout (detail 1): engine + `llama-server` as `externalBin`, PDFium and the
+      server's libraries in `bin/native/` beside them, `models.toml`, `thresholds.toml`, licences as
+      resources; `tauri.{linux,macos,windows}.conf.json`; `stage-sidecars` stages all of it (needs
+      `vendor-pdfium` and `fetch-llama-server` first) — `the_bundle_layout_is_the_same_on_every_os`
 - [ ] **P15.3** macOS: `entitlements.plist`, `sign_nested.sh`, `notarize.sh` — row 15.5 (15.1–15.4 are
       release-job steps, unverified here)
 - [ ] **P15.4** Windows NSIS + MSI config, the release manifest and its hashes — row 15.6 (CI step), 15.20
