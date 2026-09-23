@@ -95,7 +95,7 @@ items, in order, with the plan's test rows against each:
 - [x] **P14.5** one abort path: `AbortCause`, `DeadlineGuard`, one cleanup — row 14.8 *(wired into `convert` in P14.10)*
 - [x] **P14.6** `oc_core::sandbox::{rlimit, jobobject}`: `RLIMIT_AS`, the engine's job object *(row 14.7, the CLI half, is P14.10)*
 - [x] **P14.7** children never outlive a killed engine: PDEATHSIG trampoline, job object (Phases 9, 13)
-- [ ] **P14.8** Landlock: `ScopeSet`, self-restriction, recorded skip — rows 14.10–14.12
+- [x] **P14.8** Landlock: `ScopeSet`, self-restriction — rows 14.10, 14.12 *(14.11, the engine's recorded skip, is P14.10)*
 - [ ] **P14.9** `oc-net` audit log — row 14.21
 - [ ] **P14.10** the engine: `--max-memory`/`--max-pages`, Landlock and deadlines wired into `convert`; caps end in exit 1 with a report and no output; the 40 M-glyph PDF — rows 14.7, 14.9, 14.19, 14.6's exit 1
 - [ ] **P14.11** crash corpus: `oc-eval mutate`, `corpus/fixtures/crash/`, Isartor fetch — rows 14.16–14.18
@@ -142,6 +142,13 @@ What a fresh session needs:
   `oc-ocr-engine`) and `supervise::settle()` last (a SIGTERM ends the run as exit 3, not whatever
   `main` returned first). The desktop app does not call `init`, so its own `OwnedServer` spawns
   directly — Phase 12 may add `orphan::init()` to its `main` to get the same guarantee.
+- **Landlock** is `oc_core::sandbox::landlock::landlock_self_restrict(&ScopeSet) -> LandlockOutcome`
+  (landlock 0.4.7, ABI-5 fs rights all handled, TCP bind/connect handled on ABI ≥ 4 with `connect`
+  allowed only to `ScopeSet::connect_ports`). This kernel is 6.18, ABI 7, and enforces it; there is no
+  securityfs in the container, so the tests decide "should enforce" from the kernel release
+  (≥ 5.13). Rows 14.10/14.12 run `oc-sandbox-probe` (oc-testkit), which restricts itself with the
+  engine's call and reports what the kernel said. Landlock binds the calling thread and its later
+  threads (ABI < 8), so the engine must apply it before starting any thread.
 - `openconvert::sandbox` is the report's `sandbox` section and `--max-memory` parsing
   (`parse_bytes`, binary units only); not wired into `convert` yet (P14.10).
 
