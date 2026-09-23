@@ -22,6 +22,7 @@ getrandom.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
+proptest.workspace = true
 # Test-only: `every_provisional_has_owner_and_future_review` needs today's date to decide
 # whether a `review_by` has expired. The shipped crate has no clock dependency.
 time.workspace = true

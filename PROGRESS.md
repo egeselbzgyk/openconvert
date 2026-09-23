@@ -68,6 +68,26 @@ LAST_UPDATED: 2026-09-23
 - [ ] **Phase 14** — Security hardening
 - [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
 
+## Phase 13 — on branch `phase/13-ocr`
+
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P13.1** `[ocr.*]` thresholds and the TSV parser (`oc_core::ocr::tsv`) — rows 13.5–13.8
+- [ ] **P13.2** language selection and the `W_OCR_*` warning codes — row 13.9
+- [ ] **P13.3** system-Tesseract discovery, VD-g — rows 13.1–13.4, A13.7
+- [ ] **P13.4** invocation: fixed argv, deadline, process ownership, the fake engine — rows 13.10, 13.18, 13.19
+- [ ] **P13.5** `oc-pdf` rasterization (`render_region`)
+- [ ] **P13.6** merge, the `ingest` declaration, region-scoped I-6, retention — rows 13.13, 13.15
+- [ ] **P13.7** OCR routing in `ingest`, the `convert` flags, degradation — rows 13.11, 13.12, 13.14, 13.16, 13.17, 13.22
+- [ ] **P13.8** scanned fixtures, `.assert.json`, CER per stratum — rows 13.20, 13.21
+- [ ] **P13.9** `docs/OCR_PACK_SPIKE.md`, CI job, Definition of Done, CHANGELOG, merge
+
+What a fresh session needs:
+
+- Tesseract 5.3.4 with `eng`, `deu`, `tur`, `osd` is installed here at `/usr/bin/tesseract`. Tests that
+  need it are behind the `openconvert` feature `tesseract`; nothing else may depend on it being
+  present, so the shared test helpers convert with OCR off.
+
 ## Phase 9 — on branch `phase/09-local-model`
 
 Work items, in order, with the plan's test rows against each:

@@ -535,3 +535,18 @@ indicative (PROGRESS.md).
 | 6.25b | `ace::a_critical_violation_counts_as_a_serious_one` | `oc-validate` | unit | `test` | green |
 | 6.25c | `ace::missing_accessibility_metadata_fails_the_gate_on_its_own` | `oc-validate` | unit | `test` | green |
 | 6.25d | `ace::an_unreadable_report_is_an_error_and_not_an_empty_one` | `oc-validate` | unit | `test` | green |
+
+## Phase 13 — OCR
+
+Tests that need a real Tesseract are behind the `openconvert` feature `tesseract` and run in the
+`ocr` CI job, which installs `tesseract-ocr` with `deu` and `tur`. Tests that drive a fake engine
+by process (a shell script standing in for `tesseract`) are `#[cfg(unix)]`: Windows discovery and
+invocation are unverified on this machine and have no CI runner until the maintainer turns Actions
+back on.
+
+| # | Test | Crate | Kind | Job | Status |
+|---|---|---|---|---|---|
+| 13.5 | `ocr_tsv::tsv_header_mismatch_is_an_error` | `oc-core` | unit | `test` | green |
+| 13.6 | `ocr_tsv::tsv_parses_words_and_confidences` | `oc-core` | unit (golden TSV, a real Tesseract 5.3.4 capture) | `test` | green |
+| 13.7 | `ocr_tsv::tsv_drops_non_word_and_negative_conf_rows` | `oc-core` | unit | `test` | green |
+| 13.8 | `ocr_tsv::pixel_boxes_map_into_normalized_page_space` | `oc-core` | property (2 000 cases) | `test` | green |
