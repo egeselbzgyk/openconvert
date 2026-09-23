@@ -269,12 +269,13 @@ packed by each document's previous run time; strip `\r` from Python-written chun
 writes CRLF, and every name carries it), and give the child `< /dev/null` or it swallows the list.
 Check `rc` and output sizes before believing a run: one "complete" run here had never executed.
 
-## Phase 12 — in progress (part A done, part B1 in progress)
+## Phase 12 — in progress (parts A and B1 done; B2 waits for Phases 10 and 11)
 
 Built on branch `phase/12-desktop-ui` (worktree `/home/user/wt/phase12`) while Phase 9 runs on its
 own branch. **Part A** is every Phase 12 item that does not need Phase 9 (model manager,
-`ModelReadiness`, process groups/job objects) or Phase 11 (BYO providers). **Part B**, after 9 and
-11 merge, is listed at the end of this section. Phase 12 is **not** done until part B is.
+`ModelReadiness`, process groups/job objects) or Phase 11 (BYO providers). **Part B1** is what
+needs only Phase 9 (merged into this branch 2026-09-23). **Part B2**, after Phases 10 and 11 merge,
+is listed at the end of this section. Phase 12 is **not** done until part B2 is.
 
 Work items, in order, with the plan's test rows against each:
 
@@ -459,29 +460,47 @@ oc-testkit --bins` (the stub llama-server).
       Registry prose (`warn`, pack `contents`) is shown as a localised sentence, never English
       (+ 6 Vitest, + 1 Playwright test; axe/contrast now also on `models` and `firstrun`)
 
-### Part B — what remains, after Phase 9 and Phase 11 merge
+**Part B1 verification here (Linux, no display), at the head of part B1:** workspace nextest 633
+passed (`--exclude openconvert-desktop`); desktop crate 43 passed with `engine-integration` (after
+`cargo build -p openconvert -p oc-testkit --bins`); UI Vitest 42 passed, svelte-check/lint/build
+clean; Playwright `chromium-ui` 4 passed; fmt, clippy (workspace and the desktop crate,
+`--all-features`), `xtask ci-lint`, `thresholds-lint`, `cargo deny --all-features check` clean.
+`tree.rs` compiles clippy-clean for `x86_64-pc-windows-msvc` and `aarch64-apple-darwin` (scratch
+crate). **Unverified here:** a real model download from huggingface.co (egress 403; `models.toml`
+still has `TODO_` pins, so the shipped app shows no model), a real `llama-server` with a real model
+behind `llm.rs` (only `oc-stub-llama-server`), Windows job objects and the macOS process-group path
+at run time, the real Tauri window (drag and drop, IPC under `connect-src 'none'`, the `ocpreview:`
+frame), `webkit-ui`, every CI job, the signing dry run (A12.7).
 
-1. **Work item 9 / row 12.12 `model_download_progress_streams_and_cancels`**: the model manager and
-   packs against Phase 9's registry and `ModelReadiness` — download with streamed progress events,
-   cancel deletes the `.part`, checksum verification; Settings › Models (today a static shell,
-   drawn disabled, no data path) and Packs wired to it; the `firstrun` route and card (hidden today:
-   no entry point) driven by `ModelReadiness`.
-2. **Process groups / job objects from Phase 9** in `ProcessLauncher`: today Unix only puts the
-   engine in its own process group and kills the child; the engine + `llama-server` tree must be
-   ended as a group on the kill deadline and at app exit (Windows job object, D13.2, RT A5).
-3. **AI toggle**: Settings › AI assistance is drawn disabled; enabling it needs Phase 9's sidecar
-   and the engine to accept `ai.enabled` (it refuses the field by name today — Phase 10 decisions
-   and the non-inferiority gate). Show `llm` events on the row.
-4. **Phase 11 wiring**: Settings › Provider (endpoint, API-key file, the non-loopback consent
-   dialog → job spec `ai.endpoint`/`api_key_file`/`non_loopback_consent`) and Settings › Network log
-   fed from `oc-net`'s audit log (today empty, saying this build opens no connection).
-5. **Merge chores**: recount the report snapshot's threshold entries (176 here) after Phase 9's
-   thresholds land; reconcile `docs/DECISIONS_LOG.md` / `PROGRESS.md`; re-run `xtask ci-lint`
-   (warning registry) and the UI's 12.9 locale gate if Phase 9 adds warning codes; Phase 9 edits to
-   `oc-model` meet this branch's `Deserialize` derives.
-6. **Phase DoD**: `docs/CHANGELOG.md` Phase 12 entry; CI green on Linux/macOS/Windows (the
-   `desktop`, `ui`, `webkit-ui` jobs have never run); the signing dry run (A12.7) run by a
-   maintainer and its outcome logged; ratify the provisional decisions under Blocked.
+### Part B2 — what remains (after Phase 10 and Phase 11 merge)
+
+1. **The AI toggle** (Settings › AI assistance and the first-run route's "installed" step): it is
+   drawn disabled, saying the converter has no AI support in this build. Enabling it needs Phase
+   10's engine to accept `ai.enabled` (the job-spec validator refuses the field by name today) and
+   the non-inferiority gate. Then: persist the choice; for each job with AI on, `LlmHost::acquire`
+   the app's server for the installed default model (`ModelManager::installed_path`,
+   `llm::spec_for`) and write `ai.enabled`/`ai.endpoint`/`ai.api_key_file`/`ai.model_id` into the
+   job spec, `release` when the job ends; the fail-open banner when no model is installed or the
+   server does not come up (UI_UX §4); show the engine's `llm` events and the AI-decision count on
+   the row and in the report. `llama-server` must also be staged beside the app (`externalBin`,
+   Phase 15).
+2. **Phase 11 wiring**: Settings › Provider (built-in / Ollama / custom endpoint, API-key file, the
+   non-loopback consent dialog → job spec `ai.endpoint`/`api_key_file`/`non_loopback_consent`) and
+   Settings › Network log fed from `oc-net`'s audit log (SECURITY §8). Today it says this build does
+   not record connections yet and opens one only for a model or pack download (its B1 wording); B2
+   must list those downloads too, not only the provider's calls.
+3. **Merge chores**: merge `origin/main` again (Phases 10, 11, 13 as they land); recount the report
+   snapshot's threshold entries (188 on this branch); reconcile `PROGRESS.md` /
+   `docs/DECISIONS_LOG.md` / `docs/CHANGELOG.md` keeping both sides; re-run `xtask ci-lint` (warning
+   registry) and the UI's 12.9 locale gate if new warning codes arrive; regenerate `Cargo.lock` with
+   cargo; re-run every gate on the merge commit (merge procedure).
+4. **`docs/CHANGELOG.md` Phase 12 entry** (parts A, B1, B2).
+5. **The Definition of Done**: CI green on Linux/macOS/Windows (the `desktop`, `ui`, `webkit-ui`
+   jobs have never run — unverified here); the signing dry run (A12.7, row 12.14 signing) run by a
+   maintainer and its outcome logged; ratify the provisional decisions under Blocked (part A's
+   three, B1's `win32job` and the validation pack). Do not tick Phase 12 before then.
+6. **Open, needs a maintainer decision (not B2's to invent):** the validation pack's payload, host,
+   Java runtime licence, and the job-spec field a conversion would use it through (Blocked).
 
 ## Phase 8 — built on `worktree-phase8`, merged 2026-09-23
 
