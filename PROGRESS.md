@@ -171,7 +171,16 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P15.16** row 15.19's scripted half: `packaging/smoke/fresh-install.{sh,ps1}` (hash check,
       install, `--smoke-convert`, EPUB check), referenced by RELEASE_CHECKLIST.md —
       `fresh_install_script_checks_the_hash_and_the_epub` (Linux, stand-in AppImage); the `.ps1` and
-      the macOS branch are **unverified here**
+      the macOS branch are **unverified here**. Re-verified on a rebuilt AppImage (with P15.13/P15.14 in
+      it): `fresh-install.sh` against the real AppImage passes (hash, smoke conversion, EPUB) — on
+      this machine, not a fresh VM; 15.7 and the layout test (now with `NOTICE` and
+      `licenses/third-party-rust.txt`) pass; 15.15 still fails at 112 859 640 bytes
+
+**Part B (independent items) gates (2026-09-23):** fmt clean; workspace clippy clean; nextest per
+package **779 tests, all green** (xtask 44, openconvert 202, the rest as below); desktop clippy (all
+features / no default features) clean and 63 tests green with `engine-integration`; UI Vitest 56,
+lint, check clean; `ci-lint`, `thresholds-lint`, `bump-rules-check`, `notices --check`, `cargo deny`
+(shipped and tooling) clean.
 
 **Part A gates (2026-09-23, branch head before the hand-off commit):** `cargo fmt --check` clean;
 workspace clippy (`--exclude openconvert-desktop --all-targets --all-features -D warnings`) clean;
@@ -204,21 +213,15 @@ clean. The `release-artifacts` gates that could run here: 15.7 + layout green, 1
    connections the app can make; (b) if Phase 14 adds Landlock/sandboxing or new caps to the engine,
    run the AppImage smoke (`--smoke-convert`, row 15.7) again — rebuild the AppImage (see "What a fresh
    session needs"); (c) the Flatpak's finish-args against whatever Phase 14 decides about sandboxing.
-5. ~~**Settings row for the updater**~~ — done in P15.13: "Check for updates" → `update_check`, then
-   "Install and restart" → `update_install`; the `Checked` codes (`up_to_date`, `ready`, `no_key`,
-   `bad_signature`, `too_large`, `no_platform`, `bad_manifest`, `network`) localised in EN/DE/TR; a
-   Vitest test; hidden when the build has no `updater` feature (the Flatpak). INSTALL.md and
-   RELEASE_CHECKLIST.md already describe it.
-6. ~~**Rust third-party notices**~~ — done in P15.14 (the AppImage layout test now also expects
-   `licenses/third-party-rust.txt` and `NOTICE`; re-run it with the next AppImage build): `apps/desktop/ui/THIRD-PARTY-NOTICES.txt` says the Rust side's
-   notices "are generated at packaging time (Phase 15)" — not done in part A. Generate them from the
-   shipped crates' licence files (e.g. an `xtask notices` over `cargo metadata`, or cargo-about if its
-   licence passes `deny.tools.toml`) into `bin/licenses/` so they ride in every bundle; also the root
-   `NOTICE` LICENSE_AND_DEPENDENCIES §5 names (PdfPig credit) does not exist yet.
-7. **Release notes' security claims** — the `## [1.0.0]` draft exists (P15.15); replace its
-   `TODO_PHASE14_SECURITY_CLAIMS` paragraph: write the `## [1.0.0]` section of `docs/CHANGELOG.md` (the release
-   job refuses an empty one) with the security properties Phase 14 actually delivered, each claim
-   pointing at the test/CI job that proves it; plus the Windows-unsigned disclosure.
+5. ~~**Settings row for the updater**~~ — done (P15.13). After the merge: make Phase 14's audit log
+   record the update check (4a), and the Network log's "not recorded" line can go.
+6. ~~**Rust third-party notices and the root `NOTICE`**~~ — done (P15.14). After the merge, if Phase 14
+   added crates: `cargo run -p xtask -- notices` and commit `licenses/third-party-rust.txt` (the test
+   `the_rust_notices_are_up_to_date` fails until then).
+7. **Release notes' security claims** — the `## [1.0.0]` draft exists (P15.15). Replace its
+   `TODO_PHASE14_SECURITY_CLAIMS` paragraph with the properties Phase 14 delivered, one line each,
+   each naming the test or CI job that proves it; `xtask release changelog` refuses the notes until
+   then.
 8. **The checklist**: tick `docs/RELEASE_CHECKLIST.md` items that can be ticked on this machine and
    mark the rest unverified; update "Known release blockers".
 9. **Appendix D (v1.0 DoD) evaluation**, item by item, in PROGRESS — including VD-f (validation-pack

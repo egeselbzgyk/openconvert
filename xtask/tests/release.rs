@@ -1760,7 +1760,11 @@ fn fresh_install_script_checks_the_hash_and_the_epub() {
     use std::os::unix::fs::PermissionsExt;
 
     let epub = tiny_epub("<p>book</p>");
-    assert_eq!(&epub[38..58], b"application/epub+zip", "mimetype stored first");
+    assert_eq!(
+        &epub[38..58],
+        b"application/epub+zip",
+        "mimetype stored first"
+    );
     let scratch = std::env::temp_dir().join(format!("oc-fresh-install-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&scratch);
     std::fs::create_dir_all(&scratch).expect("dir");
@@ -1790,12 +1794,19 @@ fn fresh_install_script_checks_the_hash_and_the_epub() {
             .expect("sh runs")
     };
     let ok = run(&sha, "good.epub.bin");
-    assert!(ok.status.success(), "{}", String::from_utf8_lossy(&ok.stderr));
+    assert!(
+        ok.status.success(),
+        "{}",
+        String::from_utf8_lossy(&ok.stderr)
+    );
 
     let wrong = run(&"0".repeat(64), "good.epub.bin");
     assert!(!wrong.status.success());
     assert!(String::from_utf8_lossy(&wrong.stderr).contains("SHA-256 mismatch"));
-    assert!(!scratch.join("book.epub").exists(), "nothing ran after a bad hash");
+    assert!(
+        !scratch.join("book.epub").exists(),
+        "nothing ran after a bad hash"
+    );
 
     let not_epub = run(&sha, "bad.epub.bin");
     assert!(!not_epub.status.success());
@@ -1810,6 +1821,9 @@ fn fresh_install_script_checks_the_hash_and_the_epub() {
         .env("DISPLAY", ":0")
         .output()
         .expect("sh runs");
-    assert!(!existing.status.success(), "an existing EPUB would make the check void");
+    assert!(
+        !existing.status.success(),
+        "an existing EPUB would make the check void"
+    );
     let _ = std::fs::remove_dir_all(scratch);
 }
