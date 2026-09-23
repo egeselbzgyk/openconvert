@@ -64,6 +64,14 @@ impl Os {
     }
 }
 
+/// The operating systems this release ships installers for, and which the release gates cover.
+///
+/// v1.0.0 is Windows and Linux (maintainer decision 2026-09-23; D12 amendment): there is no Apple
+/// Developer ID, so there is no signed and notarized macOS build to ship. macOS comes in a later
+/// 1.x — it joins this list, and its legs return to `release.yml`, together. [`Os::Macos`] stays
+/// known to every tool here so that nothing else has to change when it does.
+pub const SHIPPED: [Os; 2] = [Os::Linux, Os::Windows];
+
 /// What a file in the bundle directory is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

@@ -10,7 +10,7 @@ name: signing-dryrun
 #
 # Manual only. It needs the repository secrets below, which only a maintainer can provide:
 #   APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
-#   APPLE_ID, APPLE_PASSWORD (app-specific), APPLE_TEAM_ID,
+#   APPLE_ID, APPLE_PASSWORD (app-specific), APPLE_TEAM_ID — only once the macOS leg returns,
 #   WINDOWS_CERTIFICATE (base64 .pfx), WINDOWS_CERTIFICATE_PASSWORD,
 #   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD, TAURI_UPDATER_PUBKEY.
 # A missing secret fails the job that needs it by name, before anything is built.
@@ -49,8 +49,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # No macOS leg while releases are Windows + Linux only (maintainer decision 2026-09-23; D12
+        # amendment): there is no Apple Developer ID to sign with. The macOS steps below stay, gated
+        # on `runner.os`, for the later 1.x that brings macOS back with
+        # `- { os: macos-latest, bundles: "app,dmg" }`.
         include:
-          - { os: macos-latest, bundles: "app,dmg" }
           - { os: windows-latest, bundles: "nsis,msi" }
           - { os: ubuntu-22.04, bundles: "appimage" }
     runs-on: ${{ matrix.os }}
