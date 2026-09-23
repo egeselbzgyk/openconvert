@@ -25,11 +25,12 @@ use oc_structure::meta::{InfoDict, MetaSources};
 use oc_structure::stage::StructureInput;
 
 use crate::document::{DocumentInput, Structured};
+use crate::ocr::{ocr_stage, OcrOptions, OcrReport, OcrStage};
 use crate::pipeline::{
     body_runs, document_stage, epub_check, furniture_stage, layout_stage, structure_stage,
     text_stage, validate_repair_stage, DocumentError, EpubStageError, ValidateRepairError,
 };
-use crate::structure_input::{block_views, document_images};
+use crate::structure_input::{block_views, document_images, image_slots};
 
 /// What the caller chose.
 pub struct ConvertOptions {
@@ -47,6 +48,8 @@ pub struct ConvertOptions {
     /// Where a full run saves what `structure` settled and a run with corrections resumes from
     /// it (A12.4b). `None` saves nothing and always runs every stage.
     pub cache_dir: Option<std::path::PathBuf>,
+    /// Whether and how scanned content is read (PHASE 13). [`OcrOptions::off`] reads nothing.
+    pub ocr: OcrOptions,
 }
 
 /// Per-stage wall-clock, in milliseconds, in stage order.
@@ -118,6 +121,13 @@ pub struct Conversion {
     pub producer_family: oc_pdf::producer::ProducerFamily,
     /// How many pages of each class the document has (D13.10), by the class's report name.
     pub page_classes: BTreeMap<String, u32>,
+    /// Every choice the deterministic evidence could not settle, with the evidence — written to
+    /// the report whether or not a model was asked (PHASE 10 detail 1).
+    pub escalations: Vec<oc_structure::escalate::EscalationRecord>,
+    /// What the AI step did, when it ran. `None` with AI off — the v1 default.
+    pub ai: Option<crate::ai::AiOutcome>,
+    /// What OCR read and what it left as pictures, when any page needed it (PHASE 13).
+    pub ocr: Option<OcrReport>,
 }
 
 /// Why a conversion failed.
@@ -170,9 +180,164 @@ pub fn convert(
     options: &ConvertOptions,
     t: &Thresholds,
 ) -> Result<Conversion, ConvertError> {
+    convert_with_ai(pdf, source_sha256, options, None, t)
+}
+
+/// Convert one open document, asking a model where the escalations say to when `ai` is given
+/// (PHASE 10). `None` is the v1 default, `ai.enabled = false`, and is exactly [`convert`].
+pub fn convert_with_ai(
+    pdf: &dyn PdfDoc,
+    source_sha256: &str,
+    options: &ConvertOptions,
+    ai: Option<&crate::ai::AiContext<'_>>,
+    t: &Thresholds,
+) -> Result<Conversion, ConvertError> {
     let silent = oc_core::progress::Silent;
     let never = Cancel::new();
     convert_observed(
+        pdf,
+        source_sha256,
+        options,
+        ai,
+        t,
+        Observe {
+            progress: &silent,
+            cancel: &never,
+        },
+    )
+}
+
+/// [`convert_with_ai`], reporting every stage's edges and every page to `observe.progress`, and
+/// stopping with [`ConvertError::Cancelled`] once `observe.cancel` is set.
+///
+/// The stage names are the twelve of IR_SKETCH, emitted only for stages this driver runs: a
+/// supervisor that shows "Reconstructing" is shown it because `layout` began, not because a timer
+/// said it probably had (UI_UX §2.2).
+///
+/// **The partial re-run** (ratified R-15, A12.4b). With a cache directory, a full run saves what
+/// `structure` settled ([`Upstream`]) under the book's digest; a run that brings the user's
+/// corrections and finds that save — same book, same engine, same IR, same forced language, same
+/// OCR settings — starts at `document` from it and runs only `document`, `epub`, `validate`,
+/// `repair` and `report`, because a metadata or TOC edit cannot change a glyph. Anything else about
+/// the save that does not fit is a full run, never an error: the cache is an optimisation, and the
+/// book is the same book either way.
+///
+/// A run that asks a model, and a run in which OCR read or refused anything, is neither saved nor
+/// resumed: what the model answered and what OCR did are not in the save, and a rebuild that
+/// quietly dropped them from the report would be a different book's report.
+pub fn convert_observed(
+    pdf: &dyn PdfDoc,
+    source_sha256: &str,
+    options: &ConvertOptions,
+    ai: Option<&crate::ai::AiContext<'_>>,
+    t: &Thresholds,
+    observe: Observe<'_>,
+) -> Result<Conversion, ConvertError> {
+    let cache = options
+        .cache_dir
+        .as_deref()
+        .map(crate::cache::StructureCache::new);
+    let key = crate::cache::CacheKey::for_run(source_sha256, options);
+    if let (Some(cache), Some(_), None) = (&cache, &options.overrides, ai) {
+        if let Some(upstream) = cache.read(&key) {
+            let totals = ReasonTotals::replay(&upstream.ledger.c_0, &upstream.ledger.entries);
+            return downstream(
+                pdf,
+                source_sha256,
+                options,
+                &upstream,
+                Beside::default(),
+                totals,
+                Timings::default(),
+                t,
+                observe,
+            );
+        }
+    }
+
+    let prepared = prepare_observed(pdf, source_sha256, options, t, observe)?;
+    let settled = settle(pdf, prepared, ai, t, observe)?;
+    if let Some(cache) = &cache {
+        if settled.beside.is_empty() {
+            // Best effort: a save that fails costs the next rebuild its shortcut and nothing else.
+            let _ = cache.write(&key, &settled.upstream);
+        }
+    }
+    downstream(
+        pdf,
+        source_sha256,
+        options,
+        &settled.upstream,
+        settled.beside,
+        settled.totals,
+        settled.timings,
+        t,
+        observe,
+    )
+}
+
+/// Everything from `structure` on, from what [`prepare`] produced — the seam a test uses to
+/// change a book's evidence (its outline, its declared title) before `structure` reads it.
+pub fn convert_prepared(
+    pdf: &dyn PdfDoc,
+    source_sha256: &str,
+    options: &ConvertOptions,
+    prepared: Prepared,
+    ai: Option<&crate::ai::AiContext<'_>>,
+    t: &Thresholds,
+) -> Result<Conversion, ConvertError> {
+    let silent = oc_core::progress::Silent;
+    let never = Cancel::new();
+    let observe = Observe {
+        progress: &silent,
+        cancel: &never,
+    };
+    let settled = settle(pdf, prepared, ai, t, observe)?;
+    downstream(
+        pdf,
+        source_sha256,
+        options,
+        &settled.upstream,
+        settled.beside,
+        settled.totals,
+        settled.timings,
+        t,
+        observe,
+    )
+}
+
+/// Everything a conversion knows when `structure` is about to run: the four stages before it,
+/// checked, and the stage's input. The AI step and the tests that drive `structure` directly
+/// start here.
+pub struct Prepared {
+    pub timings: Timings,
+    pub totals: ReasonTotals,
+    /// OCR inside `ingest` (PHASE 13): its ledger delta, its check, its warnings and its report.
+    pub ocr: OcrStage,
+    pub text: crate::pipeline::TextStage,
+    pub furniture: crate::pipeline::FurnitureStage,
+    pub layout: crate::pipeline::LayoutStage,
+    pub images: Vec<oc_model::extract::ImageRef>,
+    /// Per document-wide image, its page-local number — what `image_bytes` decodes it by.
+    pub slots: Vec<oc_model::extract::ImageId>,
+    pub language: LangTag,
+    pub doc_info: oc_pdf::inspect::DocMetadata,
+    pub structure_input: StructureInput,
+    /// When `structure` began as a user sees it: the ornament rule's image hashes are its evidence,
+    /// so they are reported as its work, and its `stage` edge went out before them.
+    pub structure_began: std::time::Instant,
+}
+
+/// `ingest`, `text`, `furniture` and `layout`, each checked, and `structure`'s input.
+pub fn prepare(
+    pdf: &dyn PdfDoc,
+    source_sha256: &str,
+    options: &ConvertOptions,
+    t: &Thresholds,
+) -> Result<Prepared, ConvertError> {
+    let silent = oc_core::progress::Silent;
+    let never = Cancel::new();
+    prepare_observed(
         pdf,
         source_sha256,
         options,
@@ -184,128 +349,49 @@ pub fn convert(
     )
 }
 
-/// [`convert`], reporting every stage's edges and every page to `observe.progress`, and
-/// stopping with [`ConvertError::Cancelled`] once `observe.cancel` is set.
-///
-/// The stage names are the twelve of IR_SKETCH, emitted only for stages this driver runs: a
-/// supervisor that shows "Reconstructing" is shown it because `layout` began, not because a timer
-/// said it probably had (UI_UX §2.2).
-///
-/// **The partial re-run** (ratified R-15, A12.4b). With a cache directory, a full run saves what
-/// `structure` settled ([`Upstream`]) under the book's digest; a run that brings the user's
-/// corrections and finds that save — same book, same engine, same IR, same forced language —
-/// starts at `document` from it and runs only `document`, `epub`, `validate`, `repair` and
-/// `report`, because a metadata or TOC edit cannot change a glyph. Anything else about the save
-/// that does not fit is a full run, never an error: the cache is an optimisation, and the book is
-/// the same book either way.
-pub fn convert_observed(
+/// [`prepare`], observed.
+fn prepare_observed(
     pdf: &dyn PdfDoc,
     source_sha256: &str,
     options: &ConvertOptions,
     t: &Thresholds,
     observe: Observe<'_>,
-) -> Result<Conversion, ConvertError> {
-    let cache = options
-        .cache_dir
-        .as_deref()
-        .map(crate::cache::StructureCache::new);
-    let key = crate::cache::CacheKey::for_run(source_sha256, options);
-    if let (Some(cache), Some(_)) = (&cache, &options.overrides) {
-        if let Some(upstream) = cache.read(&key) {
-            let totals = ReasonTotals::replay(&upstream.ledger.c_0, &upstream.ledger.entries);
-            return downstream(
-                pdf,
-                source_sha256,
-                options,
-                &upstream,
-                totals,
-                Timings::default(),
-                t,
-                observe,
-            );
-        }
-    }
-
+) -> Result<Prepared, ConvertError> {
     let mut timings = Timings::default();
-    let mut totals = ReasonTotals::default();
-    let upstream = upstream(
-        pdf,
-        source_sha256,
-        options,
-        t,
-        observe,
-        &mut timings,
-        &mut totals,
-    )?;
-    if let Some(cache) = &cache {
-        // Best effort: a save that fails costs the next rebuild its shortcut and nothing else.
-        let _ = cache.write(&key, &upstream);
-    }
-    downstream(
-        pdf,
-        source_sha256,
-        options,
-        &upstream,
-        totals,
-        timings,
-        t,
-        observe,
-    )
-}
+    // OCR is part of `ingest` (ratified note N-2), timed with it, and checked as `ingest` before
+    // `text` runs.
+    let (input, ocr) = timings.observed(observe, "ingest", || -> Result<_, ConvertError> {
+        let mut input = read_pages(pdf, observe)?;
+        observe.check()?;
+        let ocr = ocr_stage(pdf, &mut input, &options.ocr, options.language.as_ref(), t)?;
+        Ok((input, ocr))
+    })?;
+    let mut totals = ReasonTotals::default().with_ocr_added(
+        ocr.delta
+            .reason_added(oc_model::ledger::Reason::Ocr)
+            .total(),
+    );
 
-/// Everything the stages after `structure` read of the stages up to it: what the partial re-run
-/// resumes from (A12.4b), and what a full run hands on without a detour through the cache.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Upstream {
-    pub structured: Structured,
-    /// The printed page label per page, as `furniture` recovered it.
-    pub labels: Vec<Option<String>>,
-    pub classes: Vec<PageClass>,
-    pub landscape: Vec<bool>,
-    pub column_counts: Vec<usize>,
-    pub block_pages: BTreeMap<BlockId, u32>,
-    /// Every image in the document, in page order: `epub` decodes them from the PDF by these.
-    pub images: Vec<ImageRef>,
-    pub extracted_images: u32,
-    pub language: LangTag,
-    pub producer_family: oc_pdf::producer::ProducerFamily,
-    /// The ledger through `structure`: every entry and every check the stages up to it made.
-    pub ledger: Ledger,
-}
-
-/// `ingest` through `structure`, and what `document` needs besides.
-#[allow(clippy::too_many_arguments)] // the pipeline's two accumulators travel with its inputs
-fn upstream(
-    pdf: &dyn PdfDoc,
-    source_sha256: &str,
-    options: &ConvertOptions,
-    t: &Thresholds,
-    observe: Observe<'_>,
-    timings: &mut Timings,
-    totals: &mut ReasonTotals,
-) -> Result<Upstream, ConvertError> {
-    let input = timings.observed(observe, "ingest", || read_pages(pdf, observe))?;
-
-    let text = timings.observed(observe, "text", || text_stage(&input, totals, t))?;
+    let text = timings.observed(observe, "text", || text_stage(&input, &mut totals, t))?;
     // Language detection is Phase 2's and is not wired into the stage driver yet, so the
     // configured tag is the one that is used; `LangTag::UND` is what a book gets when nobody
     // said. Guessing English would tell a screen reader to pronounce a German book in English.
     let language = options.language.clone().unwrap_or(LangTag::UND);
 
     let furniture = timings.observed(observe, "furniture", || {
-        furniture_stage(&text, language.clone(), totals, t)
+        furniture_stage(&text, language.clone(), &mut totals, t)
     })?;
     let layout = timings.observed(observe, "layout", || {
-        layout_stage(&text, &furniture, totals, t)
+        layout_stage(&text, &furniture, &mut totals, t)
     })?;
 
     let images = document_images(&text);
-    let extracted_images = u32::try_from(images.len()).unwrap_or(u32::MAX);
+    let slots = image_slots(&text);
     // The ornament rule's hashes are `structure`'s evidence, so they are reported as its work.
     observe.check()?;
     observe.progress.stage("structure", StagePhase::Begin);
-    let structure_started = std::time::Instant::now();
-    let hashes = hash_images(pdf, &images, t, observe)?;
+    let structure_began = std::time::Instant::now();
+    let hashes = hash_images(pdf, &images, &slots, t, observe)?;
     let vectors = (0..pdf.page_count())
         .filter_map(|page| pdf.page_vectors(page).ok())
         .flatten()
@@ -335,13 +421,133 @@ fn upstream(
         },
         lang: language.clone(),
     };
-    let structure = timings.stage("structure", || {
-        structure_stage(&layout, &structure_input, totals, t)
+    Ok(Prepared {
+        timings,
+        totals,
+        ocr,
+        text,
+        furniture,
+        layout,
+        images,
+        slots,
+        language,
+        doc_info,
+        structure_input,
+        structure_began,
+    })
+}
+
+/// Everything the stages after `structure` read of the stages up to it: what the partial re-run
+/// resumes from (A12.4b), and what a full run hands on without a detour through the cache.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Upstream {
+    pub structured: Structured,
+    /// The printed page label per page, as `furniture` recovered it.
+    pub labels: Vec<Option<String>>,
+    pub classes: Vec<PageClass>,
+    pub landscape: Vec<bool>,
+    pub column_counts: Vec<usize>,
+    pub block_pages: BTreeMap<BlockId, u32>,
+    /// Every image in the document, in page order: `epub` decodes them from the PDF by these.
+    pub images: Vec<ImageRef>,
+    /// Per document-wide image, its page-local number — what `image_bytes` decodes it by.
+    pub slots: Vec<oc_model::extract::ImageId>,
+    pub extracted_images: u32,
+    pub language: LangTag,
+    pub producer_family: oc_pdf::producer::ProducerFamily,
+    /// Every choice the deterministic evidence could not settle (PHASE 10 detail 1).
+    pub escalations: Vec<oc_structure::escalate::EscalationRecord>,
+    /// The ledger through `structure`: every entry and every check the stages up to it made.
+    pub ledger: Ledger,
+}
+
+/// What a run carries past `structure` that a save does not: what OCR did and what a model
+/// answered. A run with any of it is not saved, so a resumed run has none of it.
+#[derive(Default)]
+struct Beside {
+    ocr_warnings: Vec<Warning>,
+    ocr: Option<OcrReport>,
+    ai: Option<crate::ai::AiOutcome>,
+}
+
+impl Beside {
+    fn is_empty(&self) -> bool {
+        self.ocr_warnings.is_empty() && self.ocr.is_none() && self.ai.is_none()
+    }
+}
+
+/// What [`settle`] hands on.
+struct Settled {
+    upstream: Upstream,
+    beside: Beside,
+    totals: ReasonTotals,
+    timings: Timings,
+}
+
+/// `structure`, the AI step when asked for, and what `document` needs besides.
+fn settle(
+    pdf: &dyn PdfDoc,
+    prepared: Prepared,
+    ai: Option<&crate::ai::AiContext<'_>>,
+    t: &Thresholds,
+    observe: Observe<'_>,
+) -> Result<Settled, ConvertError> {
+    let Prepared {
+        mut timings,
+        mut totals,
+        ocr,
+        text,
+        furniture,
+        layout,
+        images,
+        slots,
+        language,
+        doc_info,
+        structure_input,
+        structure_began,
+    } = prepared;
+    let extracted_images = u32::try_from(images.len()).unwrap_or(u32::MAX);
+
+    observe.check()?;
+    let mut structure = timings.stage("structure", || {
+        structure_stage(&layout, &structure_input, &mut totals, t)
     })?;
+    // Every escalation is recorded whether or not a model is ever asked: the first books
+    // converted are the calibration corpus (PHASE 10 detail 1, RT A7.2).
+    let escalations =
+        oc_structure::escalate::Escalations::gather(&structure_input, &structure.output, t);
+
+    // The AI step, when asked for: the admitted edits are applied by running `structure` again
+    // with them, and that run is checked under the conservation law like the first. It is part of
+    // `structure` as a user sees it (PIPELINE §0.4 hosts the tasks there).
+    let ai = match ai {
+        Some(context) => {
+            observe.check()?;
+            let deterministic = structure.output;
+            let (_, outcome) = timings.stage("ai", || {
+                Ok::<_, ConvertError>(crate::ai::run(
+                    context,
+                    &structure_input,
+                    deterministic,
+                    &escalations,
+                    t,
+                ))
+            })?;
+            structure = crate::pipeline::structure_stage_with(
+                &layout,
+                &structure_input,
+                &outcome.edits,
+                &mut totals,
+                t,
+            )?;
+            Some(outcome)
+        }
+        None => None,
+    };
     observe.progress.stage(
         "structure",
         StagePhase::End {
-            elapsed_ms: u64::try_from(structure_started.elapsed().as_millis()).unwrap_or(u64::MAX),
+            elapsed_ms: u64::try_from(structure_began.elapsed().as_millis()).unwrap_or(u64::MAX),
         },
     );
 
@@ -379,23 +585,35 @@ fn upstream(
         c_0: text.c_0.clone(),
         ..Ledger::default()
     };
+    ledger.push_stage(&ocr.delta, ocr.check.clone());
     ledger.push_stage(&text.delta, text.check.clone());
     ledger.push_stage(&furniture.delta, furniture.check.clone());
     ledger.push_stage(&layout.delta, layout.check.clone());
     ledger.push_stage(&structure.delta, structure.check.clone());
 
-    Ok(Upstream {
-        structured: Structured::of(&structure.output),
-        labels: furniture.labels.clone(),
-        classes,
-        landscape,
-        column_counts,
-        block_pages,
-        images,
-        extracted_images,
-        language,
-        producer_family,
-        ledger,
+    Ok(Settled {
+        upstream: Upstream {
+            structured: Structured::of(&structure.output),
+            labels: furniture.labels.clone(),
+            classes,
+            landscape,
+            column_counts,
+            block_pages,
+            images,
+            slots,
+            extracted_images,
+            language,
+            producer_family,
+            escalations: escalations.records(),
+            ledger,
+        },
+        beside: Beside {
+            ocr_warnings: ocr.warnings,
+            ocr: ocr.report,
+            ai,
+        },
+        totals,
+        timings,
     })
 }
 
@@ -406,6 +624,7 @@ fn downstream(
     source_sha256: &str,
     options: &ConvertOptions,
     upstream: &Upstream,
+    beside: Beside,
     mut totals: ReasonTotals,
     mut timings: Timings,
     t: &Thresholds,
@@ -436,7 +655,7 @@ fn downstream(
     // The images are decoded for `epub`, and reported as its work: the first thing a user sees of
     // "Building" on an illustrated book is this loop.
     observe.check()?;
-    let sources = decode_images(pdf, &upstream.images, observe)?;
+    let sources = decode_images(pdf, &upstream.images, &upstream.slots, observe)?;
 
     // `epub`, `validate` and `repair` are one call, because the loop owns the emission: each of its
     // iterations is one regeneration plus one validation pass, and a caller that emitted once for
@@ -475,6 +694,22 @@ fn downstream(
     for check in loop_result.checks {
         settled.ledger.push_stage(&LedgerDelta::default(), check);
     }
+    // `ingest`'s OCR warnings come first: it is the first stage, and a reader of the report meets
+    // "these pages stayed pictures" before anything that follows from it.
+    let Beside {
+        ocr_warnings,
+        ocr,
+        ai,
+    } = beside;
+    let mut warnings = ocr_warnings;
+    warnings.append(&mut settled.warnings);
+    settled.warnings = warnings;
+    // What the AI step decided and warned about: every escalated choice it settled, refused or
+    // never asked, and the reasons — recorded on the document, which is what the report reads.
+    if let Some(outcome) = &ai {
+        settled.decisions.extend(outcome.decisions.iter().cloned());
+        settled.warnings.extend(outcome.warnings.iter().cloned());
+    }
     settled
         .warnings
         .extend(loop_result.structural.warnings.iter().cloned());
@@ -500,6 +735,9 @@ fn downstream(
         timings,
         producer_family: upstream.producer_family,
         page_classes: class_histogram(&upstream.classes),
+        escalations: upstream.escalations.clone(),
+        ai,
+        ocr,
     })
 }
 
@@ -511,8 +749,20 @@ pub fn convert_bytes(
     options: &ConvertOptions,
     t: &Thresholds,
 ) -> Result<Conversion, ConvertError> {
+    convert_bytes_with_ai(backend, bytes, password, options, None, t)
+}
+
+/// Open a document and convert it, with the AI step when `ai` is given (PHASE 10).
+pub fn convert_bytes_with_ai(
+    backend: &dyn PdfOpen,
+    bytes: &[u8],
+    password: Option<&str>,
+    options: &ConvertOptions,
+    ai: Option<&crate::ai::AiContext<'_>>,
+    t: &Thresholds,
+) -> Result<Conversion, ConvertError> {
     let pdf = backend.open(bytes, password)?;
-    convert(pdf.as_ref(), &sha256_hex(bytes), options, t)
+    convert_with_ai(pdf.as_ref(), &sha256_hex(bytes), options, ai, t)
 }
 
 /// How many pages fall into each class, by the name the report prints (D13.10).
@@ -559,6 +809,7 @@ fn read_pages(
 fn hash_images(
     pdf: &dyn PdfDoc,
     images: &[oc_model::extract::ImageRef],
+    slots: &[oc_model::extract::ImageId],
     t: &Thresholds,
     observe: Observe<'_>,
 ) -> Result<Vec<Option<u64>>, ConvertError> {
@@ -567,22 +818,24 @@ fn hash_images(
         observe.check()?;
         hashes.push(
             oc_structure::images::needs_hash(image, t)
-                .then(|| oc_pdf::images::perceptual_hash(&decode_one(pdf, images, image))),
+                .then(|| oc_pdf::images::perceptual_hash(&decode_one(pdf, slots, image))),
         );
     }
     Ok(hashes)
 }
 
-/// Every image, decoded to RGBA for the encoder, with a cancel check between images.
+/// Every image, decoded to RGBA for the encoder, with a cancel check between images. `slots` is
+/// [`image_slots`].
 fn decode_images(
     pdf: &dyn PdfDoc,
     images: &[oc_model::extract::ImageRef],
+    slots: &[oc_model::extract::ImageId],
     observe: Observe<'_>,
 ) -> Result<Vec<SourceImage>, ConvertError> {
     let mut sources = Vec::with_capacity(images.len());
     for image in images {
         observe.check()?;
-        let decoded = decode_one(pdf, images, image);
+        let decoded = decode_one(pdf, slots, image);
         sources.push(SourceImage {
             id: image.id,
             width: decoded.width,
@@ -597,6 +850,7 @@ fn decode_images(
 pub fn image_hashes(
     pdf: &dyn PdfDoc,
     images: &[oc_model::extract::ImageRef],
+    slots: &[oc_model::extract::ImageId],
     t: &Thresholds,
 ) -> Vec<Option<u64>> {
     // Only the images the ornament rule will compare. A full-page scan cannot be an ornament,
@@ -606,7 +860,7 @@ pub fn image_hashes(
         .iter()
         .map(|image| {
             oc_structure::images::needs_hash(image, t)
-                .then(|| oc_pdf::images::perceptual_hash(&decode_one(pdf, images, image)))
+                .then(|| oc_pdf::images::perceptual_hash(&decode_one(pdf, slots, image)))
         })
         .collect()
 }
@@ -614,29 +868,26 @@ pub fn image_hashes(
 /// Decode one image, translating the document-wide id back to the page-local one.
 ///
 /// `ImageId` means two things and this is the boundary: the backend numbers images per *page*,
-/// because `image_bytes` indexes that page's draw order, while a `Figure` names one picture in
-/// the whole book. The page-local index is recoverable as the image's position among those
-/// sharing its page, which document order preserves.
+/// because `image_bytes` indexes that page's images in draw order, while a `Figure` names one
+/// picture in the whole book. `slots` holds the page-local number for every document-wide id, as
+/// `ingest` assigned it — never recovered from positions, which move when OCR replaces an image.
 fn decode_one(
     pdf: &dyn PdfDoc,
-    images: &[oc_model::extract::ImageRef],
+    slots: &[oc_model::extract::ImageId],
     image: &oc_model::extract::ImageRef,
 ) -> oc_pdf::images::DecodedImage {
-    let local = images
-        .iter()
-        .filter(|other| other.page.index == image.page.index)
-        .position(|other| other.id == image.id)
-        .unwrap_or_default();
-    pdf.image_bytes(
-        image.page.index,
-        oc_model::extract::ImageId(u32::try_from(local).unwrap_or_default()),
-    )
-    .unwrap_or(oc_pdf::images::DecodedImage {
-        // A one-pixel opaque black square, so that an image the backend could not decode
-        // becomes a visibly wrong picture rather than a panic or a dropped figure. The
-        // conversion report is where it is named.
-        width: 1,
-        height: 1,
-        rgba: vec![0, 0, 0, 255],
-    })
+    let local = slots
+        .get(usize::try_from(image.id.0).unwrap_or(usize::MAX))
+        .copied()
+        // An id with no slot decodes as nothing rather than as some other picture.
+        .unwrap_or(oc_model::extract::ImageId(u32::MAX));
+    pdf.image_bytes(image.page.index, local)
+        .unwrap_or(oc_pdf::images::DecodedImage {
+            // A one-pixel opaque black square, so that an image the backend could not decode
+            // becomes a visibly wrong picture rather than a panic or a dropped figure. The
+            // conversion report is where it is named.
+            width: 1,
+            height: 1,
+            rgba: vec![0, 0, 0, 255],
+        })
 }

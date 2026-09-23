@@ -1082,3 +1082,243 @@ None. `oc_ai::provider::LlmResponse` gained `cached_tokens` (read from `timings.
 - G3's reference tokenizations, G7's paired answers and G9's own conversion are inputs this
   phase could not produce. Those gates report `not_run`.
 - **The Phase 9 CI steps are unverified until CI runs.**
+
+## Phase 10 — AI-assisted decisions (the four tasks)
+
+The four once-per-book tasks — metadata, heading roles, book structure, verse or quote — are wired
+into the pipeline behind their escalation predicates, the four gates, the call budget and the
+wall-clock share. **`ai.enabled` stays `false`, and the deterministic path is unchanged byte for
+byte**: every fixture's `--no-ai` EPUB hash was pinned before the first change and has not moved.
+No model is reachable here, so every live measurement is unverified here and the language maps ship
+empty: `--ai` alone asks nothing until an evaluation enables a task. Built on
+`phase/10-ai-decisions`.
+
+### New CLI flags (`convert`)
+
+- **`--ai`** — opt in to the AI step. **`--no-ai`** is no longer a no-op: it wins over `--ai`.
+- **`--ai-all-tasks`** — run every escalated task for every language, including those the
+  evaluation has not enabled (`[ai.task.<task>.languages]`); the flag PHASE 10 detail 7 keeps an
+  unproven task behind. Records `all_tasks: true` in the report.
+- **`--llm-endpoint <URL>`** (loopback only until Phase 11 — any other host is exit 2),
+  **`--llm-api-key-file <PATH>`**, **`--model-path <PATH>`**. Without `--ai` each is exit 2.
+- New env var: **`OC_LLAMA_SERVER`** — the `llama-server` an engine-owned sidecar runs; else one
+  beside the engine binary.
+- A model that cannot be reached (no server, no model, no answer) converts deterministically, exit 0,
+  with the banner warning `W_LLM_UNAVAILABLE`.
+- NDJSON: one **`llm{call_id, purpose, cached, tokens_in, tokens_out, ms}`** event per call.
+
+### Report
+
+- New: **`escalations`** — every escalated choice with its predicate, signals and evidence hash,
+  written with AI on or off (the calibration corpus, RT A7.2).
+- New: **`ai`** (`model_id`, `all_tasks`, `calls`, `cached_calls`, `llm_ms`), absent with AI off;
+  `engine.prompt_version` is set when the step ran. Every escalated choice ends in a `Decision`
+  whose `fallback` says how: a gate code (`S.*`, `L.*`, `V.*`), `language.gate`, `budget.calls`,
+  `budget.time`, `llm.unavailable`, `pregate.inventory`, `pregate.holdout`, `pregate.headings` or
+  `counter_evidence`.
+
+### New warning codes (en, de, tr)
+
+- **`W_LLM_TIME_EXHAUSTED`** `{task, share}` — the wall-clock share's hard stop.
+- **`W_LLM_UNAVAILABLE`** `{reason}` — AI asked for, no model reached.
+
+### New `thresholds.toml` entries
+
+- Array values are now allowed (strings): **`ai.task.{metadata,heading_roles,book_structure,
+  verse_quote}.languages`**, all `[]`.
+- `metadata.llm_title_max_chars`, `metadata.llm_size_{large,medium,small}_ratio`,
+  `metadata.llm_max_input_chars`; `inventory.holdout_{min,max}_probes`,
+  `inventory.chapter_cluster_{min,max}_count`; `llm.book_structure_chunk_{headings,overlap}`,
+  `llm.verse_quote_max_words`, `llm.verse_quote_deep_indent_em`,
+  `llm.heading_roles_centered_ratio_min`, `llm.{load_timeout_secs, call_timeout_secs,
+  health_probe_timeout_millis, sidecar_context_tokens}`; `verse.llm_short_line_ratio_min`;
+  `ai_eval.{alpha, noninferiority_margin, false_repair_max, exact_below}`. 27 in all.
+
+### Crates
+
+- **`oc-core`**: `escalation::line_band`, the one definition of the verse band; the build script
+  emits string arrays.
+- **`oc-structure`**: `escalate` (the four predicates over the stage's evidence,
+  `EscalationRecord`); `stage::structure_with(StructureEdits)` — an admitted answer is applied by
+  running the stage again; `book::book_structure_with(ZoneEdits)`;
+  `headings::levels::apply_heading_edits`. The open finding of 2026-09-22 is closed: `quotes`
+  reads the band through `oc_core::escalation`.
+- **`oc-ai`**: `task::{metadata, heading_roles, book_structure, verse_quote}` (validations, edits,
+  runners), `session` (`Asker`, `Session`, `Clock`), `plan` (language gate, degradation order);
+  seven `GateFailure` variants for task validations.
+- **`openconvert`**: `ai` (the step), `ai_endpoint` (loopback endpoint or owned sidecar),
+  `data_dir` (model store and answer cache), `convert::{convert_with_ai, convert_prepared, prepare}`;
+  a `live-llm` feature for the live end-to-end test.
+- **`eval`**: `oc_eval.compare` — McNemar (χ², exact below 25), false-repair rate per task,
+  category and language, the gate, `--render|--check|--gate`; four seed gold sets;
+  `docs/AI_EVALUATION.md` (rendered).
+- **CI:** the eval job runs `oc_eval.compare --check` and `--gate`; the nightly live job runs the
+  live `convert --ai` test.
+
+### Known gaps, carried forward
+
+- **No model, no evaluation:** McNemar non-inferiority (A10.4) and the ≤ 1 % false-repair rate
+  (A10.5) are unmeasured, `eval/data/ai_eval/outcomes.jsonl` is empty, and no task is enabled for
+  any language. Cassettes are scripted answers recorded through the stub, not a model's.
+- The gold sets are 47 seed items from the Typst fixtures (`ours(typst)`); an evaluation needs 200
+  per task from the real strata (D18).
+- Provisional decisions awaiting ratification are listed in `PROGRESS.md` → Blocked.
+
+## Phase 13 — OCR
+
+The user's own Tesseract 5 reads scanned pages and uncovered image regions inside `ingest`, under
+invariant I-6 at region scope; with no engine the book still converts, its scans as pictures, with
+an install hint. Synthetic-scan CER here: mean 0.0007 against a 0.03 gate.
+
+### CLI and events
+
+- New `convert` flags: `--ocr <auto|never|always>` (default `auto`, by page class),
+  `--ocr-path <PATH>` (replaces discovery), `--ocr-lang <SPEC>` (`deu`, `deu+eng`; plain
+  traineddata names only), `--re-ocr <never|auto|always>` (default `never`, D13.10). Added to §2.1.
+- `convert` now emits `hello` (it emitted none before), and its `capabilities` carry
+  `ocr:tesseract-<version>` when discovery found a usable engine.
+- `report.json` gains an `ocr` section (mode, engine or why there is none, languages, one record per
+  region with words, mean confidence, sub-floor words and outcome, the pages left as pictures,
+  OCR-added characters), present only when a page needed OCR. `conservation.per_stage` starts with
+  `ingest`.
+
+### Warning codes (en/de/tr)
+
+- `W_OCR_ENGINE_MISSING {reason, hint, pages}` — per-OS copy-pasteable install hint.
+- `W_OCR_LANG_MISSING {lang, hint}` — the selected traineddata is not installed; `eng` was used.
+- `W_OCR_LOW_CONFIDENCE {page, confidence, floor}` — the picture is kept beside the text.
+- `W_OCR_FAILED {page, reason}` — a hung, crashed or garbled call; the region stays a picture.
+
+### IR (`oc-model`)
+
+- `LedgerEntry.region: Option<Rect>` — set by OCR (one `Ocr` entry per region, I-6); not serialised
+  when absent. `LedgerEntry`/`LedgerDelta` are `PartialEq` only (a `Rect` is `f32`).
+- `Ledger::ocr_added`, `LedgerDelta::reason_added`, `Reason::folded_into_c0` (the two dedup reasons,
+  left out of I-7's `Removed_all` because `C_0` is taken after them, ARCHITECTURE §5.2).
+- OCR runs carry `TextProvenance::Ocr`; an OCR sandwich's layer now carries `OcrLayer`.
+
+### Engine (`oc-core`, `oc-pdf`, `openconvert`)
+
+- `oc_core::ocr::{discover, invoke, tsv, lang, merge}`: discovery (fixed order, trust rules, ≥ 5,
+  cached, `v5.x.y.DATE` banners), the `OcrEngine` trait and `Tesseract`, the schema-checked TSV
+  parser, language selection, the merge into runs, region confidence, clean bands, line-size
+  snapping. `oc_core::sidecar::tesseract`: the fixed argv, `OMP_THREAD_LIMIT=1`, drained pipes, a
+  deadline kill, and supervisor registration; `supervise::wait`.
+- `oc_core::stages::INGEST` and `ledger_check::check_i6`; `ReasonTotals` carries OCR-added characters,
+  and retention (per stage and `I7Result`) excludes them from the numerator — `C_0` never had them.
+- `oc_pdf::render` and `PdfDoc::render_region` — a grayscale raster of a page region at a stated dpi,
+  pixel-limit checked, returning the rectangle it really covers.
+- `openconvert::ocr::ocr_stage` — routing by page class inside `ingest`; `PageInput` gains `class`
+  and `ocr_runs`; images are numbered page-locally at extraction (`input::number_images`,
+  `structure_input::image_slots`).
+- `BrokenText` pages are not OCR'd (PROVISIONAL, `docs/DECISIONS_LOG.md`).
+
+### thresholds.toml
+
+- `ocr.render_dpi` (300, published), `ocr.word_conf_min` (0.60), `ocr.region_conf_min` (0.50),
+  `ocr.region_deadline_secs` (30), `ocr.max_cer_synthetic` (0.03) — the plan's five — plus
+  `ocr.second_lang_block_share` (0.20, detail 5's number) and `ocr.line_size_snap_ratio` (0.25).
+  All provisional but the first, each with an owner and `review_by`.
+
+### Fixtures, eval, CI
+
+- `corpus/fixtures/typst/f11_mixed_plate.typ` (a `mixed` page); `corpus/fixtures/scanned/` — four
+  synthetic scans (committed golden PDFs), their `.assert.json` and `.gt.txt`, and manifest entries
+  (`ours(Typst)`).
+- `oc-eval scan_sim --scanned-fixtures [--check]`; `metrics.cer.cer`; the report's `ocr_cer` section
+  (per stratum, real-minus-synthetic gap); the full-corpus run converts committed PDFs too.
+- `oc-testkit::fake_tesseract` and the `oc-ocr-engine` test binary.
+- CI: new `ocr` job (installs Tesseract `eng`/`deu`/`tur`, `scan_sim --check`, `--features tesseract`);
+  the nightly `full-corpus` job installs Tesseract and prints `ocr_cer`.
+- `docs/OCR_PACK_SPIKE.md` — D4's written spike checklist and go/no-go criteria.
+
+### Verification debt
+
+- **VD-g closed** — UB-Mannheim paths and version banner (`docs/DECISIONS_LOG.md`, 2026-09-23).
+
+### Known gaps, carried forward
+
+- The real-scan stratum's CER (A13.6's second half) is unverified here: no Internet Archive scan with
+  ground truth is on this machine. Windows and macOS discovery, invocation and teardown are
+  unverified here (no machine, no CI runner).
+- Two PROVISIONAL decisions await ratification: `BrokenText` pages are not OCR'd; re-OCR's
+  `OcrLayerDuplicate` removal is not budget-charged.
+
+## Phase 11 — BYO providers
+
+`convert --ai` can now use a server the user already runs — Ollama, LM Studio, vLLM, their own
+`llama-server` — through the same `LlmProvider` trait, and a server on another machine only with
+consent that names its host. **`ai.enabled` stays `false`, and `--no-ai` output is unchanged byte for
+byte** (the Phase-10 pinned hashes still hold). No real provider is reachable from where this was
+built: every adapter is proven against local stub servers and the committed cassettes, and a run
+against a real Ollama or a real remote endpoint is unverified here. Built on
+`phase/11-byo-providers`.
+
+### New CLI flags (`convert`, each only with `--ai`)
+
+- **`--llm-provider builtin|ollama|openai-compatible`** — the adapter, when the capability probe
+  should not decide. `ollama` without `--llm-endpoint` is Ollama on `http://localhost:11434`.
+- **`--llm-model <NAME>`** — the model as the endpoint names it (the job spec's `model_id`); for
+  the engine-owned sidecar, a registry id. Never guessed: without it, the only model the endpoint
+  lists is used, and several are `W_LLM_UNAVAILABLE`.
+- **`--llm-allow-host <HOST>`** — consent to sending the book's text to that host, which must be the
+  endpoint's own. `--llm-endpoint` off this machine without it is **exit 2,
+  `fatal{E_CONSENT_REQUIRED}`** naming the host, before the key file is read or anything is sent;
+  plain `http://` off this machine is refused even with it (https only).
+- `--llm-endpoint` may be written with or without a trailing `/v1`.
+
+### New subcommand: `openconvert provider`
+
+- **`provider detect [--json]`** — Ollama on `localhost:11434` and the models it serves, or `null`.
+- **`provider check <URL> [--json]`** — `host`, `loopback`, `requires_consent`, `usable`, `reason`;
+  sends nothing.
+- **`provider probe <URL> [--llm-provider] [--llm-model] [--llm-allow-host] [--llm-api-key-file]
+  [--json]`** — what `convert --ai` would open there (adapter, constraint, thinking lever, model,
+  listed models, consent); exit 0 available, 1 not, 2 refused.
+
+### Report
+
+- New: top-level **`consent {host, granted_at, scope}`**, present only when an endpoint off this
+  machine was opened under consent.
+- New: **`ai.provider`** — `local_sidecar`, `ollama` or `openai_compatible`.
+
+### New warning codes (en, de, tr)
+
+- **`W_LLM_UNCONSTRAINED`** `{model}` — the provider constrains neither by grammar nor by schema;
+  the schema went in the prompt and gate S carried the whole burden.
+
+### New `thresholds.toml` entries
+
+- `llm.ollama_num_ctx` (8192), `llm.ollama_template_overhead_tokens` (64),
+  `llm.ollama_keep_alive_secs` (600), `llm.provider_probe_timeout_millis` (5000). All provisional.
+
+### Crates
+
+- **`oc-net`**: `consent` (`requires_consent`, `authorize`, `ConsentRecord`, `ConsentScope`) —
+  `HttpTransport::new` reaches this machine only, `HttpTransport::with_consent` the one host a
+  record names; `detect` (`detect_ollama`, the capability `probe`, `api_root`). `NetError` gains
+  `ConsentRequired` and `PlaintextRemote`.
+- **`oc-ai`**: `provider/` — `local_sidecar`, `openai_compatible` (the old `oc_ai::openai`, plus
+  `custom_endpoint` and schema-in-prompt), `ollama` (native `/api/chat`: `format`,
+  `options.num_ctx` never below the prompt, `keep_alive`, `think: false`, `truncate: false`,
+  `shift: false`); `ProviderKind`; `ProviderCaps::{grammar, json_schema, neither}`;
+  `Transport::get` (default 404) and `Transport for Box<T>`. The `Session` raises
+  `W_LLM_UNCONSTRAINED`.
+- **`openconvert`**: `ai_endpoint::{open_with, Connector, Network}` — consent, key, probe, adapter,
+  in that order; `Opened { kind, consent, models }`; `OpenError::{ConsentRequired, exit_code,
+  fatal}`; `AiArgs::consenting_to_the_endpoint` (the job spec's `non_loopback_consent`);
+  `cmd_provider`.
+- **CI:** a nightly `live-ollama` job (installs Ollama, pulls `qwen3:1.7b`, runs the live A11.1
+  test behind `live-llm`).
+
+### Known gaps, carried forward
+
+- **No real provider here:** A11.1 against a live Ollama, and any remote endpoint, are unverified;
+  the live test fails loudly without `OC_LIVE_OLLAMA_MODEL`.
+- **Ollama speaks `/api/chat`**, not `/v1/chat/completions` as PHASE 11 detail 1 says: Ollama's
+  `/v1` layer silently drops `num_ctx` and `format`, which D10 requires. PROVISIONAL.
+- A generic OpenAI-compatible server is treated as constraining nothing (a `GET` cannot show that
+  it honours `response_format`); plain http off the machine is refused. Both PROVISIONAL.
+- No network-log event: the audit log of every outbound connection is Phase 14 detail 12.
+- The desktop Provider settings page (`routes/settings/providers.svelte`) is Phase 12's to wire,
+  over `openconvert provider …` and the job spec's `ai` fields.

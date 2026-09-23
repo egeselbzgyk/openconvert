@@ -111,6 +111,7 @@ mod timed {
             },
             overrides: None,
             cache_dir: None,
+            ocr: openconvert::ocr::OcrOptions::off(),
         };
 
         let started = Instant::now();

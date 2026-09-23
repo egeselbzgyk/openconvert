@@ -15,8 +15,8 @@ mod common;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use oc_ai::openai::{ClientConfig, OpenAiCompatible};
 use oc_ai::prefix;
+use oc_ai::provider::openai_compatible::{ClientConfig, OpenAiCompatible};
 use oc_ai::provider::{Constraint, LlmProvider, ThinkingControl};
 use oc_core::sidecar::llama::ServerSpec;
 use oc_core::sidecar::server::{Health, OwnedServer};

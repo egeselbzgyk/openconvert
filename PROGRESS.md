@@ -3,9 +3,10 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 10
-CURRENT_ITEM: 10.1 — not started. Phase 9 is complete and merged (2026-09-23); its provisional
-              decisions are listed in the Blocked section. Phase 7.5 is still parked.
+CURRENT_PHASE: 12
+CURRENT_ITEM: Phase 12 — Desktop UI (being built on `phase/12-desktop-ui`). Phase 11 is complete
+              and merged (2026-09-23); what Phase 12 must wire from it is in the Phase 11 section.
+              Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -61,12 +62,81 @@ LAST_UPDATED: 2026-09-23
       the registry pins, the live tests and every gate run are unverified and listed in the Blocked
       section. A follow-up (`fix/phase-09-llama-pins`) filled the llama.lock digests and checked
       them against downloads.)*
-- [ ] **Phase 10** — AI-assisted decisions (the four tasks)
-- [ ] **Phase 11** — BYO providers
+- [x] **Phase 10** — AI-assisted decisions (the four tasks)
+      *(all 22 named tests exist and pass, 10.17/10.18 as pytest functions; 40 Rust and 6 Python
+      tests added, plus one live test behind `live-llm`; built on `phase/10-ai-decisions` and merged
+      into `main` 2026-09-23. `--no-ai` output is byte-identical to the pre-phase snapshot. No model
+      is reachable here, so A10.4/A10.5 — McNemar and the false-repair rate — are unmeasured, the
+      language maps ship empty, and every provisional decision is in the Blocked section.)*
+- [x] **Phase 11** — BYO providers
+      *(all 10 named tests exist and pass, plus 18 additions and one live test behind `live-llm`;
+      built on `phase/11-byo-providers` and merged into `main` 2026-09-23. Consent that names the
+      host, enforced in `oc-net`; Ollama through `/api/chat` with `num_ctx` always set; the
+      cassette contract through every adapter; `openconvert provider detect|check|probe`. No real
+      provider is reachable here: a live Ollama and a remote endpoint are unverified, and the
+      provisional decisions are in the Blocked section.)*
 - [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
-- [ ] **Phase 13** — OCR  *(VD-g must close)*
+- [x] **Phase 13** — OCR  *(VD-g closed. All 22 named tests green, plus 27 additions (21 Rust, 6 Python); built on
+      `phase/13-ocr` and merged into `main` 2026-09-23. Tesseract 5.3.4 was on this machine, so the
+      real-engine tests ran: synthetic-scan CER 0.0007 against 0.03. The real-scan stratum, macOS
+      and Windows are unverified here; two provisional decisions are in the Blocked section.)*
 - [ ] **Phase 14** — Security hardening
 - [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
+
+## Phase 13 — on branch `phase/13-ocr`
+
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P13.1** `[ocr.*]` thresholds and the TSV parser (`oc_core::ocr::tsv`) — rows 13.5–13.8
+- [x] **P13.2** language selection and the `W_OCR_*` warning codes — row 13.9
+- [x] **P13.3** system-Tesseract discovery, VD-g — rows 13.1–13.4, A13.7 *(VD-g closed, DECISIONS_LOG 2026-09-23)*
+- [x] **P13.4** invocation: fixed argv, deadline, process ownership, the fake engine — rows 13.10, 13.18 (invocation half), 13.19
+- [x] **P13.5** `oc-pdf` rasterization (`render_region`) — rows 13.23, 13.23a, 13.23b (additions)
+- [x] **P13.6** merge, the `ingest` declaration, region-scoped I-6, retention — rows 13.13, 13.15
+- [x] **P13.7** OCR routing in `ingest`, the `convert` flags, degradation — rows 13.11, 13.12, 13.14, 13.16, 13.17, 13.18, 13.22
+- [x] **P13.8** scanned fixtures, `.assert.json`, CER per stratum — rows 13.20, 13.21 *(synthetic CER 0.0007; real stratum unverified here)*
+- [x] **P13.9** `docs/OCR_PACK_SPIKE.md`, CI job, Definition of Done, CHANGELOG, merge
+
+What a fresh session needs:
+
+- Tesseract 5.3.4 with `eng`, `deu`, `tur`, `osd` is installed here at `/usr/bin/tesseract`. Tests that
+  need it are behind the `openconvert` feature `tesseract`; nothing else may depend on it being
+  present, so the shared test helpers convert with OCR off.
+- Process-level tests (discovery, argv, deadline, teardown) use `oc_testkit::fake_tesseract`, a POSIX
+  shell script, and live in `crates/oc-testkit/tests/` (not `oc-core/tests` as the plan's file list
+  says): `oc-core` cannot dev-depend on `oc-testkit` without putting `oc-net` into the graph
+  `oc_core_has_no_net_dependency` walks. They are `#[cfg(unix)]`; Windows is unverified here.
+- OCR routing is `openconvert::ocr::ocr_stage`, inside `convert`'s `ingest`; tests use the in-process
+  `tests/common/ocr.rs::ScriptedEngine`. `common::build*` convert with `OcrOptions::off()`. New
+  fixture `f11_mixed_plate` (Typst, `mixed`); `h05_invisible_layer` is the sandwich.
+- Real-engine tests: `cargo nextest run -p openconvert --features tesseract -E 'binary(ocr_tesseract)'`.
+  Scanned fixtures: `PYTHONPATH=eval/src eval/.venv/bin/python -m oc_eval.generate.scan_sim
+  --scanned-fixtures [--check]` (the shared `eval/.venv` has the main checkout's `oc_eval` installed,
+  so the worktree's source must be put first on the path).
+- Disk: build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` and run the suite per package with
+  `scratchpad/p13_test_all.sh` (deletes each package's test binaries after it runs) — the whole
+  workspace's test binaries at once filled the disk.
+- VD-g is closed: UB-Mannheim installs to `%ProgramFiles%\Tesseract-OCR` (all users) or
+  `%LOCALAPPDATA%\Programs\Tesseract-OCR` (one user), does not touch `PATH`, ships 5.5.3, and prints
+  `tesseract v5.5.3.20260724` — the parser reads that form.
+
+### Phase 13 — Definition of Done
+
+`IMPLEMENTATION_PLAN.md` §0.3, row by row. Checked on this machine unless the row says otherwise.
+
+| Row | State |
+|---|---|
+| Every named test exists and passes | **Yes.** All 22 rows, 13.1–13.22, under their names, plus 27 additions (`docs/TEST_MATRIX.md`). 13.22 runs a scanned book with `--ai --ai-all-tasks` (Phase 10's `convert_with_ai`). 13.20 and 13.21 and A13.1/A13.3's real-engine tests are behind `--features tesseract` and pass here against Tesseract 5.3.4. The process-level tests (13.1–13.4, 13.10, 13.18, 13.19) are `#[cfg(unix)]`. |
+| `cargo nextest run --workspace` green | **Yes** on the merge commit: 672 tests (38 new in the default suite); with `--features tesseract` the 5 real-engine tests pass too. eval: 224 pytest tests (+ 6). |
+| Green on Linux/macOS/Windows CI | **Unverified here:** GitHub Actions is disabled. Windows/macOS discovery, invocation and teardown have no machine here. |
+| clippy `-D warnings` clean | **Yes**, workspace, all targets, all features (including `tesseract`). |
+| `cargo fmt --check` clean | **Yes.** ruff, ruff format and mypy clean on `eval/`. |
+| `cargo deny check` clean | **Yes.** No new crate: `image` was already in the graph (`oc-epub`, `pdfium-render`). |
+| `cargo xtask thresholds-lint` clean | **Yes.** Seven `ocr.*` entries. |
+| Every Given/When/Then demonstrated | **A13.1, A13.2, A13.3, A13.4, A13.7 yes** (Linux). **A13.5 yes on Linux** (13.18, 13.19); an engine killed outright is Phase 14's. **A13.6 partial:** synthetic CER 0.0007 ≤ 0.03; the real stratum is unverified here (no scan with ground truth on this machine). |
+| `docs/CHANGELOG.md` entry | **Yes.** |
+| No `TODO`/`FIXME` without an issue number | **Yes**, `xtask ci-lint` clean. |
+| VD-g closed | **Yes**, `docs/DECISIONS_LOG.md` 2026-09-23. |
 
 ## Phase 9 — on branch `phase/09-local-model`
 
@@ -168,14 +238,232 @@ What a fresh session needs:
 
 ## Current work item
 
-**Phase 10 — AI-assisted decisions (the four tasks).** Not started. What it builds on from Phase 9:
-`oc_core::sidecar` (an `OwnedServer` or an external endpoint via `LlmEndpoint::choose`),
-`oc_net::transport::HttpTransport`, `oc_ai::prefix::check` for `W_LLM_PREFIX_COLD`, and
-`OwnedServer::kill_if_idle`, whose calling loop is Phase 10's. The `convert` flags `--ai`,
-`--llm-endpoint`, `--llm-api-key-file` and `--model-path` arrive with Phase 10 as well. Before any
-live measurement, the registry pins have to be filled on a machine that can reach huggingface.co.
-The pinned llama-server is already fetchable and verified here (`cargo run -p xtask --
-fetch-llama-server`).
+**Phase 12 — Desktop UI**, built concurrently on `phase/12-desktop-ui`. Phase 11 is merged; the
+list of what Phase 12 must wire from it is at the end of the Phase 11 section below.
+
+## Phase 11 — built on `phase/11-byo-providers`, merged 2026-09-23
+
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P11.1** `oc-net::consent`: `requires_consent`, `authorize`, `ConsentRecord`; `HttpTransport`
+      cannot be built to a host off this machine without consent naming it — row 11.6
+- [x] **P11.2** `oc-ai::provider`: the adapter modules, `ProviderKind`, schema-in-prompt and
+      `W_LLM_UNCONSTRAINED` when a provider constrains nothing — row 11.4
+- [x] **P11.3** `oc-ai::provider::ollama`: native `/api/chat`, `format`, `options.num_ctx`,
+      `keep_alive`, `think: false` — rows 11.2, 11.3
+- [x] **P11.4** `oc-net::detect`: `Transport::get`, `detect_ollama`, the capability probe — row 11.1
+- [x] **P11.5** the Phase-8 cassettes through every adapter — row 11.10
+- [x] **P11.6** `openconvert`: provider resolution, `--llm-provider`/`--llm-model`/`--llm-allow-host`,
+      `E_CONSENT_REQUIRED` — rows 11.5, 11.8
+- [x] **P11.7** consent in the report; a failing provider degrades — rows 11.7, 11.9
+- [x] **P11.8** `openconvert provider detect|check|probe` (what Phase 12's settings page calls)
+- [x] **P11.9** the Definition of Done, CHANGELOG, merge; A11.1 live behind `live-llm`
+
+What a fresh session needs:
+
+- **Consent is enforced in `oc-net`** (`consent::authorize`): loopback (`localhost`, 127/8, `::1`,
+  `::ffff:127.x`) needs nothing; any other host needs a `ConsentRecord` naming it, and `https://`
+  (plain http off the machine is refused even with consent — PROVISIONAL, DECISIONS_LOG
+  2026-09-23). `HttpTransport::new` is loopback-only; `HttpTransport::with_consent` takes the record.
+  URLs with user-info, `%`, `\`, `?`, `#` or whitespace are refused, never interpreted.
+- **The adapters are `oc_ai::provider::{local_sidecar, openai_compatible, ollama}`** (`oc_ai::openai`
+  is gone — moved to `provider::openai_compatible`). `custom_endpoint` takes probed `ProviderCaps`;
+  with `ProviderCaps::neither()` the task's `schema.json` is appended to the user message and the
+  `Session` raises `W_LLM_UNCONSTRAINED` once. `ProviderKind` names the adapter.
+- **Ollama is `/api/chat`, not `/v1`** (PROVISIONAL, DECISIONS_LOG 2026-09-23): Ollama's `/v1`
+  layer drops `num_ctx`/`format`/`keep_alive`/`think`. Every request sets `options.num_ctx` ≥
+  `llm.ollama_num_ctx` and ≥ prompt bytes + overhead + `max_tokens`, `truncate: false`,
+  `shift: false`. `tests/common/cassette_server.rs` answers both wire formats from the cassettes.
+- **`oc_net::detect`**: `detect_ollama` (`GET /api/tags`), `probe` (`/props` → llama-server,
+  `/api/tags` → Ollama, `/v1/models` → generic, which is `ProviderCaps::neither` — PROVISIONAL),
+  `api_root` strips a trailing `/v1`. `Transport::get` exists (default 404).
+- **Row 11.10** (`oc-ai/tests/contract.rs`) asks every committed cassette through five adapter
+  configurations over `tests/common/cassette_server.rs` and compares with `Replay`: re-recording
+  cassettes needs no per-adapter work.
+- **`convert --ai` flags**: `--llm-provider builtin|ollama|openai-compatible`, `--llm-model`,
+  `--llm-allow-host <HOST>` (the consent; must equal the endpoint's host). No consent → exit 2,
+  `fatal{E_CONSENT_REQUIRED}` naming the host, zero connections. `ai_endpoint::open_with` takes a
+  `Connector` (tests use an in-process one); `Opened { provider, server, kind, consent }`. The
+  probe picks the adapter; a model is never guessed. `openconvert/tests/common/endpoint.rs` is a
+  loopback model server for binary tests.
+- **The report**: top-level `consent {host, granted_at, scope}` only when a remote endpoint was
+  opened under consent; `ai.provider` names the adapter. `ReportInput` gained `provider` and
+  `consent`. `report__report_f07.snap` moved only in its threshold count (205 → 209).
+- Build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0`. **Disk is tight** (~5 GB free while
+  three worktrees build).
+
+### Phase 11 — Definition of Done
+
+`IMPLEMENTATION_PLAN.md` §0.3, row by row. Checked on this machine unless the row says otherwise.
+
+| Row | State |
+|---|---|
+| Every named test exists and passes | **Yes.** All 10 rows under their names: 11.1 and 11.6 in `oc-net` (`tests/detect.rs`, `tests/consent.rs`); 11.2, 11.3 (`tests/ollama.rs`), 11.4 (`tests/providers.rs`) and 11.10 (`tests/contract.rs`) in `oc-ai`; 11.5, 11.7, 11.8, 11.9 in `openconvert` (`tests/providers.rs`). Plus 18 additions, and `ai_against_a_live_ollama_converts_every_book` behind `--features live-llm` (fails loudly without `OC_LIVE_OLLAMA_MODEL` — **unverified here**: Ollama is not installed and no model can be fetched). |
+| `cargo nextest run --workspace` green | **Yes**, 663 tests on the branch (635 + 28); **700** after merging Phase 13's `main`. |
+| Green on Linux/macOS/Windows CI | **Unverified here:** GitHub Actions is disabled; no macOS or Windows machine. |
+| clippy `-D warnings` clean | **Yes**, workspace, all targets, all features (including `live-llm`). |
+| `cargo fmt --check` clean | **Yes.** |
+| `cargo deny check` clean | **Yes.** No new external crate: `oc-net → time` and `openconvert → secrecy` are existing workspace dependencies. |
+| `cargo xtask thresholds-lint` clean | **Yes.** 4 thresholds added (`llm.ollama_{num_ctx, template_overhead_tokens, keep_alive_secs}`, `llm.provider_probe_timeout_millis`), each provisional with owner and `review_by`. |
+| Every Given/When/Then demonstrated | **A11.2, A11.3, A11.4 yes; A11.1 yes against a stub Ollama, live unverified here** (below). |
+| `docs/CHANGELOG.md` entry | **Yes.** |
+| No `TODO`/`FIXME` without an issue number | **Yes**, `xtask ci-lint` clean. |
+
+- **A11.1** — `ollama_detected_on_default_port` (detection on `localhost:11434`),
+  `ollama_num_ctx_is_always_overridden` (every body sets `options.num_ctx` ≥ prompt bytes +
+  overhead + `max_tokens`, `truncate`/`shift` false), `ollama_uses_format_schema` (the task's
+  schema in `format`, the cassette's answer back), `ollama_is_found_on_localhost_and_its_model_is_never_guessed`
+  and `the_probe_decides_the_adapter`. **Unverified here:** the same against a real Ollama — the
+  live test and the nightly `live-ollama` job exist and have not run.
+- **A11.2** — `non_loopback_requires_consent`: `https://example.com/v1` without consent (and with
+  consent for another host) is exit 2, `fatal{E_CONSENT_REQUIRED}` naming `example.com`, no book,
+  no report — and the in-process connector records **zero connections**. The check also lives in
+  `HttpTransport`'s constructors (`a_host_off_this_machine_needs_consent_that_names_it`).
+- **A11.3** — `same_cassettes_pass_on_all_providers`: every committed cassette through the sidecar
+  adapter, a JSON-schema endpoint, an unconstrained one, a Qwen one with `/no_think`, and Ollama;
+  each answer equals `Replay`'s, and the seed canaries pass gate S identically.
+- **A11.4** — `provider_failure_degrades_to_deterministic` (the binary): a 500 on every question
+  through the `llama-server`, Ollama and generic adapters, and an endpoint that answers nothing —
+  each book is the `--no-ai` book byte for byte, exit 0, `W_LLM_UNAVAILABLE` with the reason.
+- **Regression artefacts:** `tests/common/cassette_server.rs` (both wire formats from the committed
+  cassettes); the report snapshot moved only in its threshold count (205 → 209).
+
+### What Phase 12 must wire from Phase 11
+
+Phase 11 did not touch `apps/desktop` (`routes/settings/providers.svelte` is Phase 12's).
+
+- **The engine is the only thing that connects.** The webview needs no network for providers:
+  keep `connect-src 'none'`.
+- **Provider radio (UI_UX §2.4)** — *Built-in*: the job spec's `ai.endpoint` is the app-owned
+  `llama-server` URL, with `ai.api_key_file` and `ai.model_id`; the engine's probe recognises
+  `llama-server` and uses GBNF + `chat_template_kwargs`. *Ollama*: `openconvert provider detect
+  --json` → `{"ollama": {"url": "http://localhost:11434", "models": [...]}}` or `{"ollama": null}`
+  (the "Detected on this computer" tag and the model list); the job spec's endpoint is that URL and
+  `model_id` the chosen model. *Custom endpoint*: base URL (with or without `/v1`), model name,
+  API key file.
+- **Consent dialog (strings `consent.title/body/allow`)** — `openconvert provider check <URL>
+  --json` → `{url, host, loopback, requires_consent, usable, reason}`, sending nothing. Show the
+  dialog naming `host` when `requires_consent`; `usable: false` means plain http off the machine,
+  and `reason` says https is required. On *Allow*, write `ai.non_loopback_consent: true`: the engine
+  reads it as consent to that endpoint's own host (`AiArgs::consenting_to_the_endpoint`); the CLI
+  equivalent is `--llm-allow-host <host>`. The engine remembers nothing (`scope: "run"`): the app
+  keeps the user's choice per configuration and writes it into every job.
+- **Optional "Test connection"** — `openconvert provider probe <URL> [--llm-model M]
+  [--llm-allow-host H] [--llm-api-key-file P] --json` → `{available, provider, constraint,
+  thinking, model, models, consent}` (exit 0), `{available: false, reason}` (exit 1), or exit 2
+  `fatal{E_CONSENT_REQUIRED}`.
+- **Job spec → engine**: `endpoint` → `--llm-endpoint`, `api_key_file` → `--llm-api-key-file`,
+  `model_path` → `--model-path`, `model_id` → `--llm-model`, `non_loopback_consent` →
+  `--llm-allow-host <endpoint host>`. Job-spec v1 has no provider-kind field; the engine probes.
+  (The engine's `--job` reader does not exist yet.)
+- **Events and warnings**: `fatal{code: "E_CONSENT_REQUIRED"}` (exit 2) — show the consent dialog
+  again, never a generic error. `W_LLM_UNAVAILABLE {reason}` and the new `W_LLM_UNCONSTRAINED
+  {model}` have en/de/tr templates. No new NDJSON event type.
+- **Report page**: top-level `consent {host, granted_at, scope}` ("text from this book was sent to
+  {host} at {granted_at}"), and `ai.provider`.
+- **Network log (Settings › Network log)**: no event feeds it yet — it is PHASE 14 detail 12
+  (`oc-net/src/audit.rs`, `<data_dir>/network-audit.log`).
+
+## Phase 10 — built on `phase/10-ai-decisions`, merged 2026-09-23
+
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P10.1** one definition of the verse band (`oc_core::escalation::line_band`), used by
+      `oc-structure::quotes`; the pre-phase `--no-ai` EPUB hashes pinned — the open finding of
+      2026-09-22, and the byte-identity artefact the rest of the phase is held to
+- [x] **P10.2** `oc-structure::escalate`: the four predicates over the stage's evidence, the
+      `EscalationRecord`, in `Conversion` and the report with AI off — rows 10.1, 10.2
+- [x] **P10.3** `oc-ai::task::metadata`: the verbatim-substring check — rows 10.3, 10.4
+- [x] **P10.4** `oc-ai::task::heading_roles`: pre-gate, held-out check, label ≠ deletion — rows 10.5–10.8
+- [x] **P10.5** `oc-ai::task::book_structure`: boundaries, chunking with overlap — rows 10.9–10.11
+- [x] **P10.6** `oc-ai::task::verse_quote`: counter-evidence, the 30-block cap — rows 10.12, 10.13
+- [x] **P10.7** the plan: degradation order, language gate, wall-clock meter — rows 10.21, 10.22
+- [x] **P10.8** `openconvert`: the AI step in the pipeline — rows 10.14, 10.15, 10.20
+- [x] **P10.9** `convert --ai` and the endpoint flags; a missing sidecar degrades — rows 10.16, 10.19
+- [x] **P10.10** `eval/compare`: McNemar, false repair, gold sets, `docs/AI_EVALUATION.md` — rows 10.17, 10.18
+- [x] **P10.11** the Definition of Done, CHANGELOG, merge
+
+What a fresh session needs:
+
+- **No model is reachable here** (huggingface.co and GitHub release downloads: 403 on CONNECT). Every
+  live measurement is unverified here; tests use cassettes recorded through the stub and synthetic
+  data. `ai.enabled = false` stays the default.
+- **`--no-ai` output is pinned**: `crates/openconvert/tests/snapshots/ai__no_ai_epub_sha256.snap`
+  was written at `8f045a1` (Phase 9's merge), before any Phase 10 change. It must not move.
+- **The tagged fixtures** are a separate invocation: `cargo run -p xtask -- fixtures` and
+  `cargo run -p xtask -- fixtures --keep-structtree` (oc-pdf's `struct_tree_is_read_from_the_catalogue`
+  needs the second).
+- **Escalation records** (`oc_structure::escalate`) are gathered after `structure` on every
+  conversion and land in `Conversion.escalations` and the report's `escalations`, AI on or off.
+  `report__report_f07.snap` gained its one record (the ambiguous block); the EPUB did not move.
+- **Phase 10 cassettes** are scripted answers recorded through the stub (`model_id = "stub"`),
+  written by `crates/oc-ai/tests/tasks.rs::replayed` under `OC_AI_RECORD_SEEDS=1` — record with
+  `-j 1` (nextest runs tests as parallel processes and the index is read-modify-write). A cassette is
+  keyed by its *question*, so two scripted answers need two different payloads.
+- **A task runs through an `Asker`** (`oc_ai::session`): `task::<name>::run` pre-gates, asks, gates
+  S, validates, and returns `TaskResult::{Refused, Unasked, Rejected, Admitted}` with the edit.
+  Admitted edits are applied by **re-running `structure`** — `oc_structure::stage::structure_with`
+  with `StructureEdits` — never by patching output. `openconvert::convert::prepare` gives a test the
+  stage's input.
+- **`oc_ai::session::Session`** is the production `Asker`: stop → wall-clock share → budget →
+  cache → provider, in that order; `oc_ai::plan` decides the grant before any call (language gate,
+  degradation order). **The language maps ship empty** (nothing evaluated): `--ai` alone asks
+  nothing; `--ai-all-tasks` runs unproven tasks (DECISIONS_LOG 2026-09-23, PROVISIONAL).
+- **The AI step is `openconvert::ai::run`**, called from `convert::convert_prepared` when an
+  `AiContext` is given (`convert` passes none). Tests drive it with in-process providers
+  (`crates/openconvert/tests/ai_pipeline.rs`: `Echo` answers every task from its payload).
+- **`convert --ai`** opens a provider in `openconvert::ai_endpoint` (loopback endpoint, or an
+  owned `llama-server` from `OC_LLAMA_SERVER`/beside the binary with `--model-path` or the store's
+  default); a non-loopback endpoint is exit 2 until Phase 11; anything else unavailable is
+  `W_LLM_UNAVAILABLE`, exit 0. The answer cache is `openconvert::data_dir::llm_cache()`.
+- **The evaluation** is `eval/src/oc_eval/compare` (`python -m oc_eval.compare --render|--check|--gate`,
+  run from `eval/` with `PYTHONPATH=$PWD/src` in a worktree — the shared venv's `.pth` points at
+  main's sources). `eval/data/ai_eval/outcomes.jsonl` is empty: no evaluation has run.
+- **Task validations are gate failures with codes**: `V.verbatim`, `S.range`, `S.order`,
+  `S.overlap`, `S.holdout`, `S.roles` (`oc_ai::gates::GateFailure`).
+- **The pinned llama-server is fetchable and verified** since main's `fix/phase-09-llama-pins`
+  (`cargo run -p xtask -- fetch-llama-server`); a model still cannot be (huggingface.co refused).
+- Build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` (disk is shared with two other
+  worktrees; the whole workspace is ~3.6 GB that way).
+
+### Phase 10 — Definition of Done
+
+`IMPLEMENTATION_PLAN.md` §0.3, row by row. Checked on this machine unless the row says otherwise.
+
+| Row | State |
+|---|---|
+| Every named test exists and passes | **Yes.** All 22 rows under their names: 10.1 in `oc-structure`, 10.3–10.13 and 10.21–10.22 in `oc-ai`, 10.2, 10.8, 10.14–10.16, 10.19, 10.20 in `openconvert`, 10.17/10.18 as pytest functions (`test_` prefix). Plus 24 Rust and 4 Python additions, and `ai_against_a_live_model_conserves_every_book` behind `--features live-llm` (fails loudly without a server and model — **unverified here**: no model can be fetched). |
+| `cargo nextest run --workspace` green | **Yes**, 635 tests (595 + 40). eval: 220 pytest tests (+ 6). |
+| Green on Linux/macOS/Windows CI | **Unverified here:** GitHub Actions is disabled. The cross-`cargo check` Phase 9 used no longer gets past `blake3`'s C build here (`ml64.exe` / Apple `cc` missing) — a toolchain limit of this box, not a change of this phase. |
+| clippy `-D warnings` clean | **Yes**, workspace, all targets, all features (including `live-llm`). |
+| `cargo fmt --check` clean | **Yes.** ruff, ruff format and mypy clean on `eval/`. |
+| `cargo deny check` clean | **Yes.** No new external crate; `openconvert → oc-ai` and `oc-structure → blake3` are workspace edges. |
+| `cargo xtask thresholds-lint` clean | **Yes.** 27 thresholds added, each with source, evidence, owner and `review_by`; string arrays are a new value type. |
+| Every Given/When/Then demonstrated | **A10.1, A10.3, A10.6 yes; A10.2 yes with an in-process model, live unverified; A10.4, A10.5 unverified here** (below). |
+| `docs/CHANGELOG.md` entry | **Yes.** |
+| No `TODO`/`FIXME` without an issue number | **Yes**, `xtask ci-lint` clean. |
+
+- **A10.1** — `ai_default_is_off` (the binary: no `llm` event, no `ai` report section, no model
+  trace; the escalations are still recorded) and `no_ai_output_is_byte_identical_to_the_pre_phase_snapshot`
+  (all ten fixtures' `--no-ai` EPUB hashes, pinned at `8f045a1` before any change).
+- **A10.2** — `a_book_with_no_outline_and_boilerplate_metadata` (≤ 8 calls, the model's title in
+  `dc:title` with `source = llm`), `wallclock_share_hard_stop` (injected clock),
+  `task_priority_order_on_budget_overflow`; every admitted edit passes S, the task validation, L
+  and V, and every escalation ends in a `Decision`. **Unverified here:** the same against a real
+  model (the live test).
+- **A10.3** — `ai_edits_are_conserving_end_to_end`: every fixture, as filed and with outline and
+  title removed, with a cooperative in-process model whose answers are applied (all four tasks are
+  applied somewhere across the twenty variants): I-7 holds on every one.
+- **A10.4 / A10.5 — unverified here.** No model, no corpus: `eval/data/ai_eval/outcomes.jsonl` is
+  empty and `docs/AI_EVALUATION.md` says no evaluation has run. The harness is tested
+  (`test_mcnemar_and_false_repair_reported_per_category`, `test_false_repair_rate_under_one_percent`),
+  and with no task enabled the gate passes vacuously and says so.
+- **A10.6** — `running_head_label_never_deletes_text`: 2 000 generated mappings, outlines removed
+  so the mappings act; mutation-checked (emptying a demoted block fails it). The edit type has no
+  removal variant.
+- **Regression artefacts:** 12 scripted cassettes recorded through the stub beside the four seeds;
+  the four gold sets (47 seed items). "One cassette per task per gold fixture" needs a model's
+  answers — **unverified here**.
 
 Phase 7.5 is **parked, not done**. Its section below is the resume point. The deterministic
 baseline Phase 10 will be compared against is the parked one: 79 of 104 corpus documents clean,
@@ -473,6 +761,14 @@ at run time, the real Tauri window (drag and drop, IPC under `connect-src 'none'
 frame), `webkit-ui`, every CI job, the signing dry run (A12.7).
 
 ### Part B2 — what remains (after Phase 10 and Phase 11 merge)
+
+**Merged `origin/main` (c812e9e: Phases 9, 10, 11, 13) into this branch, 2026-09-23.** One driver
+for progress/cancel/cache and AI/OCR; the partial re-run is skipped for runs that asked a model or
+ran OCR; a stderr-lock deadlock the merge exposed is fixed; the report snapshot now counts 224
+threshold entries. Workspace 740 tests, desktop 43 (`engine-integration`, after
+`cargo build -p openconvert -p oc-testkit --bins` **and `cargo run -p xtask -- stage-sidecars`** —
+the desktop build copies the staged engine over `target/debug/openconvert`), UI 42. Details:
+`docs/DECISIONS_LOG.md`, "Phase 12 meets Phases 10, 11 and 13".
 
 1. **The AI toggle** (Settings › AI assistance and the first-run route's "installed" step): it is
    drawn disabled, saying the converter has no AI support in this build. Enabling it needs Phase
@@ -1052,7 +1348,7 @@ D13.4 amendment in `docs/DECISIONS.md`.
 
 **Phase 9.** STATUS stays IN_PROGRESS: each item below was decided in the most conservative way consistent with
 DECISIONS.md, logged in `docs/DECISIONS_LOG.md` (2026-09-23) as **PROVISIONAL — needs maintainer
-ratification**, and worked around. None of them blocks Phase 10's deterministic-side work.
+ratification**, and worked around. None of them blocks Phase 11's work.
 
 1. **Registry pins** — `models.toml` still has `TODO_` `revision`/`sha256` and `size_bytes = 0` for
    all four entries: huggingface.co is refused by this sandbox's egress policy. Fill them on a
@@ -1078,6 +1374,50 @@ ratification**, and worked around. None of them blocks Phase 10's deterministic-
    is being built concurrently.
 8. **G8's probes are generated, not native-speaker authored**, and their labels follow from their
    templates.
+
+Phase 10's, each logged in `docs/DECISIONS_LOG.md` (2026-09-23):
+
+9. **The language maps ship empty** (`[ai.task.<task>.languages] = []`): no task has passed an
+   evaluation, so `--ai` alone asks nothing, and `--ai-all-tasks` is the flag an unproven task stays
+   behind. Enabling a language needs a McNemar run on the real strata (A10.4/A10.5).
+10. **Book-structure boundaries are strictly increasing**, `front == parts[0]` included, although
+    the frozen v1 prompt makes that a legitimate answer for a book whose body opens with a part.
+    Ratify `≤`, or write a v2 prompt.
+11. **What a heading mapping may change:** size-rank levels only; `body`/`epigraph` demote,
+    `other`/`caption`/`running_head` change nothing; a mapping that demotes every heading is
+    refused; no silhouette check (none is computed); run-in candidates do not ride along (no slot in
+    the v1 payload); fewer than 8 held-out lines → no call; no size-rank heading → no call
+    (`pregate.headings`).
+12. ~~**A non-loopback `--llm-endpoint` is exit 2** until Phase 11 brings consent (D10).~~
+    **Closed by Phase 11:** it is still exit 2 without consent, now `E_CONSENT_REQUIRED`; with
+    `--llm-allow-host <HOST>` naming it (and `https://`) it is used, and the report records it.
+13. **The wall-clock stop raises `W_LLM_TIME_EXHAUSTED`**, not detail 6's `W_LLM_BUDGET_EXHAUSTED`,
+    whose template speaks of calls.
+14. **Invented numbers**, each `provisional` with owner and `review_by`: the chunk overlap (20), the
+    metadata size-category ratios and input cap, the deep-indent em, the centred-cluster ratio, the
+    sidecar timeouts, and `ai_eval.{alpha, noninferiority_margin}`.
+
+Phase 11's, each logged in `docs/DECISIONS_LOG.md` (2026-09-23):
+
+15. **Plain `http://` to a host off this machine is refused even with consent** (`PlaintextRemote`):
+    D10 is silent on the scheme; consent to a host reading the text is not consent to the path.
+16. **Ollama speaks `/api/chat`**, although PHASE 11 detail 1 says every provider speaks `/v1`:
+    Ollama's `/v1` layer silently drops the `num_ctx` and `format` D10 requires. Three invented
+    thresholds: `llm.ollama_{num_ctx, template_overhead_tokens, keep_alive_secs}`.
+17. **A generic OpenAI-compatible server is probed as constraining nothing** (schema in the prompt,
+    `W_LLM_UNCONSTRAINED`): a `GET` cannot show that `response_format` is honoured.
+18. **Consent at the command line is `--llm-allow-host <HOST>`**, naming the endpoint's host; the
+    job spec's `non_loopback_consent: true` is consent to its own endpoint's host.
+
+### Blocked — Phase 13 (each PROVISIONAL, logged in `docs/DECISIONS_LOG.md` 2026-09-23)
+
+- **P13-a `BrokenText` pages are not OCR'd.** A visible broken layer cannot coexist with an `Ocr`
+  region under I-6, and no declared `Reason` removes visible text for being unreadable. The page
+  keeps its text and `W_BROKEN_TEXT_PAGES`. Ratify one of: a new `Reason`, widening
+  `OcrLayerDuplicate`, or "v1 does not OCR broken-text pages".
+- **P13-b re-OCR's `OcrLayerDuplicate` removal is not budget-charged.** `ingest` budgets are deferred
+  to `text` (PIPELINE §3) and re-OCR replaces a whole layer by design; decide whether it needs its
+  own budget.
 
 ## Phase 7 — Definition of Done
 
@@ -1588,3 +1928,25 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P9.9      eval: model_gate.py, probes, fixtures, MODEL_GATE.md (9.17, 9.20 + 17)  b9c0ab4
 2026-09-23  PHASE 9   COMPLETE on phase/09-local-model - DoD checked; live model, gate runs, macOS/Windows and CI unverified here
 2026-09-23  P9.fix    xtask: llama.lock b10456 digests pinned, all four checked by download (+1)  2432458
+2026-09-23  P10.1     oc-structure: the verse band read through oc_core::escalation; --no-ai EPUB hashes pinned (+ 2)  33b00ce
+2026-09-23  P10.2     oc-structure: escalate.rs, EscalationRecord in Conversion and the report (10.1, 10.2 + 2)  d91276e
+2026-09-23  P10.3     oc-ai: task 1, the verbatim-substring check and apply_metadata (10.3, 10.4 + 1)  85f2e3a
+2026-09-23  P10.4     oc-ai: task 2, pre-gate, held-out check, role rules; structure_with (10.5-10.8 + 4)  d8e4567
+2026-09-23  P10.5     oc-ai: task 3, strict boundaries, chunks agreeing on the overlap (10.9-10.11 + 2)  ea56fb9
+2026-09-23  P10.6     oc-ai: task 4, batches of ten, the 30-block cap, counter-evidence (10.12, 10.13)  b914848
+2026-09-23  P10.7     oc-ai: plan (language gate, degradation order) and Session (10.21, 10.22 + 3)  56cc540
+2026-09-23  P10.8     openconvert: the AI step, applied through structure, gated, recorded (10.14, 10.15, 10.20 + 3)  ffb529d
+2026-09-23  P10.9     openconvert: convert --ai, endpoint flags, missing model degrades (10.16, 10.19 + 3)  1a506e2
+2026-09-23  P10.10    eval: McNemar and false repair per task/category/language, the gate (10.17, 10.18 + 4)  203533e
+2026-09-23  P10.11    openconvert: live convert --ai behind live-llm; CHANGELOG; the DoD  7659dae
+2026-09-23  PHASE 10  COMPLETE on phase/10-ai-decisions - DoD checked; A10.4/A10.5, live model, macOS/Windows and CI unverified here
+2026-09-23  P11.1     oc-net: consent names the host; HttpTransport refuses any other (11.6 + 4)  a1515b6
+2026-09-23  P11.2     oc-ai: provider adapters; an unconstrained provider warns (11.4 + 3)  ad6cea3
+2026-09-23  P11.3     oc-ai: Ollama through /api/chat, num_ctx always set, format schema (11.2, 11.3 + 1)  e50805a
+2026-09-23  P11.4     oc-net: detect Ollama on localhost:11434; probe what an endpoint is (11.1 + 3)  e7f7945
+2026-09-23  P11.5     oc-ai: the cassette contract through every adapter (11.10)  933dd2b
+2026-09-23  P11.6     openconvert: providers by probe, consent by name, E_CONSENT_REQUIRED (11.5, 11.8 + 5)  525fc0e
+2026-09-23  P11.7     openconvert: the report records consent; a failing provider degrades (11.7, 11.9)  4d1bd4a
+2026-09-23  P11.8     openconvert: provider detect, check and probe (+ 3)  4450002
+2026-09-23  P11.9     openconvert: A11.1 live behind live-llm; CHANGELOG; the DoD  b8184e1
+2026-09-23  PHASE 11  COMPLETE on phase/11-byo-providers - DoD checked; live Ollama/remote endpoint, macOS/Windows and CI unverified here

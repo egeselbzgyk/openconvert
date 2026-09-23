@@ -771,6 +771,34 @@ evidence = "D17 / RT A7: v1 ships ai.enabled = false"
 owner = "maintainer"
 review_by = "2099-01-01"
 
+[ai.task.metadata.languages]
+value = []
+source = "provisional"
+evidence = "PHASE 10 detail 7, task 1: the languages (dc:language primary subtags) this task runs for under --ai - the ones where it was non-inferior to the deterministic path with a false-repair rate at most 1 % in every assertion category (McNemar, docs/AI_EVALUATION.md). No evaluation has run: no model was reachable where Phase 10 was built. So no language is enabled, and the task runs only under --ai-all-tasks, the flag detail 7 keeps an unproven task behind"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ai.task.heading_roles.languages]
+value = []
+source = "provisional"
+evidence = "PHASE 10 detail 7, task 2: the languages (dc:language primary subtags) this task runs for under --ai - the ones where it was non-inferior to the deterministic path with a false-repair rate at most 1 % in every assertion category (McNemar, docs/AI_EVALUATION.md). No evaluation has run: no model was reachable where Phase 10 was built. So no language is enabled, and the task runs only under --ai-all-tasks, the flag detail 7 keeps an unproven task behind"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ai.task.book_structure.languages]
+value = []
+source = "provisional"
+evidence = "PHASE 10 detail 7, task 3: the languages (dc:language primary subtags) this task runs for under --ai - the ones where it was non-inferior to the deterministic path with a false-repair rate at most 1 % in every assertion category (McNemar, docs/AI_EVALUATION.md). No evaluation has run: no model was reachable where Phase 10 was built. So no language is enabled, and the task runs only under --ai-all-tasks, the flag detail 7 keeps an unproven task behind"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ai.task.verse_quote.languages]
+value = []
+source = "provisional"
+evidence = "PHASE 10 detail 7, task 4: the languages (dc:language primary subtags) this task runs for under --ai - the ones where it was non-inferior to the deterministic path with a false-repair rate at most 1 % in every assertion category (McNemar, docs/AI_EVALUATION.md). No evaluation has run: no model was reachable where Phase 10 was built. So no language is enabled, and the task runs only under --ai-all-tasks, the flag detail 7 keeps an unproven task behind"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [llm.max_calls_per_book]
 value = 8
 source = "provisional"
@@ -827,6 +855,62 @@ evidence = "RT C4"
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[llm.load_timeout_secs]
+value = 300
+source = "provisional"
+evidence = "PHASE 10: how long `convert --ai` waits for an engine-owned llama-server to load its model and answer GET /health before converting without it (W_LLM_UNAVAILABLE). PHASE 12 llm.rs: the same wait for the desktop app's own server. The live tests allow the same (oc-testkit tests/live_llm.rs LOAD). Invented; a 1.1 GB GGUF loads in seconds on a warm disk"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.call_timeout_secs]
+value = 300
+source = "provisional"
+evidence = "PHASE 10: how long one chat completion may take before the transport gives up on it. One CPU generation of llm.max_output_tokens_per_call tokens; the wall-clock share (llm.max_wallclock_share) is what bounds a book, this bounds a single hung call. Matches the live tests' CALL. Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.health_probe_timeout_millis]
+value = 2000
+source = "provisional"
+evidence = "PHASE 10: how long one GET /health of an engine-owned server may take while it loads; PHASE 12 llm.rs uses it for the desktop app's own server too. Matches the live tests' probe. Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.sidecar_context_tokens]
+value = 8192
+source = "provisional"
+evidence = "PHASE 10: the context an engine-owned server is started with for a --model-path GGUF the registry does not name - the default model's own `context` in models.toml. A registry entry's value wins when it names the file"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.provider_probe_timeout_millis]
+value = 5000
+source = "provisional"
+evidence = "PHASE 11 detail 5: how long each GET of the capability probe (/props, /api/tags, /v1/models) and of `openconvert provider detect` may take. A server that has not answered by then is treated as absent and the book converts without it (W_LLM_UNAVAILABLE). Longer than llm.health_probe_timeout_millis because the endpoint may be across a network. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.ollama_num_ctx]
+value = 8192
+source = "provisional"
+evidence = "PHASE 11 detail 2 / D10: Ollama's default context is 2048 tokens and a longer prompt is cut from the front without a word, so every Ollama request states options.num_ctx - at least this, and at least the prompt's byte length plus its template overhead plus llm.max_output_tokens_per_call. The same 8192 as llm.sidecar_context_tokens, so a book's requests ask for one context and Ollama does not reload the model between them. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.ollama_template_overhead_tokens]
+value = 64
+source = "provisional"
+evidence = "PHASE 11 detail 2: what Ollama's chat template adds around the system and user messages (role markers, turn separators, an empty think block), in tokens, on top of the messages' byte length - which is already an upper bound on their tokens, a token never being shorter than one byte of UTF-8. Qwen3's ChatML adds about 20; 64 leaves room for other templates. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.ollama_keep_alive_secs]
+value = 600
+source = "provisional"
+evidence = "PHASE 11 detail 2: keep_alive is set explicitly on every Ollama request because Ollama's default unloads a model 5 minutes after its last request, and a batch of books would pay a model load per book. Ten minutes covers the gap between two books of a batch. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [llm.idle_kill_secs]
 value = 120
 source = "provisional"
@@ -841,24 +925,80 @@ evidence = "PHASE 9 detail 3: how often an engine-owned llama-server's GET /heal
 owner = "maintainer"
 review_by = "2027-06-30"
 
-[llm.load_timeout_secs]
-value = 120
-source = "provisional"
-evidence = "PHASE 9 detail 3 / PHASE 12 llm.rs: how long the desktop app waits, after starting its own llama-server, for GET /health to answer ok, which includes loading the model from disk. The default GGUF is ~1.1 GB; two minutes allows a slow disk several times over. Invented, not measured: no model can be fetched on the machine this was written on"
-owner = "maintainer"
-review_by = "2027-06-30"
-
-[llm.health_probe_timeout_millis]
-value = 1000
-source = "provisional"
-evidence = "PHASE 9 detail 3: the timeout of one GET /health to a loopback llama-server while it loads. A loopback round trip is well under a millisecond; a probe that has not answered in a second is treated as not ready and asked again. Invented, not measured"
-owner = "maintainer"
-review_by = "2027-06-30"
-
 [llm.cache_reuse_min_chunk]
 value = 256
 source = "provisional"
 evidence = "PHASE 9 detail 2 / RT A3: `--cache-reuse N` is passed only to entries whose models.toml says cache_reuse = true; N is the smallest chunk llama-server will try to reuse from the KV cache by shifting. 256 tokens is the value llama.cpp's own examples use; it is not measured here, and gate G5 measures whether the prefix is reused at all"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[metadata.llm_title_max_chars]
+value = 200
+source = "provisional"
+evidence = "ARCHITECTURE 9.6, task 1: a model's title must be 1-200 characters long, besides being a verbatim substring of pages 1-3. The bound is the design's, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.book_structure_chunk_headings]
+value = 200
+source = "provisional"
+evidence = "PHASE 10 detail 4 / ARCHITECTURE 9.6 / PIPELINE 9: above 200 headings the book-structure list is chunked with overlap. The design's number, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.book_structure_chunk_overlap]
+value = 20
+source = "provisional"
+evidence = "PHASE 10 detail 4: chunks overlap and must agree on the overlap. The width is invented here - a tenth of a chunk, enough headings to carry a part or back-matter boundary across a seam - and is to be measured on the first reference works converted"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[metadata.llm_size_large_ratio]
+value = 1.6
+source = "provisional"
+evidence = "PHASE 10 detail 2: pages 1-3 reach the metadata call with a size tag per line, never a number (D13.6). A line set at this multiple of the body size or more is [LARGE]. Invented; a title page's title is typically 2-3x body"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[metadata.llm_size_medium_ratio]
+value = 1.15
+source = "provisional"
+evidence = "PHASE 10 detail 2: a line at this multiple of body size or more, and under the [LARGE] ratio, is [MEDIUM]. Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[metadata.llm_size_small_ratio]
+value = 0.9
+source = "provisional"
+evidence = "PHASE 10 detail 2: a line under this multiple of body size is [SMALL]. Matches footnote.font_size_ratio_max's neighbourhood (R2 B.6: small print is 0.75-0.85 of body). Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[metadata.llm_max_input_chars]
+value = 1600
+source = "provisional"
+evidence = "PHASE 10 detail 2 / ARCHITECTURE 9.6: the metadata call's input is ~200-400 tokens. At roughly four characters a token, pages 1-3 are cut at 1600 characters, at a line boundary. Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.verse_quote_max_words]
+value = 60
+source = "provisional"
+evidence = "ARCHITECTURE 9.6, task 4: each block is sent as its verbatim text up to ~60 words, line breaks kept. The design's number"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.verse_quote_deep_indent_em]
+value = 3.0
+source = "provisional"
+evidence = "ARCHITECTURE 9.6, task 4: a block's indent reaches the model as shallow or deep, never as a number (D13.6). Deep is at least this many body ems. Invented: quote.indent_min_em (1.0) is the least indent that makes a block a candidate, and a stanza is commonly set three to four ems in"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.heading_roles_centered_ratio_min]
+value = 0.5
+source = "provisional"
+evidence = "ARCHITECTURE 9.6, task 2: a cluster reaches the model as centered when at least this share of its runs is centred. Invented: a majority"
 owner = "maintainer"
 review_by = "2027-06-30"
 
@@ -883,10 +1023,45 @@ evidence = "RT A8.2: reject the mapping above 20% disagreement on 8-10 held-out 
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[inventory.holdout_min_probes]
+value = 8
+source = "provisional"
+evidence = "RT A8.2 / ARCHITECTURE 9.6: the heading-roles call carries 8-10 held-out lines. Fewer than 8 cannot be sampled from a book, and the mapping is not asked for: a mapping nobody can check against itself is not one to trust. The range is the design's, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[inventory.holdout_max_probes]
+value = 10
+source = "provisional"
+evidence = "RT A8.2 / ARCHITECTURE 9.6: at most 10 held-out lines ride along, which is also the heading_roles grammar's bound on its \"h\" array; a test holds the two equal"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[inventory.chapter_cluster_min_count]
+value = 2
+source = "provisional"
+evidence = "ARCHITECTURE 9.6, task 2: a cluster a model calls chapter_heading must hold at least 2 runs - one chapter is not a chapter style"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[inventory.chapter_cluster_max_count]
+value = 200
+source = "provisional"
+evidence = "ARCHITECTURE 9.6, task 2: a cluster a model calls chapter_heading must hold at most 200 runs - more is a body or caption style, not chapters"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [verse.short_line_ratio_min]
 value = 0.35
 source = "provisional"
 evidence = "RT C4 escalation predicate: short-line ratio in [0.35, 0.75]"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[verse.llm_short_line_ratio_min]
+value = 0.6
+source = "provisional"
+evidence = "ARCHITECTURE 9.6, task 4: a model's `verse` stands only on a block with at least verse.min_lines lines and a short-line ratio above 0.6; below that the label is downgraded to the deterministic default. The design's number, not measured"
 owner = "maintainer"
 review_by = "2027-06-30"
 
@@ -1064,6 +1239,34 @@ source = "provisional"
 evidence = "D9 G8: >= 95% on 100-item DE and TR flat-enum probes"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+# ---------- AI evaluation (PHASE 10 detail 7, R9 C.7/C.8) ----------
+[ai_eval.alpha]
+value = 0.05
+source = "provisional"
+evidence = "PHASE 10 detail 7: the one-sided level of the non-inferiority test of deterministic+LLM against deterministic-only, per task and language. The conventional 0.05, as model_gate.g7_alpha; not chosen by power analysis"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ai_eval.noninferiority_margin]
+value = 0.02
+source = "provisional"
+evidence = "PHASE 10 detail 7: how much paired accuracy a task may lose and still count as non-inferior. As model_gate.g7_noninferiority_margin; invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ai_eval.false_repair_max]
+value = 0.01
+source = "provisional"
+evidence = "PHASE 10 detail 7 / RT C4 / R9 C.8: a task ships enabled-by-opt-in only if its false-repair rate - assertions the deterministic path passed and the LLM path failed, over all assertions - is at most 1 % in every assertion category, per language. RT C4's target"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ai_eval.exact_below]
+value = 25
+source = "published"
+evidence = "PHASE 10 detail 7 / R9 C.7: McNemar's chi-square (b-c)^2/(b+c) is used when b+c >= 25, and the exact binomial form below it, the usual rule for when the chi-square approximation is adequate"
+owner = "maintainer"
 
 # ---------- calibration / golden-decision promotion (D17, TEST_STRATEGY §7) ----------
 [calibration.min_gold_instances_per_task]
@@ -1351,5 +1554,59 @@ review_by = "2027-06-30"
 value = 2
 source = "provisional"
 evidence = "A centred block of one or two lines is a folio, a title or a caption; PIPELINE §8.6's cues are about blocks indented on the left. Centred verse exists and is longer — §8.6 names 'centered short lines with a high line count' — so the exclusion stops at `verse.min_lines`"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+# --- OCR (PHASE 13) ------------------------------------------------------------------------------
+# The engine is the user's own Tesseract 5 (D4). These five are the plan's detail 13; the sixth is
+# detail 5's language-stacking share, which the plan states as a number in prose and which therefore
+# needs an entry of its own (D17).
+
+[ocr.render_dpi]
+value = 300
+source = "published"
+evidence = "R7 §C.2: 300 dpi is Tesseract's documented accuracy knee for book type; 200 dpi degrades small type"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ocr.word_conf_min]
+value = 0.60
+source = "provisional"
+evidence = "Tesseract per-word confidence floor below which tokens are flagged and never dehyphenated"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ocr.region_conf_min]
+value = 0.50
+source = "provisional"
+evidence = "mean-confidence floor below which the region is also emitted as an image (W_OCR_LOW_CONFIDENCE)"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ocr.region_deadline_secs]
+value = 30
+source = "provisional"
+evidence = "PIPELINE §3: 0.5-3 s/page expected; 30 s is a hang detector, not a performance target"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ocr.max_cer_synthetic]
+value = 0.03
+source = "provisional"
+evidence = "release gate on the synthetic scan stratum only; real strata are reported, not gated, in v1"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ocr.second_lang_block_share]
+value = 0.20
+source = "provisional"
+evidence = "PHASE 13 detail 5: languages are stacked with `+` only when per-block detection says a second language holds at least 20 % of blocks, because stacking costs Tesseract speed and accuracy and the default is one language"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ocr.line_size_snap_ratio]
+value = 0.25
+source = "provisional"
+evidence = "An OCR line's size is the median height of its words, which moves with the mix of ascenders, descenders and x-height-only words: on the synthetic-scan fixtures one 10 pt body face measured 7.2 and 8.9 pt on alternate lines (19 % apart) while their 14 pt headings measured 13-14 pt (1.5x). Lines within 25 % of a region's median are one body size; not measured on real scans"
 owner = "maintainer"
 review_by = "2027-06-30"

@@ -535,3 +535,60 @@ indicative (PROGRESS.md).
 | 6.25b | `ace::a_critical_violation_counts_as_a_serious_one` | `oc-validate` | unit | `test` | green |
 | 6.25c | `ace::missing_accessibility_metadata_fails_the_gate_on_its_own` | `oc-validate` | unit | `test` | green |
 | 6.25d | `ace::an_unreadable_report_is_an_error_and_not_an_empty_one` | `oc-validate` | unit | `test` | green |
+
+## Phase 13 — OCR
+
+Tests that need a real Tesseract are behind the `openconvert` feature `tesseract` and run in the
+`ocr` CI job, which installs `tesseract-ocr` with `deu` and `tur`. Tests that drive a fake engine
+by process (a shell script standing in for `tesseract`) are `#[cfg(unix)]`: Windows discovery and
+invocation are unverified on this machine and have no CI runner until the maintainer turns Actions
+back on.
+
+| # | Test | Crate | Kind | Job | Status |
+|---|---|---|---|---|---|
+| 13.5 | `ocr_tsv::tsv_header_mismatch_is_an_error` | `oc-core` | unit | `test` | green |
+| 13.6 | `ocr_tsv::tsv_parses_words_and_confidences` | `oc-core` | unit (golden TSV, a real Tesseract 5.3.4 capture) | `test` | green |
+| 13.7 | `ocr_tsv::tsv_drops_non_word_and_negative_conf_rows` | `oc-core` | unit | `test` | green |
+| 13.8 | `ocr_tsv::pixel_boxes_map_into_normalized_page_space` | `oc-core` | property (2 000 cases) | `test` | green |
+| 13.9 | `ocr_lang::language_selection_maps_and_falls_back` | `oc-core` | unit (table) | `test` | green |
+| 13.1 | `ocr_discovery::discovery_finds_tesseract_on_path` | `oc-testkit` | unit (temp `PATH`, fake engine, Unix) | `test` | green |
+| 13.2 | `ocr_discovery::discovery_falls_back_to_well_known_dirs` | `oc-testkit` | unit (fake engine, Unix) | `test` | green |
+| 13.3 | `ocr_discovery::discovery_rejects_version_below_5` | `oc-testkit` | unit (fake engine, Unix) — also A13.7's discovery half | `test` | green |
+| 13.4 | `ocr_discovery::discovery_rejects_writable_binary` | `oc-testkit` | unit (Unix) | `test` | green |
+| 13.3a | `discover::tests::every_platforms_version_banner_parses` | `oc-core` | unit — VD-g's banner forms | `test` | green |
+| 13.3b | `discover::tests::the_well_known_lists_are_the_documented_ones` | `oc-core` | unit — VD-g's paths | `test` | green |
+| 13.10 | `ocr_invoke::psm_follows_page_class` | `oc-testkit` | unit (argv spy, fake engine, Unix) | `test` | green |
+| 13.18a | `ocr_invoke::a_hung_call_is_killed_at_its_deadline` | `oc-testkit` | integration (a fake that sleeps, Unix) — the invocation half of 13.18 | `test` | green |
+| 13.19 | `ocr_invoke::ocr_child_dies_with_the_engine` | `oc-testkit` | integration (SIGTERM and panic; Linux here, macOS/Windows unverified) | `test` | green |
+| 13.23 | `render::render_region_is_the_page_at_the_asked_resolution` | `oc-pdf` | fixture (f03) | `test` | green |
+| 13.23a | `render::a_rotated_page_renders_in_normalised_space` | `oc-pdf` | fixture (h02) | `test` | green |
+| 13.23b | `render::pixel_windows_are_clipped_to_the_page` | `oc-pdf` | unit | `test` | green |
+| 13.13 | `ocr_merge::i6_region_scope_rejects_overlapping_text` | `oc-core` | unit | `test` | green |
+| 13.15 | `ocr_merge::ocr_regions_excluded_from_source_retention` | `oc-core` | unit | `test` | green |
+| 13.15a | `structural::retention_excludes_ocr_added_characters` | `oc-validate` | unit — 13.15 end to end, through I-7 | `test` | green |
+| 13.24 | `ocr_merge::ocr_words_become_one_run_per_line_with_provenance_ocr` | `oc-core` | unit — detail 7 | `test` | green |
+| 13.24a | `ocr_merge::region_confidence_is_the_mean_and_the_sub_floor_count` | `oc-core` | unit — detail 9 | `test` | green |
+| 13.24b | `ocr_merge::a_full_page_region_is_cut_into_bands_around_existing_text` | `oc-core` | unit — I-6 on a scan with stray PDF glyphs | `test` | green |
+| 13.11 | `ocr_e2e::ocr_runs_carry_provenance_ocr` | `openconvert` | fixture (f03, f11; in-process engine) | `test` | green |
+| 13.12 | `ocr_e2e::ledger_ocr_entries_are_added_only` | `openconvert` | fixture (f03; in-process engine) | `test` | green |
+| 13.14 | `ocr_e2e::mixed_page_ocrs_only_uncovered_regions` | `openconvert` | fixture (f11 mixed; in-process engine) | `test` | green |
+| 13.16 | `ocr_e2e::re_ocr_replaces_sandwich_layer_conservingly` | `openconvert` | fixture (h05 sandwich; in-process engine) | `test` | green |
+| 13.17 | `ocr_e2e::missing_engine_emits_install_hint_and_page_images` | `openconvert` | integration (binary) — A13.2 | `test` | green |
+| 13.18 | `ocr_e2e::hung_tesseract_is_killed_at_deadline` | `openconvert` | integration (a fake that sleeps, Unix) — A13.5 | `test` | green |
+| 13.22 | `ocr_e2e::ocr_never_calls_the_llm` | `openconvert` | unit — `--ai --ai-all-tasks` over a scanned book: no model call before OCR finishes; source and dependency scan | `test` | green |
+| 13.25 | `ocr_e2e::a_doubtful_or_failed_region_keeps_its_picture` | `openconvert` | fixture — details 9 and 11 | `test` | green |
+| 13.25a | `ocr_e2e::hello_reports_the_discovered_engine` | `openconvert` | binary (fake engine, Unix) — detail 1 | `test` | green |
+| 13.20 | `ocr_tesseract::scanned_fixture_assertions_pass` | `openconvert` (feature `tesseract`) | fixture (4 synthetic scans, real Tesseract) | `ocr` | green |
+| 13.21 | `ocr_tesseract::cer_per_stratum_within_budget` | `openconvert` (feature `tesseract`) | CI-gate — synthetic-scan CER, real stratum reported, gap printed; the nightly `full-corpus` report's `ocr_cer` section | `ocr`, nightly `full-corpus` | green (synthetic); real stratum unverified here |
+| 13.21a | `ocr_tesseract::cer_is_levenshtein_over_the_truths_length` | `openconvert` (feature `tesseract`) | unit | `ocr` | green |
+| 13.21b | `test_metrics::test_ocr_cer_is_reported_per_stratum_with_the_real_minus_synthetic_gap` | `eval` | unit | `python` | green |
+| 13.21c | `test_metrics::test_cer_is_edit_distance_over_the_truths_length` | `eval` | unit | `python` | green |
+| 13.21d | `test_run::test_a_committed_scanned_fixture_is_its_own_source_and_has_a_ground_truth` | `eval` | unit | `python` | green |
+| 13.21e | `test_run::test_the_reading_text_of_an_epub_is_its_spine_a_block_per_line` | `eval` | unit | `python` | green |
+| 13.26 | `ocr_tesseract::image_only_pdf_converts_with_system_tesseract` | `openconvert` (feature `tesseract`) | fixture (f03, real Tesseract) — A13.1 | `ocr` | green |
+| 13.26a | `ocr_scanned::scanned_ground_truth_is_the_born_digital_text` | `openconvert` | fixture — the committed `.gt.txt` is this pipeline's text of the source | `test` | green |
+| 13.26b | `ocr_scanned::scanned_fixtures_are_image_only_without_ocr` | `openconvert` | fixture | `test` | green |
+| 13.26c | `ocr_merge::ocr_line_sizes_are_word_heights_snapped_to_one_body_size` | `oc-core` | unit | `test` | green |
+| 13.26d | `tesseract::tests::every_call_caps_openmp_at_one_thread` | `oc-core` | unit | `test` | green |
+| 13.26e | `ocr_tesseract::mixed_page_with_system_tesseract_reads_only_the_plate` | `openconvert` (feature `tesseract`) | fixture (f11, real Tesseract) — A13.3 | `ocr` | green |
+| 13.26f | `ocr_e2e::an_old_tesseract_converts_as_if_none_existed` | `openconvert` | binary (a fake 4.1.1, Unix) — A13.7 | `test` | green |

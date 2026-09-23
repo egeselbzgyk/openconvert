@@ -1,6 +1,5 @@
 ---
 source: crates/openconvert/tests/report.rs
-assertion_line: 49
 expression: value
 ---
 {
@@ -47,6 +46,13 @@ expression: value
     "epub_chars": 1458,
     "retention": 1.0,
     "per_stage": [
+      {
+        "stage": "ingest",
+        "kind": "budgeted",
+        "removed_chars": 0,
+        "added_chars": 0,
+        "retention": 1.0
+      },
       {
         "stage": "text",
         "kind": "budgeted",
@@ -212,5 +218,43 @@ expression: value
       "fallback": null
     }
   ],
-  "thresholds": "[188 entries, redacted]"
+  "escalations": [
+    {
+      "task": "verse_quote",
+      "subject": "BYX57X6NMA",
+      "predicate": "indented, and the line lengths say neither verse nor quotation",
+      "signals": [
+        {
+          "name": "indent_pt",
+          "value": 20.05362
+        },
+        {
+          "name": "short_line_ratio",
+          "value": 0.5
+        },
+        {
+          "name": "lines",
+          "value": 7.0
+        },
+        {
+          "name": "quote_glyph",
+          "value": 0.0
+        },
+        {
+          "name": "attribution",
+          "value": 0.0
+        },
+        {
+          "name": "monospace",
+          "value": 0.0
+        },
+        {
+          "name": "centered",
+          "value": 1.0
+        }
+      ],
+      "input_hash": "adc3de8ec21ab7d5d16b72e02fc20ac7bb4deb29d0b34a22a31535e227bfae2b"
+    }
+  ],
+  "thresholds": "[224 entries, redacted]"
 }

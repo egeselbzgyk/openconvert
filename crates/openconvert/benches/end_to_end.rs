@@ -38,6 +38,7 @@ fn options() -> ConvertOptions {
         },
         overrides: None,
         cache_dir: None,
+        ocr: openconvert::ocr::OcrOptions::off(),
     }
 }
 

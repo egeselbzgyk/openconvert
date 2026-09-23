@@ -434,7 +434,11 @@ fn fail_kind(error: &NetError) -> FailKind {
         NetError::HostNotAllowed { .. }
         | NetError::BadUrl(_)
         | NetError::UnpinnedRevision(_)
-        | NetError::UnknownLicense(_) => FailKind::Refused,
+        | NetError::UnknownLicense(_)
+        // A registry's hosts are https and named in the allowlist, so neither of these is reached
+        // by a download; were one to be, it is the downloader refusing, not the network failing.
+        | NetError::ConsentRequired { .. }
+        | NetError::PlaintextRemote { .. } => FailKind::Refused,
         NetError::TooManyRedirects(_)
         | NetError::Status(_)
         | NetError::Transport(_)

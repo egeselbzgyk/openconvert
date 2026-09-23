@@ -4250,3 +4250,574 @@ and axe/contrast on the `models` and `firstrun` screens under the shipped CSP (P
 Affects: PHASE 12 detail 9 and "Visual design" 2–3, `docs/design/handoff/strings/*.json`
 (`firstrun.cost.*`), `apps/desktop/ui/src/{components/ModelRow.svelte,components/FirstRunCard.svelte,
 routes/settings/Settings.svelte,routes/queue/Queue.svelte,App.svelte,lib/catalog.svelte.ts}`.
+
+## 2026-09-23 · The verse band has one definition, and the classifier reads it · Phase 10
+Context: the open finding of 2026-09-22 — `oc-structure::quotes::classify_indented` compared the
+`f32` short-line ratio widened to `f64` against the band's bounds, so a block exactly on
+`verse.short_line_ratio_min` (7 short lines of 20) was a block quotation to the classifier and an
+escalation to `oc_core::escalation::verse_quote`.
+Decision: the band's edges are defined once, `oc_core::escalation::line_band` (`Full`, `Between`,
+`Short`, compared in `f32`), and `verse_quote` is written over it. The classifier asks
+`verse_quote` whether a block is ambiguous and `line_band` which side of the band a settled block is
+on; it passes `blocks_remaining: u32::MAX`, because the block budget is the AI step's to spend and
+not a property of a block. Behaviour is unchanged everywhere except on the lower bound itself.
+Evidence: `quotes::tests::a_block_exactly_on_the_lower_bound_is_ambiguous_not_a_quotation` fails on
+the widening (`left: BlockQuote, right: Ambiguous`) and passes on the fix; the ten fixtures'
+`--no-ai` EPUB hashes, pinned before the change in `ai__no_ai_epub_sha256.snap`, did not move.
+Affects: `oc-core::escalation`, `oc-structure::quotes` (the finding is closed).
+
+## 2026-09-23 · Task 2: what a heading mapping may change, and what the pre-gate cannot check · Phase 10
+Context: PHASE 10 detail 3 and ARCHITECTURE §9.6 say what the heading-roles call is shown and how
+its answer is checked; they do not say what an admitted role *does* to a book, and two of the
+checks they name have no input in this codebase.
+Decisions, each **PROVISIONAL — needs maintainer ratification**:
+1. **Only size-rank levels are touched.** A heading whose level the outline or the printed contents
+   page bound, or a numbering pattern refined, keeps it: size rank is the fallback the task stands
+   in for (ARCHITECTURE §6.1). The Typst fixtures all carry outlines, which is why test 10.8 clears
+   the outline first — without that the property held vacuously, and a mutation that emptied every
+   demoted block passed (checked).
+2. **Roles to levels:** part 1; chapter 1, or 2 when a heading cluster is a part; section chapter+1;
+   subsection chapter+2; the skip repair runs again afterwards. `body` demotes a heading to a
+   paragraph and `epigraph` to an epigraph wrapper. **`other`, `caption` and `running_head` change
+   nothing**: `other` is the prompt's own abstention (Appendix A.1 rule 3), and `running_head` is a
+   proposal furniture has already declined (D13.5). The edit type has no removal variant.
+3. **One rule beyond ARCHITECTURE's two:** a mapping that demotes every cluster holding a heading
+   is refused (`S.roles`). One answer should not be able to take a book's whole navigation away.
+4. **The silhouette floor is not checked.** Phase 4's clustering computes no silhouette and
+   `thresholds.toml` has no floor, so the pre-gate is the two measured conditions.
+5. **Fewer than `inventory.holdout_min_probes` (8) held-out lines → no call** (`pregate.holdout`):
+   "send 8–10" read as a minimum, since an unchecked mapping is not one to ask for.
+6. **Run-in candidates do not ride along.** PIPELINE §8.2 has them in the heading-roles call, but
+   the frozen v1 payload has no slot for them; that needs a v2 prompt.
+New thresholds: `inventory.holdout_{min,max}_probes` (8, 10 — the max held equal to the grammar's
+`"h"` bound by a test), `inventory.chapter_cluster_{min,max}_count` (2, 200).
+Evidence: rows 10.5–10.8 and `role_rules_refuse_what_the_design_forbids` in `crates/oc-ai/tests/tasks.rs`;
+`running_head_label_never_deletes_text` in `crates/openconvert/tests/ai.rs`.
+Affects: ARCHITECTURE §9.6 task 2, PIPELINE §8.2, `oc-ai::task::heading_roles`,
+`oc-structure::headings::levels`, `oc-structure::stage::structure_with`.
+
+## 2026-09-23 · Task 3: strictly increasing boundaries, local chunk indices, a partial answer · Phase 10
+Context: test 10.9 asserts `frontmatter_end_idx >= part_boundaries[0]` is rejected, and ARCHITECTURE
+§9.6 says "all indices strictly increasing". The frozen v1 prompt defines the front boundary as
+"the index of the first heading after the front matter (0 if there is none)" — an *exclusive* end.
+Under that definition a book whose body opens with a part answers `front == parts[0]` correctly.
+Decisions:
+1. **PROVISIONAL — needs maintainer ratification:** the rule is strict, as the test and
+   ARCHITECTURE state it, equality included. A book whose body opens with a part has its correct
+   answer refused (`S.order`) and keeps the deterministic structure — a lost improvement, never a
+   wrong edit. Two ways out, both outside this phase: ratify `front ≤ parts[0]`, or a v2 prompt
+   whose front boundary is the last front-matter heading.
+2. **Each chunk is its own question with indices from zero**, as the prompt's "0 if there is
+   none" and "the number of headings if there is none" read; the answer is mapped back to global
+   indices before stitching. Global indices in a middle chunk would make both conventions
+   ambiguous.
+3. **Stitching compares per-heading places** — zone and part flag — over every heading two chunks
+   both saw; one difference rejects the whole answer (`S.overlap`, test 10.10). The stitched zones
+   must still run front, body, back (`S.order`).
+4. **A chunk the call budget did not grant is not asked**, and the headings only it covered keep
+   the deterministic zones (the degradation order drops "`book_structure` chunks beyond the first",
+   D13.6). The first chunk's answer is still applied to the headings it saw.
+5. **The edit is a zone and a part flag per heading** (`oc_structure::book::ZoneEdits`), applied by
+   `book_structure_with` on the same headings at the same levels; a heading the numbering reads as
+   `Part` stays a part whatever the label says.
+New thresholds: `llm.book_structure_chunk_headings` (200, the design's) and
+`llm.book_structure_chunk_overlap` (20, invented).
+Evidence: rows 10.9–10.11, `agreeing_chunks_stitch_and_ungranted_chunks_are_not_asked`,
+`zone_labels_place_the_headings_they_cover`.
+Affects: ARCHITECTURE §9.6 task 3, PIPELINE §9, `oc-ai::task::book_structure`, `oc-structure::book`.
+
+## 2026-09-23 · The language gate ships empty; an unproven task runs only under `--ai-all-tasks` · Phase 10
+Context: PHASE 10 detail 7 — a task ships "enabled-by-opt-in" only when it is non-inferior to the
+deterministic path with a false-repair rate ≤ 1 % in every category, per language, and "otherwise
+it stays behind a flag"; the gating map lives in `thresholds.toml` as `[ai.task.<task>.languages]`.
+No evaluation can run here: no model is reachable (huggingface.co refused).
+Decisions, each **PROVISIONAL — needs maintainer ratification**:
+1. **All four maps ship empty.** No task has passed, so none is enabled for any language: `--ai`
+   alone asks nothing, and every escalation it would have sent is recorded with
+   `fallback = "language.gate"`. The alternative — enabling all three languages unmeasured — would
+   make the opt-in an unmeasured one, which detail 7 rules out.
+2. **The flag is `--ai-all-tasks`**: with `--ai`, it sets the language gate aside and runs every
+   escalated task for every language. It is how the evaluation's deterministic+LLM arm runs, and
+   how a maintainer experiments; the report records that it was set. It is not in §2.1's flag list,
+   which predates detail 7's "behind a flag".
+3. **`thresholds.toml` gains array values**: a closed set of names is a decision with provenance
+   like any number, so `oc-core`'s build script emits a string array as `&'static [&'static str]`.
+   Everything else still has to be a float, an integer or a boolean.
+4. **The wall-clock hard stop raises `W_LLM_TIME_EXHAUSTED`**, not `W_LLM_BUDGET_EXHAUSTED` as
+   detail 6 writes: that template says "all {calls} of its model calls", and a warning is a factual
+   claim (R10 §6.20). Both are "budget exhausted"; the report says which budget.
+5. **The degradation order drops, after "chunks beyond the first" and `heading_roles`, the first
+   book-structure chunk** — the order D13.6 gives ends there, and metadata is never dropped for
+   another task. With no call left at all, nothing is asked, metadata included, and the budget
+   says so.
+6. **The session stops at the first unreachable provider** (`llm.unavailable`): a dead endpoint is
+   asked once per book, not eight times, and the book is deterministic from there with
+   `W_LLM_UNAVAILABLE` (RT D20).
+Evidence: `crates/oc-ai/tests/plan.rs` (rows 10.21, 10.22 and three session tests).
+Affects: PHASE 10 details 5–7, IMPLEMENTATION_PLAN §2.1, `thresholds.toml`, `oc-core` build script,
+`oc-ai::{plan, session}`.
+
+## 2026-09-23 · The AI step: where it runs, how an edit reaches the book, what is recorded · Phase 10
+Context: PHASE 10's file list puts the step in `crates/oc-core/src/stages/ai.rs`. `oc-core` sits
+below every stage crate (they read `T` from it) and cannot depend on `oc-structure`, and it may not
+reach `oc-ai` either without `oc-structure` reaching it through `oc-core` (ARCHITECTURE §3.1:
+`oc-structure` must not depend on `oc-ai`). The stage driver has lived in `openconvert` since
+Phase 5 (2026-09-20, "the benchmarks live in `openconvert`").
+Decisions:
+1. **The step is `openconvert::ai`**, and `openconvert` gains the `oc-ai` edge — a workspace crate
+   with no network dependency, already reached through `oc-net`. `oc-core` gains nothing: the
+   escalation predicates were already there (Phase 8), and the stage set is unchanged — the step
+   runs inside `structure`'s slot and is timed as `ai` only when it runs.
+2. **An admitted answer is applied by re-running `structure`** with every edit admitted so far
+   plus the new one (`structure_with`), and gates L and V compare that run with the previous one.
+   The final run is checked under the conservation law exactly as the deterministic one is. Nothing
+   patches output; a model's label reaches the book through the code the rule's label took.
+3. **Order:** metadata, heading roles, verse or quote, then book structure over the heading list
+   the earlier edits left. Book structure's `Decision` names the `document` stage (PIPELINE §0.4),
+   although its zones are applied by `oc_structure::book`, where the section tree is built.
+4. **PROVISIONAL — needs maintainer ratification: heading roles is not asked when no heading has a
+   size-rank level** (`pregate.headings`). The edit touches only size-rank levels (2026-09-23,
+   task 2), so an answer could change nothing: gate D, "if deterministic evidence is sufficient,
+   the model is never consulted". The predicate in `oc_core::escalation` is unchanged; this is a
+   pre-gate, like the inventory's.
+5. **A verse label its counter-evidence overrode** is recorded with the model's trace and
+   `fallback = "counter_evidence"`: the model was asked and the rule's answer stood.
+6. **The report** gains `ai` (model id, `--ai-all-tasks`, calls, cached calls, LLM milliseconds),
+   omitted with AI off, and `engine.prompt_version` is set when the step ran.
+Evidence: `crates/openconvert/tests/ai_pipeline.rs` — rows 10.14, 10.15, 10.20, A10.2, and 10.2
+with AI on. With a cooperative in-process model all four tasks are applied somewhere across the
+twenty fixture variants and I-7 holds on every one.
+Affects: PHASE 10 file list, ARCHITECTURE §3.1 (`openconvert → oc-ai`), PIPELINE §0.4, the report.
+
+## 2026-09-23 · `convert --ai`: the flags, the refusal, and where answers are cached · Phase 10
+Context: §2.1 lists `--ai`, `--no-ai`, `--llm-endpoint`, `--llm-api-key-file` and `--model-path`;
+PHASE 9 left their arrival to Phase 10 ("a flag that does nothing is worse than no flag").
+Decisions:
+1. **`--no-ai` wins over `--ai`**, and the AI-only flags (`--ai-all-tasks`, `--llm-endpoint`,
+   `--llm-api-key-file`, `--model-path`) without `--ai` are a usage error, not ignored.
+2. **PROVISIONAL — needs maintainer ratification: an endpoint that is not this machine is refused
+   (exit 2) until Phase 11.** D10 requires consent before a book's text leaves the machine; the job
+   spec has `non_loopback_consent` and the command line has nothing yet. Phase 11 (A11.2) adds it.
+3. **Every other failure to reach a model converts deterministically with `W_LLM_UNAVAILABLE`**
+   and a reason (no `llama-server`, no installed model, a server that never became ready, an
+   endpoint that did not answer) — exit 0 (RT D20). With the shipped, empty language maps nothing
+   is asked, so a dead endpoint is only noticed under `--ai-all-tasks`; the banner is not raised for
+   a call that was never made.
+4. **The engine-owned server** is `OC_LLAMA_SERVER`, else a `llama-server` beside the engine (the
+   desktop bundle's `externalBin`, D8); the model is `--model-path` or the registry default in the
+   model store. It is started per conversion and stopped when the conversion ends. Four thresholds:
+   `llm.{load_timeout_secs, call_timeout_secs, health_probe_timeout_millis, sidecar_context_tokens}`.
+5. **The cache lives in the data directory** (`<data>/openconvert/cache/llm`, ARCHITECTURE §9.4),
+   which `openconvert::data_dir` now defines once for the model store and the cache alike. An
+   external endpoint's model id is `--model-path`'s file stem when given, else `endpoint@<host>` —
+   the cache cannot know which model sits behind someone else's server; Phase 11 names providers.
+6. **`llm` NDJSON events** are emitted after the conversion, one per call, cached ones included.
+Evidence: `crates/openconvert/tests/ai_cli.rs` (rows 10.16, 10.19 and two more);
+`ai_endpoint::only_this_machine_is_loopback`.
+Affects: IMPLEMENTATION_PLAN §2.1, D10, Phase 11, `openconvert::{ai_endpoint, data_dir}`, `cmd_convert`.
+
+## 2026-09-23 · The AI evaluation: what is built, what is seeded, what cannot run here · Phase 10
+Context: PHASE 10 detail 7 and rows 10.17/10.18 — run the corpus twice per task, tabulate the paired
+2×2 per assertion category and language, McNemar (χ², exact below 25), the false-repair rate
+`c / n` per category, and gate every enabled task at ≤ 1 %. No model is reachable here and the
+corpus is not downloaded.
+Decisions:
+1. **`eval/src/oc_eval/compare/`** holds the statistics (`mcnemar`, reusing G7's exact test and
+   non-inferiority), the table and gate (`false_repair`), the gold format (`gold`), the scoring of
+   gold items against both paths' answers (`score`) and the document (`render`).
+   `python -m oc_eval.compare --render | --check | --gate`; CI's eval job runs `--check` and `--gate`.
+2. **Standard library, not scipy**, for both McNemar forms (`math.comb`, `math.erfc`), as Phase 9's
+   G7 did: the plan names scipy, and it stays a declared dependency, but an untyped import would cost
+   the mypy gate for two closed-form functions.
+3. **The assertion category is the gold item's `category`** — the metadata field, the heading role,
+   the zone, the block kind. Phase 7's `.assert.json` vocabulary has no per-task AI categories; a
+   gold item is one assertion.
+4. **The four gold sets are seeds read off the Typst fixtures' sources** (`ours(typst)`, 47 items).
+   They fix the format; D18 forbids fitting or deciding on `ours(*)` alone, and the document shows
+   each set against `calibration.min_gold_instances_per_task` (200).
+5. **With nothing enabled, row 10.18's gate passes vacuously and says so**; an enabled task with no
+   outcomes fails ("a gate that did not run is never a pass", Phase 9). `docs/AI_EVALUATION.md`
+   records that no evaluation has run. **Unverified here:** A10.4 and A10.5 — every measured number.
+6. `oc_eval.model_gate.fixtures` now picks each task's **seed** cassette by its index name
+   (`<task>__a3__v1`): Phase 10 recorded more cassettes beside the seeds, and the loader assumed one.
+Evidence: `eval/tests/test_ai_evaluation.py` (rows 10.17, 10.18 and four more).
+Affects: PHASE 10 detail 7, D18, `thresholds.toml` (`ai_eval.*`), CI's eval job, `docs/AI_EVALUATION.md`.
+
+## 2026-09-23 · VD-g closed: the UB-Mannheim installer's paths and version string · Phase 13
+Context: VD-g (Phase 0 verification-debt table; TECHNOLOGY_EVALUATION §10 / V2 §7) blocks Phase 13's
+system-Tesseract discovery: the Windows probe has to look where the UB-Mannheim installer actually
+puts `tesseract.exe`, for the version it actually delivers.
+Decision: the Windows well-known list is exactly the plan's two entries, in this order —
+`%ProgramFiles%\Tesseract-OCR\tesseract.exe` (label `program-files`), then
+`%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe` (label `local-app-data`) — and the version
+parser accepts the UB-Mannheim banner form `tesseract v5.x.y.YYYYMMDD` alongside `tesseract 5.x.y`.
+Evidence, each read 2026-09-23:
+1. **Install path.** The installer script, `nsis/tesseract.nsi` on the `main` branch of
+   `github.com/UB-Mannheim/tesseract`: `!define PRODUCT_NAME "Tesseract-OCR"`,
+   `!define MULTIUSER_INSTALLMODE_INSTDIR ${PRODUCT_NAME}`, `!define MULTIUSER_USE_PROGRAMFILES64`,
+   `!include MultiUser.nsh`, installed files under `$INSTDIR` with `tessdata\` beside the binary.
+   NSIS's own `Contrib/MultiUser/MultiUser.nsh` (`github.com/NSIS-Dev/nsis`, `master`) sets the
+   all-users `$INSTDIR` to `$PROGRAMFILES64\${MULTIUSER_INSTALLMODE_INSTDIR}` and the current-user
+   one to `GetKnownFolderPath {5CD7AEE2-2219-4A67-B85D-6C9CE15660CB}` (FOLDERID_UserProgramFiles,
+   i.e. `%LOCALAPPDATA%\Programs`) + `\Tesseract-OCR`. So the two install modes land exactly where
+   the plan's list looks. The installer writes `HKLM\…\Tesseract-OCR` `Path`/`InstallDir` registry
+   values and **does not modify `PATH`** (no `EnvVarUpdate` or equivalent in the script), which is
+   why on Windows the well-known list, not `PATH`, is the usual way it is found. Reading the
+   registry value would find a custom install directory; it needs a Windows API binding and is
+   left out of v1 (a custom directory is reachable with `--ocr-path`).
+2. **Version.** The UB-Mannheim wiki (`github.com/UB-Mannheim/tesseract/wiki`) lists the latest
+   installer as `tesseract-ocr-w64-setup-5.5.3.20260724.exe`, 64-bit only — Tesseract 5.5.3, well
+   above the ≥ 5 floor. Its builds print their version with a `v` and the build date: tesseract
+   issue #4034 quotes `tesseract v5.3.0.20221214` / `leptonica-1.78.0` from one. A parser written
+   against Linux's `tesseract 5.3.4` alone would have refused every Windows install as unreadable;
+   `every_platforms_version_banner_parses` holds both forms.
+3. **Language data.** English is a mandatory installer section and every other language is an
+   optional one (`SectionIn RO` for English, `/o` for the rest, each downloaded during install), so
+   a Windows user who did not tick German or Turkish has `eng` only. That is the case
+   `W_OCR_LANG_MISSING` exists for, and its Windows hint names the installer's option.
+Not verifiable here: that a real UB-Mannheim install on a Windows machine is found by the probe.
+There is no Windows machine and no CI runner; the list is asserted as data
+(`the_well_known_lists_are_the_documented_ones`) and the Windows row of A13.1/A13.2 is unverified
+here.
+Affects: IMPLEMENTATION_PLAN Phase 0 VD-g (closed), PHASE 13 detail 1, `oc_core::ocr::discover`.
+
+## 2026-09-23 · OCR's ledger entries carry their region; a whole page is read in clean bands · Phase 13
+Context: PHASE 13 detail 7 wants one `Ocr` entry per region "carrying the region bbox", and I-6
+(ratified note N-1) checks that region for pre-existing text. IR_SKETCH's `LedgerEntry` has no
+geometry. And an `ImageOnly` page is `visible_chars < pageclass.image_only_max_visible_chars`, not
+zero: a scan with a stamped folio or a producer's watermark line in real PDF text is still
+`ImageOnly`, so a whole-page region would contain pre-existing text and fail I-6.
+Decision:
+1. `LedgerEntry` gains `region: Option<Rect>`, set only by OCR and not serialised when `None`, so
+   every existing ledger, snapshot and report reads exactly as before. Additive, like Phase 8's
+   `Decision.fallback`. `LedgerEntry` and `LedgerDelta` lose `Eq` (a `Rect` is `f32`); nothing
+   compared them with more than `PartialEq`.
+2. I-6 is its own function, `oc_core::ledger_check::check_i6`, because it needs the page's runs as
+   well as the ledger. "Contains a run" is read as *overlaps with area*: the stricter reading, since
+   a region that overlapped PDF text would put OCR's copy of that text beside the PDF's own. An
+   `Ocr` entry that removes, or has no region, is also an I-6 failure.
+3. A whole-page OCR region is cut into full-width horizontal bands that avoid every pre-existing run
+   (`clean_bands`); each band with words is one entry. A word that straddles a cut is dropped — it
+   is on the line of text the PDF already carries. On a clean scan this is one band, the page.
+4. OCR-added characters are counted in `ReasonTotals::ocr_added` and `I7Result::ocr_chars` and are
+   taken out of the retention **numerator**; `C_0`, the denominator, never contains them (RT C1).
+   `ocr_chars` is omitted from the report when zero so born-digital snapshots do not change.
+Evidence: `i6_region_scope_rejects_overlapping_text`, `a_full_page_region_is_cut_into_bands_around_existing_text`,
+`ocr_regions_excluded_from_source_retention`, `retention_excludes_ocr_added_characters`.
+Affects: IR_SKETCH `LedgerEntry` (additive field), ARCHITECTURE §5.4 I-6, PHASE 13 details 7 and 8.
+
+## 2026-09-23 · OCR in `ingest`: where it runs, what it replaces, and what `ingest` now records · Phase 13
+Context: PHASE 13 details 3, 7–11 route OCR by page class inside `ingest` and merge its runs there.
+This codebase's `ingest` is `openconvert::input::page_inputs` (glyphs, fonts, images per page); the
+plan's `crates/oc-core/src/stages/ingest.rs` routing cannot live in `oc-core`, which `oc-pdf`
+depends on, so it cannot see a `PdfDoc`.
+Decision:
+1. **Routing is `openconvert::ocr::ocr_stage`**, called inside `convert`'s `ingest` timing, after
+   extraction and before `text`. `oc-core` keeps the engine adapter (`ocr::{discover, invoke, tsv,
+   lang, merge}`), the `INGEST` declaration (`stages/ingest.rs`) and I-6 (`check_i6`). OCR runs ride
+   on `PageInput.ocr_runs`; `text` appends them after the runs it assembles from glyphs.
+2. **`ingest` is now checked and recorded** — I-1, I-2 and I-6 over the OCR step — and its
+   `StageCheck` is the first entry of `per_stage_checks`. Before this phase `ingest` added nothing
+   and was not in the ledger at all. So a born-digital book's ledger gains one Conserving-looking
+   `ingest` entry (0 removed, 0 added), the report's per-stage list has nine entries, and the f07
+   report snapshot changed for that reason alone. The glyph filters' own removals (`GeneratedSpace`,
+   `HiddenText`, …) are still not pushed into the document ledger; that predates this phase and
+   `C_raw` bookkeeping is Phase 7.5's to settle.
+3. **The picture OCR replaced leaves the book** when the region's mean confidence is at or over
+   `ocr.region_conf_min`; under it, the picture stays beside the text with `W_OCR_LOW_CONFIDENCE`
+   (detail 9). A region that yields no words, or whose call fails or hangs, keeps its picture
+   (`W_OCR_FAILED` for the latter), and the book completes.
+4. **Image ids are numbered page-locally at extraction** (`input::number_images`), and decoding
+   reads that id (`structure_input::image_slots`). The old code recovered the page-local index from
+   positions in the document-wide list, which is only right while no image leaves the list; OCR
+   removing one would have made every later image on its page decode as its predecessor. Output is
+   unchanged for every existing fixture (the snapshot suite is green without edits for it).
+5. **I-7's `Removed_all` leaves out the two dedup reasons** (`OverdrawDedup`, `OcrLayerDuplicate`,
+   `Reason::folded_into_c0`). ARCHITECTURE §5.2 folds dedup into `C_0` "rather than recorded against
+   `C_raw`", so the baseline already lacks those characters; counting them again made a re-OCR'd
+   sandwich fail I-7 by exactly its old layer. The entries stay in the ledger as the record.
+   *Found, not fixed:* the same double count applies to `text`'s `SoftHyphen`/`LigatureExpand`
+   entries (`C_0` is taken after `N`), which would fail I-7 on any book with a soft hyphen or a
+   ligature code point. No fixture has one, and it is Phase 7.5's class, not OCR's.
+6. **A re-OCR's `OcrLayerDuplicate` removal is not charged to `conservation.budget.ocr_layer_duplicate_per_page`.**
+   PIPELINE §3 defers `ingest`'s budget checks to `text`, and the existing code never charged any
+   `ingest` removal; re-OCR replaces 100 % of a page's layer by design, which the 0.60 per-page
+   dedup allowance would forbid outright. No budget was widened. **PROVISIONAL — needs maintainer
+   ratification:** whether re-OCR's coupled removal should have a budget of its own.
+7. **`convert` now emits `hello`**, with `ocr:tesseract-<version>` in `capabilities` when discovery
+   found a usable engine (detail 1). `convert` emitted no `hello` before, against §2.3's "always the
+   first line"; `inspect` and `dump-stage` are unchanged.
+8. The rasters go into `<output>.oc-tmp-<token>/`, beside the output, removed after every call and
+   the directory after the conversion.
+Evidence: `ocr_e2e` (8 tests), `repair::the_ledger_records_validate_and_repair_as_conserving_stages`,
+`report::the_report_carries_every_part_the_plan_names`.
+Affects: PIPELINE §3, ARCHITECTURE §5.2/§5.4, PHASE 13 details 1, 3, 7–11, §2.1 (four new flags).
+
+## 2026-09-23 · `BrokenText` pages are not OCR'd in v1 · Phase 13 · PROVISIONAL
+Context: D13.10 routes `broken-text` → OCR, and PIPELINE §3's table says "OCR the whole page; the
+broken text layer is removed under `HiddenText` if invisible, else kept and flagged". A broken
+layer that is invisible has already been removed as `HiddenText` by extraction (render mode 3 on a
+non-sandwich page), so a page that still classifies `BrokenText` has a **visible** broken layer. A
+whole-page `Ocr` region over it contains pre-existing text runs, which I-6 (ratified N-1) forbids;
+keeping both would put the page in the book twice; and removing visible text for being unreadable
+has no reason in the closed `Reason` enum (`HiddenText` is "rendered but not visible", which this is
+not). The task rules forbid adding a `Reason`.
+Decision (the most conservative reading consistent with DECISIONS.md): `BrokenText` pages keep their
+extracted text and the existing `W_BROKEN_TEXT_PAGES` flag, and OCR does not read them. `ImageOnly`,
+`Mixed` and `--re-ocr` sandwich pages are read as the plan says.
+**PROVISIONAL — needs maintainer ratification:** one of (a) a `Reason` for "replaced by OCR" (an
+`ir_version` question), (b) extending `OcrLayerDuplicate` to a broken visible layer, or (c) ratifying
+that v1 does not OCR broken-text pages.
+Affects: D13.10, PIPELINE §3, PHASE 13 details 3 and 6.
+
+## 2026-09-23 · Scanned fixtures, their ground truth, and three things real Tesseract taught · Phase 13
+Context: PHASE 13 detail 12 and rows 13.20/13.21. Tesseract 5.3.4 (`eng`, `deu`, `tur`, `osd`) is
+installed on this machine, so the real engine ran here.
+Decision:
+1. **Four synthetic scans** — `f01` at 300 and 200 dpi, `f04` (de) and `f05` (tr) at 300 — made by
+   `python -m oc_eval.generate.scan_sim --scanned-fixtures`: pypdfium2 render in grayscale, a
+   rotation drawn from ±1.5°, a 12 % left-to-right brightness gradient, Gaussian noise σ 6, JPEG
+   quality 60, wrapped by img2pdf's *internal* engine at the source's page size (the pikepdf engine
+   writes a random `/ID` per run). Every random draw is seeded from the fixture's name.
+   **Committed** as golden binaries (1.5 MB together) under `corpus/fixtures/scanned/`, per
+   TEST_CORPUS §6.4's fallback: the render and the JPEG encoder are not promised to be the same bytes
+   across platforms, and D1 keeps Python out of the Rust test path. `--check` regenerates in memory
+   and fails on any difference; the `ocr` CI job runs it. They are `ours(Typst)` in the manifest and
+   count against `corpus.ours_max_share` (D18).
+2. **Ground truth is this pipeline's own text of the born-digital source**, OCR off (`<id>.gt.txt`),
+   not the source PDF's raw text layer: the scan and its source then lose the same running heads and
+   folios to `furniture`, so CER measures OCR and nothing else. `scanned_ground_truth_is_the_born_digital_text`
+   holds the committed files equal to the live pipeline (`OC_UPDATE_SCAN_GT=1` rewrites them).
+3. **`OMP_THREAD_LIMIT=1` in `tesseract`'s environment.** On this machine at load ~9 on 4 cores, a
+   page Tesseract reads in 0.96 s standalone was still running at the 30 s deadline inside a run —
+   OpenMP's spinning workers — and every page degraded to a picture. Tesseract's documentation
+   recommends the cap when it is not alone on the machine. Environment, not argv: the argument
+   vector stays detail 2's.
+4. **An OCR line's size is its median word's height**, and lines within `ocr.line_size_snap_ratio`
+   (0.25, provisional, new) of a region's median are snapped to it. The line box's height is wrong
+   on a skewed scan (a 1.5° climb adds ~8 pt over a 300 pt measure), and raw heights split one body
+   face into several clusters, so `structure` found no heading on three of the four scans. With both,
+   all four headings are found at level 1.
+Measured here: synthetic-scan CER **0.0000 / 0.0011 / 0.0000 / 0.0015** (f01@300, f01@200, f04, f05),
+mean **0.0007** against `ocr.max_cer_synthetic = 0.03`; all twelve `.assert.json` assertions pass.
+**Unverified here:** the real stratum. The manifest's `ABBYY-scanner` holdout documents are not on
+this machine (`corpus/downloads` is absent) and have no ground-truth text; the test and the nightly
+report print the real stratum as `n = 0` and refuse to state a gap rather than print one against
+nothing. Adding 6–10 Internet Archive volumes with hOCR-derived ground truth is the plan's
+"real scans" half of detail 12 and is left for the maintainer (their download needs a rights check
+per item, TEST_CORPUS §2).
+Evidence: `ocr_tesseract` (feature `tesseract`), `ocr_scanned`, `test_metrics`/`test_run` additions.
+Affects: PHASE 13 detail 12, TEST_CORPUS §6.3/§6.4, `thresholds.toml` (`ocr.line_size_snap_ratio`).
+
+## 2026-09-23 · Consent lives in `oc-net`; off this machine means `https://` · Phase 11
+Context: PHASE 11 detail 4 and D10 — a non-loopback endpoint needs an explicit toggle that names the
+host; SECURITY §8 puts the host allowlist in `oc-net`, "not left to each provider implementation".
+Decisions:
+1. **`oc_net::consent::authorize(url, consent)` is the one check**, and `HttpTransport` runs it in
+   its constructor: `HttpTransport::new` reaches this machine only; `HttpTransport::with_consent`
+   reaches the one host a `ConsentRecord` names. A refusal happens before any socket exists, so "no
+   bytes sent" is a property of the type, not of each caller remembering.
+2. **Loopback** is `localhost` (exactly), 127/8, `::1`, and `::ffff:127.x` — what `std::net` calls
+   loopback. `localhost.` and `*.localhost` need consent: the resolver is not obliged to agree.
+3. **The URL is parsed narrowly**: user-info, `%`, `\`, `?`, `#`, whitespace and a second colon are
+   refused, never interpreted (`http://127.0.0.1@evil.example` is a request to `evil.example`). An
+   unparseable URL is never loopback.
+4. **PROVISIONAL — needs maintainer ratification: plain `http://` off this machine is refused even
+   with consent.** D10 and SECURITY §8 do not speak to the scheme. Consent says the named host may
+   read the books' text; over plain http everyone on the path can, and an API key rides in the
+   clear. The conservative reading refuses it (`NetError::PlaintextRemote`); a LAN server needs TLS
+   in front of it. Loosening this is a one-line change in `authorize`.
+5. **`ConsentScope` has one variant, `Run`**: the engine remembers nothing. The desktop app keeps a
+   user's choice per configuration (UI_UX §2.4) and writes it into each job spec it runs.
+Evidence: `crates/oc-net/tests/consent.rs` (row 11.6 and four more).
+Affects: D10, SECURITY §8, `oc_net::{consent, transport}`.
+
+## 2026-09-23 · The adapters, and a provider that constrains nothing · Phase 11
+Context: PHASE 11's files put the adapters under `oc-ai/src/provider/`; detail 1 says an endpoint
+with neither GBNF nor JSON Schema degrades to "a schema-in-prompt plus a strict Gate S" and records
+`W_LLM_UNCONSTRAINED`.
+Decisions:
+1. **`oc_ai::openai` moved to `oc_ai::provider::openai_compatible`** (the one client, unchanged), and
+   `provider.rs` became `provider/mod.rs`. `local_sidecar(…)` is that client with GBNF and
+   `chat_template_kwargs`; `custom_endpoint(…)` is it with the probed `ProviderCaps` and D10's
+   generic thinking lever — `/no_think` when the model id contains `qwen` (case-insensitive), nothing
+   otherwise. `ProviderKind { LocalSidecar, OpenAiCompatible, Ollama }` names the adapter, not who
+   owns the server: a user's own `llama-server` the probe recognises is a `LocalSidecar`.
+2. **Schema-in-prompt is the task's own `schema.json`, appended after a blank line to the user
+   message**, with no words around it. The shared system prefix already says "answer only with JSON
+   that matches the grammar you were given", and ratified R-7 keeps prompt text out of Rust: a
+   sentence introducing the schema would be prompt text in code, or a new artifact under the frozen
+   v1. The cache key does not change (it hashes `request.user`, the question), which is right: the
+   question is the same, and gate S judges whatever comes back.
+3. **`W_LLM_UNCONSTRAINED` is raised by the `Session`, once per book, on the first answer an
+   unconstrained provider gives** — not at open, because a book that asks nothing was not affected.
+   Argument: `model`. Gate S is not relaxed in any way.
+Evidence: `crates/oc-ai/tests/providers.rs` (row 11.4 and three more).
+Affects: PHASE 11 detail 1, D10, `oc_ai::{provider, session}`, the warning registry.
+
+## 2026-09-23 · Ollama speaks `/api/chat`, not `/v1/chat/completions` · Phase 11
+Context: PHASE 11 detail 1 says every provider speaks OpenAI-compatible `/v1/chat/completions`;
+detail 2 and D10 say Ollama's answer is constrained through its `format` field with the full JSON
+Schema and its `num_ctx` is explicitly overridden, because the 2 048-token default truncates.
+Read on 2026-09-23: Ollama's OpenAI-compatibility request type (`openai/openai.go`,
+`ChatCompletionRequest`) has no `options`, `num_ctx`, `format`, `keep_alive` or `think` field, and Go's
+JSON decoder drops unknown fields silently; `server/routes.go` truncates native chat messages that
+exceed `NumCtx`. The two details cannot both hold.
+Decisions:
+1. **PROVISIONAL — needs maintainer ratification: D10 wins over detail 1.** `oc_ai::provider::ollama`
+   posts to `/api/chat` — the same two messages, greedy decoding and answer as every adapter — with
+   `stream: false`, `format` (the task's `schema.json`), `options {temperature, num_ctx,
+   num_predict}`, `keep_alive`, `think: false`, `truncate: false` and `shift: false` (`api/types.go`
+   `ChatRequest` has both: an Ollama that knows them errors instead of truncating the prompt or
+   shifting it out of the context). A `num_ctx` sent to `/v1` would be ignored, and the failure it
+   exists to prevent — a silently cut prompt answered well-formed and wrong — would be back.
+2. **`num_ctx = max(llm.ollama_num_ctx, prompt bytes + llm.ollama_template_overhead_tokens +
+   max_tokens)`.** Bytes bound tokens from above for byte-level tokenizers, so the context is never
+   short; a book whose prompts fit asks for one context throughout, so Ollama does not reload the
+   model between calls. Thresholds, all provisional: `llm.ollama_num_ctx = 8192`,
+   `llm.ollama_template_overhead_tokens = 64`, `llm.ollama_keep_alive_secs = 600`.
+3. **The reply** is read from `message.content`, `message.thinking` (kept as `reasoning`, which gate
+   S refuses), `done_reason`, `prompt_eval_count`, `prompt_eval_cached_count`, `eval_count`.
+4. **The provider's id is the model as Ollama names it** (`qwen3:1.7b`): the cache key carries it.
+Evidence: `crates/oc-ai/tests/ollama.rs` (rows 11.2, 11.3 and one more).
+Affects: PHASE 11 details 1–2, D10, `oc_ai::provider::ollama`, `thresholds.toml` (`llm.ollama_*`).
+
+## 2026-09-23 · Detection and the capability probe · Phase 11
+Context: PHASE 11 details 2 and 5 — Ollama auto-detected on `localhost:11434`; a health and
+capability probe once per session, cached, degrading on failure; "version drift … is handled by the
+capability probe rather than by version sniffing". The desktop's job spec carries an endpoint and a
+model and no provider kind (§2.2), so the engine has to learn the kind from the endpoint itself.
+Decisions:
+1. **`Transport` gains `get`** (default: 404, for the chat-only test doubles); `HttpTransport`
+   implements it with its existing GET.
+2. **`oc_net::detect::detect_ollama`** asks `GET /api/tags` and returns the model names; a reply that
+   is not a model list is "not detected", never an error. `ollama_transport()` is the default
+   `http://localhost:11434`, which is loopback and needs no consent.
+3. **`oc_net::detect::probe`** asks, in order and stopping at the first answer: `GET /props` — an
+   object with `default_generation_settings` is `llama-server` (it serves `/api/tags` too, so it is
+   asked first); `GET /api/tags` — Ollama; `GET /v1/models` — any other OpenAI-compatible server.
+   Nothing answering is the probe's error, which the caller turns into `W_LLM_UNAVAILABLE`.
+4. **PROVISIONAL — needs maintainer ratification: an OpenAI-compatible server that is neither
+   `llama-server` nor Ollama is probed as constraining nothing** (`ProviderCaps::neither`, schema in
+   the prompt, `W_LLM_UNCONSTRAINED`). LM Studio and vLLM document `response_format: json_schema`,
+   but a `GET` cannot show that a server honours it rather than ignoring it — only a generation
+   could — and claiming a constraint that silently is not applied would suppress the warning that
+   tells the user why more answers fail gate S. Sending `response_format` blind also risks a 400
+   from a server that rejects the field, which would disable AI for that server entirely.
+5. **A base URL is reduced to its root** (`api_root`: no trailing `/`, no trailing `/v1`), so
+   `https://host/v1` — how most servers document their base URL — and `https://host` both work.
+Evidence: `crates/oc-net/tests/detect.rs` (row 11.1 and three more).
+Affects: PHASE 11 details 2 and 5, D10, `oc_ai::transport`, `oc_net::detect`.
+
+## 2026-09-23 · `convert --ai` opens a provider: flags, consent, probe, model · Phase 11
+Context: PHASE 11 details 3–5; §2.1 lists `--llm-endpoint` and `--llm-api-key-file` and nothing that
+names a provider, a model, or a consent. The job spec (§2.2) has `endpoint`, `api_key_file`,
+`model_path`, `model_id`, `non_loopback_consent: bool` — and no provider kind.
+Decisions:
+1. **Three flags, all AI-only** (refused without `--ai`, like the others):
+   `--llm-provider builtin|ollama|openai-compatible` (`builtin` is `ProviderKind::LocalSidecar`, the
+   name UI_UX §2.4 gives it), `--llm-model <NAME>` (the job spec's `model_id`), and
+   **`--llm-allow-host <HOST>` — the consent, and it names the host** (D10's "toggle that names the
+   host"). It must equal the endpoint's host, case-insensitively; consent to another host is none.
+   PROVISIONAL — needs maintainer ratification: the flag's name and that it takes the host rather
+   than a bare boolean. The job spec's boolean reads as consent to its own endpoint's host
+   (`AiArgs::consenting_to_the_endpoint`), the desktop dialog having named the host to the user.
+2. **`E_CONSENT_REQUIRED`**, exit 2, a `fatal` whose message names the host, says nothing was sent,
+   and names the flag. The check runs before the key file is read and before any connection: the
+   test counts connections and finds none. Other refusals stay `E_USAGE`.
+3. **The probe picks the adapter** unless `--llm-provider` does: `llama-server` → `LocalSidecar`
+   (so the desktop app's own server, reached through the job spec's endpoint, gets GBNF and
+   `chat_template_kwargs` exactly as in Phase 10), Ollama → `Ollama`, anything else →
+   `OpenAiCompatible` with `ProviderCaps::neither`. A failed probe is `W_LLM_UNAVAILABLE` ("the
+   endpoint did not answer the capability probe"), exit 0. `llm.provider_probe_timeout_millis =
+   5000`, provisional. `--llm-provider ollama` without an endpoint is `http://localhost:11434`.
+4. **A model is never guessed**: `--llm-model`, else the only model the server lists; several, or
+   none, is `W_LLM_UNAVAILABLE` saying to name one. Ollama's `name:latest` answers to `name`. A
+   `llama-server` endpoint keeps Phase 10's id (`--llm-model`, else `--model-path`'s stem, else
+   `endpoint@<host>`); for the engine-owned sidecar `--llm-model` picks the registry entry.
+5. **`ai_endpoint::open_with(args, registry, t, &dyn Connector)`** reaches endpoints through a
+   connector — `Network` (`HttpTransport`) in the engine, an in-process double in tests — so a
+   host off this machine is testable without a network. The report records the consent (P11.7).
+Evidence: `crates/openconvert/tests/providers.rs` (rows 11.5, 11.8 and four more),
+`ai_endpoint::the_job_specs_consent_names_the_endpoints_own_host`.
+Affects: IMPLEMENTATION_PLAN §2.1/§2.2, D10, `openconvert::{ai_endpoint, cli, cmd_convert}`, Phase 12.
+
+## 2026-09-23 · What the report says about a provider · Phase 11
+Context: PHASE 11 detail 4 — "the granted consent, the host, and the timestamp are recorded in the
+conversion report"; detail 5 and A11.4 — a failing provider is a deterministic book, exit 0, and a
+recorded warning.
+Decisions:
+1. **A top-level `consent: {host, granted_at, scope}`**, present only when an endpoint off this
+   machine was opened under consent (`granted_at` RFC 3339 UTC to the second, `scope: "run"`). Not
+   inside `ai`: it is a fact about the run's privacy, not about the model's work, and a reader
+   looking for "did text leave?" should not have to know where AI details live.
+2. **`ai.provider`** names the adapter (`local_sidecar`, `ollama`, `openai_compatible`).
+3. **A consent whose endpoint then failed its probe is not recorded**: nothing was opened, and the
+   probe's `GET`s carry no document text. A consent whose endpoint was opened is recorded even if
+   every question then failed — the question itself carried the text.
+4. **Failure is the Phase 10 path, unchanged**: a probe that nothing answers is `W_LLM_UNAVAILABLE`
+   ("the endpoint did not answer the capability probe"); a 500 on a question stops the session and
+   is `W_LLM_UNAVAILABLE` ("the endpoint refused the request"); the book is the `--no-ai` book byte
+   for byte, exit 0 — for the `llama-server`, Ollama and generic adapters alike.
+Evidence: `crates/openconvert/tests/providers.rs` (rows 11.7, 11.9).
+Affects: PIPELINE §13 (report), D10, `openconvert::report` (`ReportInput.{provider, consent}`).
+
+## 2026-09-23 · `openconvert provider`: what the settings page reads · Phase 11
+Context: PHASE 11's files name `crates/openconvert/src/cmd_provider.rs` and a Provider settings
+page "wired in Phase 12" (UI_UX §2.4: Built-in / Ollama (detected) / Custom endpoint with the
+consent dialog naming the host). §2.1 has no `provider` subcommand. The desktop app runs the engine
+as a subprocess, so what the settings page needs has to be a command.
+Decisions:
+1. **`provider detect [--json]`** — `{"ollama": null}` or `{"ollama": {"url", "models"}}` from
+   `GET http://localhost:11434/api/tags`; always exit 0. Loopback only: no consent.
+2. **`provider check <URL> [--json]`** — `{url, host, loopback, requires_consent, usable, reason}`;
+   sends nothing. `usable` is false only for plain http off the machine (`reason` says https). A URL
+   the engine will not interpret is exit 2. This is how a UI decides to show the consent dialog.
+3. **`provider probe <URL> [--llm-provider] [--llm-model] [--llm-allow-host] [--llm-api-key-file]
+   [--json]`** — `convert --ai`'s own opening (`ai_endpoint::open`), so the two cannot disagree:
+   `{available: true, url, host, provider, constraint, thinking, model, models, consent}` exit 0;
+   `{available: false, url, reason}` exit 1; no consent → exit 2, `fatal{E_CONSENT_REQUIRED}`.
+   It sends `GET`s only — no question, no document text.
+4. **No network-log event is added** to the NDJSON schema (§2.3 is closed): the audit log of every
+   outbound connection is PHASE 14 detail 12 (`oc-net/src/audit.rs`). What Phase 11 gives it: every
+   connection `convert --ai` and `provider probe` make goes through `ai_endpoint::Connector`, and
+   the report's `consent` says when text left the machine.
+Evidence: `crates/openconvert/tests/providers.rs` (`provider_detect_reports_ollama_or_nothing`,
+`provider_check_says_whether_consent_is_needed`, `provider_probe_answers_what_convert_would_open`).
+Affects: IMPLEMENTATION_PLAN §2.1, UI_UX §2.4, Phase 12 (`routes/settings/providers.svelte`), Phase 14.
+
+## 2026-09-23 · Phase 12 meets Phases 10, 11 and 13: one conversion path, one cache rule · Phase 12
+Context: `phase/12-desktop-ui` rewrote the conversion driver for real progress, cancel and the
+partial re-run (`convert_observed`, `Upstream`, `cache.rs`); main, meanwhile, split the same driver
+for the AI step (`prepare` / `convert_prepared` / `finish`, Phase 10) and put OCR inside `ingest`
+(Phase 13), and `convert` for the providers (Phase 11). Merging `origin/main` (c812e9e) into the
+branch had to keep every behaviour of both.
+Decisions:
+1. **One driver.** `convert` → `convert_with_ai` → `convert_observed(…, ai, t, observe)`: `ingest`
+   (pages read one at a time, then OCR) → `text` → `furniture` → `layout` → `structure` (+ the AI
+   step, inside `structure` as a user sees it) → `document` → … . `prepare` and `convert_prepared`
+   stay public for the tests that change a book's evidence before `structure`. The job spec and
+   `convert` resolve to one `ConvertJob`, which now carries `--ai` and the four OCR flags;
+   `hello` carries `ocr:tesseract-…` from discovery on both paths (a job spec reads scanned pages
+   the way `convert`'s default `--ocr auto` does). Image decoding uses main's `slots` (never the
+   position among a page's images, which OCR changes).
+2. **The partial re-run saves only what it can restore whole.** A run that asked a model, or in which
+   OCR read, refused or warned about anything, is neither saved nor resumed: the model's answers and
+   OCR's report are not in the save, and a rebuild whose report silently dropped them would describe
+   another book. The escalation records *are* saved (`EscalationRecord` now owns its `task` and
+   `predicate` text so it can be read back; the JSON is unchanged), so a born-digital book keeps its
+   shortcut. The cache key gained the OCR settings (mode, re-OCR, languages, engine); `ingest` joined
+   the stages a saved ledger may name; `ReasonTotals::replay` carries what OCR added (I-6).
+3. **Duplicate thresholds**: both branches added `llm.load_timeout_secs` and
+   `llm.health_probe_timeout_millis` (the desktop app's server wait; `convert --ai`'s). One wait, one
+   key: main's values (300 s, 2000 ms) are kept and the desktop app's `llm.rs` reads them.
+4. **A deadlock the merge exposed.** `main.rs` held stderr's lock on the main thread for the whole
+   run; the heartbeat thread's first write blocked on it while holding the event sink, and the run's
+   next event blocked on the sink. Every run longer than `ipc.heartbeat_secs` hung — never seen on
+   the branch because its fixtures finish inside one period, seen at once with OCR. The top-level
+   sink now writes to an unlocked `Stderr`
+   (`a_run_longer_than_the_heartbeat_period_beats_and_keeps_reporting`).
+Evidence: the whole workspace suite on the merge (740 tests), `report_f07` snapshot recounted to 224
+threshold entries.
+Affects: `crates/openconvert/src/{convert,cache,cmd_convert,cmd_job,main,cli}.rs`,
+`crates/oc-structure/src/escalate.rs`, `crates/oc-core/src/ledger_check.rs`, `thresholds.toml`.

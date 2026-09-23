@@ -5,14 +5,17 @@
 //! [`SecretString`], so it is zeroed on drop and `Debug` prints it redacted.
 //!
 //! No proxy is ever used, whatever the environment says: the engine-owned sidecar is on loopback,
-//! and a proxy configured for downloads is not a party that may read a book's text. Whether a
-//! non-loopback endpoint may be used at all is a consent question (D10) that Phase 11 answers.
+//! and a proxy configured for downloads is not a party that may read a book's text. A host off this
+//! machine is reached only with consent that names it (D10): [`HttpTransport::new`] builds a
+//! transport to this machine and nowhere else, and [`HttpTransport::with_consent`] to the one host a
+//! [`ConsentRecord`] names — both refuse before a socket exists ([`crate::consent::authorize`]).
 
 use std::time::Duration;
 
 use oc_ai::transport::{Transport, TransportError};
 use secrecy::{ExposeSecret, SecretString};
 
+use crate::consent::{authorize, ConsentRecord};
 use crate::NetError;
 
 pub struct HttpTransport {
@@ -31,12 +34,24 @@ impl std::fmt::Debug for HttpTransport {
 }
 
 impl HttpTransport {
-    /// A transport to `base`, e.g. `http://127.0.0.1:43127`. Paths are appended to it verbatim.
+    /// A transport to `base` on this machine, e.g. `http://127.0.0.1:43127`. Paths are appended to
+    /// it verbatim. A host that is not this machine is refused: that needs [`Self::with_consent`].
     pub fn new(base: &str, api_key: Option<SecretString>) -> Result<Self, NetError> {
-        let lower = base.to_ascii_lowercase();
-        if !(lower.starts_with("http://") || lower.starts_with("https://")) {
-            return Err(NetError::BadUrl(base.to_owned()));
-        }
+        authorize(base, None)?;
+        Ok(Self::build(base, api_key))
+    }
+
+    /// A transport to `base` on the host `consent` names — or on this machine, which needs none.
+    pub fn with_consent(
+        base: &str,
+        api_key: Option<SecretString>,
+        consent: &ConsentRecord,
+    ) -> Result<Self, NetError> {
+        authorize(base, Some(consent))?;
+        Ok(Self::build(base, api_key))
+    }
+
+    fn build(base: &str, api_key: Option<SecretString>) -> Self {
         let agent = ureq::Agent::config_builder()
             .proxy(None)
             .max_redirects(0)
@@ -51,11 +66,11 @@ impl HttpTransport {
             )
             .build()
             .new_agent();
-        Ok(Self {
+        Self {
             base: base.trim_end_matches('/').to_owned(),
             api_key,
             agent,
-        })
+        }
     }
 
     pub fn base(&self) -> &str {
@@ -79,6 +94,10 @@ impl HttpTransport {
 }
 
 impl Transport for HttpTransport {
+    fn get(&self, path: &str, timeout: Duration) -> Result<String, TransportError> {
+        HttpTransport::get(self, path, timeout)
+    }
+
     fn post_json(
         &self,
         path: &str,

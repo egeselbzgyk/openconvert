@@ -199,6 +199,42 @@ impl PdfDoc for PdfiumDoc {
         crate::outline::read_outline(&self.document, &self.limits)
     }
 
+    fn render_region(
+        &self,
+        index: u32,
+        region: oc_model::geom::Rect,
+        dpi: u32,
+    ) -> Result<crate::render::RenderedRegion, PdfError> {
+        /// Points per inch, the unit of the page's own size.
+        const POINTS_PER_INCH: f32 = 72.0;
+        let page = self.page(index)?;
+        let scale = dpi as f32 / POINTS_PER_INCH;
+        // The whole page's raster size, checked before PDFium allocates it: a poster-sized page
+        // at 300 dpi is exactly the pixel bomb `max_image_pixels` exists for.
+        let width = (page.width().value * scale).ceil().max(1.0) as u32;
+        let height = (page.height().value * scale).ceil().max(1.0) as u32;
+        crate::limits::check_image(width, height, &self.limits)?;
+
+        let config = pdfium_render::prelude::PdfRenderConfig::new()
+            .scale_page_by_factor(scale)
+            .use_grayscale_rendering(true)
+            .render_form_data(true);
+        let bitmap = page
+            .render_with_config(&config)
+            .map_err(|source| PdfError::Page {
+                index,
+                message: format!("the page could not be rendered: {source}"),
+            })?;
+        let gray = bitmap
+            .as_image()
+            .map_err(|source| PdfError::Page {
+                index,
+                message: format!("the rendered page could not be read: {source}"),
+            })?
+            .to_luma8();
+        crate::render::crop(&gray, index, region, dpi)
+    }
+
     fn page_image_stats(&self, index: u32) -> Result<PageImageStats, PdfError> {
         let page = self.page(index)?;
         let page_area = page.width().value * page.height().value;

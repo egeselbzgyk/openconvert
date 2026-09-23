@@ -21,6 +21,13 @@ ace = []
 # assertion on a shared CI runner measures the runner, and a gate that fails for that
 # reason is one people learn to re-run until it passes. The nightly `bench` job turns it on.
 bench = []
+# PHASE 10: `convert --ai --ai-all-tasks` against a real llama-server and model (`OC_LLAMA_SERVER`,
+# `OC_LIVE_MODEL`). Gated like `oc-testkit`'s live tests, and run by the same nightly job.
+live-llm = []
+# PHASE 13: A13.1, rows 13.20 and 13.21 need a real system Tesseract 5 with `eng`, `deu` and
+# `tur`. Gated so that a machine without one runs the ordinary suite green; the `ocr` CI job
+# installs Tesseract and turns it on, and with the feature on a missing engine fails the tests.
+tesseract = []
 
 [lib]
 name = "openconvert"
@@ -40,11 +47,15 @@ oc-epub = { path = "../oc-epub", version = "0.1.0" }
 oc-validate = { path = "../oc-validate", version = "0.1.0" }
 oc-text = { path = "../oc-text", version = "0.1.0" }
 oc-net = { path = "../oc-net", version = "0.1.0" }
+# The AI step drives the four tasks (PHASE 10). `oc-ai` opens no socket; `oc-net` is the transport.
+oc-ai = { path = "../oc-ai", version = "0.1.0" }
 anyhow.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+# An API key read from `--llm-api-key-file`, handed to `oc-net` without ever being a plain string.
+secrecy.workspace = true
 time.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

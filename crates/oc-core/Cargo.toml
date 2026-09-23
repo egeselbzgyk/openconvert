@@ -20,9 +20,13 @@ regex.workspace = true
 secrecy.workspace = true
 ctrlc.workspace = true
 getrandom.workspace = true
+# PNG encoding of the raster handed to `tesseract` (PHASE 13 detail 2). Already in the graph through
+# `oc-epub` and `pdfium-render`, with the same two codecs.
+image.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
+proptest.workspace = true
 # Test-only: `every_provisional_has_owner_and_future_review` needs today's date to decide
 # whether a `review_by` has expired. The shipped crate has no clock dependency.
 time.workspace = true

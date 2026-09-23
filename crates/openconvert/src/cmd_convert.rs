@@ -20,8 +20,13 @@ use oc_pdf::backend::PdfBackend;
 use oc_pdf::inspect::PdfOpen;
 use oc_pdf::pdfium::PdfiumBackend;
 
-use crate::cli::{ConvertArgs, Progress};
+use crate::cli::{AiArgs, ConvertArgs, Progress};
+use oc_ai::session::Clock;
+use openconvert::ai_endpoint::{self, OpenError};
 use openconvert::convert::{convert_observed, ConvertError, ConvertOptions, Observe};
+
+/// The model registry the engine was built with (PHASE 9 detail 6).
+const BUNDLED_REGISTRY: &str = include_str!("../../../models.toml");
 
 pub(crate) const E_PDFIUM: &str = "E_PDFIUM_ABI";
 const E_INPUT: &str = "E_INPUT";
@@ -35,6 +40,7 @@ const E_OUTPUT: &str = "E_OUTPUT";
 const E_OUTPUT_EXISTS: &str = "E_OUTPUT_EXISTS";
 const E_CONVERT: &str = "E_CONVERT";
 const E_REPORT: &str = "E_REPORT";
+const E_USAGE: &str = "E_USAGE";
 
 /// The environment variable naming the directory where a run saves what `structure` settled, for
 /// a later run with the user's corrections to resume from (A12.4b).
@@ -66,6 +72,16 @@ pub struct ConvertJob {
     pub json_events: bool,
     /// The `overrides.json` the job named (ARCHITECTURE §4.7).
     pub overrides: Option<PathBuf>,
+    /// How the model is reached, when it is (PHASE 10). `None` is `ai.enabled = false`.
+    pub ai: Option<AiArgs>,
+    /// Whether scanned content is read (PHASE 13).
+    pub ocr: oc_core::ocr::OcrMode,
+    /// An explicit `tesseract`, replacing discovery.
+    pub ocr_path: Option<PathBuf>,
+    /// Traineddata names; by default the document's language decides.
+    pub ocr_lang: Option<oc_core::ocr::lang::LangSpec>,
+    /// Whether an OCR sandwich's own layer is replaced (D13.10).
+    pub re_ocr: oc_core::ocr::ReOcr,
 }
 
 impl ConvertJob {
@@ -93,6 +109,11 @@ impl ConvertJob {
             job_id: None,
             json_events: args.progress == Progress::Json,
             overrides: args.overrides.clone(),
+            ai: args.ai.clone(),
+            ocr: args.ocr,
+            ocr_path: args.ocr_path.clone(),
+            ocr_lang: args.ocr_lang.clone(),
+            re_ocr: args.re_ocr,
         }
     }
 }
@@ -106,25 +127,50 @@ pub fn run<W: Write + Send>(args: &ConvertArgs, events: &EventSink<W>) -> ExitCo
             return ExitCode::Usage;
         }
     };
-    hello(&backend, events);
-    run_job(&ConvertJob::from_args(args), &backend, events)
+    let job = ConvertJob::from_args(args);
+    hello(
+        &backend,
+        events,
+        &ocr_capabilities(job.ocr, job.ocr_path.as_deref()),
+    );
+    run_job(&job, &backend, events)
 }
 
 /// `hello` from a freshly bound backend, or the `fatal` that says why there is none.
+///
+/// The capabilities are the ones a job spec's run would have — OCR by discovery, as `auto` finds
+/// it — so a supervisor's version handshake learns what its conversions can do.
 pub(crate) fn announce<W: Write>(events: &EventSink<W>) {
     match PdfiumBackend::bind() {
-        Ok(backend) => hello(&backend, events),
+        Ok(backend) => hello(
+            &backend,
+            events,
+            &ocr_capabilities(oc_core::ocr::OcrMode::Auto, None),
+        ),
         Err(error) => events.fatal(E_PDFIUM, &error.to_string()),
     }
 }
 
 /// The `hello` event: always the first line of a run (§2.3).
-pub(crate) fn hello<W: Write>(backend: &PdfiumBackend, events: &EventSink<W>) {
-    events.hello(
+pub(crate) fn hello<W: Write>(backend: &PdfiumBackend, events: &EventSink<W>, extra: &[String]) {
+    events.hello_with(
         env!("CARGO_PKG_VERSION"),
         oc_model::IR_VERSION,
         &backend.version().version,
+        extra,
     );
+}
+
+/// The capabilities this run discovered beyond the ones every engine has: `ocr:tesseract-5.3.4`
+/// when a usable Tesseract was found (PHASE 13 detail 1). Discovery runs once, before anything is
+/// read, so that `hello` can say it; `--ocr never` asks nothing of the machine at all.
+pub(crate) fn ocr_capabilities(mode: oc_core::ocr::OcrMode, path: Option<&Path>) -> Vec<String> {
+    if mode == oc_core::ocr::OcrMode::Never {
+        return Vec::new();
+    }
+    oc_core::ocr::discover::discover(path)
+        .map(|info| vec![info.capability()])
+        .unwrap_or_default()
 }
 
 /// How a run ended, decided before the final event is written.
@@ -235,6 +281,13 @@ fn steps<W: Write + Send>(
         );
     }
 
+    // The wall-clock share is of the whole conversion, so its clock starts here (D13.6).
+    let clock = oc_ai::session::SystemClock::new();
+    let started_ms = clock.now_ms();
+
+    // OCR's rasters go to a job-private directory beside the output, deleted with the conversion
+    // whatever became of it.
+    let workdir = temporary_beside(&output);
     let options = ConvertOptions {
         filename: args
             .input
@@ -260,6 +313,7 @@ fn steps<W: Write + Send>(
         // The app names its cache directory in the environment of every engine it starts, so a
         // "Fix and rebuild" can resume after `structure` (A12.4b). Unset, nothing is saved.
         cache_dir: std::env::var_os(CACHE_VAR).map(PathBuf::from),
+        ocr: ocr_options(job, &workdir),
     };
 
     let pdf = match backend.open_with_limits(&bytes, args.password.as_deref(), &job.limits) {
@@ -279,12 +333,55 @@ fn steps<W: Write + Send>(
         }),
     );
 
+    // AI: open the model, or learn why not. An endpoint off this machine without consent, and an
+    // endpoint the engine will not interpret, are refused before anything is sent; anything else
+    // that stops a model answering converts the book without one, and says so.
+    let (opened, unavailable) = match &job.ai {
+        None => (None, None),
+        Some(ai) => match ai_endpoint::open(ai, BUNDLED_REGISTRY, &T) {
+            Ok(opened) => (Some(opened), None),
+            Err(OpenError::Unavailable(reason)) => (None, Some(reason)),
+            Err(refused) => {
+                let exit = refused.exit_code();
+                let (code, message) = refused
+                    .fatal()
+                    .unwrap_or((E_USAGE, "the model could not be opened".to_owned()));
+                return fatal(code, message, exit);
+            }
+        },
+    };
+    let llm_cache = oc_ai::cache::FileCache::new(openconvert::data_dir::llm_cache());
+    let context = opened.as_ref().map(|opened| openconvert::ai::AiContext {
+        provider: opened.provider.as_ref(),
+        cache: Some(&llm_cache),
+        clock: &clock,
+        started_ms,
+        all_tasks: job.ai.as_ref().is_some_and(|ai| ai.all_tasks),
+    });
+
     let progress = EventProgress::new(events);
     let observe = Observe {
         progress: &progress,
         cancel,
     };
-    let conversion = match convert_observed(pdf.as_ref(), &sha256, &options, &T, observe) {
+    let converted = convert_observed(
+        pdf.as_ref(),
+        &sha256,
+        &options,
+        context.as_ref(),
+        &T,
+        observe,
+    );
+    // The engine-owned server, if any, is not needed past the conversion: stop it now rather than
+    // at exit (D8's idle-kill, reached at once). What the report says about the provider — which
+    // adapter, and the consent it needed — outlives it.
+    let provider_kind = opened.as_ref().map(|opened| opened.kind);
+    let consent = opened.as_ref().and_then(|opened| opened.consent.clone());
+    drop(opened);
+    // The rasters are deleted after every call; the directory goes with the conversion, whatever
+    // became of it.
+    let _ = std::fs::remove_dir_all(&workdir);
+    let mut conversion = match converted {
         Ok(conversion) => conversion,
         Err(ConvertError::Cancelled) => return Ending::Cancelled,
         Err(error) => {
@@ -295,6 +392,30 @@ fn steps<W: Write + Send>(
             return fatal(code, error.to_string(), ExitCode::Failed);
         }
     };
+
+    // AI was asked for and no model could be reached: the banner (RT D20).
+    if let Some(reason) = unavailable {
+        conversion
+            .document
+            .warnings
+            .push(openconvert::ai::unavailable(reason));
+    }
+    // One `llm` event per call, cached ones included (D13.2).
+    if let Some(outcome) = &conversion.ai {
+        for call in &outcome.calls {
+            events.emit(
+                "llm",
+                serde_json::json!({
+                    "call_id": call.call_id,
+                    "purpose": call.purpose.as_str(),
+                    "cached": call.cached,
+                    "tokens_in": call.tokens_in,
+                    "tokens_out": call.tokens_out,
+                    "ms": call.ms,
+                }),
+            );
+        }
+    }
 
     // Every warning the conversion collected, as `code` + `args`. Phase 5 emitted the emitter's
     // codes with an empty argument object; the document now carries the arguments too, and a
@@ -324,6 +445,8 @@ fn steps<W: Write + Send>(
                 producer_family: conversion.producer_family,
                 pages: page_count(&conversion),
                 page_classes: conversion.page_classes.clone(),
+                provider: provider_kind,
+                consent: consent.as_ref(),
             },
         );
         match openconvert::report::to_json(&report) {
@@ -438,6 +561,46 @@ fn open_failure(error: &oc_pdf::error::PdfError) -> (&'static str, ExitCode) {
         oc_pdf::error::PdfError::LimitExceeded(_) => (E_LIMIT, ExitCode::Usage),
         _ => (E_PDF, ExitCode::Failed),
     }
+}
+
+/// What the job's OCR settings ask for, with the engine discovered (PHASE 13).
+fn ocr_options(job: &ConvertJob, workdir: &Path) -> openconvert::ocr::OcrOptions {
+    use oc_core::ocr::discover::{discover, region_deadline};
+    use oc_core::ocr::invoke::{OcrEngine, Tesseract};
+    use oc_core::ocr::OcrMode;
+
+    if job.ocr == OcrMode::Never {
+        return openconvert::ocr::OcrOptions::off();
+    }
+    let engine = discover(job.ocr_path.as_deref()).map(|info| {
+        std::sync::Arc::new(Tesseract::new(info, workdir, region_deadline()))
+            as std::sync::Arc<dyn OcrEngine>
+    });
+    let mut options = openconvert::ocr::OcrOptions::auto(engine, &T);
+    options.mode = job.ocr;
+    options.re_ocr = job.re_ocr;
+    options.langs = job.ocr_lang.clone();
+    options
+}
+
+/// `<output>.oc-tmp-<token>`: a job-private temporary beside the output, on the same filesystem.
+fn temporary_beside(output: &Path) -> PathBuf {
+    let directory = output.parent().unwrap_or_else(|| Path::new("."));
+    let token = format!(
+        "{:x}-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|since| since.as_nanos())
+            .unwrap_or_default(),
+        std::process::id()
+    );
+    directory.join(format!(
+        "{}.oc-tmp-{token}",
+        output
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "out.epub".to_owned())
+    ))
 }
 
 /// `<output>.report.json` (§2.1).

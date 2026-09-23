@@ -21,7 +21,7 @@ use oc_model::ids::BlockId;
 use oc_model::lang::LangTag;
 use oc_model::text::Run;
 
-use crate::book::{book_structure, FlowItem};
+use crate::book::FlowItem;
 use crate::build::{para_of, Minter};
 use crate::claims::{Claim, ClaimKind, Claimant, Claims};
 use crate::figures::associate_captions;
@@ -327,8 +327,46 @@ fn collect_list(list: &List, out: &mut Vec<String>) {
     }
 }
 
+/// What the AI step may change about a `structure` run (PHASE 10): labels, levels, zones and
+/// wrappers — never text.
+///
+/// An admitted answer does not patch the output; the stage is **run again** with the edit, so the
+/// model's answer reaches the book through exactly the code the deterministic answer took, and
+/// the stage's conservation check runs over the result like any other. The default is no edit,
+/// and [`structure`] is this stage with the default.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct StructureEdits {
+    /// Task 2: heading levels and demotions by style cluster.
+    pub headings: crate::headings::levels::HeadingEdits,
+    /// Task 3: each heading's zone, by its index among the flow's headings.
+    pub zones: crate::book::ZoneEdits,
+    /// Task 4: what an ambiguous indented block is emitted as, by block. Read only for the blocks
+    /// `quotes` classified — a label for any other block has nothing to replace.
+    pub indented: std::collections::BTreeMap<BlockId, crate::quotes::IndentedKind>,
+    /// Task 1: the metadata, when a model's answer was admitted. Outside `C` (ARCHITECTURE §5.2).
+    pub metadata: Option<Metadata>,
+}
+
+impl StructureEdits {
+    pub fn is_empty(&self) -> bool {
+        self.headings.is_empty()
+            && self.zones.is_empty()
+            && self.indented.is_empty()
+            && self.metadata.is_none()
+    }
+}
+
 /// Run the stage.
 pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
+    structure_with(input, t, &StructureEdits::default())
+}
+
+/// Run the stage with the AI step's edits applied.
+pub fn structure_with(
+    input: &StructureInput,
+    t: &Thresholds,
+    edits: &StructureEdits,
+) -> StructureOutput {
     let blocks = &input.blocks;
     let inventory = cluster_styles(&input.runs, &input.fonts, t);
     let body_size = inventory.body_size_pt();
@@ -343,6 +381,8 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
         &input.lang,
         t,
     );
+    let (headings, epigraph_blocks) =
+        crate::headings::levels::apply_heading_edits(headings, &edits.headings);
     let run_ins = run_in_candidates(blocks, t);
 
     let (notes, note_refs, note_stats) = link_notes(blocks, &input.vectors, body_size, t);
@@ -397,6 +437,8 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
     let (indented, escalations) = classify_indented(blocks, body_size, t);
     let images = drop_ornaments(&input.images, &input.image_hashes, input.page_count, t);
     let (metadata, meta_confidence) = metadata(&input.meta, blocks, body_size, t);
+    // The metadata task's answer, when one was admitted, is the book's metadata.
+    let metadata = edits.metadata.clone().unwrap_or(metadata);
 
     // Which blocks have had their text taken by something other than the flow, and — the
     // part a bare `BTreeSet<BlockId>` could not say — *which* structure undertook to emit
@@ -650,10 +692,18 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
             // join — only something to record.
             para.drop_cap = true;
         }
+        // The verse-or-quote task's label, where one was admitted, replaces the default for a
+        // block `quotes` classified: the same block, emitted through the same arms below.
         let quoted = indented
             .iter()
             .find(|entry| entry.block == block.id)
-            .map(|entry| entry.resolved);
+            .map(|entry| {
+                edits
+                    .indented
+                    .get(&block.id)
+                    .copied()
+                    .unwrap_or(entry.resolved)
+            });
         para.confidence = Some(Confidence::deterministic(vec![Signal::new(
             "block_lines",
             block.lines.len() as f32,
@@ -690,6 +740,12 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
             }),
             _ => Content::Paragraph(para),
         };
+        // A heading the heading-roles task demoted to an epigraph: the same content, wrapped.
+        let content = if epigraph_blocks.contains(&block.id) {
+            Content::Epigraph(vec![content])
+        } else {
+            content
+        };
         flow.push(FlowItem {
             page: block.page,
             content,
@@ -697,7 +753,7 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
     }
 
     let (sections, book_warnings, book_confidence) =
-        book_structure(&flow, &input.labels, &input.lang, t);
+        crate::book::book_structure_with(&flow, &input.labels, &input.lang, t, &edits.zones);
 
     let mut warnings = Vec::new();
     warnings.extend(inventory.warnings.clone());

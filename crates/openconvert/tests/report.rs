@@ -23,6 +23,8 @@ fn report_schema_is_valid_and_snapshotted() {
             producer_family: built.producer_family,
             pages: u32::try_from(built.document.page_breaks.len()).unwrap_or(u32::MAX),
             page_classes: built.page_classes.clone(),
+            provider: None,
+            consent: None,
         },
     );
 
@@ -95,6 +97,8 @@ fn repair_cap_writes_epub_and_marks_invalid() {
             producer_family: conversion.producer_family,
             pages: 1,
             page_classes: BTreeMap::new(),
+            provider: None,
+            consent: None,
         },
     );
 
@@ -128,6 +132,8 @@ fn the_report_carries_every_part_the_plan_names() {
             producer_family: built.producer_family,
             pages: 2,
             page_classes: built.page_classes.clone(),
+            provider: None,
+            consent: None,
         },
     );
 
@@ -171,8 +177,9 @@ fn the_report_carries_every_part_the_plan_names() {
     assert_eq!(furniture.budget, Some(0.04));
     assert!(furniture.headroom.is_some_and(|headroom| headroom > 0.0));
 
-    // The per-stage checks, all eight of them.
-    assert_eq!(report.conservation.per_stage.len(), 8);
+    // The per-stage checks, all nine of them: `ingest` is checked since Phase 13, when it began to
+    // add text (OCR) as well as to find it.
+    assert_eq!(report.conservation.per_stage.len(), 9);
 
     // The page-class histogram, the producer stratum, the retention ratio.
     assert!(!report.page_classes.is_empty());

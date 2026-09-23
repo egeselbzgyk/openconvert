@@ -18,7 +18,7 @@ use oc_core::jobspec::{self, JobSpec};
 use oc_core::limits::Limits;
 use oc_pdf::pdfium::PdfiumBackend;
 
-use crate::cmd_convert::{hello, run_job, ConvertJob, E_PDFIUM};
+use crate::cmd_convert::{hello, ocr_capabilities, run_job, ConvertJob, E_PDFIUM};
 
 /// Every refusal of the spec itself, whatever the reason (§2.2).
 pub const E_JOBSPEC: &str = "E_JOBSPEC";
@@ -35,7 +35,13 @@ pub fn run<W: Write + Send>(path: &Path, events: &EventSink<W>) -> ExitCode {
             return ExitCode::Usage;
         }
     };
-    hello(&backend, events);
+    // A spec has no OCR settings: its run reads scanned pages the way `convert`'s default does,
+    // with whatever Tesseract discovery finds (PHASE 13).
+    hello(
+        &backend,
+        events,
+        &ocr_capabilities(oc_core::ocr::OcrMode::Auto, None),
+    );
 
     let job = match read(path) {
         Ok(job) => job,
@@ -123,6 +129,11 @@ pub fn resolve(spec: &JobSpec) -> Result<ConvertJob, String> {
         job_id: spec.job_id.clone(),
         json_events: true,
         overrides: spec.overrides_path.clone(),
+        ai: None,
+        ocr: oc_core::ocr::OcrMode::Auto,
+        ocr_path: None,
+        ocr_lang: None,
+        re_ocr: oc_core::ocr::ReOcr::Never,
     })
 }
 

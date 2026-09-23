@@ -227,6 +227,10 @@ pub struct Report {
     pub conservation: ConservationReport,
     /// How many pages of each class the document has (D13.10).
     pub page_classes: BTreeMap<String, u32>,
+    /// What OCR read and which pages stayed pictures (PHASE 13). Absent when no page needed it,
+    /// which is every born-digital book.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ocr: Option<crate::ocr::OcrReport>,
     pub validation: ValidationReport,
     pub repair: RepairReport,
     /// Every warning, as `code` + `args`. Never prose: the reader localises (R10 §6.20).
@@ -234,9 +238,54 @@ pub struct Report {
     /// Every `Decision` the pipeline made, with its `LlmTrace` where a model was consulted. Empty
     /// while `ai.enabled` is false, which is the v1 default.
     pub decisions: Vec<oc_model::decision::Decision>,
+    /// Every choice the deterministic evidence could not settle, with the predicate that fired and
+    /// the signals it read — whether or not a model was asked. The first books converted are the
+    /// calibration corpus, and this is what they contribute to it (PHASE 10 detail 1, RT A7.2).
+    pub escalations: Vec<oc_structure::escalate::EscalationRecord>,
+    /// What the AI step did, when it ran: absent with AI off, the v1 default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai: Option<AiReport>,
+    /// That text from this book was allowed to leave the machine, to which host, and when (D10,
+    /// PHASE 11 detail 4). Absent unless the endpoint was off this machine and consent named it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub consent: Option<ConsentReport>,
     /// The provenance of every threshold, so a user can see which numbers were provisional at
     /// conversion time (D17).
     pub thresholds: Vec<ThresholdProvenance>,
+}
+
+/// The AI step, as the report prints it: which model, how many calls, how much of the time.
+#[derive(Clone, Debug, Serialize)]
+pub struct AiReport {
+    /// Which adapter answered (PHASE 11): `local_sidecar`, `ollama`, `openai_compatible`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<oc_ai::provider::ProviderKind>,
+    pub model_id: String,
+    /// `--ai-all-tasks`: the language gate was set aside.
+    pub all_tasks: bool,
+    pub calls: usize,
+    pub cached_calls: usize,
+    pub llm_ms: u64,
+}
+
+/// A consent, as the report prints it: the host, the moment, the scope.
+#[derive(Clone, Debug, Serialize)]
+pub struct ConsentReport {
+    pub host: String,
+    /// RFC 3339, UTC, to the second.
+    pub granted_at: String,
+    /// `run`: this conversion and no other.
+    pub scope: &'static str,
+}
+
+impl From<&oc_net::consent::ConsentRecord> for ConsentReport {
+    fn from(record: &oc_net::consent::ConsentRecord) -> Self {
+        Self {
+            host: record.host.clone(),
+            granted_at: record.granted_at_rfc3339(),
+            scope: record.scope.as_str(),
+        }
+    }
 }
 
 /// One threshold's provenance, as the report prints it.
@@ -268,6 +317,10 @@ pub struct ReportInput<'a> {
     pub producer_family: oc_pdf::producer::ProducerFamily,
     pub pages: u32,
     pub page_classes: BTreeMap<String, u32>,
+    /// Which adapter answered, when AI ran.
+    pub provider: Option<oc_ai::provider::ProviderKind>,
+    /// The consent an endpoint off this machine needed.
+    pub consent: Option<&'a oc_net::consent::ConsentRecord>,
 }
 
 /// Build the report for one conversion.
@@ -300,7 +353,10 @@ pub fn report(conversion: &Conversion, input: ReportInput<'_>) -> Report {
             version: env!("CARGO_PKG_VERSION"),
             ir_version: document.ir_version,
             pdfium_version: input.pdfium_version.to_owned(),
-            prompt_version: None,
+            prompt_version: conversion
+                .ai
+                .as_ref()
+                .map(|_| oc_ai::prompt::PROMPT_VERSION.to_string()),
         },
         input: Input {
             sha256: document.source_sha256.clone(),
@@ -340,6 +396,7 @@ pub fn report(conversion: &Conversion, input: ReportInput<'_>) -> Report {
             },
         },
         page_classes: input.page_classes,
+        ocr: conversion.ocr.clone(),
         validation: ValidationReport {
             tier1: Tier1Summary {
                 valid: conversion.tier1.is_valid(),
@@ -359,6 +416,16 @@ pub fn report(conversion: &Conversion, input: ReportInput<'_>) -> Report {
         },
         warnings: document.warnings.clone(),
         decisions: document.decisions.clone(),
+        escalations: conversion.escalations.clone(),
+        ai: conversion.ai.as_ref().map(|outcome| AiReport {
+            provider: input.provider,
+            model_id: outcome.model_id.clone(),
+            all_tasks: outcome.all_tasks,
+            calls: outcome.calls.len(),
+            cached_calls: outcome.calls.iter().filter(|call| call.cached).count(),
+            llm_ms: outcome.llm_ms,
+        }),
+        consent: input.consent.map(ConsentReport::from),
         thresholds: PROVENANCE.iter().map(ThresholdProvenance::from).collect(),
     }
 }

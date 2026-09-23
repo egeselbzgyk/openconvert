@@ -27,6 +27,9 @@ jobs:
         with: { version: "0.11.28" }
       - run: cargo run -p xtask -- vendor-pdfium
       - run: cargo build -p openconvert --release --locked
+      # PHASE 13 row 13.21: scanned documents are OCR'd with the system Tesseract, and the report's
+      # `ocr_cer` section carries CER per stratum and the real-minus-synthetic gap.
+      - run: sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-deu tesseract-ocr-tur
       - run: uv venv eval/.venv --python 3.13
       - run: uv pip install --python eval/.venv -e eval
       - run: eval/.venv/bin/python -m oc_eval corpus lint
@@ -48,6 +51,8 @@ jobs:
               if row["metric"] == "converted"
           ]
           pathlib.Path("eval/out/scores.json").write_text(json.dumps(rows), encoding="utf-8")
+          # Row 13.21: OCR CER per stratum, and the real-minus-synthetic gap, printed every night.
+          print(json.dumps(report["ocr_cer"], indent=2))
           PY
           eval/.venv/bin/python -m oc_eval report trend eval/out/scores.json
       - uses: actions/upload-artifact@v4
@@ -179,6 +184,30 @@ jobs:
           echo "OC_LIVE_MODEL=$RUNNER_TEMP/models/qwen3-1.7b-q4_k_m/Qwen3-1.7B-Q4_K_M.gguf" >> "$GITHUB_ENV"
       - name: rows 9.15 and 9.16
         run: cargo nextest run -p oc-testkit --features live-llm --locked -E 'binary(live_llm)'
+      - name: PHASE 10 - convert --ai against the live model (A10.2, A10.3)
+        run: |
+          cargo run -q -p xtask -- fixtures
+          cargo nextest run -p openconvert --features live-llm --locked -E 'binary(ai_cli)'
+
+  # PHASE 11, A11.1: convert --ai through a real Ollama on localhost:11434, found by
+  # `--llm-provider ollama`. Ollama's own installer and its registry are the one place this job
+  # trusts a third party's download; nothing it installs is shipped.
+  live-ollama:                 # Phase 11
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+      - name: install Ollama and pull the default model family's small tier
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama pull qwen3:1.7b
+          echo "OC_LIVE_OLLAMA_MODEL=qwen3:1.7b" >> "$GITHUB_ENV"
+      - run: cargo run -q -p xtask -- vendor-pdfium && cargo run -q -p xtask -- fixtures
+      - name: A11.1 - convert --ai against a live Ollama
+        run: cargo nextest run -p openconvert --features live-llm --locked -E 'binary(providers)'
 
 
   # Tier 3 (D6, PIPELINE §11): zero serious violations, and every required accessibility metadata

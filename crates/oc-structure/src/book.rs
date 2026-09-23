@@ -94,11 +94,50 @@ pub fn book_structure(
     flow: &[FlowItem],
     labels: &[Option<String>],
     lang: &LangTag,
+    t: &Thresholds,
+) -> (Vec<Section>, Vec<Warning>, Confidence) {
+    book_structure_with(flow, labels, lang, t, &ZoneEdits::default())
+}
+
+/// One heading's place, as the book-structure task (PHASE 10, task 3) placed it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ZoneLabel {
+    pub zone: Zone,
+    /// The heading starts a part.
+    pub part: bool,
+}
+
+/// The book-structure task's edit: a place for each heading it covered, keyed by the heading's
+/// index among the flow's headings. A heading it did not cover is placed as the deterministic
+/// rules place it, carrying on from the zone the previous heading was in.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ZoneEdits {
+    pub labels: std::collections::BTreeMap<u32, ZoneLabel>,
+}
+
+impl ZoneEdits {
+    pub fn is_empty(&self) -> bool {
+        self.labels.is_empty()
+    }
+}
+
+/// [`book_structure`], with the book-structure task's zones where it gave them.
+///
+/// A label is a zone and a part flag, and nothing else: the tree is still built by the walk
+/// below, from the same headings at the same levels. Where the numbering says `Part`, the
+/// heading is a part whatever the label says — the deterministic keyword is counter-evidence a
+/// model does not override.
+pub fn book_structure_with(
+    flow: &[FlowItem],
+    labels: &[Option<String>],
+    lang: &LangTag,
     // Taken and not read, for the same reason `meta::metadata` takes it: the keyword lists
     // and the zone ordering are closed sets rather than tunable numbers.
     _t: &Thresholds,
+    zones: &ZoneEdits,
 ) -> (Vec<Section>, Vec<Warning>, Confidence) {
     let body_starts = arabic_reset_page(labels);
+    let mut heading_index: u32 = 0;
 
     // Walk the flow once, opening a section at every heading and closing it at the next
     // heading of the same level or shallower.
@@ -128,11 +167,15 @@ pub fn book_structure(
         let text = heading.text();
         let front = front_kind(&text, lang);
         let back = back_kind(&text, lang);
-        zone = match (zone, body_starts) {
-            (Zone::Front, Some(first)) if item.page >= first => Zone::Body,
-            (Zone::Front, None) if front.is_none() => Zone::Body,
-            (Zone::Body, _) if back.is_some() => Zone::Back,
-            (current, _) => current,
+        let label = zones.labels.get(&heading_index).copied();
+        heading_index = heading_index.saturating_add(1);
+        zone = match (label, zone, body_starts) {
+            // The book-structure task placed this heading.
+            (Some(label), _, _) => label.zone,
+            (None, Zone::Front, Some(first)) if item.page >= first => Zone::Body,
+            (None, Zone::Front, None) if front.is_none() => Zone::Body,
+            (None, Zone::Body, _) if back.is_some() => Zone::Back,
+            (None, current, _) => current,
         };
         // Once in the back matter a heading without a keyword stays there — `zone` is
         // carried between iterations, and the match above has no transition out of `Back`.
@@ -146,6 +189,7 @@ pub fn book_structure(
             // are both `"One"` there, and only the keyword separates them.
             Zone::Body => match crate::headings::numbering::read(&text, lang).map(|n| n.kind) {
                 Some(NumberingKind::Part) => SectionRole::Part,
+                _ if label.is_some_and(|label| label.part) => SectionRole::Part,
                 _ if heading.level == 1 => SectionRole::Chapter,
                 _ => SectionRole::Section,
             },
@@ -357,6 +401,73 @@ mod tests {
             );
         }
         assert_eq!(back_kind("Chapter One", &LangTag::EN), None);
+    }
+
+    fn heading(index: u32, text: &str) -> FlowItem {
+        FlowItem {
+            page: index,
+            content: Content::Heading(oc_model::doc::Heading {
+                id: BlockId::derive(
+                    index,
+                    oc_model::geom::Rect {
+                        x0: 0.0,
+                        y0: 0.0,
+                        x1: 100.0,
+                        y1: 10.0,
+                    },
+                    text,
+                ),
+                level: 1,
+                spans: vec![oc_model::doc::Span::plain(text)],
+                numbering: None,
+                style_cluster: oc_model::ids::ClusterId(0),
+                confidence: Confidence::deterministic(Vec::new()),
+            }),
+        }
+    }
+
+    /// The book-structure task's labels place the headings they cover — a zone and a part flag,
+    /// on the same headings at the same levels — and the rules place the ones they do not,
+    /// carrying on from the zone the labelled heading left.
+    #[test]
+    fn zone_labels_place_the_headings_they_cover() {
+        use oc_core::thresholds::T;
+
+        // No keyword anywhere: the rules alone would call every heading a chapter.
+        let flow = vec![
+            heading(0, "A Word First"),
+            heading(1, "The Crossing"),
+            heading(2, "North"),
+            heading(3, "Sources"),
+        ];
+        let (plain, ..) = book_structure(&flow, &[], &LangTag::EN, &T);
+        assert!(plain
+            .iter()
+            .all(|section| section.role == SectionRole::Chapter));
+
+        let label = |zone, part| ZoneLabel { zone, part };
+        let zones = ZoneEdits {
+            labels: [
+                (0, label(Zone::Front, false)),
+                (1, label(Zone::Body, true)),
+                (3, label(Zone::Back, false)),
+            ]
+            .into_iter()
+            .collect(),
+        };
+        let (edited, warnings, _) = book_structure_with(&flow, &[], &LangTag::EN, &T, &zones);
+        let roles: Vec<SectionRole> = edited.iter().map(|section| section.role).collect();
+        assert_eq!(
+            roles,
+            vec![
+                SectionRole::FrontMatter(FrontMatterKind::Other),
+                SectionRole::Part,
+                // Unlabelled: the rules carry on in the body.
+                SectionRole::Chapter,
+                SectionRole::BackMatter(BackMatterKind::Other),
+            ]
+        );
+        assert!(warnings.is_empty(), "{warnings:?}");
     }
 
     #[test]

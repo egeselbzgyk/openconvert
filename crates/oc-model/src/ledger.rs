@@ -65,10 +65,21 @@ impl Reason {
     pub fn may_remove(self) -> bool {
         !matches!(self, Reason::Ocr)
     }
+
+    /// Whether a removal under this reason is folded into `C_0` rather than charged against it.
+    ///
+    /// The two dedup reasons (ARCHITECTURE §5.2): `C_0` is taken *after* overdraw and OCR-layer
+    /// dedup, so a duplicate copy of a page never counts as text the book had and then lost. Such
+    /// an entry is kept in the ledger as the record of what was removed, and is left out of I-7's
+    /// `Removed_all` — the equation's baseline already does not contain it, and counting it again
+    /// would be charging the book for text it never had.
+    pub fn folded_into_c0(self) -> bool {
+        matches!(self, Reason::OverdrawDedup | Reason::OcrLayerDuplicate)
+    }
 }
 
 /// One removal or addition, with enough context to find it in the document.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct LedgerEntry {
     /// The stage that did it.
     pub stage: &'static str,
@@ -81,6 +92,12 @@ pub struct LedgerEntry {
     pub text: String,
     /// `true` when the text was added rather than removed.
     pub added: bool,
+    /// The page region the entry is about, in normalised page space. Set by OCR, whose entries are
+    /// region-scoped by invariant I-6 (ratified note N-1): one `Ocr` entry per region, and the
+    /// region is what I-6 checks for pre-existing text. `None` for every other reason, and then not
+    /// serialised, so a ledger without OCR reads exactly as it did before regions existed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub region: Option<crate::geom::Rect>,
 }
 
 impl LedgerEntry {
@@ -103,6 +120,7 @@ impl LedgerEntry {
             span,
             text,
             added: false,
+            region: None,
         }
     }
 
@@ -125,7 +143,14 @@ impl LedgerEntry {
             span,
             text,
             added: true,
+            region: None,
         }
+    }
+
+    /// The same entry, scoped to a page region (I-6).
+    pub fn with_region(mut self, region: crate::geom::Rect) -> Self {
+        self.region = Some(region);
+        self
     }
 }
 
@@ -214,7 +239,7 @@ pub fn c_of(text: &str) -> CharHistogram {
 /// A delta rather than the whole ledger because the invariants are stated per stage: the
 /// checker is handed exactly the entries that stage produced and can therefore say which
 /// stage broke the law rather than that the book no longer balances.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct LedgerDelta {
     entries: Vec<LedgerEntry>,
 }
@@ -270,6 +295,11 @@ impl LedgerDelta {
         histogram
     }
 
+    /// What this stage added under one reason.
+    pub fn reason_added(&self, reason: Reason) -> CharHistogram {
+        self.reason_side(reason, true)
+    }
+
     fn reason_side(&self, reason: Reason, added: bool) -> CharHistogram {
         let mut histogram = CharHistogram::new();
         for entry in self
@@ -317,13 +347,39 @@ impl Ledger {
     }
 
     /// Everything every stage removed, as one multiset — the `Removed_all` of invariant I-7.
+    ///
+    /// Removals folded into `C_0` ([`Reason::folded_into_c0`]) are not in it: `C_0` is the baseline
+    /// after them, so they are already accounted for on the other side of the equation.
     pub fn removed_all(&self) -> CharHistogram {
-        self.side(false)
+        let mut histogram = CharHistogram::new();
+        for entry in self
+            .entries
+            .iter()
+            .filter(|e| !e.added && !e.reason.folded_into_c0())
+        {
+            histogram = histogram.union(&c_of(&entry.text));
+        }
+        histogram
     }
 
     /// Everything every stage added — the `Added_all` of invariant I-7.
     pub fn added_all(&self) -> CharHistogram {
         self.side(true)
+    }
+
+    /// What OCR added: the characters this pipeline read off pixels rather than out of the
+    /// document. Excluded from both sides of the source-retention ratio, so an OCR'd page can never
+    /// be scored as if its text had been extracted (I-6, RT C1).
+    pub fn ocr_added(&self) -> CharHistogram {
+        let mut histogram = CharHistogram::new();
+        for entry in self
+            .entries
+            .iter()
+            .filter(|e| e.added && e.reason == Reason::Ocr)
+        {
+            histogram = histogram.union(&c_of(&entry.text));
+        }
+        histogram
     }
 
     fn side(&self, added: bool) -> CharHistogram {

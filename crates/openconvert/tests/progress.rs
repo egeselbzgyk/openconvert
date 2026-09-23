@@ -209,3 +209,84 @@ fn a_cancel_on_stdin_ends_the_run_within_the_deadline_and_leaves_nothing() {
         "no output, no report, no temporary"
     );
 }
+
+/// RT C2: a run longer than the heartbeat period beats, and keeps working after it beats.
+///
+/// The heartbeat is written from a thread of its own. When the process held stderr's lock on its
+/// main thread for the whole run, the first heartbeat blocked on that lock while holding the event
+/// sink's, and the next event the conversion wrote blocked on the sink: every run longer than
+/// `ipc.heartbeat_secs` hung, silently, for ever — exactly the "hung process" a heartbeat exists
+/// to expose. The short fixtures never ran long enough to beat.
+#[test]
+fn a_run_longer_than_the_heartbeat_period_beats_and_keeps_reporting() {
+    let directory = scratch("heartbeat");
+    let pages = usize::try_from(T.perf.bench_reference_pages).expect("positive");
+    let input = directory.join("long.pdf");
+    std::fs::write(&input, oc_testkit::handmade::reference_book(pages)).expect("written");
+    let output = directory.join("long.epub");
+    let spec = write_spec(&directory, &input, &output);
+
+    let mut child = Command::new(binary())
+        .arg(&spec)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawns");
+    let stderr = child.stderr.take().expect("piped");
+    let (lines, received) = mpsc::channel::<serde_json::Value>();
+    let reader = std::thread::spawn(move || {
+        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+            if let Ok(event) = serde_json::from_str(&line) {
+                if lines.send(event).is_err() {
+                    return;
+                }
+            }
+        }
+    });
+
+    let period = Duration::from_secs(u64::try_from(T.ipc.heartbeat_secs).expect("positive"));
+    let patience = period * 5;
+    let mut beat = false;
+    let mut after_beat = false;
+    let mut finished = false;
+    while !(beat && after_beat) {
+        let Ok(event) = received.recv_timeout(patience) else {
+            break;
+        };
+        match event["t"].as_str() {
+            Some("heartbeat") => beat = true,
+            Some("done" | "fatal") => {
+                finished = true;
+                break;
+            }
+            _ if beat => after_beat = true,
+            _ => {}
+        }
+    }
+    // Stop the rest of the book: what is under test is that the run beat and went on.
+    let mut stdin = child.stdin.take().expect("piped");
+    let _ = writeln!(stdin, r#"{{"t":"cancel"}}"#);
+    let _ = stdin.flush();
+    let ended = (0..100).any(|_| {
+        std::thread::sleep(Duration::from_millis(100));
+        matches!(child.try_wait(), Ok(Some(_)))
+    });
+    if !ended {
+        let _ = child.kill();
+    }
+    let _ = child.wait();
+    drop(stdin);
+    reader.join().expect("the reader ends");
+
+    assert!(
+        !finished || beat,
+        "the book finished inside one heartbeat period; it cannot show a beat"
+    );
+    assert!(beat, "no heartbeat within {patience:?}");
+    assert!(
+        after_beat,
+        "nothing after the first heartbeat: the run hung"
+    );
+    assert!(ended, "the engine did not end after a cancel");
+}

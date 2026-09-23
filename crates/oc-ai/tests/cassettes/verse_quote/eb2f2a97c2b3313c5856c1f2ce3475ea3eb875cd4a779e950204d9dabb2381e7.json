@@ -1,0 +1,34 @@
+{
+  "cassette_version": 1,
+  "task": "verse_quote",
+  "fixture": "counter_evidence",
+  "prompt_sha256": "8690af46831e7d27647195b7a6bd9bb92d671756d78f6e09bce0323d8e3e3880",
+  "prompt_version": 1,
+  "grammar_sha256": "1959bd8af309d49ab50761b9a0eec4328ebf2a80abe45bba995f7a774303ef50",
+  "model_id": "stub",
+  "params": {
+    "temperature": 0.0,
+    "max_tokens": 1500,
+    "enable_thinking": false,
+    "top_p": null,
+    "seed": null,
+    "n_ctx": null,
+    "n_parallel": null
+  },
+  "request": {
+    "system_sha256": "e1ab692d8fcf406006ad51129b6054c6f1952cbafc7a00a03f6540615d56f9bf",
+    "user": "Say for each block whether it is verse, a block quotation, preformatted text or an ordinary paragraph.\n{\"blocks\":[{\"id\":\"I56RGXTXWA\",\"text\":\"Then a short line,\\nand the last.\",\"indent\":\"shallow\",\"lines\":2,\"avg_line_words\":6,\"centered\":false,\"monospace\":false},{\"id\":\"F4FEC35FRA\",\"text\":\"Whose woods these are\\nI think I know\\nHis house is in\\nthe village though\\nHe will not see\",\"indent\":\"shallow\",\"lines\":5,\"avg_line_words\":6,\"centered\":false,\"monospace\":false},{\"id\":\"XQ7ATWPFNA\",\"text\":\"We came at last\\nto the river,\\nand it was high\\nand brown\",\"indent\":\"shallow\",\"lines\":4,\"avg_line_words\":6,\"centered\":false,\"monospace\":false},{\"id\":\"DK5EY6KCRA\",\"text\":\"a proportional block\\nthe model called code\\nand the last line\",\"indent\":\"shallow\",\"lines\":3,\"avg_line_words\":6,\"centered\":false,\"monospace\":false}]}\n"
+  },
+  "response": {
+    "content": "{\"b\":[{\"id\":\"I56RGXTXWA\",\"k\":\"verse\"},{\"id\":\"F4FEC35FRA\",\"k\":\"verse\"},{\"id\":\"XQ7ATWPFNA\",\"k\":\"verse\"},{\"id\":\"DK5EY6KCRA\",\"k\":\"preformatted\"}]}",
+    "reasoning": null,
+    "finish_reason": "stop",
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "cached_prefix": null
+  },
+  "recorded_at": "2026-09-23T00:00:00Z",
+  "llama_cpp_build": null,
+  "threads": null,
+  "machine": "stub"
+}

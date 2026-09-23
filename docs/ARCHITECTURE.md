@@ -651,6 +651,19 @@ Both speak the same wire format — `POST /v1/chat/completions` with `messages`,
 
 **Thinking control** is the one place the providers genuinely differ, so it is a trait method: `LlmProvider::thinking_control()`. `LocalSidecar` sends `chat_template_kwargs: {"enable_thinking": false}` in the request body; Ollama sends `think: false`; a generic OpenAI-compatible endpoint gets `/no_think` appended to the **shared system prefix** (§9.3) for Qwen-family models, which keeps that prefix byte-identical across all four tasks and so keeps prefix reuse intact. The lever is best-effort; the check is not — for **every** provider, any `<think>` content in the response, or any output that does not match the grammar, fails gate S (§6.2) and the pipeline falls back deterministically with `fallback_used = true` recorded on the `Decision`. A provider that ignores its knob degrades safely and visibly rather than leaking reasoning into the IR.
 
+> **Implementation note, 2026-09-23 (Phase 11) — PROVISIONAL, needs maintainer ratification.**
+> Ollama's OpenAI-compatibility layer drops `format`, `options.num_ctx`, `keep_alive` and `think`
+> without a word (its `ChatCompletionRequest` has none of them), so the Ollama adapter
+> (`oc_ai::provider::ollama`) speaks Ollama's own `POST /api/chat` — the same messages, greedy
+> decoding and answer, in the one request shape where the context size is honoured. Every Ollama
+> request sets `num_ctx` ≥ the prompt's byte length + template overhead + `max_tokens`, and
+> `truncate: false`, `shift: false`. The consent check lives in `oc-net`'s transport constructors
+> (`oc_net::consent::authorize`) rather than in a `Transport::endpoint()` method: a transport to a
+> host off this machine cannot be built without a `ConsentRecord` naming it. A capability probe
+> (`oc_net::detect::probe`: `/props`, `/api/tags`, `/v1/models`) picks the adapter for an endpoint;
+> a generic OpenAI-compatible server is treated as constraining nothing (schema in the prompt,
+> `W_LLM_UNCONSTRAINED`). See `docs/DECISIONS_LOG.md`, 2026-09-23, Phase 11.
+
 ### 9.2 Grammars and prompt versioning
 
 Each task owns a **GBNF grammar** as the canonical artifact, plus a JSON Schema rendered from the same source of truth and sent as `response_format: {"type":"json_schema", …}` where the server prefers it. Every prompt artifact for a task version lives in one directory: **`crates/oc-ai/prompts/<task>/v<N>/{system.md,user.tmpl,grammar.gbnf,schema.json}`** — `system.md` is the shared byte-identical prefix (§9.3), `user.tmpl` the per-task payload template. The Rust modules under `crates/oc-ai/src/prompt/v<N>/` are thin `include_str!` wrappers over these files, so nothing in the prompt path is a Rust string literal and a prompt edit is reviewable as a text diff. The `grammar_hash` in the cache key is the SHA-256 of **`grammar.gbnf`** itself, so a grammar edit invalidates cached decisions.

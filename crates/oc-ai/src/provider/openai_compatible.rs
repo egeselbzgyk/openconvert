@@ -1,10 +1,17 @@
 //! One OpenAI-compatible chat client, over whichever `Transport` it is given (D10, ARCHITECTURE
 //! §9.1).
 //!
-//! Every provider v1 has — the sidecar we own, Ollama, LM Studio, any custom endpoint — speaks
-//! `POST /v1/chat/completions` with `messages`, greedy decoding and a constrained answer. Sharing
-//! one wire format is what makes every call mockable in `cargo test` (D8), and it is why this
-//! endpoint, not llama.cpp's `/completion`, is the interface even for the sidecar we own.
+//! The sidecar we own, LM Studio, vLLM, any custom endpoint speak `POST /v1/chat/completions` with
+//! `messages`, greedy decoding and a constrained answer. Sharing one wire format is what makes every
+//! call mockable in `cargo test` (D8), and it is why this endpoint, not llama.cpp's `/completion`,
+//! is the interface even for the sidecar we own. (Ollama's own compatibility layer drops the two
+//! fields D10 requires of it — `num_ctx` and `format` — so Ollama is [`super::ollama`].)
+//!
+//! **What the endpoint can constrain** is its [`ProviderCaps`]: the GBNF grammar (`grammar`), the
+//! JSON Schema (`response_format`), or neither. With neither, the task's schema goes in the prompt
+//! after the question — the system prefix already tells the model to answer with JSON matching the
+//! grammar it was given — and gate S, which never relaxes, carries the whole burden (PHASE 11
+//! detail 1). The user message is otherwise sent verbatim.
 //!
 //! The body is built in a fixed key order (`serde_json`'s `preserve_order` is on across the
 //! workspace), so the same request is the same bytes on every run and every machine.
@@ -39,6 +46,42 @@ pub struct ClientConfig {
     pub timeout: Duration,
 }
 
+/// A custom OpenAI-compatible endpoint (PHASE 11 detail 3): whatever the capability probe found it
+/// can constrain, and D10's thinking lever for a generic endpoint — `/no_think` for a Qwen-family
+/// model, nothing for any other, whose thinking gate S refuses if it comes back.
+pub fn custom_endpoint<T: Transport>(
+    transport: T,
+    model_id: String,
+    caps: ProviderCaps,
+    temperature: f32,
+    timeout: Duration,
+) -> OpenAiCompatible<T> {
+    let thinking = generic_thinking(&model_id);
+    OpenAiCompatible::new(
+        transport,
+        ClientConfig {
+            model_id,
+            constraint: caps.constraint,
+            thinking,
+            temperature,
+            timeout,
+        },
+    )
+}
+
+/// How a generic endpoint is told not to think (D10): the Qwen family's `/no_think`, which is only
+/// a control word to a Qwen chat template, and to anything else only noise.
+pub fn generic_thinking(model_id: &str) -> ThinkingControl {
+    if model_id.to_ascii_lowercase().contains(QWEN_FAMILY) {
+        ThinkingControl::NoThinkSuffix
+    } else {
+        ThinkingControl::None
+    }
+}
+
+/// How a model id names the Qwen family, whatever else it says (`qwen3:1.7b`, `Qwen/Qwen3-4B`).
+const QWEN_FAMILY: &str = "qwen";
+
 /// An OpenAI-compatible endpoint as an [`LlmProvider`].
 pub struct OpenAiCompatible<T: Transport> {
     transport: T,
@@ -62,13 +105,18 @@ impl<T: Transport> OpenAiCompatible<T> {
             _ => request.system_prefix.to_owned(),
         };
 
+        let user = match self.config.constraint {
+            Constraint::None => schema_in_prompt(request),
+            Constraint::Gbnf | Constraint::JsonSchema => request.user.clone(),
+        };
+
         let mut body = Map::new();
         body.insert("model".to_owned(), json!(self.config.model_id));
         body.insert(
             "messages".to_owned(),
             json!([
                 { "role": "system", "content": system },
-                { "role": "user", "content": request.user },
+                { "role": "user", "content": user },
             ]),
         );
         body.insert("temperature".to_owned(), json!(self.config.temperature));
@@ -137,6 +185,19 @@ impl<T: Transport> LlmProvider for OpenAiCompatible<T> {
         read_completion(&reply)
     }
 }
+
+/// The user message for an endpoint that constrains nothing: the question, then the task's JSON
+/// Schema — an artifact of the prompt version like the rest, so no prompt text is written here.
+pub fn schema_in_prompt(request: &LlmRequest) -> String {
+    format!(
+        "{}{SCHEMA_SEPARATOR}{}",
+        request.user,
+        request.schema.trim_end()
+    )
+}
+
+/// Between the question and the schema: a blank line, as between any two parts of a prompt.
+const SCHEMA_SEPARATOR: &str = "\n\n";
 
 /// The parts of a chat completion this client reads. Everything else a server sends is ignored.
 #[derive(Deserialize)]

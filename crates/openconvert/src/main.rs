@@ -12,6 +12,7 @@ mod cmd_dump_stage;
 mod cmd_inspect;
 mod cmd_job;
 mod cmd_model;
+mod cmd_provider;
 mod cmd_validate;
 mod control;
 
@@ -36,8 +37,10 @@ fn run() -> ExitCode {
         .windows(2)
         .any(|w| w[0] == "--progress" && w[1] == "json");
 
-    let stderr = std::io::stderr();
-    let events = EventSink::new(stderr.lock(), wants_events);
+    // Unlocked: a sink holding stderr's lock for the whole run would block every other thread
+    // that writes to it — the heartbeat's first, which then holds the sink while it waits, and the
+    // run's next event after it. Each command's own sink locks what it needs when it needs it.
+    let events = EventSink::new(std::io::stderr(), wants_events);
 
     match cli::parse(args) {
         Ok(Command::Print(text)) => {
@@ -100,6 +103,17 @@ fn run() -> ExitCode {
             let stdout = std::io::stdout();
             let mut stdout = stdout.lock();
             let code = cmd_model::run(&model, &mut events, &mut stdout);
+            let _ = stdout.flush();
+            code
+        }
+        Ok(Command::Provider(provider)) => {
+            let mut events = EventSink::new(
+                std::io::stderr().lock(),
+                provider.progress == Progress::Json,
+            );
+            let stdout = std::io::stdout();
+            let mut stdout = stdout.lock();
+            let code = cmd_provider::run(&provider, &mut events, &mut stdout);
             let _ = stdout.flush();
             code
         }

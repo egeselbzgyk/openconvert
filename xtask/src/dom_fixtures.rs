@@ -86,6 +86,7 @@ pub fn run(root: &Path) -> Result<()> {
                 },
                 overrides: None,
                 cache_dir: None,
+                ocr: openconvert::ocr::OcrOptions::off(),
             },
             &T,
         )

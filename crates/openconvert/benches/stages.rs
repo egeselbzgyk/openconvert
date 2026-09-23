@@ -34,6 +34,7 @@ fn stages(criterion: &mut Criterion) {
         },
         overrides: None,
         cache_dir: None,
+        ocr: openconvert::ocr::OcrOptions::off(),
     };
 
     // One conversion, read once: what each stage spent, per page, printed where a reader of

@@ -1,0 +1,3 @@
+{"category": "blockquote", "id": "f07_verse_and_quote#It is a truth universally", "label": "blockquote", "language": "en", "source": "corpus/fixtures/typst/f07_verse_and_quote.typ", "stratum": "ours(typst)", "subject": "It is a truth universally", "task": "verse_quote"}
+{"category": "verse", "id": "f07_verse_and_quote#Tyger Tyger", "label": "verse", "language": "en", "source": "corpus/fixtures/typst/f07_verse_and_quote.typ", "stratum": "ours(typst)", "subject": "Tyger Tyger", "task": "verse_quote"}
+{"category": "blockquote", "id": "f07_verse_and_quote#A middle case", "label": "blockquote", "language": "en", "source": "corpus/fixtures/typst/f07_verse_and_quote.typ", "stratum": "ours(typst)", "subject": "A middle case", "task": "verse_quote"}
