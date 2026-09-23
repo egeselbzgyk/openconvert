@@ -92,6 +92,10 @@ pub const CODES: &[WarningSpec] = &[
         args: &["reason"],
     },
     WarningSpec {
+        code: "W_LLM_UNCONSTRAINED",
+        args: &["model"],
+    },
+    WarningSpec {
         code: "W_LOW_RETENTION",
         args: &["retention", "floor"],
     },

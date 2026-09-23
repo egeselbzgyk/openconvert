@@ -21,6 +21,7 @@ W_LLM_BUDGET_EXHAUSTED = "Das Buch hatte alle {calls} Modellaufrufe verbraucht, 
 W_LLM_PREFIX_COLD = "Modellaufruf {call} ({task}) fand den gemeinsamen Prompt nicht bereits geladen vor und dauerte daher länger als geplant; die Zeit, die das Modell nutzen darf, wurde erneut geprüft."
 W_LLM_TIME_EXHAUSTED = "Das Modell hatte {share} der Umwandlungszeit verbraucht, so viel wie es darf; daher wurden {task} und alles Weitere ohne das Modell entschieden, nach den eigenen Regeln des Konverters."
 W_LLM_UNAVAILABLE = "KI-Unterstützung war angefordert, aber kein Modell war erreichbar ({reason}). Das Buch wurde allein nach den eigenen Regeln des Konverters umgewandelt."
+W_LLM_UNCONSTRAINED = "Das Modell {model} ließ sich nicht an die Form einer Antwort binden, deshalb wurden seine Antworten danach strenger geprüft. Mehr seiner Antworten wurden möglicherweise zugunsten der eigenen Regeln des Konverters verworfen."
 W_LOW_RETENTION = "{retention} des Quelltextes sind im Buch angekommen, unter den {floor}, ab denen dieser Konverter warnt. Entfernte Kolumnentitel und Seitenzahlen sind hier mitgezählt und sind kein Verlust."
 W_NOTE_UNMATCHED = "{markers} Fußnotenzeichen und {notes} Fußnotentexte wurden gefunden, davon {matched} einander zugeordnet. Die übrigen blieben im Fließtext an ihrer gedruckten Stelle."
 W_NO_TEXT_EXTRACTED = "Aus diesem Dokument ließ sich kein Text gewinnen. Seine Seiten werden als Bilder übernommen, damit nichts verloren geht; durchsuchbar oder umfließbar ist das Buch damit nicht."

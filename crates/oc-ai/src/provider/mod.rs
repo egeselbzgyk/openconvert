@@ -4,6 +4,16 @@
 //! `&'static str` taken from the prompt artifacts. That is the byte-identity guarantee in type
 //! form: the system prefix of a request *is* a `system.md`, not a string something assembled, so
 //! nothing on the way to the wire can make two tasks' prefixes differ (D8, ARCHITECTURE §9.3).
+//!
+//! **The adapters** (D10, PHASE 11) are the submodules: [`local_sidecar`] — the `llama-server` the
+//! engine or the app owns, or any endpoint the probe finds to be one; [`openai_compatible`] — the
+//! one OpenAI-compatible client, and a custom endpoint as a configuration of it; [`ollama`] —
+//! Ollama's own chat endpoint, the one place its context size and schema can be set. Each is a
+//! [`LlmProvider`] over a [`crate::transport::Transport`], so none of them opens a socket.
+
+pub mod local_sidecar;
+pub mod ollama;
+pub mod openai_compatible;
 
 use oc_model::decision::LlmTrace;
 use serde::Serialize;
@@ -13,10 +23,11 @@ use crate::transport::TransportError;
 
 /// Something that answers requests: a model behind an endpoint, or a cassette (D10).
 ///
-/// Two v1 implementations answer from a model — the sidecar the engine or the app owns, and a
-/// BYO OpenAI-compatible endpoint — and both are [`crate::openai::OpenAiCompatible`] over a
-/// different `Transport` and a different [`ThinkingControl`]. The test tiers answer from
-/// cassettes and never from a model (A8.3).
+/// Three v1 adapters answer from a model — the sidecar the engine or the app owns, a BYO
+/// OpenAI-compatible endpoint, and Ollama ([`ProviderKind`]). The first two are
+/// [`openai_compatible::OpenAiCompatible`] over a different `Transport` with a different
+/// [`ProviderCaps`] and [`ThinkingControl`]; Ollama is [`ollama::Ollama`]. The test tiers answer
+/// from cassettes and never from a model (A8.3).
 pub trait LlmProvider: Send + Sync {
     /// The model's id, as the cache key and every trace carry it.
     fn id(&self) -> &str;
@@ -32,11 +43,66 @@ pub trait LlmProvider: Send + Sync {
     fn complete(&self, request: &LlmRequest) -> Result<LlmResponse, LlmError>;
 }
 
+/// Which adapter a provider is (D10, PHASE 11). The report and the command line name it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderKind {
+    /// `llama-server`: the one the engine starts, the one the desktop app owns, or one a user runs
+    /// that the capability probe recognises. GBNF and `chat_template_kwargs`.
+    LocalSidecar,
+    /// Any other OpenAI-compatible endpoint — LM Studio, vLLM, a server off this machine. What it
+    /// can constrain is what the capability probe found.
+    OpenAiCompatible,
+    /// Ollama, through its own `/api/chat`: `format`, `options.num_ctx`, `keep_alive`, `think`.
+    Ollama,
+}
+
+impl ProviderKind {
+    /// The name the report prints and `--llm-provider` does not: the command line says `builtin`
+    /// for the first, because that is what a user calls it (UI_UX §2.4).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ProviderKind::LocalSidecar => "local_sidecar",
+            ProviderKind::OpenAiCompatible => "openai_compatible",
+            ProviderKind::Ollama => "ollama",
+        }
+    }
+}
+
 /// What a provider can do to bound an answer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ProviderCaps {
     pub constraint: Constraint,
 }
+
+impl ProviderCaps {
+    /// GBNF in the request: `llama-server`.
+    pub const fn grammar() -> Self {
+        Self {
+            constraint: Constraint::Gbnf,
+        }
+    }
+
+    /// A JSON Schema in the request: Ollama's `format`, or `response_format`.
+    pub const fn json_schema() -> Self {
+        Self {
+            constraint: Constraint::JsonSchema,
+        }
+    }
+
+    /// Neither: the schema goes in the prompt, gate S carries the whole burden, and the book's
+    /// report says so ([`W_LLM_UNCONSTRAINED`]).
+    pub const fn neither() -> Self {
+        Self {
+            constraint: Constraint::None,
+        }
+    }
+}
+
+/// Raised once per book when its answers came from a provider that constrains neither by grammar
+/// nor by schema (PHASE 11 detail 1): unconstrained decoding fails gate S more often, and each
+/// failure is a decision made without the model. The report says why.
+pub const W_LLM_UNCONSTRAINED: &str = "W_LLM_UNCONSTRAINED";
 
 /// How an answer's shape is constrained at decoding time (ARCHITECTURE §9.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

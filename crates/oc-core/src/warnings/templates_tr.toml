@@ -21,6 +21,7 @@ W_LLM_BUDGET_EXHAUSTED = "Kitap {calls} model çağrısının tamamını kullanm
 W_LLM_PREFIX_COLD = "{call}. model çağrısı ({task}) ortak istemi hazır yüklenmiş bulamadı, bu yüzden planlanandan uzun sürdü; modelin kullanabileceği süre yeniden denetlendi."
 W_LLM_TIME_EXHAUSTED = "Model, dönüştürme süresinin kullanabileceği en fazla payı olan {share} kadarını kullanmıştı; bu yüzden {task} ve sonrasındaki her şey, model olmadan, dönüştürücünün kendi kurallarıyla belirlendi."
 W_LLM_UNAVAILABLE = "Yapay zekâ desteği istendi, ancak hiçbir modele ulaşılamadı ({reason}). Kitap yalnızca dönüştürücünün kendi kurallarıyla dönüştürüldü."
+W_LLM_UNCONSTRAINED = "{model} modeli bir yanıtın biçimine bağlanamadı, bu yüzden yanıtları sonradan daha sıkı denetlendi. Yanıtlarının daha fazlası dönüştürücünün kendi kuralları lehine bir kenara bırakılmış olabilir."
 W_LOW_RETENTION = "Kaynak metnin {retention} kadarı kitaba ulaştı; bu dönüştürücünün uyardığı {floor} eşiğinin altında. Kaldırılan sayfa başlıkları ve sayfa numaraları da bu hesaba dâhildir ve bir kayıp değildir."
 W_NOTE_UNMATCHED = "{markers} dipnot işareti ve {notes} dipnot gövdesi bulundu; bunlardan {matched} tanesi eşleştirilebildi. Eşleşmeyenler basıldıkları yerde metin içinde bırakıldı."
 W_NO_TEXT_EXTRACTED = "Bu belgeden hiç metin çıkarılamadı. Hiçbir şey yitmesin diye sayfaları görsel olarak taşınıyor; ama kitap ne aranabilir ne de yeniden akar."

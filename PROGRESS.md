@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 11
-CURRENT_ITEM: P11.2 — `oc-ai` provider adapters, `ProviderCaps`, `W_LLM_UNCONSTRAINED` (row 11.4).
-              Phase 11 is on `phase/11-byo-providers`; P11.1 is done. Phase 7.5 is still parked.
+CURRENT_ITEM: P11.3 — the Ollama adapter: native `/api/chat`, `num_ctx`, `format` (rows 11.2, 11.3).
+              Phase 11 is on `phase/11-byo-providers`; P11.1–P11.2 are done. Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -174,7 +174,7 @@ What a fresh session needs:
 ## Current work item
 
 **Phase 11 — BYO providers**, on `phase/11-byo-providers` (worktree `/home/user/wt/phase10`).
-Next: **P11.2**.
+Next: **P11.3**.
 
 ## Phase 11 — built on `phase/11-byo-providers`
 
@@ -182,7 +182,7 @@ Work items, in order, with the plan's test rows against each:
 
 - [x] **P11.1** `oc-net::consent`: `requires_consent`, `authorize`, `ConsentRecord`; `HttpTransport`
       cannot be built to a host off this machine without consent naming it — row 11.6
-- [ ] **P11.2** `oc-ai::provider`: the adapter modules, `ProviderKind`, schema-in-prompt and
+- [x] **P11.2** `oc-ai::provider`: the adapter modules, `ProviderKind`, schema-in-prompt and
       `W_LLM_UNCONSTRAINED` when a provider constrains nothing — row 11.4
 - [ ] **P11.3** `oc-ai::provider::ollama`: native `/api/chat`, `format`, `options.num_ctx`,
       `keep_alive`, `think: false` — rows 11.2, 11.3
@@ -201,6 +201,10 @@ What a fresh session needs:
   (plain http off the machine is refused even with consent — PROVISIONAL, DECISIONS_LOG
   2026-09-23). `HttpTransport::new` is loopback-only; `HttpTransport::with_consent` takes the record.
   URLs with user-info, `%`, `\`, `?`, `#` or whitespace are refused, never interpreted.
+- **The adapters are `oc_ai::provider::{local_sidecar, openai_compatible, ollama}`** (`oc_ai::openai`
+  is gone — moved to `provider::openai_compatible`). `custom_endpoint` takes probed `ProviderCaps`;
+  with `ProviderCaps::neither()` the task's `schema.json` is appended to the user message and the
+  `Session` raises `W_LLM_UNCONSTRAINED` once. `ProviderKind` names the adapter.
 - Build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0`. **Disk is tight** (~5 GB free while
   three worktrees build).
 
@@ -1495,3 +1499,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P10.10    eval: McNemar and false repair per task/category/language, the gate (10.17, 10.18 + 4)  203533e
 2026-09-23  P10.11    openconvert: live convert --ai behind live-llm; CHANGELOG; the DoD  7659dae
 2026-09-23  PHASE 10  COMPLETE on phase/10-ai-decisions - DoD checked; A10.4/A10.5, live model, macOS/Windows and CI unverified here
+2026-09-23  P11.1     oc-net: consent names the host; HttpTransport refuses any other (11.6 + 4)  a1515b6

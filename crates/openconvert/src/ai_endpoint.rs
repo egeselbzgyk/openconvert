@@ -10,7 +10,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use oc_ai::openai::{ClientConfig, OpenAiCompatible};
+use oc_ai::provider::openai_compatible::{ClientConfig, OpenAiCompatible};
 use oc_ai::provider::{Constraint, LlmProvider, ThinkingControl};
 use oc_core::sidecar::llama::ServerSpec;
 use oc_core::sidecar::server::{read_key_file, Health, OwnedServer};

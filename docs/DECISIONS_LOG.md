@@ -4043,3 +4043,26 @@ Decisions:
    user's choice per configuration (UI_UX §2.4) and writes it into each job spec it runs.
 Evidence: `crates/oc-net/tests/consent.rs` (row 11.6 and four more).
 Affects: D10, SECURITY §8, `oc_net::{consent, transport}`.
+
+## 2026-09-23 · The adapters, and a provider that constrains nothing · Phase 11
+Context: PHASE 11's files put the adapters under `oc-ai/src/provider/`; detail 1 says an endpoint
+with neither GBNF nor JSON Schema degrades to "a schema-in-prompt plus a strict Gate S" and records
+`W_LLM_UNCONSTRAINED`.
+Decisions:
+1. **`oc_ai::openai` moved to `oc_ai::provider::openai_compatible`** (the one client, unchanged), and
+   `provider.rs` became `provider/mod.rs`. `local_sidecar(…)` is that client with GBNF and
+   `chat_template_kwargs`; `custom_endpoint(…)` is it with the probed `ProviderCaps` and D10's
+   generic thinking lever — `/no_think` when the model id contains `qwen` (case-insensitive), nothing
+   otherwise. `ProviderKind { LocalSidecar, OpenAiCompatible, Ollama }` names the adapter, not who
+   owns the server: a user's own `llama-server` the probe recognises is a `LocalSidecar`.
+2. **Schema-in-prompt is the task's own `schema.json`, appended after a blank line to the user
+   message**, with no words around it. The shared system prefix already says "answer only with JSON
+   that matches the grammar you were given", and ratified R-7 keeps prompt text out of Rust: a
+   sentence introducing the schema would be prompt text in code, or a new artifact under the frozen
+   v1. The cache key does not change (it hashes `request.user`, the question), which is right: the
+   question is the same, and gate S judges whatever comes back.
+3. **`W_LLM_UNCONSTRAINED` is raised by the `Session`, once per book, on the first answer an
+   unconstrained provider gives** — not at open, because a book that asks nothing was not affected.
+   Argument: `model`. Gate S is not relaxed in any way.
+Evidence: `crates/oc-ai/tests/providers.rs` (row 11.4 and three more).
+Affects: PHASE 11 detail 1, D10, `oc_ai::{provider, session}`, the warning registry.
