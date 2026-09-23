@@ -38,6 +38,8 @@ pub struct Cancel {
     cause: Arc<OnceLock<AbortCause>>,
     /// The stage deadline currently armed on this flag, if any (`deadline::DeadlineGuard`).
     armed: Arc<crate::deadline::Armed>,
+    /// How long each stage may run, when the job set it: [`Cancel::stage`] arms it.
+    stage_limit: Arc<OnceLock<std::time::Duration>>,
 }
 
 impl Cancel {
@@ -55,6 +57,24 @@ impl Cancel {
 
     pub(crate) fn armed(&self) -> &crate::deadline::Armed {
         &self.armed
+    }
+
+    /// Give every stage `limit` to run in (`limits.stage_deadline_secs`). The first call wins.
+    pub fn set_stage_deadline(&self, limit: std::time::Duration) {
+        let _ = self.stage_limit.set(limit);
+    }
+
+    /// Arm the stage deadline for `stage`, if one is set; hold the guard for the stage's length.
+    /// The pipeline's stage runner calls this at every stage boundary.
+    pub fn stage(&self, stage: &'static str) -> Option<crate::deadline::DeadlineGuard> {
+        self.stage_limit
+            .get()
+            .map(|limit| crate::deadline::DeadlineGuard::arm(stage, *limit, self))
+    }
+
+    /// The per-stage limit, if one is set.
+    pub fn stage_deadline(&self) -> Option<std::time::Duration> {
+        self.stage_limit.get().copied()
     }
 
     /// Ask for the work to stop. Idempotent, and callable from any thread.

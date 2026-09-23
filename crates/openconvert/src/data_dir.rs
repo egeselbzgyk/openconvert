@@ -15,7 +15,7 @@ pub fn models() -> PathBuf {
 pub fn network_audit_log() -> oc_net::audit::AuditLog {
     let rotate =
         u64::try_from(oc_core::thresholds::T.net.audit_log_rotate_bytes).unwrap_or(u64::MAX);
-    oc_net::audit::AuditLog::in_data_dir(&base(), rotate)
+    oc_net::audit::AuditLog::default_location(rotate)
 }
 
 /// Where the LLM answer cache lives: `<data>/openconvert/cache/llm` (ARCHITECTURE §9.4).

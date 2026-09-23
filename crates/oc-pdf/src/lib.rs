@@ -12,6 +12,7 @@ pub mod encrypt;
 pub mod error;
 pub mod filters;
 pub mod geom;
+pub mod glyph_budget;
 pub mod glyphs;
 pub mod images;
 pub mod inspect;

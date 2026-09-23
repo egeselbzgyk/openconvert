@@ -49,6 +49,9 @@ pub struct PdfiumDoc {
     /// say it is". `None` when `lopdf` declines a file PDFium accepted, which happens - it is
     /// the stricter parser - and which costs only the two structural image flags.
     structure: Option<lopdf::Document>,
+    /// Pages whose declared glyph count has passed `limits.max_page_glyphs`, so each page's content
+    /// is counted once however many times the page is loaded (PHASE 14 detail 10).
+    glyphs_checked: std::sync::Mutex<std::collections::BTreeSet<u32>>,
 }
 
 impl PdfiumDoc {
@@ -98,6 +101,7 @@ impl PdfiumDoc {
             limits,
             page_ids,
             structure,
+            glyphs_checked: std::sync::Mutex::default(),
         })
     }
 }
@@ -291,6 +295,7 @@ impl PdfiumDoc {
             index,
             message: "page index does not fit in a PDF page number".to_owned(),
         })?;
+        self.check_glyphs(index)?;
         self.document
             .pages()
             .get(page_index)
@@ -302,6 +307,30 @@ impl PdfiumDoc {
 }
 
 impl PdfiumDoc {
+    /// Refuse a page whose content declares more glyphs than a page may draw, before PDFium loads
+    /// it: loading is where PDFium builds an object per text operator (PHASE 14 detail 10).
+    /// Counted from the file's own object tree; a file `lopdf` could not read is left to PDFium
+    /// and the memory cap.
+    fn check_glyphs(&self, index: u32) -> Result<(), PdfError> {
+        let (Some(structure), Some(page)) = (
+            self.structure.as_ref(),
+            self.page_ids
+                .get(usize::try_from(index).unwrap_or(usize::MAX)),
+        ) else {
+            return Ok(());
+        };
+        let mut checked = self
+            .glyphs_checked
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if checked.contains(&index) {
+            return Ok(());
+        }
+        crate::glyph_budget::check_page_glyphs(structure, *page, index, &self.limits)?;
+        checked.insert(index);
+        Ok(())
+    }
+
     /// Extract one page's images (Phase 1 detail 4).
     ///
     /// Geometry and pixel counts come from PDFium; `has_smask` and `is_inline` come from the

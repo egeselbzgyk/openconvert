@@ -3936,6 +3936,7 @@ dependencies = [
 name = "oc-testkit"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "image",
  "lopdf",
  "oc-ai",

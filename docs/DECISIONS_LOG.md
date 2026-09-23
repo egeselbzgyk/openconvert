@@ -5003,3 +5003,45 @@ Evidence: `the_network_log_says_it_is_not_recorded_until_there_is_an_audit_log`;
 log says this build records nothing yet, and lists what the audit log holds.
 Affects: `apps/desktop/src-tauri/src/{netlog,main}.rs`, `Settings.svelte`, `locales/*.json`,
 PHASE 14 detail 12 (fills the hook).
+
+## 2026-09-23 · The engine's hardening, wired into `convert` · Phase 14
+Context: PHASE 14 details 5–7, 9–10 and rows 14.6–14.11, 14.19: the memory cap before the PDF opens,
+Landlock before the first PDF byte, per-stage deadlines, and "exit 1 with a report" for a file a cap
+refuses.
+Decisions:
+1. **Order in `run_job`/`steps`:** `RLIMIT_AS` → (control and heartbeat threads) → the AI endpoint
+   opened (an engine-owned `llama-server` must not inherit the sandbox; a refusal still reads
+   nothing) → OCR discovery → **Landlock** → the memory cap read back for the report → the first PDF
+   byte. The AI endpoint used to open after the PDF did; nothing else moved. The control and
+   heartbeat threads exist before Landlock and stay unrestricted below ABI 8 (they read stdin and
+   write stderr); every thread that touches the PDF is created after it and inherits it.
+2. **The scope set:** read the input (the file, not its directory), the overrides file and the
+   system font directories PDFium's font mapper scans (so a restricted run maps fonts exactly as an
+   unrestricted one: the output must not depend on the kernel, D13.8); read and write the output's
+   directory, the report's, `/dev/null`, the rebuild cache and — with `--ai` — the LLM answer
+   cache; when OCR may start `tesseract`: read and execute `/bin`, `/usr/bin`, the system library
+   directories, the loader cache, the engine binary (the exec trampoline) and the program's
+   `<prefix>`. TCP `connect` only to the AI endpoint's port. Every existing CLI and OCR test,
+   including the real-Tesseract ones, now runs inside it.
+3. **PROVISIONAL — needs maintainer ratification: `OC_LANDLOCK=off`.** An operator's switch that
+   skips Landlock and records `disabled by OC_LANDLOCK=off` in the report. It is how row 14.11's
+   recorded skip is exercised on a kernel that has Landlock, and how a too-narrow scope would be
+   diagnosed in the field. Whoever controls the engine's environment controls the engine already.
+4. **A cap is exit 1 with a failure report** (`convert` and the job spec): `{schema, status:
+   "failed", engine, input, failure: {code, message, cap}, sandbox}` at the report path; no book, no
+   temporary. `inspect` and `dump-stage` keep exit 2 for a refused document (§2.4, unchanged).
+5. **An image refused by the pixel cap refuses the document.** `ingest` used to drop a page's images
+   silently when `page_images` failed; a cap violation now propagates (exit 1, `max_image_pixels`),
+   any other failure still drops them. A book silently thinner than its source is the outcome the
+   caps must not produce.
+6. **PROVISIONAL — needs maintainer ratification: `limits.max_page_glyphs = 1 000 000`.** SECURITY
+   §4's 3-page/40-million-glyph PDF is bounded by none of D13.2's caps (measured: PDFium past 13 GB of
+   RSS on three pages of one-glyph `Tj`s). The count is the string bytes of the text-showing
+   operators in the page content and the forms it paints, taken through the bounded filter chain
+   before PDFium loads the page. Refused in 0.3–1.6 s at 45–200 MB here.
+7. **A stage deadline is a failure** (`E_LIMIT_EXCEEDED`, cap `stage_deadline_secs`), a cancel is a
+   cancel (exit 3): the cause on the shared flag decides. Every stage the driver runs is armed.
+Evidence: `crates/openconvert/tests/hardening.rs` (14.7, 14.9, 14.11, 14.19 and additions), the whole
+suite under Landlock.
+Affects: D13.2, D13.9, SECURITY §4 and §11, PHASE 14 details 5–7 and 9–10, `cmd_convert.rs`,
+`openconvert::{sandbox, report, deliver, input}`, `oc_pdf::glyph_budget`, `thresholds.toml`.

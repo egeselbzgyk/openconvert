@@ -1,24 +1,26 @@
-//! Settings › Network log: what the app reads for it, and why it reads nothing yet.
+//! Settings › Network log: `oc-net`'s audit log, newest first (PHASE 14 detail 12, SECURITY §8).
 //!
 //! The section is the design's own decision (it is visible by default, so "no network unless you
 //! asked" can be checked without digging) and SECURITY §8's promise: every outbound connection
-//! `oc-net` makes is written to a local, user-visible audit log. That log — `oc-net/src/audit.rs`,
-//! one line `{ts, host, purpose, bytes, outcome}` per connection in `<data_dir>/network-audit.log` —
-//! is **PHASE 14 detail 12**, and does not exist in this build.
+//! `oc-net` makes is written to a local, user-visible audit log — one JSON line
+//! `{ts, host, purpose, bytes, outcome, loopback}` per connection in
+//! `<data_dir>/openconvert/network-audit.log`, and the previous generation in `….log.1`. The engine
+//! and this app write the same file (`AuditLog::default_location`): the engine for a conversion's
+//! model calls and `provider` probes, the app for the downloads its model manager makes.
 //!
-//! **This is the hook for it, not a stand-in.** [`read`] answers [`NetworkLog::NotRecorded`], always,
-//! and the page says in words that this build does not record its connections yet and which ones it
-//! makes. It never lists a connection it did not see written down: no row is invented, no count is
-//! estimated. Phase 14 replaces [`read`]'s body with a reader of the audit log and fills
-//! [`NetworkLog::Entries`]; the command, the type and the page are already wired to it.
+//! It lists what was written down and nothing else: no row is invented, no count is estimated. A
+//! line this reader does not understand is skipped rather than guessed at.
 
+use std::path::Path;
+
+use oc_net::audit::{AuditLog, ROTATED_SUFFIX};
 use serde::Serialize;
 
 /// What Settings › Network log shows.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "state", rename_all = "snake_case")]
 pub enum NetworkLog {
-    /// This build keeps no audit log (PHASE 14 detail 12 adds it).
+    /// No audit log could be read. Kept for a build whose data directory is unreadable.
     NotRecorded,
     /// The audit log's lines, newest first.
     Entries { entries: Vec<NetworkEntry> },
@@ -37,23 +39,67 @@ pub struct NetworkEntry {
     pub outcome: String,
 }
 
-/// The network log. The hook PHASE 14 detail 12 fills: until `oc-net` writes an audit log there is
-/// nothing to read.
+/// The audit log both processes write, where they write it.
+pub fn log() -> AuditLog {
+    let rotate =
+        u64::try_from(oc_core::thresholds::T.net.audit_log_rotate_bytes).unwrap_or(u64::MAX);
+    AuditLog::default_location(rotate)
+}
+
+/// The network log: every recorded connection, newest first. No log yet is no connections yet.
 pub fn read() -> NetworkLog {
-    NetworkLog::NotRecorded
+    read_from(log().path())
+}
+
+/// [`read`] from an explicit file (and its rotated predecessor).
+pub fn read_from(path: &Path) -> NetworkLog {
+    let mut rotated = path.as_os_str().to_owned();
+    rotated.push(ROTATED_SUFFIX);
+    let mut entries: Vec<NetworkEntry> = [std::path::PathBuf::from(rotated), path.to_path_buf()]
+        .iter()
+        .filter_map(|file| std::fs::read_to_string(file).ok())
+        .flat_map(|text| {
+            text.lines()
+                .filter_map(|line| serde_json::from_str::<Line>(line).ok())
+                .map(NetworkEntry::from)
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    entries.reverse();
+    NetworkLog::Entries { entries }
+}
+
+/// One line as `oc-net` writes it.
+#[derive(serde::Deserialize)]
+struct Line {
+    ts: String,
+    host: String,
+    purpose: String,
+    bytes: u64,
+    outcome: String,
+}
+
+impl From<Line> for NetworkEntry {
+    fn from(line: Line) -> Self {
+        Self {
+            ts: line.ts,
+            host: line.host,
+            purpose: line.purpose,
+            bytes: line.bytes,
+            outcome: line.outcome,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// The page's two shapes, as the webview reads them — and this build's answer, which is the
-    /// honest one: nothing recorded, rather than a list of connections nobody wrote down.
+    /// The page's two shapes, as the webview reads them.
     #[test]
-    fn the_network_log_says_it_is_not_recorded_until_there_is_an_audit_log() {
-        assert_eq!(read(), NetworkLog::NotRecorded);
+    fn the_network_log_serialises_in_the_shapes_the_page_reads() {
         assert_eq!(
-            serde_json::to_value(read()).expect("serialises"),
+            serde_json::to_value(NetworkLog::NotRecorded).expect("serialises"),
             serde_json::json!({ "state": "not_recorded" })
         );
         let entry = NetworkLog::Entries {
@@ -68,5 +114,45 @@ mod tests {
         let json = serde_json::to_value(entry).expect("serialises");
         assert_eq!(json["state"], "entries");
         assert_eq!(json["entries"][0]["host"], "huggingface.co");
+    }
+
+    /// PHASE 14 detail 12, as the page sees it: what `oc-net` wrote, newest first, across the
+    /// rotation; no file is no connections; a line from another version is skipped, not guessed at.
+    #[test]
+    fn the_network_log_lists_the_audit_log_newest_first() {
+        let dir = std::env::temp_dir().join(format!("oc-netlog-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let log = oc_net::audit::AuditLog::in_data_dir(&dir, u64::MAX);
+        assert_eq!(
+            read_from(log.path()),
+            NetworkLog::Entries {
+                entries: Vec::new()
+            }
+        );
+
+        for (host, purpose) in [
+            ("huggingface.co", oc_net::audit::Purpose::Download),
+            ("127.0.0.1", oc_net::audit::Purpose::LlmRequest),
+        ] {
+            log.append(&oc_net::audit::Entry::now(
+                &format!("https://{host}/x"),
+                purpose,
+                7,
+                "ok",
+            ))
+            .expect("append");
+        }
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(log.path())
+            .and_then(|mut file| std::io::Write::write_all(&mut file, b"not json\n"))
+            .expect("a stray line");
+        let NetworkLog::Entries { entries } = read_from(log.path()) else {
+            panic!("entries");
+        };
+        let hosts: Vec<&str> = entries.iter().map(|entry| entry.host.as_str()).collect();
+        assert_eq!(hosts, ["127.0.0.1", "huggingface.co"]);
+        assert_eq!(entries[0].purpose, "llm-request");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -6,4 +6,5 @@ pub mod assertions;
 pub mod download_stub;
 pub mod fake_tesseract;
 pub mod handmade;
+pub mod hostile;
 pub mod mutate;

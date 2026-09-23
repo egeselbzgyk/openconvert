@@ -16,6 +16,7 @@ pub mod ai_endpoint;
 pub mod cache;
 pub mod convert;
 pub mod data_dir;
+pub mod deliver;
 pub mod document;
 pub mod dump_layout;
 pub mod dump_structure;

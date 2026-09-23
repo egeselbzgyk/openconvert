@@ -87,8 +87,8 @@ pub enum CapViolation {
     ObjStmCycle { obj: u32 },
     /// A page's content declares more glyphs than a page is allowed to draw.
     #[error(
-        "max_page_glyphs exceeded on page {page}: the content declares {declared} glyphs, \
-         {limit} allowed"
+        "max_page_glyphs exceeded on page {page}: the content declares at least {declared} \
+         glyphs, {limit} allowed"
     )]
     PageGlyphs {
         declared: u64,
@@ -140,6 +140,9 @@ pub struct Limits {
     /// How deeply the structural pre-walk nests arrays and dictionaries before it gives up on an
     /// object: a bound on its own stack, which a file must not choose (PHASE 14 detail 3).
     pub max_object_nesting: u32,
+    /// How many glyphs one page's content may declare before PDFium is asked to load it
+    /// (PHASE 14 detail 10).
+    pub max_page_glyphs: u64,
     pub stage_deadline_secs: u64,
 }
 
@@ -155,6 +158,7 @@ impl Default for Limits {
             max_xref_chain: clamp_u32(limits.max_xref_chain),
             max_outline_entries: clamp_u32(limits.max_outline_entries),
             max_object_nesting: clamp_u32(limits.max_object_nesting),
+            max_page_glyphs: clamp_u64(limits.max_page_glyphs),
             stage_deadline_secs: clamp_u64(limits.stage_deadline_secs),
         }
     }

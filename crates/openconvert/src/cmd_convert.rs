@@ -24,6 +24,7 @@ use crate::cli::{AiArgs, ConvertArgs, Progress};
 use oc_ai::session::Clock;
 use openconvert::ai_endpoint::{self, OpenError};
 use openconvert::convert::{convert_observed, ConvertError, ConvertOptions, Observe};
+use openconvert::sandbox::SandboxReport;
 
 /// The model registry the engine was built with (PHASE 9 detail 6).
 const BUNDLED_REGISTRY: &str = include_str!("../../../models.toml");
@@ -105,7 +106,7 @@ impl ConvertJob {
             password: args.password.clone(),
             modified: args.modified.clone(),
             locale: args.locale,
-            limits: oc_core::limits::Limits::default(),
+            limits: args.limits,
             job_id: None,
             json_events: args.progress == Progress::Json,
             overrides: args.overrides.clone(),
@@ -208,11 +209,18 @@ pub(crate) fn run_job<W: Write + Send>(
     backend: &PdfiumBackend,
     events: &EventSink<W>,
 ) -> ExitCode {
+    // The memory cap first, before the PDF is opened and before any conversion thread exists
+    // (PHASE 14 detail 5). Nothing here can fail the run: the record says what was applied.
+    let mut sandbox = SandboxReport::start(&job.limits);
     let cancel = Cancel::new();
+    // Every stage gets `limits.stage_deadline_secs`, on the same flag a cancel sets (detail 6).
+    cancel.set_stage_deadline(Duration::from_secs(job.limits.stage_deadline_secs));
     crate::control::listen(cancel.clone());
     let interval = Duration::from_secs(u64::try_from(T.ipc.heartbeat_secs).unwrap_or(u64::MAX));
 
-    let ending = events.with_heartbeat(interval, || steps(job, backend, events, &cancel));
+    let ending = events.with_heartbeat(interval, || {
+        steps(job, backend, events, &cancel, &mut sandbox)
+    });
     match ending {
         Ending::Done { report, output } => {
             events.done_job(
@@ -243,8 +251,63 @@ fn steps<W: Write + Send>(
     backend: &PdfiumBackend,
     events: &EventSink<W>,
     cancel: &Cancel,
+    sandbox: &mut SandboxReport,
 ) -> Ending {
     let args = job;
+
+    // AI: open the model, or learn why not — before the sandbox, because an engine-owned server is
+    // started here and must not inherit it, and before the PDF, because an endpoint off this
+    // machine without consent, and an endpoint the engine will not interpret, are refused before
+    // anything is read or sent. Anything else that stops a model answering converts the book
+    // without one, and says so.
+    let (opened, unavailable) = match &job.ai {
+        None => (None, None),
+        Some(ai) => match ai_endpoint::open(ai, BUNDLED_REGISTRY, &T) {
+            Ok(opened) => (Some(opened), None),
+            Err(OpenError::Unavailable(reason)) => (None, Some(reason)),
+            Err(refused) => {
+                let exit = refused.exit_code();
+                let (code, message) = refused
+                    .fatal()
+                    .unwrap_or((E_USAGE, "the model could not be opened".to_owned()));
+                return fatal(code, message, exit);
+            }
+        },
+    };
+
+    // OCR's rasters go to a job-private directory beside the output, deleted with the conversion
+    // whatever became of it. Discovery runs now, before the sandbox, so the scope knows which
+    // program a page may need.
+    let output = job.output.clone();
+    let workdir = temporary_beside(&output);
+    let (ocr, ocr_program) = ocr_options(job, &workdir);
+    let llm_cache_dir = openconvert::data_dir::llm_cache();
+    let cache_dir = std::env::var_os(CACHE_VAR).map(PathBuf::from);
+
+    // Landlock, after the job is validated and **before the first PDF byte is read** (PHASE 14
+    // detail 7): read the input, write beside the output and the report, execute what OCR needs,
+    // connect only to the model. Never fatal; the report records what happened.
+    let mut writes: Vec<PathBuf> = cache_dir.iter().cloned().collect();
+    if opened.is_some() {
+        let _ = std::fs::create_dir_all(&llm_cache_dir);
+        writes.push(llm_cache_dir.clone());
+    }
+    let scope = openconvert::sandbox::scope_for(&openconvert::sandbox::ScopeInputs {
+        input: job.input.clone(),
+        output: output.clone(),
+        report: job.report.clone(),
+        extra_reads: job.overrides.iter().cloned().collect(),
+        extra_writes: writes,
+        programs: ocr_program.into_iter().collect(),
+        connect_ports: opened
+            .as_ref()
+            .and_then(|opened| opened.port)
+            .into_iter()
+            .collect(),
+    });
+    sandbox.landlock = Some(openconvert::sandbox::restrict(&scope));
+    sandbox.memory.observe_at_open();
+
     let bytes = match std::fs::read(&args.input) {
         Ok(bytes) => bytes,
         Err(error) => {
@@ -269,7 +332,6 @@ fn steps<W: Write + Send>(
         }
     }
 
-    let output = job.output.clone();
     if !job.overwrite && output.exists() {
         return fatal(
             E_OUTPUT_EXISTS,
@@ -285,9 +347,6 @@ fn steps<W: Write + Send>(
     let clock = oc_ai::session::SystemClock::new();
     let started_ms = clock.now_ms();
 
-    // OCR's rasters go to a job-private directory beside the output, deleted with the conversion
-    // whatever became of it.
-    let workdir = temporary_beside(&output);
     let options = ConvertOptions {
         filename: args
             .input
@@ -312,14 +371,20 @@ fn steps<W: Write + Send>(
             .map(|path| std::fs::read_to_string(path).unwrap_or_default()),
         // The app names its cache directory in the environment of every engine it starts, so a
         // "Fix and rebuild" can resume after `structure` (A12.4b). Unset, nothing is saved.
-        cache_dir: std::env::var_os(CACHE_VAR).map(PathBuf::from),
-        ocr: ocr_options(job, &workdir),
+        cache_dir,
+        ocr,
     };
 
+    let failed = |code: &'static str, message: String, cap: Option<&'static str>| {
+        failure(job, backend, Some(&sha256), code, message, cap, sandbox)
+    };
     let pdf = match backend.open_with_limits(&bytes, args.password.as_deref(), &job.limits) {
         Ok(pdf) => pdf,
         Err(error) => {
             let (code, exit) = open_failure(&error);
+            if exit == ExitCode::Failed {
+                return failed(code, error.to_string(), error.cap());
+            }
             return fatal(code, error.to_string(), exit);
         }
     };
@@ -333,24 +398,7 @@ fn steps<W: Write + Send>(
         }),
     );
 
-    // AI: open the model, or learn why not. An endpoint off this machine without consent, and an
-    // endpoint the engine will not interpret, are refused before anything is sent; anything else
-    // that stops a model answering converts the book without one, and says so.
-    let (opened, unavailable) = match &job.ai {
-        None => (None, None),
-        Some(ai) => match ai_endpoint::open(ai, BUNDLED_REGISTRY, &T) {
-            Ok(opened) => (Some(opened), None),
-            Err(OpenError::Unavailable(reason)) => (None, Some(reason)),
-            Err(refused) => {
-                let exit = refused.exit_code();
-                let (code, message) = refused
-                    .fatal()
-                    .unwrap_or((E_USAGE, "the model could not be opened".to_owned()));
-                return fatal(code, message, exit);
-            }
-        },
-    };
-    let llm_cache = oc_ai::cache::FileCache::new(openconvert::data_dir::llm_cache());
+    let llm_cache = oc_ai::cache::FileCache::new(llm_cache_dir);
     let context = opened.as_ref().map(|opened| openconvert::ai::AiContext {
         provider: opened.provider.as_ref(),
         cache: Some(&llm_cache),
@@ -383,13 +431,22 @@ fn steps<W: Write + Send>(
     let _ = std::fs::remove_dir_all(&workdir);
     let mut conversion = match converted {
         Ok(conversion) => conversion,
-        Err(ConvertError::Cancelled) => return Ending::Cancelled,
-        Err(error) => {
-            let code = match &error {
-                ConvertError::Pdf(_) => E_PDF,
-                _ => E_CONVERT,
+        // One abort path, two causes (PHASE 14 detail 6): the user's cancel ends as a cancel, a
+        // stage's deadline as a failure that names the cap.
+        Err(ConvertError::Cancelled) => {
+            let limit = cancel.stage_deadline().unwrap_or_default();
+            return match cancel.cause().and_then(|cause| cause.violation(limit)) {
+                Some(violation) => failed(E_LIMIT, violation.to_string(), Some(violation.cap())),
+                None => Ending::Cancelled,
             };
-            return fatal(code, error.to_string(), ExitCode::Failed);
+        }
+        Err(error) => {
+            let (code, cap) = match &error {
+                ConvertError::Pdf(pdf) if pdf.cap().is_some() => (E_LIMIT, pdf.cap()),
+                ConvertError::Pdf(_) => (E_PDF, None),
+                _ => (E_CONVERT, None),
+            };
+            return failed(code, error.to_string(), cap);
         }
     };
 
@@ -430,14 +487,19 @@ fn steps<W: Write + Send>(
     // the book. Nothing has been written to the destination yet — neither the report nor the
     // temporary — so a cancelled job leaves the directory as it found it.
     if cancel.is_cancelled() {
-        return Ending::Cancelled;
+        let limit = cancel.stage_deadline().unwrap_or_default();
+        return match cancel.cause().and_then(|cause| cause.violation(limit)) {
+            Some(violation) => failed(E_LIMIT, violation.to_string(), Some(violation.cap())),
+            None => Ending::Cancelled,
+        };
     }
 
     // The report is written **before** the atomic rename, so a report exists even for a conversion
     // that then fails to place its output (PIPELINE §13).
     let report_path = job.report.clone();
+    let record = sandbox.clone();
     let written = oc_core::progress::timed(&progress, "report", || {
-        let report = openconvert::report::report(
+        let mut report = openconvert::report::report(
             &conversion,
             openconvert::report::ReportInput {
                 filename: &options.filename,
@@ -449,6 +511,7 @@ fn steps<W: Write + Send>(
                 consent: consent.as_ref(),
             },
         );
+        report.sandbox = Some(record);
         match openconvert::report::to_json(&report) {
             Ok(json) => std::fs::write(&report_path, json)
                 .map(|()| report)
@@ -461,7 +524,9 @@ fn steps<W: Write + Send>(
         Err(message) => return fatal(E_REPORT, message, ExitCode::Failed),
     };
 
-    if let Err(error) = write_atomically(&output, conversion.built.bytes.as_slice()) {
+    if let Err(error) =
+        openconvert::deliver::write_atomically(&output, conversion.built.bytes.as_slice())
+    {
         return fatal(
             E_OUTPUT,
             format!("{}: {error}", output.display()),
@@ -558,21 +623,73 @@ impl<W: Write + Send> oc_core::progress::Progress for EventProgress<'_, W> {
 fn open_failure(error: &oc_pdf::error::PdfError) -> (&'static str, ExitCode) {
     match error {
         oc_pdf::error::PdfError::PasswordRequired => (E_PASSWORD, ExitCode::Usage),
-        oc_pdf::error::PdfError::LimitExceeded(_) => (E_LIMIT, ExitCode::Usage),
+        // A cap is a conversion that failed on this file, with a report naming the cap (PHASE 14
+        // rows 14.6 and 14.9): exit 1, not a usage error.
+        oc_pdf::error::PdfError::LimitExceeded(_) | oc_pdf::error::PdfError::Cap(_) => {
+            (E_LIMIT, ExitCode::Failed)
+        }
         _ => (E_PDF, ExitCode::Failed),
     }
 }
 
-/// What the job's OCR settings ask for, with the engine discovered (PHASE 13).
-fn ocr_options(job: &ConvertJob, workdir: &Path) -> openconvert::ocr::OcrOptions {
+/// End the run as a failed conversion: exit 1, and a report at the report path that says what
+/// stopped it (PHASE 14 details 9–10, D13.2 "1 failed (report written)"). No book is written —
+/// nothing reaches the destination before a conversion succeeds.
+fn failure(
+    job: &ConvertJob,
+    backend: &PdfiumBackend,
+    sha256: Option<&str>,
+    code: &'static str,
+    message: String,
+    cap: Option<&'static str>,
+    sandbox: &SandboxReport,
+) -> Ending {
+    let report = openconvert::report::failure_report(
+        &backend.version().version,
+        openconvert::report::FailedInput {
+            filename: job
+                .input
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            sha256: sha256.map(str::to_owned),
+        },
+        openconvert::report::Failure {
+            code,
+            message: message.clone(),
+            cap,
+        },
+        Some(sandbox.clone()),
+    );
+    let message = match openconvert::report::failure_to_json(&report)
+        .map_err(|error| error.to_string())
+        .and_then(|json| std::fs::write(&job.report, json).map_err(|error| error.to_string()))
+    {
+        Ok(()) => message,
+        Err(error) => format!(
+            "{message} (and the report could not be written to {}: {error})",
+            job.report.display()
+        ),
+    };
+    fatal(code, message, ExitCode::Failed)
+}
+
+/// What the job's OCR settings ask for, with the engine discovered (PHASE 13), and the program a
+/// page may start — which the sandbox must let the run execute.
+fn ocr_options(
+    job: &ConvertJob,
+    workdir: &Path,
+) -> (openconvert::ocr::OcrOptions, Option<PathBuf>) {
     use oc_core::ocr::discover::{discover, region_deadline};
     use oc_core::ocr::invoke::{OcrEngine, Tesseract};
     use oc_core::ocr::OcrMode;
 
     if job.ocr == OcrMode::Never {
-        return openconvert::ocr::OcrOptions::off();
+        return (openconvert::ocr::OcrOptions::off(), None);
     }
-    let engine = discover(job.ocr_path.as_deref()).map(|info| {
+    let found = discover(job.ocr_path.as_deref());
+    let program = found.as_ref().ok().map(|info| info.path.clone());
+    let engine = found.map(|info| {
         std::sync::Arc::new(Tesseract::new(info, workdir, region_deadline()))
             as std::sync::Arc<dyn OcrEngine>
     });
@@ -580,7 +697,7 @@ fn ocr_options(job: &ConvertJob, workdir: &Path) -> openconvert::ocr::OcrOptions
     options.mode = job.ocr;
     options.re_ocr = job.re_ocr;
     options.langs = job.ocr_lang.clone();
-    options
+    (options, program)
 }
 
 /// `<output>.oc-tmp-<token>`: a job-private temporary beside the output, on the same filesystem.
@@ -627,36 +744,6 @@ fn page_count(conversion: &openconvert::convert::Conversion) -> u32 {
 /// `<input>.epub` next to the input.
 fn default_output(input: &Path) -> PathBuf {
     input.with_extension("epub")
-}
-
-/// Write to a temporary beside the destination and rename over it (D13.2).
-fn write_atomically(output: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    let directory = output.parent().unwrap_or_else(|| Path::new("."));
-    // Enough entropy that two conversions of one book into one directory do not collide, and
-    // no more: this is a temporary name, not a secret.
-    let token = format!(
-        "{:x}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|since| since.as_nanos())
-            .unwrap_or_default()
-    );
-    let temporary = directory.join(format!(
-        "{}.oc-tmp-{token}",
-        output
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "out.epub".to_owned())
-    ));
-
-    std::fs::write(&temporary, bytes)?;
-    match std::fs::rename(&temporary, output) {
-        Ok(()) => Ok(()),
-        Err(error) => {
-            let _ = std::fs::remove_file(&temporary);
-            Err(error)
-        }
-    }
 }
 
 /// `dcterms:modified`, to the second, in UTC.

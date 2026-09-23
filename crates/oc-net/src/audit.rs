@@ -89,6 +89,12 @@ impl AuditLog {
         Self::new(data_dir.join("openconvert").join(FILE_NAME), rotate_bytes)
     }
 
+    /// The per-OS default: beside the model store (`store::default_root`), so the engine and the
+    /// desktop app write, and read, one log.
+    pub fn default_location(rotate_bytes: u64) -> Self {
+        Self::in_data_dir(&crate::store::data_dir(), rotate_bytes)
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
     }

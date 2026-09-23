@@ -49,6 +49,16 @@ pub fn init() {
     }
 }
 
+/// This binary, when it is the trampoline for the children it starts: a sandbox must let the
+/// process execute it.
+pub fn trampoline() -> Option<PathBuf> {
+    if cfg!(target_os = "linux") {
+        TRAMPOLINE.get().cloned()
+    } else {
+        None
+    }
+}
+
 /// Whether children started through [`command`] get the parent-death signal.
 pub fn guarded() -> bool {
     cfg!(target_os = "linux") && TRAMPOLINE.get().is_some()

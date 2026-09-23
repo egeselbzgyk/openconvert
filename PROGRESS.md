@@ -103,7 +103,7 @@ items, in order, with the plan's test rows against each:
 - [x] **P14.7** children never outlive a killed engine: PDEATHSIG trampoline, job object (Phases 9, 13)
 - [x] **P14.8** Landlock: `ScopeSet`, self-restriction — rows 14.10, 14.12 *(14.11, the engine's recorded skip, is P14.10)*
 - [x] **P14.9** `oc-net` audit log — row 14.21
-- [ ] **P14.10** the engine: `--max-memory`/`--max-pages`, Landlock and deadlines wired into `convert`; caps end in exit 1 with a report and no output; the 40 M-glyph PDF — rows 14.7, 14.9, 14.19, 14.6's exit 1
+- [x] **P14.10** the engine: `--max-memory`/`--max-pages`, Landlock and deadlines wired into `convert`; caps end in exit 1 with a report and no output; the 40 M-glyph PDF — rows 14.7, 14.9, 14.11, 14.19, 14.6's exit 1
 - [ ] **P14.11** crash corpus: `oc-eval mutate`, `corpus/fixtures/crash/`, Isartor fetch — rows 14.16–14.18
 - [ ] **P14.12** `fuzz/`: three targets, seeded corpora — rows 14.13–14.15
 - [ ] **P14.13** `unshare -n` over the AI cassette path — row 14.20
@@ -162,6 +162,14 @@ What a fresh session needs:
   POST) record `{ts, host, purpose, bytes, outcome, loopback}`. **For Phase 12:** the desktop app
   downloads models and packs in its own process, so its `main` must `oc_net::audit::install(...)`
   too, and Settings › Network log reads that file (JSON lines; `.1` is the previous generation).
+- **`convert` (and the job spec) now:** `SandboxReport::start` (RLIMIT_AS) → AI endpoint opened →
+  OCR discovered → Landlock (`openconvert::sandbox::scope_for`/`restrict`) → PDF read. Stage deadlines
+  ride on the `Cancel` (`set_stage_deadline`, armed per stage in `Timings::observed`). A cap or a
+  deadline is exit 1 with a **failure report** (`status: "failed"`, `failure.{code,message,cap}`);
+  `inspect`/`dump-stage` still exit 2. `OC_LANDLOCK=off` records a skip (PROVISIONAL). New cap
+  `limits.max_page_glyphs` (`oc_pdf::glyph_budget`, counted before PDFium loads a page;
+  PROVISIONAL). Hostile PDF builders: `oc_testkit::hostile`. The engine tests are
+  `crates/openconvert/tests/hardening.rs`; row 14.19 runs 1 000 violations in ~25 s on 4 threads.
 - `openconvert::sandbox` is the report's `sandbox` section and `--max-memory` parsing
   (`parse_bytes`, binary units only); not wired into `convert` yet (P14.10).
 

@@ -56,4 +56,6 @@ serde_json.workspace = true
 thiserror.workspace = true
 pdf-writer.workspace = true
 lopdf.workspace = true
+# The hostile PDFs' compressed streams (PHASE 14): bombs and glyph floods are zlib.
+flate2.workspace = true
 image.workspace = true

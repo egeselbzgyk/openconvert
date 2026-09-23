@@ -73,6 +73,9 @@ impl Timings {
         ConvertError: From<E>,
     {
         observe.check()?;
+        // The stage's deadline rides on the cancel flag: every poll inside the stage sees it
+        // (PHASE 14 detail 6). Disarmed when the stage returns.
+        let _deadline = observe.cancel.stage(name);
         observe.progress.stage(name, StagePhase::Begin);
         let started = std::time::Instant::now();
         let out = run();
