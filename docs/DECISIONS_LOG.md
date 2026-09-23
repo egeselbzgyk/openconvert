@@ -4363,3 +4363,80 @@ Decisions:
 Evidence: `crates/openconvert/tests/providers.rs` (`provider_detect_reports_ollama_or_nothing`,
 `provider_check_says_whether_consent_is_needed`, `provider_probe_answers_what_convert_would_open`).
 Affects: IMPLEMENTATION_PLAN §2.1, UI_UX §2.4, Phase 12 (`routes/settings/providers.svelte`), Phase 14.
+
+## 2026-09-23 · The resource caps, checked before the work: what each one reads · Phase 14
+Context: PHASE 14 details 1–4 ask for caps checked before the expensive operation, a bounded
+filter chain that ignores `/Length`, and an xref/ObjStm walk with a depth counter and a visited set.
+Decisions:
+1. **The image cap counts pixels, not pixels × components.** Detail 1 multiplies by components; D13.2
+   names the cap "max image pixels (100 MP declared)", and the threshold's evidence is Pillow's
+   `MAX_IMAGE_PIXELS`, a pixel count. D13.2 governs. The check reads the dictionary only
+   (`ImageDict`), and `decode_image_checked` takes the decoder as a closure so it cannot be reached
+   first.
+2. **Our own filter chain, one budget per stream.** `oc_pdf::filters::decode_stream` decodes Flate,
+   LZW, RunLength, ASCII85, ASCIIHex and the PNG/TIFF predictors as `Read` adapters, each layer
+   through `BoundedInflate`; the layers **share** `max_decompressed_stream_bytes`, so nesting a bomb
+   does not multiply the ceiling. Page content and XMP use it; `lopdf` (which decodes object and
+   xref streams itself while loading, unbounded by default) now loads with `max_decompressed_size`.
+   A regression test holds the chain to `lopdf`'s answers on every committed fixture.
+3. **The structural pre-walk runs before PDFium and `lopdf`** (`oc_pdf::prescan`): startxref, `/Prev`,
+   `/XRefStm`, classic tables and xref streams, a depth counter (`XrefDepth`) and a visited set of
+   offsets (`XrefCycle`); object-stream nesting on the way to the catalogue under the same two
+   guards (`XrefDepth`, `ObjStmCycle`, a variant the plan's enum lacks: an object stream cycle has no
+   byte offset). **A cycle is a refusal**, as detail 3 says, not a warning. Anything else that does
+   not parse ends the walk silently — PDFium reconstructs broken tables, and a pre-check that refused
+   what the parser reads would be a regression.
+4. **The page cap reads the catalogue's `/Count`** through that walk, before any page object exists
+   in either parser; PDFium's own count is still checked after it opens, for files the walk cannot
+   follow (object streams it cannot decode, encryption).
+5. **`limits.max_object_nesting = 64`, provisional.** The walk's parser must bound its own recursion;
+   64 is the depth PDFium's syntax parser is understood to allow (not verified here).
+Evidence: rows 14.1–14.6; `our_filter_chain_agrees_with_lopdf_on_every_fixture`,
+`every_fixture_walks_and_agrees_with_pdfium_on_its_page_count`.
+Affects: `crates/oc-pdf/src/{limits,filters,prescan}.rs`, `crates/oc-core/src/limits.rs`,
+`thresholds.toml`.
+
+## 2026-09-23 · One abort path: deadlines live on the cancel flag · Phase 14
+Context: PHASE 14 detail 6: a `DeadlineGuard` sets the same flag as cancel, polled at stage
+boundaries and inside per-page loops.
+Decision: the deadline is stored **on `Cancel`**, and `Cancel::is_cancelled()` — the poll every loop
+already makes — also reads the clock and, past the deadline, sets the flag with
+`AbortCause::Deadline(stage)`. No timer thread. The first cause wins, so a deadline cannot turn a
+user's cancel into a failure. `Scratch::clean_up` is the single cleanup and removes each path once.
+A single native call that never returns is not caught by a poll; that is the supervisor's kill
+(D13.2) and the caps' job.
+Evidence: `deadline_and_cancel_share_one_abort_path` (14.8), `a_dropped_deadline_never_fires`.
+Affects: `crates/oc-core/src/{cancel,deadline}.rs`.
+
+## 2026-09-23 · Children that do not outlive a killed engine, without `unsafe` · Phase 14
+Context: carried over from Phase 9 (DECISIONS_LOG "Who tears the sidecar down") and Phase 13 (row
+13.19): an engine killed outright (SIGKILL, a PDFium segfault) runs no hook and no destructor.
+D13.2 asks for `PR_SET_PDEATHSIG` on Linux and a job object on Windows; CLAUDE.md and ARCHITECTURE
+§5 allow `unsafe` only in the PDFium binding (the plan's row 14.22 would also allow three syscall
+modules — the higher authority is kept, and none of them contains `unsafe`).
+Decisions:
+1. **Linux: an exec trampoline.** `oc_core::sidecar::orphan::command` starts the engine's own binary
+   as `__oc-exec-child <engine pid> -- <program> <args…>`; `orphan::init()` (first line of every
+   engine `main`) recognises it, sets `PR_SET_PDEATHSIG = SIGTERM` through rustix's safe wrapper,
+   exits if the engine already died (its parent pid changed), and `exec`s the program — same pid,
+   environment and stdio. No `pre_exec`, no `unsafe`. Opt-in: a binary that never calls `init` (the
+   desktop app, tests) spawns directly, as before.
+2. **The death signal follows the spawning thread**, so children are spawned by threads that wait
+   for them (both call sites already do).
+3. **Windows: `win32job`** puts each child in the engine's `KILL_ON_JOB_CLOSE` job (`orphan::adopt`).
+   Type-checked for `x86_64-pc-windows-msvc`; **unverified here** (no Windows machine).
+4. **macOS has no `PDEATHSIG`**: the process group and the supervisor's `kill(-pgid)` remain the
+   mechanism, as ARCHITECTURE §8.2 says. **Unverified here.**
+5. **`supervise::settle()`** ends `main`: when a SIGTERM is being handled, `main` waits for the
+   handler's `exit(3)` instead of returning first. Found while stress-testing: the handler's
+   teardown ends the children, the waiting work finishes early, and `main` returned 0 in 3 of 24
+   parallel runs of `ocr_child_dies_with_the_engine` (0 of 32 after).
+6. **PROVISIONAL — needs maintainer ratification: no Windows memory cap.** `win32job` does not expose
+   `JOB_OBJECT_LIMIT_PROCESS_MEMORY`, and setting it is `unsafe` FFI this project does not write. The
+   engine reports the cap `unsupported` on Windows. Ratify one of: `unsafe` confined to
+   `sandbox/jobobject.rs` as row 14.22 allows; an upstream `limit_process_memory` in `win32job`; or
+   the desktop app's job object carrying the limit.
+Evidence: `owned_server_does_not_outlive_a_sigkilled_engine`,
+`ocr_child_does_not_outlive_a_sigkilled_engine` (Linux; both failed before the trampoline).
+Affects: D13.2, SECURITY §3, ARCHITECTURE §8.2, `crates/oc-core/src/sidecar/{orphan,supervise}.rs`,
+`crates/oc-core/src/sandbox/`.

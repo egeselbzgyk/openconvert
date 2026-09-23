@@ -304,3 +304,28 @@ fn ocr_child_dies_with_the_engine() {
         "tesseract outlived a panicked engine"
     );
 }
+
+/// Carried over from Phase 13 (row 13.19) into Phase 14: a `tesseract` the engine started does not
+/// outlive an engine killed with `SIGKILL`, which runs neither the signal handler nor the panic
+/// hook. Linux ends it through `PR_SET_PDEATHSIG` (`oc_core::sidecar::orphan`).
+#[cfg(target_os = "linux")]
+#[test]
+fn ocr_child_does_not_outlive_a_sigkilled_engine() {
+    let dir = scratch("teardown-kill");
+    let fake = FakeTesseract::install(
+        &dir.join("bin"),
+        &FakeConfig {
+            sleep_secs: 120,
+            ..FakeConfig::default()
+        },
+    );
+    let mut engine = run_engine("wait", &fake, &dir.join("work"));
+    let pid = wait_for_pid(&fake);
+    assert!(alive(pid), "tesseract is running before the engine ends");
+    engine.kill().expect("SIGKILL to the engine alone");
+    let _ = engine.wait();
+    assert!(
+        gone_within(pid, TEARDOWN),
+        "tesseract {pid} outlived an engine killed with SIGKILL"
+    );
+}

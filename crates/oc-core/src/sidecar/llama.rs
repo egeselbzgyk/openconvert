@@ -49,7 +49,7 @@ pub struct ServerSpec {
 /// environment. Its output goes nowhere: the server's health is asked over HTTP, never read from
 /// its log.
 pub fn command(program: &Path, spec: &ServerSpec, port: u16, key: &SecretString) -> Command {
-    let mut command = Command::new(program);
+    let mut command = super::orphan::command(program);
     command
         .arg("--host")
         .arg(LOOPBACK)

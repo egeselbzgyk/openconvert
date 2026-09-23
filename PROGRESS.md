@@ -94,7 +94,7 @@ items, in order, with the plan's test rows against each:
 - [x] **P14.4** the page cap from the catalogue's `/Count`, before any page object — row 14.6 *(the CLI's exit 1 + report is P14.10)*
 - [x] **P14.5** one abort path: `AbortCause`, `DeadlineGuard`, one cleanup — row 14.8 *(wired into `convert` in P14.10)*
 - [x] **P14.6** `oc_core::sandbox::{rlimit, jobobject}`: `RLIMIT_AS`, the engine's job object *(row 14.7, the CLI half, is P14.10)*
-- [ ] **P14.7** children never outlive a killed engine: PDEATHSIG trampoline, job object (Phases 9, 13)
+- [x] **P14.7** children never outlive a killed engine: PDEATHSIG trampoline, job object (Phases 9, 13)
 - [ ] **P14.8** Landlock: `ScopeSet`, self-restriction, recorded skip — rows 14.10–14.12
 - [ ] **P14.9** `oc-net` audit log — row 14.21
 - [ ] **P14.10** the engine: `--max-memory`/`--max-pages`, Landlock and deadlines wired into `convert`; caps end in exit 1 with a report and no output; the 40 M-glyph PDF — rows 14.7, 14.9, 14.19, 14.6's exit 1
@@ -136,6 +136,12 @@ What a fresh session needs:
   `landlock` (P14.8). The workspace `rustix`/`win32job` lines are copied verbatim from Phase 12's
   branch so the two merge cleanly. Windows/macOS type-check: `CARGO_FEATURE_PURE=1 cargo check -p
   oc-core --target x86_64-pc-windows-msvc` (blake3's C build needs MSVC otherwise).
+- **Children cannot outlive a SIGKILLed engine (Linux):** `oc_core::sidecar::orphan::command(program)`
+  starts `<engine> __oc-exec-child <pid> -- <program> …`, which sets `PR_SET_PDEATHSIG` (rustix) and
+  `exec`s; every engine `main` calls `orphan::init()` first (openconvert, `oc-sidecar-engine`,
+  `oc-ocr-engine`) and `supervise::settle()` last (a SIGTERM ends the run as exit 3, not whatever
+  `main` returned first). The desktop app does not call `init`, so its own `OwnedServer` spawns
+  directly — Phase 12 may add `orphan::init()` to its `main` to get the same guarantee.
 - `openconvert::sandbox` is the report's `sandbox` section and `--max-memory` parsing
   (`parse_bytes`, binary units only); not wired into `convert` yet (P14.10).
 

@@ -18,12 +18,15 @@
 
 use std::collections::BTreeMap;
 use std::process::Child;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard, Once, PoisonError};
 
 use crate::exit::ExitCode;
 
 static CHILDREN: Mutex<BTreeMap<u32, Child>> = Mutex::new(BTreeMap::new());
 static INSTALL: Once = Once::new();
+/// Set by the signal handler before it tears anything down: the process is ending as a cancel.
+static SIGNALLED: AtomicBool = AtomicBool::new(false);
 
 /// The registry. A panic elsewhere never poisons it for good: nothing is done while it is held that
 /// can panic, and teardown must work however the process is ending.
@@ -102,10 +105,28 @@ pub fn install() {
         // SIGINT, SIGTERM and SIGHUP on Unix; Ctrl-C, Ctrl-Break and console close on Windows.
         // A signal to stop is a cancellation (D13.2).
         if let Err(error) = ctrlc::set_handler(|| {
+            SIGNALLED.store(true, Ordering::SeqCst);
             kill_all();
             std::process::exit(ExitCode::Cancelled.code());
         }) {
             tracing::warn!(%error, "no signal handler: a signalled engine may orphan its sidecar");
         }
     });
+}
+
+/// Whether a termination signal has been received and is being handled.
+pub fn signalled() -> bool {
+    SIGNALLED.load(Ordering::SeqCst)
+}
+
+/// Call at the end of `main`. If a termination signal is being handled, wait for the handler to
+/// end the process as a cancellation (exit code 3) instead of returning first: the handler's
+/// teardown ends the children, the work waiting on them then finishes early, and a `main` that
+/// returned at that moment would report the book as done (or failed) when it was cancelled.
+pub fn settle() {
+    if signalled() {
+        loop {
+            std::thread::park();
+        }
+    }
 }

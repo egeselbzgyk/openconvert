@@ -61,7 +61,7 @@ pub struct OcrArgs {
 /// The command that reads `image` with `args`, printing TSV to stdout:
 /// `tesseract <img> stdout -l <langs> --psm <n> --dpi <dpi> -c preserve_interword_spaces=1 tsv`.
 pub fn command(program: &Path, image: &Path, args: &OcrArgs) -> Command {
-    let mut command = Command::new(program);
+    let mut command = super::orphan::command(program);
     command
         .arg(image)
         .arg(STDOUT_BASE)
@@ -108,7 +108,7 @@ pub enum RunError {
 /// Run `command` to completion, capturing stdout and stderr, and kill it if it has not finished
 /// writing its output within `deadline`.
 pub fn run_captured(mut command: Command, deadline: Duration) -> Result<Captured, RunError> {
-    let program = command.get_program().to_string_lossy().into_owned();
+    let program = super::orphan::program_of(&command);
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -124,6 +124,7 @@ pub fn run_captured(mut command: Command, deadline: Duration) -> Result<Captured
         program: program.clone(),
         message: error.to_string(),
     })?;
+    super::orphan::adopt(&child);
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
     let pid = supervise::register(child);

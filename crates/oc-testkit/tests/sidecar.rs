@@ -220,6 +220,22 @@ fn owned_server_is_killed_on_engine_sigterm() {
 }
 
 /// Row 9.13, clock-injected: `kill_if_idle` is handed its "now".
+/// Carried over from Phase 9 (A9.4) into Phase 14: an engine killed **outright** — `SIGKILL` to
+/// its pid alone, the way a segfault in PDFium or the OOM killer ends it — runs no hook, no handler
+/// and no destructor, so only the kernel can end the server. On Linux it does, through
+/// `PR_SET_PDEATHSIG` set by the exec trampoline (`oc_core::sidecar::orphan`).
+#[cfg(target_os = "linux")]
+#[test]
+fn owned_server_does_not_outlive_a_sigkilled_engine() {
+    let (mut engine, server) = run_engine("wait");
+    engine.kill().expect("SIGKILL to the engine alone");
+    let _ = engine.wait();
+    assert!(
+        gone_within(server, TEARDOWN),
+        "llama-server {server} outlived an engine killed with SIGKILL"
+    );
+}
+
 #[test]
 fn idle_kill_after_120s() {
     let idle = Duration::from_secs(u64::try_from(T.llm.idle_kill_secs).expect("positive"));
