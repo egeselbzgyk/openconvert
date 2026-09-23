@@ -233,17 +233,23 @@ fn update_manifest(
         }
     }
 
-    files.sort_by(|a, b| {
-        a.get("id")
-            .and_then(|i| i.as_str())
-            .cmp(&b.get("id").and_then(|i| i.as_str()))
-    });
+    sort_manifest_files(files);
 
     let mut out = serde_json::to_string_pretty(&manifest)?;
     out.push('\n');
     std::fs::write(&manifest_path, out)
         .with_context(|| format!("cannot write {}", manifest_path.display()))?;
     Ok(())
+}
+
+/// The manifest's one order: `files` sorted by `id`, byte-wise. `oc-eval` sorts the same way
+/// (`manifest.dump`, `scan_sim`), so whichever writer ran last the file is the same.
+fn sort_manifest_files(files: &mut [serde_json::Value]) {
+    files.sort_by(|a, b| {
+        a.get("id")
+            .and_then(|i| i.as_str())
+            .cmp(&b.get("id").and_then(|i| i.as_str()))
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -433,4 +439,50 @@ fn every_named_tagged_fixture_is_a_fixture_that_exists() {
             "TAGGED_FIXTURES names {name:?}, which is not among {stems:?}"
         );
     }
+}
+
+/// `corpus/manifest.json` has three writers — this module, `oc-eval`'s harvest
+/// (`manifest.dump`) and `oc-eval`'s scan simulator — and CI regenerates it with two of them
+/// before checking the tree is clean. They agree only if every one writes the same order, so
+/// the order is part of the file's contract: `files` sorted by `id`, byte-wise.
+#[test]
+fn the_committed_manifest_is_in_canonical_order() {
+    use crate::fixtures::{sort_manifest_files, workspace_root_for_test};
+
+    let root = workspace_root_for_test();
+    let text = std::fs::read_to_string(root.join("corpus/manifest.json"))
+        .expect("corpus/manifest.json is readable");
+    let manifest: serde_json::Value = serde_json::from_str(&text).expect("the manifest is JSON");
+    let files = manifest["files"]
+        .as_array()
+        .expect("the manifest has a files array");
+
+    let committed: Vec<&str> = files.iter().filter_map(|f| f["id"].as_str()).collect();
+    let mut sorted = files.clone();
+    sort_manifest_files(&mut sorted);
+    let canonical: Vec<&str> = sorted.iter().filter_map(|f| f["id"].as_str()).collect();
+    assert_eq!(
+        committed, canonical,
+        "corpus/manifest.json is not sorted by id, so `xtask fixtures` would reorder it"
+    );
+}
+
+#[test]
+fn regenerating_the_manifest_from_the_committed_one_is_a_no_op() {
+    use crate::fixtures::{sort_manifest_files, workspace_root_for_test};
+
+    let root = workspace_root_for_test();
+    let text = std::fs::read_to_string(root.join("corpus/manifest.json"))
+        .expect("corpus/manifest.json is readable");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&text).expect("the manifest is JSON");
+    let files = manifest["files"]
+        .as_array_mut()
+        .expect("the manifest has a files array");
+    sort_manifest_files(files);
+    let rendered = serde_json::to_string_pretty(&manifest).expect("the manifest serialises") + "\n";
+    assert!(
+        rendered == text,
+        "re-serialising corpus/manifest.json the way `xtask fixtures` does changes it"
+    );
 }
