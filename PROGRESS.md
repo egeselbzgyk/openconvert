@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 10
-CURRENT_ITEM: P10.9 — `convert --ai` and the endpoint flags; a missing sidecar degrades (rows 10.16, 10.19). Phase 10 is on branch
+CURRENT_ITEM: P10.10 — `eval/compare`: McNemar, false repair, gold sets, `docs/AI_EVALUATION.md` (rows 10.17, 10.18). Phase 10 is on branch
               `phase/10-ai-decisions`; Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
@@ -181,7 +181,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P10.6** `oc-ai::task::verse_quote`: counter-evidence, the 30-block cap — rows 10.12, 10.13
 - [x] **P10.7** the plan: degradation order, language gate, wall-clock meter — rows 10.21, 10.22
 - [x] **P10.8** `openconvert`: the AI step in the pipeline — rows 10.14, 10.15, 10.20
-- [ ] **P10.9** `convert --ai` and the endpoint flags; a missing sidecar degrades — rows 10.16, 10.19
+- [x] **P10.9** `convert --ai` and the endpoint flags; a missing sidecar degrades — rows 10.16, 10.19
 - [ ] **P10.10** `eval/compare`: McNemar, false repair, gold sets, `docs/AI_EVALUATION.md` — rows 10.17, 10.18
 - [ ] **P10.11** the Definition of Done, CHANGELOG, merge
 
@@ -214,6 +214,10 @@ What a fresh session needs:
 - **The AI step is `openconvert::ai::run`**, called from `convert::convert_prepared` when an
   `AiContext` is given (`convert` passes none). Tests drive it with in-process providers
   (`crates/openconvert/tests/ai_pipeline.rs`: `Echo` answers every task from its payload).
+- **`convert --ai`** opens a provider in `openconvert::ai_endpoint` (loopback endpoint, or an
+  owned `llama-server` from `OC_LLAMA_SERVER`/beside the binary with `--model-path` or the store's
+  default); a non-loopback endpoint is exit 2 until Phase 11; anything else unavailable is
+  `W_LLM_UNAVAILABLE`, exit 0. The answer cache is `openconvert::data_dir::llm_cache()`.
 - **Task validations are gate failures with codes**: `V.verbatim`, `S.range`, `S.order`,
   `S.overlap`, `S.holdout`, `S.roles` (`oc_ai::gates::GateFailure`).
 - **The pinned llama-server is fetchable and verified** since main's `fix/phase-09-llama-pins`
@@ -1381,3 +1385,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P10.5     oc-ai: task 3, strict boundaries, chunks agreeing on the overlap (10.9-10.11 + 2)  ea56fb9
 2026-09-23  P10.6     oc-ai: task 4, batches of ten, the 30-block cap, counter-evidence (10.12, 10.13)  b914848
 2026-09-23  P10.7     oc-ai: plan (language gate, degradation order) and Session (10.21, 10.22 + 3)  56cc540
+2026-09-23  P10.8     openconvert: the AI step, applied through structure, gated, recorded (10.14, 10.15, 10.20 + 3)  ffb529d

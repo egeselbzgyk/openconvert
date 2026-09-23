@@ -472,8 +472,20 @@ pub fn convert_bytes(
     options: &ConvertOptions,
     t: &Thresholds,
 ) -> Result<Conversion, ConvertError> {
+    convert_bytes_with_ai(backend, bytes, password, options, None, t)
+}
+
+/// Open a document and convert it, with the AI step when `ai` is given (PHASE 10).
+pub fn convert_bytes_with_ai(
+    backend: &dyn PdfOpen,
+    bytes: &[u8],
+    password: Option<&str>,
+    options: &ConvertOptions,
+    ai: Option<&crate::ai::AiContext<'_>>,
+    t: &Thresholds,
+) -> Result<Conversion, ConvertError> {
     let pdf = backend.open(bytes, password)?;
-    convert(pdf.as_ref(), &sha256_hex(bytes), options, t)
+    convert_with_ai(pdf.as_ref(), &sha256_hex(bytes), options, ai, t)
 }
 
 /// How many pages fall into each class, by the name the report prints (D13.10).

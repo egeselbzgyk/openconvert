@@ -797,6 +797,34 @@ evidence = "RT C4"
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[llm.load_timeout_secs]
+value = 300
+source = "provisional"
+evidence = "PHASE 10: how long `convert --ai` waits for an engine-owned llama-server to load its model and answer GET /health before converting without it (W_LLM_UNAVAILABLE). The live tests allow the same (oc-testkit tests/live_llm.rs LOAD). Invented; a 1.1 GB GGUF loads in seconds on a warm disk"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.call_timeout_secs]
+value = 300
+source = "provisional"
+evidence = "PHASE 10: how long one chat completion may take before the transport gives up on it. One CPU generation of llm.max_output_tokens_per_call tokens; the wall-clock share (llm.max_wallclock_share) is what bounds a book, this bounds a single hung call. Matches the live tests' CALL. Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.health_probe_timeout_millis]
+value = 2000
+source = "provisional"
+evidence = "PHASE 10: how long one GET /health of an engine-owned server may take while it loads. Matches the live tests' probe. Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.sidecar_context_tokens]
+value = 8192
+source = "provisional"
+evidence = "PHASE 10: the context an engine-owned server is started with for a --model-path GGUF the registry does not name - the default model's own `context` in models.toml. A registry entry's value wins when it names the file"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [llm.idle_kill_secs]
 value = 120
 source = "provisional"

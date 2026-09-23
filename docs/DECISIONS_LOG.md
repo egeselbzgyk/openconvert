@@ -3966,3 +3966,30 @@ Evidence: `crates/openconvert/tests/ai_pipeline.rs` — rows 10.14, 10.15, 10.20
 with AI on. With a cooperative in-process model all four tasks are applied somewhere across the
 twenty fixture variants and I-7 holds on every one.
 Affects: PHASE 10 file list, ARCHITECTURE §3.1 (`openconvert → oc-ai`), PIPELINE §0.4, the report.
+
+## 2026-09-23 · `convert --ai`: the flags, the refusal, and where answers are cached · Phase 10
+Context: §2.1 lists `--ai`, `--no-ai`, `--llm-endpoint`, `--llm-api-key-file` and `--model-path`;
+PHASE 9 left their arrival to Phase 10 ("a flag that does nothing is worse than no flag").
+Decisions:
+1. **`--no-ai` wins over `--ai`**, and the AI-only flags (`--ai-all-tasks`, `--llm-endpoint`,
+   `--llm-api-key-file`, `--model-path`) without `--ai` are a usage error, not ignored.
+2. **PROVISIONAL — needs maintainer ratification: an endpoint that is not this machine is refused
+   (exit 2) until Phase 11.** D10 requires consent before a book's text leaves the machine; the job
+   spec has `non_loopback_consent` and the command line has nothing yet. Phase 11 (A11.2) adds it.
+3. **Every other failure to reach a model converts deterministically with `W_LLM_UNAVAILABLE`**
+   and a reason (no `llama-server`, no installed model, a server that never became ready, an
+   endpoint that did not answer) — exit 0 (RT D20). With the shipped, empty language maps nothing
+   is asked, so a dead endpoint is only noticed under `--ai-all-tasks`; the banner is not raised for
+   a call that was never made.
+4. **The engine-owned server** is `OC_LLAMA_SERVER`, else a `llama-server` beside the engine (the
+   desktop bundle's `externalBin`, D8); the model is `--model-path` or the registry default in the
+   model store. It is started per conversion and stopped when the conversion ends. Four thresholds:
+   `llm.{load_timeout_secs, call_timeout_secs, health_probe_timeout_millis, sidecar_context_tokens}`.
+5. **The cache lives in the data directory** (`<data>/openconvert/cache/llm`, ARCHITECTURE §9.4),
+   which `openconvert::data_dir` now defines once for the model store and the cache alike. An
+   external endpoint's model id is `--model-path`'s file stem when given, else `endpoint@<host>` —
+   the cache cannot know which model sits behind someone else's server; Phase 11 names providers.
+6. **`llm` NDJSON events** are emitted after the conversion, one per call, cached ones included.
+Evidence: `crates/openconvert/tests/ai_cli.rs` (rows 10.16, 10.19 and two more);
+`ai_endpoint::only_this_machine_is_loopback`.
+Affects: IMPLEMENTATION_PLAN §2.1, D10, Phase 11, `openconvert::{ai_endpoint, data_dir}`, `cmd_convert`.
