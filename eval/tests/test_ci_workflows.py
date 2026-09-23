@@ -164,3 +164,17 @@ def test_the_fuzz_job_runs_every_target_for_fifteen_minutes() -> None:
         assert target in commands
     assert "-max_total_time=900" in commands
     assert any("nightly" in str(step.get("uses", "")) for step in job["steps"])
+
+
+def test_the_no_network_job_covers_the_ai_path() -> None:
+    """Row 14.20: `--ai` on a warm cache and the cassettes, under `unshare -n`, proving the
+    namespace is empty first."""
+    commands = run_text(CI, "no-network")
+    ai_step = next(
+        str(step["run"])
+        for step in steps_of(CI, "no-network")
+        if "binary(ai_pipeline)" in str(step.get("run", ""))
+    )
+    assert "unshare -n" in ai_step
+    assert "OC_EXPECT_NO_NETWORK=1" in ai_step
+    assert "unshare -n" in commands and "-p oc-ai" in commands

@@ -106,7 +106,7 @@ items, in order, with the plan's test rows against each:
 - [x] **P14.10** the engine: `--max-memory`/`--max-pages`, Landlock and deadlines wired into `convert`; caps end in exit 1 with a report and no output; the 40 M-glyph PDF — rows 14.7, 14.9, 14.11, 14.19, 14.6's exit 1
 - [x] **P14.11** crash corpus: `oc-eval mutate`, `corpus/fixtures/crash/`, Isartor fetch — rows 14.16–14.18 *(14.16 unverified here: no Isartor pins)*
 - [x] **P14.12** `fuzz/`: three targets, seeded corpora — rows 14.13–14.15 *(120 s each here, 0 crashes; nightly 15 min unverified here)*
-- [ ] **P14.13** `unshare -n` over the AI cassette path — row 14.20
+- [x] **P14.13** `unshare -n` over the AI cassette path — row 14.20 *(run here under `unshare -n`; the CI job itself unverified here)*
 - [ ] **P14.14** `unsafe` confined to declared modules — row 14.22
 - [ ] **P14.15** `--isolate-parser` spike, go/no-go — row 14.23
 - [ ] **P14.16** `docs/SECURITY_TESTING.md`, Definition of Done, CHANGELOG, merge
@@ -179,6 +179,11 @@ What a fresh session needs:
   targets in `fuzz/` (own workspace; `cargo +nightly fuzz run -O <target> <corpus copy> --
   -max_total_time=N`, with `CARGO_TARGET_DIR` in the scratchpad — the build is ~1 GB). Seeds:
   `cargo run -p xtask -- fuzz-seeds`. Job specs now refuse relative or `..` paths.
+- **No-network job:** a new step runs `binary(ai_pipeline) or binary(ai)` under `unshare -n` with
+  `OC_EXPECT_NO_NETWORK=1` (row 14.20's test proves the namespace is empty first). The conversion
+  step's filter now excludes `binary(providers)`: its loopback stub cannot run with `lo` down and
+  one of its tests matched `test(convert_)`. Verified here with `unshare -n` (no `ip` tool, so `lo`
+  stays down).
 - `openconvert::sandbox` is the report's `sandbox` section and `--max-memory` parsing
   (`parse_bytes`, binary units only); not wired into `convert` yet (P14.10).
 
