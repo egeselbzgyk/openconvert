@@ -181,6 +181,13 @@ evidence = "R8 §A2 family of traversal caps. A PDF outline is a linked structur
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[limits.max_object_nesting]
+value = 64
+source = "provisional"
+evidence = "PHASE 14 detail 3: the structural pre-walk parses trailers, catalogues and page-tree roots before PDFium does, and its recursion must be bounded by us rather than by a file. 64 is the nesting depth PDFium's own syntax parser allows (kParserMaxRecursionDepth), not measured here; a trailer or catalogue needs three or four levels"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [limits.stage_deadline_secs]
 value = 300
 source = "provisional"

@@ -63,6 +63,21 @@ impl PdfiumDoc {
         password: Option<&str>,
         limits: Limits,
     ) -> Result<Self, PdfError> {
+        // Before PDFium or `lopdf` parses anything (PHASE 14 details 3 and 4): the
+        // cross-reference chain is walked under a depth cap and a visited set, and the page count
+        // is read from the catalogue's own `/Count`, so a refusal costs a walk of the trailers
+        // rather than whatever the real parser would have spent first.
+        let walk = crate::prescan::walk_xref_chain(bytes, &limits)?;
+        if let Some(declared) = walk.declared_page_count(bytes, &limits)? {
+            if declared > u64::from(limits.max_pages) {
+                return Err(oc_core::limits::CapViolation::Pages {
+                    declared,
+                    limit: limits.max_pages,
+                }
+                .into());
+            }
+        }
+
         let document = pdfium
             .load_pdf_from_byte_vec(bytes.to_vec(), password)
             .map_err(open_error)?;

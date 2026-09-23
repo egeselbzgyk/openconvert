@@ -356,10 +356,9 @@ fn max_pages_refuses_at_the_door() {
 
     let bytes = oc_testkit::handmade::many_pages(over);
     match backend.open_with_limits(&bytes, None, &limits) {
-        Err(PdfError::LimitExceeded(exceeded)) => {
-            assert_eq!(exceeded.limit, oc_core::limits::MAX_PAGES);
-            assert_eq!(exceeded.requested, over as u64);
-            assert_eq!(exceeded.allowed, u64::from(limits.max_pages));
+        Err(PdfError::Cap(CapViolation::Pages { declared, limit })) => {
+            assert_eq!(declared, over as u64);
+            assert_eq!(limit, limits.max_pages);
         }
         Ok(_) => panic!(
             "{over} pages against a {} cap must be refused, not opened",

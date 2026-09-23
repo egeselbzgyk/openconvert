@@ -90,8 +90,8 @@ items, in order, with the plan's test rows against each:
 
 - [x] **P14.1** `CapViolation`; the image cap read from the dictionary, the decoder behind it — row 14.1
 - [x] **P14.2** `BoundedInflate` and our own filter chain; `lopdf` loads bounded — rows 14.2, 14.3
-- [ ] **P14.3** the xref/ObjStm pre-walk: depth counter and visited set — rows 14.4, 14.5
-- [ ] **P14.4** the page cap from the catalogue's `/Count`, before any page object — row 14.6
+- [x] **P14.3** the xref/ObjStm pre-walk: depth counter and visited set — rows 14.4, 14.5
+- [x] **P14.4** the page cap from the catalogue's `/Count`, before any page object — row 14.6 *(the CLI's exit 1 + report is P14.10)*
 - [ ] **P14.5** one abort path: `AbortCause`, `DeadlineGuard`, one cleanup — row 14.8
 - [ ] **P14.6** `--max-memory`: `RLIMIT_AS` / nested job object before the PDF opens — row 14.7
 - [ ] **P14.7** children never outlive a killed engine: PDEATHSIG trampoline, job object (Phases 9, 13)
@@ -118,6 +118,12 @@ What a fresh session needs:
   `max_decompressed_size` (it decodes ObjStm/xref streams itself, and its default was unbounded).
   `our_filter_chain_agrees_with_lopdf_on_every_fixture` holds it to `lopdf`'s answers. The dev
   profile builds `miniz_oxide`/`adler2` at `opt-level = 3` so the 256 MiB ceiling tests take ~2 s.
+- `oc_pdf::prescan` walks the xref chain (tables, xref streams, hybrid `/XRefStm`) **before PDFium or
+  lopdf opens the file**: depth counter → `XrefDepth`, visited offsets → `XrefCycle`, object-stream
+  nesting on the way to the catalogue → `XrefDepth`/`ObjStmCycle`; then `/Root → /Pages → /Count`
+  → `CapViolation::Pages`. Lenient otherwise: a section that does not parse ends the walk silently
+  (PDFium reconstructs). Its own parser nests at most `limits.max_object_nesting` (64, new,
+  provisional). New thresholds change the report snapshot's "[N entries, redacted]" count.
 
 ## Phase 13 — on branch `phase/13-ocr`
 

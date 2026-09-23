@@ -19,5 +19,6 @@ pub mod limits;
 pub mod meta;
 pub mod outline;
 pub mod pdfium;
+pub mod prescan;
 pub mod producer;
 pub mod render;

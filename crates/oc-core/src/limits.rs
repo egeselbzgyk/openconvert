@@ -82,6 +82,9 @@ pub enum CapViolation {
     /// any length, a long chain is a suspicious one.
     #[error("max_xref_chain: the cross-reference chain returns to the section at byte {offset}, a cycle")]
     XrefCycle { offset: u64 },
+    /// An object stream that contains itself, however many streams away.
+    #[error("max_xref_chain: object stream {obj} is nested inside itself, a cycle")]
+    ObjStmCycle { obj: u32 },
     /// A page's content declares more glyphs than a page is allowed to draw.
     #[error(
         "max_page_glyphs exceeded on page {page}: the content declares {declared} glyphs, \
@@ -110,7 +113,9 @@ impl CapViolation {
             CapViolation::Pages { .. } => MAX_PAGES,
             CapViolation::ImagePixels { .. } => MAX_IMAGE_PIXELS,
             CapViolation::StreamBytes { .. } => MAX_DECOMPRESSED_STREAM_BYTES,
-            CapViolation::XrefDepth { .. } | CapViolation::XrefCycle { .. } => MAX_XREF_CHAIN,
+            CapViolation::XrefDepth { .. }
+            | CapViolation::XrefCycle { .. }
+            | CapViolation::ObjStmCycle { .. } => MAX_XREF_CHAIN,
             CapViolation::PageGlyphs { .. } => MAX_PAGE_GLYPHS,
             CapViolation::Memory { .. } => MAX_MEMORY_BYTES,
             CapViolation::Deadline { .. } => STAGE_DEADLINE_SECS,
@@ -132,6 +137,9 @@ pub struct Limits {
     /// How many outline entries are walked before the walk gives up. A bound on a linked
     /// structure in the file, not a budget: a cyclic `/Next` chain has no other stop.
     pub max_outline_entries: u32,
+    /// How deeply the structural pre-walk nests arrays and dictionaries before it gives up on an
+    /// object: a bound on its own stack, which a file must not choose (PHASE 14 detail 3).
+    pub max_object_nesting: u32,
     pub stage_deadline_secs: u64,
 }
 
@@ -146,6 +154,7 @@ impl Default for Limits {
             max_image_pixels: clamp_u64(limits.max_image_pixels),
             max_xref_chain: clamp_u32(limits.max_xref_chain),
             max_outline_entries: clamp_u32(limits.max_outline_entries),
+            max_object_nesting: clamp_u32(limits.max_object_nesting),
             stage_deadline_secs: clamp_u64(limits.stage_deadline_secs),
         }
     }
