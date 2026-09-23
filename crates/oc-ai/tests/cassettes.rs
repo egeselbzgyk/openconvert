@@ -187,6 +187,7 @@ fn the_committed_seeds_are_the_worked_answers() {
             tokens_in: 0,
             tokens_out: 0,
             cached: false,
+            cached_tokens: None,
             finish_reason: Some("stop".to_owned()),
         };
         let fresh = record(

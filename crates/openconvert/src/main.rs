@@ -11,6 +11,7 @@ mod cmd_diff_stage;
 mod cmd_dump_stage;
 mod cmd_inspect;
 mod cmd_job;
+mod cmd_model;
 mod cmd_validate;
 mod control;
 
@@ -90,6 +91,15 @@ fn run() -> ExitCode {
             let stdout = std::io::stdout();
             let mut stdout = stdout.lock();
             let code = cmd_diff_stage::run(&diff, &mut events, &mut stdout);
+            let _ = stdout.flush();
+            code
+        }
+        Ok(Command::Model(model)) => {
+            let mut events =
+                EventSink::new(std::io::stderr().lock(), model.progress == Progress::Json);
+            let stdout = std::io::stdout();
+            let mut stdout = stdout.lock();
+            let code = cmd_model::run(&model, &mut events, &mut stdout);
             let _ = stdout.flush();
             code
         }

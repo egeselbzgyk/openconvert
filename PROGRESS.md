@@ -3,9 +3,9 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 9
-CURRENT_ITEM: 9.1 — not started. Phase 8 is complete and merged (2026-09-23); the maintainer
-              asked to stop at the merge. Phase 7.5 is parked: see its section below.
+CURRENT_PHASE: 10
+CURRENT_ITEM: 10.1 — not started. Phase 9 is complete and merged (2026-09-23); its provisional
+              decisions are listed in the Blocked section. Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -54,7 +54,13 @@ LAST_UPDATED: 2026-09-23
       over a `Transport`, cassettes and the six escalation predicates. `ai.enabled` stays `false`
       and nothing in the pipeline calls a model yet. The CI steps it added are unverified until
       CI runs.)*
-- [ ] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
+- [x] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
+      *(all 20 named tests exist and pass, 9.15/9.16 behind `live-llm`; 33 Rust and 20 Python
+      tests added; built on `phase/09-local-model` and merged into `main` 2026-09-23. No real model
+      could be fetched here, because huggingface.co is refused by the sandbox's egress policy. So
+      the registry pins, the live tests and every gate run are unverified and listed in the Blocked
+      section. A follow-up (`fix/phase-09-llama-pins`) filled the llama.lock digests and checked
+      them against downloads.)*
 - [ ] **Phase 10** — AI-assisted decisions (the four tasks)
 - [ ] **Phase 11** — BYO providers
 - [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
@@ -62,14 +68,116 @@ LAST_UPDATED: 2026-09-23
 - [ ] **Phase 14** — Security hardening
 - [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
 
+## Phase 9 — on branch `phase/09-local-model`
+
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P9.1** the registry: `oc_net::registry` — rows 9.1, 9.2
+- [x] **P9.2** the downloader: allowlist, streaming SHA-256, LICENSE/NOTICE, atomic — rows 9.3–9.6
+- [x] **P9.3** the store (`list`, `remove`) and `HttpTransport` — row 9.19
+- [x] **P9.4** `oc-core` has no net dependency — row 9.7
+- [x] **P9.5** sidecar arguments and port picking — rows 9.12, 9.14
+- [x] **P9.6** the owned server's lifecycle — rows 9.8–9.11, 9.13
+- [x] **P9.7** `openconvert model pull|list|remove` — row 9.18
+- [x] **P9.8** live tests behind `live-llm`, `W_LLM_PREFIX_COLD` — rows 9.15, 9.16
+- [x] **P9.9** `eval/model_gate.py`, the default-model gate, `docs/MODEL_GATE.md` — rows 9.17, 9.20
+- [x] **P9.10** the Definition of Done, CHANGELOG, merge
+
+What a fresh session needs:
+
+- **This sandbox's egress policy refuses `huggingface.co` (HTTP 403 on CONNECT, checked again
+  2026-09-23 after the merge).** The proxy's README says not to route around a blocked host, so this
+  phase does not read Hugging Face's API or fetch any model file. That means the registry fill (real
+  `revision`/`sha256`/`size_bytes`), the A9.1 download and the live tests 9.15/9.16 are
+  **unverified here**. Tests use synthetic hashes. github.com release downloads were refused during
+  the phase but went through for the post-merge llama.lock follow-up: all four `b10456` assets
+  hashed to the lock's digests, and `cargo run -p xtask -- fetch-llama-server` stages a working
+  `vendor/llama-server/b10456/llama-b10456/llama-server` (gitignored).
+- **TLS roots are option (a):** `ureq` with `rustls-no-provider` + `platform-verifier`, and
+  `rustls` with the `ring` provider. `cargo deny --all-features check` is clean and `webpki-roots`
+  is in no target's graph.
+- **The downloader follows redirects itself** and checks every hop against the allowlist before
+  fetching it. Tests run the real `ureq` client over loopback: `tests/common/mod.rs` maps
+  `https://<host>/<path>` to `http://127.0.0.1:<port>/<host>/<path>`. Only Apache-2.0 models install,
+  because that is the only licence text bundled.
+- **`oc-core` opens no socket, and a test says so** (`tests/no_net.rs`, row 9.7): it walks
+  Cargo.lock and scans `oc-core/src` for `std::net`. So the sidecar supervisor in `oc-core` reaches
+  its server only through a health probe and a port its caller supplies (the caller links `oc-net`).
+  The conversion suite passes here under `unshare -n` (5 tests, CI's filter).
+- **The key travels in `LLAMA_API_KEY`**, never in argv (`oc_core::sidecar::llama::command`).
+  `--cache-reuse` comes from the registry's `cache_reuse`, its chunk from
+  `llm.cache_reuse_min_chunk` (new, provisional). `oc_net::loopback::free_port` picks the port:
+  the plan's `oc-core/src/sidecar/portpick.rs` moved to `oc-net` because binding is opening a socket.
+- **`oc_core::sidecar`**: `llama` (argv), `server` (`OwnedServer`: spawn, `wait_healthy(probe)`,
+  idle policy, `Drop` kills), `supervise` (the child registry, panic hook, `ctrlc` handler, exit
+  code 3 on a signal), `endpoint` (`LlmEndpoint::choose`: an external endpoint spawns nothing).
+  The lifecycle tests are in `crates/oc-testkit/tests/sidecar.rs` with two dev-only binaries,
+  `oc-stub-llama-server` and `oc-sidecar-engine`. PDEATHSIG and Windows job objects need `unsafe`
+  and are deferred to Phase 14 (PROVISIONAL, DECISIONS_LOG 2026-09-23). The idle-kill *loop* is
+  Phase 10's.
+- **`openconvert model`** is `crates/openconvert/src/cmd_model.rs`, with the registry compiled
+  in. The bundled `models.toml` still has `TODO_` pins, so on it `list`/`pull` exit 2. That is
+  correct until the fill (Blocked).
+- **Live tests** are `crates/oc-testkit/tests/live_llm.rs` (`--features live-llm`, env
+  `OC_LLAMA_SERVER`, `OC_LIVE_MODEL`), run by the nightly `live-llm-cassette-refresh` job after
+  `xtask fetch-llama-server` and `model pull`. `xtask/llama.lock`'s `b10456` digests are filled and
+  download-checked, so that job now fails at `model pull` until `models.toml` is filled (Blocked).
+- **The promotion gate** is `eval/model_gate.py` → `oc_eval.model_gate`. Probes and prompt
+  fixtures are generated (`python -m oc_eval.model_gate.{probes,fixtures} --write`) and held equal to
+  the committed files. `docs/MODEL_GATE.md` is rendered (`--render-table`), and no run is recorded:
+  G3's reference tokens, G7's pairs and G9's conversion are all missing inputs (`not_run`).
+- **Disk is shared with a parallel worker** (`/home/user/wt/phase12`, ~11 GB). Build with
+  `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` (env only, no repo change); prune stale duplicates in `target/debug/deps` when free space drops under
+  ~5 GB (keep the newest artefact per crate name).
+
+### Phase 9 — Definition of Done
+
+`IMPLEMENTATION_PLAN.md` §0.3, row by row. Checked on this machine unless the row says otherwise.
+
+| Row | State |
+|---|---|
+| Every named test exists and passes | **Yes, with two unverified here.** All 20 rows exist under their names. 9.17 and 9.20 are pytest functions, so they carry pytest's required `test_` prefix. 9.15 and 9.16 are behind `--features live-llm`: they compile, and they fail loudly without a server and model. **Unverified here:** no GGUF could be downloaded (huggingface.co egress 403). The pinned llama-server became fetchable and verified after the merge. Against the stub server, 9.15 passes and 9.16 fails with `W_LLM_PREFIX_COLD`, which exercises the harness and says nothing about a model. |
+| `cargo nextest run --workspace` green | **Yes**, 594 tests (561 + 33). eval: 214 pytest tests (+ 20). |
+| Green on Linux/macOS/Windows CI | **Unverified here:** GitHub Actions is disabled. `cargo check -p oc-core` passes for `x86_64-pc-windows-msvc` and `aarch64-apple-darwin`. `oc-net` cannot be cross-checked here because `ring` needs the MSVC C toolchain. |
+| clippy `-D warnings` clean | **Yes**, workspace, all targets, all features (including `live-llm`). |
+| `cargo fmt --check` clean | **Yes.** ruff, ruff format and mypy clean on `eval/`. |
+| `cargo deny check` clean | **Yes.** New: `ureq` (platform-verifier TLS, **no `webpki-roots`**), `rustls` (ring), `secrecy`, `ctrlc`, `getrandom`. `deny.toml` is unchanged, `exceptions = []`. |
+| `cargo xtask thresholds-lint` clean | **Yes.** Ten thresholds added, each with source, evidence, owner and `review_by`. |
+| Every Given/When/Then demonstrated | **A9.2, A9.3 yes. A9.1, A9.4, A9.6 partially. A9.5 unverified here** (below). |
+| `docs/CHANGELOG.md` entry | **Yes.** |
+| No `TODO`/`FIXME` without an issue number | **Yes**, `xtask ci-lint` clean. (`TODO_` placeholders are the registry's named-slot convention.) |
+
+- **A9.1** — `download_writes_license_and_notice`: through the real `ureq` client over loopback,
+  a verified GGUF, `LICENSE` and `NOTICE` land in the store. **Unverified here:** a real
+  `model pull qwen3-1.7b-q4_k_m` from huggingface.co (egress 403, and `models.toml` has no pins).
+- **A9.2** — `download_refuses_host_off_allowlist` counts zero requests before a refusal and one
+  (the allowlisted hop) before an off-list redirect is refused. `model_pull_refuses_a_host_off_the_allowlist`
+  shows the same at the CLI.
+- **A9.3** — `oc_core_has_no_net_dependency`. The conversion suite passes here under `unshare -n`
+  (5 tests, CI's filter). The CI step is unverified until CI runs.
+- **A9.4** — exit, panic and SIGTERM each leave no server within 2 s **on Linux**
+  (`owned_server_is_killed_on_engine_{exit,panic,sigterm}`, mutation-checked, 25 runs green).
+  **Unverified here:** macOS and Windows. **Deferred to Phase 14 (PROVISIONAL):** an engine killed
+  outright (SIGKILL, segfault), which needs PDEATHSIG or a job object.
+- **A9.5** — **unverified here:** no machine L, no model, no server. The harness is tested
+  (`test_every_gate_passes_against_a_well_behaved_server`,
+  `test_one_failing_gate_fails_the_verdict_and_the_exit_code`).
+- **A9.6** — the default stays Qwen3-1.7B (`test_default_stays_qwen3_1_7b_until_gate_passes`), and
+  a gate that did not run is never a pass (`test_a_gate_that_did_not_run_is_never_a_pass`). No run
+  of Qwen3.5-2B exists; nothing promotes it.
+
 ## Current work item
 
-**Phase 8 — AI abstraction (no real model yet).** The `LlmProvider` trait, an OpenAI-compatible
-client over an injected transport, versioned prompts and GBNF grammars, the content-addressed
-cache, the four gates, cassette record/replay, and a stub server. `ai.enabled` stays `false`.
-`oc-ai` is a five-line stub today. Sixteen named tests (rows 8.1–8.16), estimated size M.
+**Phase 10 — AI-assisted decisions (the four tasks).** Not started. What it builds on from Phase 9:
+`oc_core::sidecar` (an `OwnedServer` or an external endpoint via `LlmEndpoint::choose`),
+`oc_net::transport::HttpTransport`, `oc_ai::prefix::check` for `W_LLM_PREFIX_COLD`, and
+`OwnedServer::kill_if_idle`, whose calling loop is Phase 10's. The `convert` flags `--ai`,
+`--llm-endpoint`, `--llm-api-key-file` and `--model-path` arrive with Phase 10 as well. Before any
+live measurement, the registry pins have to be filled on a machine that can reach huggingface.co.
+The pinned llama-server is already fetchable and verified here (`cargo run -p xtask --
+fetch-llama-server`).
 
-Phase 7.5 is **parked, not done** — its section below is the resume point. The deterministic
+Phase 7.5 is **parked, not done**. Its section below is the resume point. The deterministic
 baseline Phase 10 will be compared against is the parked one: 79 of 104 corpus documents clean,
 2 869 characters lost across 13, 11 not finishing in 90 s.
 
@@ -866,9 +974,38 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
   environment variable (not a job-spec field) and written only when that variable is set; the
   desktop app points it at its own cache directory. No document says where R-15's cache lives.
 
-Otherwise nothing. The NFC question raised on 2026-09-20 was ruled the same day — `C(·)` is taken after
+The NFC question raised on 2026-09-20 was ruled the same day — `C(·)` is taken after
 canonical **de**composition — and is implemented. `docs/DECISIONS_LOG.md` 2026-09-20 and the
 D13.4 amendment in `docs/DECISIONS.md`.
+
+**Phase 9.** STATUS stays IN_PROGRESS: each item below was decided in the most conservative way consistent with
+DECISIONS.md, logged in `docs/DECISIONS_LOG.md` (2026-09-23) as **PROVISIONAL — needs maintainer
+ratification**, and worked around. None of them blocks Phase 10's deterministic-side work.
+
+1. **Registry pins** — `models.toml` still has `TODO_` `revision`/`sha256` and `size_bytes = 0` for
+   all four entries: huggingface.co is refused by this sandbox's egress policy. Fill them on a
+   machine that can reach it with `eval/model_gate.py --emit-registry`, which hashes the download
+   itself. Until then `model list`/`pull` on the bundled registry exit 2.
+2. **llama.cpp digests** — filled after the merge (`fix/phase-09-llama-pins`). They were read from
+   GitHub's releases API and then checked by download: all four `b10456` assets match in digest and
+   size. **PROVISIONAL — needs maintainer ratification: verify by downloading** (run
+   `cargo run -p xtask -- fetch-llama-server` on a maintainer machine; DECISIONS_LOG 2026-09-23,
+   "llama.cpp `b10456` digests filled, then checked by download"). The nightly live job now fails
+   at `model pull` (item 1), not at the server fetch.
+3. **`LLAMA_API_KEY`** — the sidecar's key goes in that environment variable, never in argv. The
+   pinned build's `--help` lists `(env: LLAMA_API_KEY)` under `--api-key`. Whether a running server
+   enforces the key still needs a model, which cannot be fetched here. `--api-key-file` is the
+   fallback.
+4. **The allowlist's CDN hosts** are the plan's three, and today's redirect target could not be
+   observed. An off-list redirect fails closed and names the host.
+5. **PDEATHSIG and Windows job objects** (crash and SIGKILL teardown) need `unsafe` and are
+   deferred to Phase 14.
+6. **G3/G7/G9 inputs, and G7's numbers** — no reference tokenizations, no paired answers, no own
+   conversion. `model_gate.g7_alpha = 0.05` and `g7_noninferiority_margin = 0.02` are invented.
+7. **`apps/desktop/src-tauri/src/llm.rs`** is deferred to Phase 12, which owns the desktop app and
+   is being built concurrently.
+8. **G8's probes are generated, not native-speaker authored**, and their labels follow from their
+   templates.
 
 ## Phase 7 — Definition of Done
 
@@ -1368,3 +1505,14 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-22  P8.9      oc-core: the six escalation predicates, pure, table-tested (8.16)  1074970
 2026-09-22  P8.10     oc-ai: no socket by dependency or by std; CI unshare step; the DoD (8.15)  e5ad4ef
 2026-09-22  PHASE 8   COMPLETE on worktree-phase8 - Definition of Done checked; Linux/macOS CI and the unshare step unverified until merge
+2026-09-23  P9.1      oc-net: models.toml registry refuses TODO_ pins and non-commit revisions (9.1, 9.2)  fe32587
+2026-09-23  P9.2      oc-net: pinned download, allowlist per hop, SHA-256 while streaming, atomic (9.3-9.6)  5ffd509
+2026-09-23  P9.3      oc-net: store list/remove, HttpTransport (9.19 + 4)  5086e76
+2026-09-23  P9.4      oc-core: no net dependency, walked from Cargo.lock; CI step on (9.7)  1774052
+2026-09-23  P9.5      oc-core: llama-server argv from the registry, key never in argv (9.12, 9.14 + 1)  595be0b
+2026-09-23  P9.6      oc-core: OwnedServer, supervise, endpoint; teardown on exit/panic/signal (9.8-9.11, 9.13 + 4)  6ac5582
+2026-09-23  P9.7      openconvert: model pull|list|remove, ModelReadiness (9.18 + 4)  1a8c4ac
+2026-09-23  P9.8      oc-testkit: live tests behind live-llm; W_LLM_PREFIX_COLD; fetch-llama-server (9.15, 9.16 + 5)  9f223a0
+2026-09-23  P9.9      eval: model_gate.py, probes, fixtures, MODEL_GATE.md (9.17, 9.20 + 17)  b9c0ab4
+2026-09-23  PHASE 9   COMPLETE on phase/09-local-model - DoD checked; live model, gate runs, macOS/Windows and CI unverified here
+2026-09-23  P9.fix    xtask: llama.lock b10456 digests pinned, all four checked by download (+1)  2432458

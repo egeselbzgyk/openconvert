@@ -3792,3 +3792,282 @@ runs it with the secrets it names, A12.7 is open. The bundle does not yet carry 
 are packaged.
 Evidence: the workflows; `forty_dropped_books_all_complete_one_at_a_time` (A12.1, real engine).
 Affects: IMPLEMENTATION_PLAN Phase 12 detail 13, A12.1, A12.5, A12.7; Phase 15.
+
+## 2026-09-23 · `webpki-roots` resolved by option (a): platform roots · Phase 9
+Context: the 2026-09-09 entry deferred the choice between (a) platform/native TLS roots, (b) a
+`deny.toml` exception scoped to `webpki-roots`, and (c) amending D15, to the phase that owns
+downloads.
+Decision: (a). `ureq = { default-features = false, features = ["rustls-no-provider",
+"platform-verifier"] }`, and `rustls` named beside it with only the `ring` provider, so no private
+`_ring` feature is used. `HttpFetch` sets `RootCerts::PlatformVerifier` and the ring provider
+explicitly; with `rustls-no-provider` and neither set, ureq would panic at the first TLS handshake.
+Evidence: `cargo deny --all-features check` → `advisories ok, bans ok, licenses ok, sources ok`;
+`cargo tree -p oc-net -e normal --target <t> -i webpki-roots` finds no such package on
+`x86_64-unknown-linux-gnu`, `x86_64-pc-windows-msvc` or `aarch64-apple-darwin`.
+`rustls-platform-verifier` 0.7 depends on `webpki-root-certs` for Android only, which is not a
+`deny.toml` target. `deny.toml` is unchanged: `exceptions = []` holds.
+Affects: D15, `Cargo.toml`, `crates/oc-net`.
+
+## 2026-09-23 · The allowlist is checked on every hop; the CDN host is unverified here · Phase 9
+Context: a Hugging Face `resolve/<commit>/<file>` URL answers with a redirect to a CDN. The plan's
+`HOST_ALLOWLIST` names `huggingface.co`, `cdn-lfs.huggingface.co` and `cdn-lfs-us-1.huggingface.co`.
+Decision: `ureq` follows no redirect itself (`max_redirects(0)`). The downloader follows each
+`Location` and checks it against the allowlist *before* the fetch that would open a socket to it,
+up to `max_redirects` hops, so a redirect off the list is refused and its host never contacted
+(test 9.3 counts the requests). The parse is deliberately narrow: `https`, a bare host, no
+user-info, no port. The list is the plan's, unchanged.
+**PROVISIONAL — needs maintainer ratification:** this sandbox's egress policy refuses
+`huggingface.co` (HTTP 403 on CONNECT), so which CDN host a real download redirects to today could
+not be observed. If Hugging Face now serves these repos from a host the list does not name,
+`model pull` fails with `HostNotAllowed` naming that host. It fails closed and installs nothing.
+Widening the list is then a one-line reviewed change.
+Evidence: `crates/oc-net/tests/download.rs`; the proxy log for this session
+(`connect_rejected … huggingface.co:443`).
+Affects: D13.9, SECURITY §8, `crates/oc-net/src/allowlist.rs`.
+
+## 2026-09-23 · A model whose licence text is not bundled is refused · Phase 9
+Context: D9 and LICENSE_AND_DEPENDENCIES §5 require `LICENSE` and `NOTICE` beside every
+downloaded model. The registry carries a licence *name*; the only text anyone can write is text
+the app ships.
+Decision: `oc-net` bundles the Apache-2.0 text (`crates/oc-net/licenses/Apache-2.0.txt`, the
+repository's own `LICENSE`). A registry entry under any other licence is refused with
+`NetError::UnknownLicense` before a byte is fetched. Every v1 entry is Apache-2.0. `NOTICE` is the
+entry's `notice_text` (or `<display_name>, <license>.`) followed by the URL, repository, revision,
+file and SHA-256 that were installed.
+Evidence: `download_writes_license_and_notice`.
+Affects: D9, LICENSE_AND_DEPENDENCIES §5, `crates/oc-net/src/download.rs`.
+
+## 2026-09-23 · `HttpTransport` never uses a proxy · Phase 9
+Context: `ureq` reads `HTTPS_PROXY`/`ALL_PROXY` from the environment by default. The model
+downloader should honour that, because a user behind a corporate proxy cannot otherwise download
+anything. `HttpTransport`, the `oc_ai::Transport` that carries a book's inventories to a model,
+is a different case.
+Decision: `HttpTransport` sets `proxy(None)`. The engine-owned sidecar is on loopback, and a proxy
+configured for downloads is not a party that may read a book's text: D13.9's privacy claim is that
+text never leaves the machine unless the user sends it to an endpoint they named. The downloader
+(`HttpFetch`) keeps the environment's proxy, since what it sends is a pinned public URL. Whether a
+non-loopback endpoint may be used at all is D10's consent question and Phase 11's.
+Evidence: `crates/oc-net/src/transport.rs`; `http_transport_posts_json_with_the_bearer_key`.
+Affects: D10, D13.9, SECURITY §8.
+
+## 2026-09-23 · The sidecar's key goes in `LLAMA_API_KEY`; its port is picked in `oc-net` · Phase 9
+Context: D8 says `llama-server` is spawned "with a per-run `--api-key`", and row 9.12 says the
+spawned command line must contain no key material ("key passed via file/env"). The plan also puts
+port picking in `oc-core/src/sidecar/portpick.rs`.
+Decision: (1) `oc_core::sidecar::llama::command` passes the key in the environment variable
+`LLAMA_API_KEY`, which llama.cpp's argument parser binds to `--api-key`, and never on the command
+line. Any local user can read a process's argv with `ps`; only the same user can read its
+environment. (2) Port picking binds a listener on `127.0.0.1:0` to learn a free port, and binding a
+socket is opening one, which D13.9 and test 9.7 reserve for `oc-net`. It is
+`oc_net::loopback::free_port`, and the caller passes the port to `oc-core`.
+**PROVISIONAL — needs maintainer ratification:** that `LLAMA_API_KEY` is read by the pinned build
+could not be checked here: github.com release assets are refused by this sandbox's egress policy,
+so no llama-server binary was run. If the pinned build does not read it, an owned server starts
+with no key. The live tests (9.15/9.16) and G1 would then see requests without a key accepted,
+and test 9.8 asserts the stub rejects them. `--api-key-file` is the fallback D8's wording allows.
+Evidence: `api_key_never_appears_in_argv`, `free_port_is_an_ephemeral_loopback_port`.
+Affects: D8, D13.9, PHASE 9 details 2–3, `crates/oc-core/src/sidecar/llama.rs`,
+`crates/oc-net/src/loopback.rs`.
+
+## 2026-09-23 · `llm.cache_reuse_min_chunk = 256`, provisional · Phase 9
+Context: PHASE 9 detail 2 passes `--cache-reuse N` to entries whose `models.toml` says
+`cache_reuse = true`, and names no N.
+Decision: 256 tokens, `source = provisional`. The value is the one llama.cpp's examples use. It is
+not measured here. Gate G5 measures the consequence directly: a second identical call set must cost
+≤ 40 % of the first.
+Affects: `thresholds.toml`, `crates/oc-core/src/sidecar/llama.rs`.
+
+## 2026-09-23 · Who tears the sidecar down, and what is left for Phase 14 · Phase 9
+Context: PHASE 9 detail 5 and D13.2 ask that an engine-owned `llama-server` never outlive the
+engine: `setsid` + `kill(-pgid)` and `PR_SET_PDEATHSIG` on Unix, a nested job object with
+`KILL_ON_JOB_CLOSE` on Windows, SIGTERM/SIGINT and console-ctrl handlers everywhere, and "a `Drop`
+guard alone is insufficient". CLAUDE.md requires `#![forbid(unsafe_code)]` in every crate except the
+PDFium binding.
+Decision:
+1. `oc_core::sidecar::supervise` owns every child in one registry, and four paths tear it down:
+   `OwnedServer`'s `Drop` (normal exit), a **panic hook** (runs before unwinding and before a
+   `panic = "abort"` abort), a **signal handler** via `ctrlc` (SIGINT/SIGTERM/SIGHUP on Unix,
+   Ctrl-C/Break/close on Windows), which kills the children and exits with `ExitCode::Cancelled`
+   (3), and the supervisor's own group kill. Teardown is `Child::kill` then `wait`, so nothing is
+   left as a zombie.
+2. **The server stays in the engine's process group**, and is not `setsid`'d into its own.
+   ARCHITECTURE §8.2 has the *app* `setsid` the *engine* and kill it with `kill(-pgid)`, and that
+   group kill reaches the server only if the server is in the engine's group. A server in a group
+   of its own would survive exactly the supervisor kill the design relies on.
+3. **PROVISIONAL — needs maintainer ratification:** `PR_SET_PDEATHSIG` has to be set in the child
+   between `fork` and `exec` (`CommandExt::pre_exec`, an `unsafe fn`), and a Windows job object is
+   FFI. Neither can be written under `forbid(unsafe_code)`. So an engine killed outright
+   (`SIGKILL` of the engine's pid alone, or a segfault in PDFium) can still orphan its server on
+   Linux and Windows. Both land with Phase 14's hardening, either through a reviewed wrapper crate
+   or a re-exec trampoline that calls rustix's safe `set_parent_process_death_signal` and then
+   `exec`s the server. When the app is the supervisor, the group kill covers the Unix case already.
+4. The lifecycle tests use two dev-only binaries in `oc-testkit`: `oc-stub-llama-server` (the real
+   server's command line, `/health` without a key, `/v1/chat/completions` only with one) and
+   `oc-sidecar-engine` (drives `oc_core::sidecar` exactly as the engine will). They live there
+   because `CARGO_BIN_EXE_*` is visible only to a package's own tests, and Appendix A already makes
+   `oc-testkit` the home of "a stub LLM server for tests".
+5. Idle-kill is a policy on `OwnedServer` (`call_started`, `call_finished`, `kill_if_idle(now)`),
+   handed its clock by the caller (row 9.13). The loop that calls it belongs to whoever makes calls,
+   which is Phase 10.
+Evidence: `owned_server_is_killed_on_engine_exit`, `…_on_engine_panic` (the engine forgets its
+server, so only the hook can act), `…_on_engine_sigterm`. Mutation: with `kill_all()` removed from
+the hook and the handler, the panic and SIGTERM tests fail and the exit test (`Drop`) still passes.
+25 consecutive runs green after fixing a race in the harness (the engine now waits for a go line
+before it ends). `cargo check -p oc-core` passes for `x86_64-pc-windows-msvc` and
+`aarch64-apple-darwin`. The tests themselves have run on Linux only.
+Affects: D8, D13.2, ARCHITECTURE §8.2, SECURITY §3, PHASE 9 detail 5, Phase 14.
+
+## 2026-09-23 · `openconvert model`: what it reads and what a first-run screen gets · Phase 9
+Context: PHASE 9 details 6–7 and §2.1 specify `model pull|list|remove` and a `ModelReadiness` per
+registry entry with "a CPU expectation string ("first call ~5–15 s on a 4-core laptop")". UI_UX §2
+words the same field as "fast" / "moderate" / "slower, higher quality".
+Decision:
+1. The registry is **compiled into the binary** (`include_str!` of `models.toml`), per D9's "a hash
+   compiled into the app's model registry". `--registry` replaces it for tests and for a maintainer.
+2. `cpu_expectation` is a new optional `models.toml` field, written in UI_UX §2's categories:
+   default "moderate", 0.6B "fast", 4B "slower, higher quality", the experimental entry "not yet
+   measured". No timing is shipped, because none has been measured on machine L. The plan's
+   seconds are G4's to establish.
+3. `ModelReadiness` is in `oc_core::sidecar::readiness` (types only, as the plan places it) and
+   carries the plan's seven fields plus four the registry already has and a model manager row
+   shows (UI_UX §2): `display_name`, `tier`, `is_default`, `warn`.
+4. `remove` reads no registry, so whatever is on disk can always be deleted. An absent model is
+   exit 0 with "not installed; nothing to remove" (row 9.19). A registry that does not load is
+   exit 2 (`E_MODEL_REGISTRY`), an unknown id exit 2 (`E_MODEL_UNKNOWN`), and a failed download
+   exit 1 (`E_MODEL_DOWNLOAD`). Download progress is a `progress{stage:"download", unit:"bytes"}`
+   event at most once per percent.
+**PROVISIONAL — needs maintainer ratification:** the shipped `models.toml` still has its `TODO_`
+pins, because this sandbox cannot reach huggingface.co (see the registry entry below). Until they
+are filled, `model list` and `model pull` on the bundled registry exit 2 naming the placeholder.
+That is the refusal row 9.1 asks for, applied to the real file.
+Evidence: `model_list_json_shape` (snapshot), `model_remove_absent_exits_zero_with_a_message`,
+`model_pull_refuses_a_host_off_the_allowlist`, `an_unresolved_registry_is_a_usage_error`,
+`an_unknown_model_id_is_a_usage_error`.
+Affects: D9, UI_UX §2, IMPLEMENTATION_PLAN §1.6 and §2.1, `crates/openconvert/src/cmd_model.rs`.
+
+## 2026-09-23 · llama.cpp pinned at `b10456`, digests unfilled; live tests in `oc-testkit` · Phase 9
+Context: PHASE 9 detail 1 asks for `xtask fetch-llama-server` to download a pinned `b<N>` release
+asset and check it against a SHA-256 in `xtask/llama.lock`. Rows 9.15 and 9.16 are live tests,
+nightly, behind `--features live-llm`.
+Decision:
+1. `xtask/llama.lock` pins **`b10456`**, the release V1 §3 read on 2026-08-17 and whose asset list
+   it recorded (ubuntu-x64 and macos tarballs, win-cpu-x64 zip, one CPU build per arch).
+   **PROVISIONAL — needs maintainer ratification:** the digests and sizes are `TODO_SHA256` / `0`.
+   This sandbox's egress policy refuses github.com release downloads (HTTP 403), so no asset could
+   be hashed here, and a digest copied from anywhere but the asset itself would make the check
+   circular. `fetch-llama-server` refuses an unfilled entry by name. Until someone hashes the three
+   assets, the nightly live job fails at its first step, which is the honest state of the gate.
+2. The archive is unpacked whole and `llama-server` is found by name, because a release carries its
+   backend shared libraries beside the binary (`GGML_BACKEND_DL`) and V1 could not confirm the path
+   inside the archive. Staging it as a Tauri `externalBin` is packaging (Phase 15).
+3. The live tests are `crates/oc-testkit/tests/live_llm.rs`, not `oc-ai`'s: they need `oc-net`'s
+   `HttpTransport`, and test 8.15 walks `oc-ai`'s dev-dependencies too. They reuse Appendix A.3's
+   worked examples from `crates/oc-ai/tests/common/` through `#[path]`. With the feature on and
+   `OC_LLAMA_SERVER`/`OC_LIVE_MODEL` unset they fail, never skip. Pointed at the stub server here,
+   9.15 passed and 9.16 failed with `W_LLM_PREFIX_COLD` (the stub reports `cache_n: 0`). So the
+   harness runs end to end and the cold path fires; neither says anything about a real model.
+4. `W_LLM_PREFIX_COLD` (Warn, args `call` and `task`) is `oc_ai::prefix::check`: calls after a
+   book's first must report cached prompt tokens (`timings.cache_n`, or
+   `usage.prompt_tokens_details.cached_tokens`), and a reply that reports neither counts as cold.
+   Re-checking the wall-clock share when it fires is the call loop's job, Phase 10.
+Evidence: `an_unfilled_digest_is_refused_before_anything_is_fetched`,
+`prefix_cold_is_warned_after_the_first_call`, `cached_prompt_tokens_are_read_from_the_reply`,
+`test_the_live_llm_job_runs_the_live_tests_against_a_fetched_server_and_model`.
+Affects: D8, D9, PHASE 9 details 1 and 4, `.github/workflows/nightly.yml`.
+
+## 2026-09-23 · The nine-gate harness, and what it cannot yet decide · Phase 9
+Context: PHASE 9 detail 9 and D9 specify `eval/model_gate.py`: G1–G9 on reference machines L and M
+against the pinned llama.cpp build, results as JSON under `eval/results/model_gate/`, and
+`docs/MODEL_GATE.md` generated from them. Row 9.17 asks that the script print a full pass/fail
+table and exit non-zero on any failure. Row 9.20 asks that `models.toml`'s default change only with
+nine green gates.
+Decision:
+1. `eval/model_gate.py` is a thin entry point over `oc_eval.model_gate` (`gates`, `server`,
+   `results`, `mcnemar`, `probes`, `fixtures`, `registry`, `cli`). **A gate whose inputs are missing
+   reports `not_run` and names the missing input, and `not_run` is never a pass.** The verdict is
+   `pass` only when all nine pass. Mutation: counting `not_run` as a pass turns
+   `test_a_gate_that_did_not_run_is_never_a_pass` red.
+2. **G8's probes are generated, not authored by a native speaker**: 100 German and 100 Turkish
+   lines from reviewable template pools with a fixed seed, labelled with the `heading_roles` enum
+   (a test holds the probe enum equal to the grammar's `role` rule), 100 distinct lines per
+   language, at least 11 per role. Each label follows from the template that made the line.
+   Quotations are ones whose attribution is well established, or proverbs labelled as such.
+3. **G2–G5 ask 20 prompt fixtures**: the renderer's own four (read from the committed cassettes)
+   and sixteen composed in the same templates and compact JSON. G2's semantic assertions are the
+   task-level ones (metadata copied verbatim, every cluster and holdout id answered once, book
+   structure indices in range and increasing, verse ids bijective). G4 and G5 sum each call's own
+   wall clock.
+4. **PROVISIONAL — needs maintainer ratification:** G3's tokenizer half needs reference
+   tokenizations of the 20 fixtures from the model's official tokenizer at the pinned revision,
+   which could not be fetched here. `reference_tokens` is `null`, so G3 reports `not_run`. G7 needs
+   Phase 10's paired answers (`--g7-pairs`). G9 needs a GGUF we converted and quantised ourselves
+   (`--g9-sha256`). G4's share needs the reference book's `--no-ai` wall clock on the same machine
+   (`--deterministic-seconds`). G7's level and non-inferiority margin are new provisional
+   thresholds (`model_gate.g7_alpha` 0.05, `model_gate.g7_noninferiority_margin` 0.02), because D9
+   names McNemar and gives neither.
+5. McNemar is computed exactly (`math.comb`), and the one normal quantile comes from
+   `statistics.NormalDist`. There is no scipy import, in line with `oc_eval.metrics.assertions`,
+   and no untyped dependency for mypy.
+6. `--emit-registry` resolves each repository's commit, asserts the file is in that commit's tree
+   (V1 §1(g)), streams the file through SHA-256 and writes the pins only if our hash and size agree
+   with the hub's LFS record. Nothing is written on any refusal. It is tested against a fake hub
+   only: huggingface.co is refused by this sandbox's egress policy.
+7. Row 9.20 is `test_default_stays_qwen3_1_7b_until_gate_passes` in `eval/tests/test_model_gate.py`,
+   with `registry.default_problems` as the rule: the default must be a `tier = "default"` entry, and
+   anything other than Qwen3-1.7B needs its latest run passing on both L and M.
+**No gate result is recorded.** This box is neither L nor M and has no server or model, and a result
+file from it would be a claim about a machine D9 does not recognise. `docs/MODEL_GATE.md` says so,
+and Qwen3-1.7B stays the default. Nothing promotes Qwen3.5-2B.
+Evidence: `eval/tests/test_model_gate.py` (19 tests), `docs/MODEL_GATE.md`.
+Affects: D9, RT C3, PHASE 9 rows 9.17, 9.20, detail 9, `thresholds.toml` (`model_gate.*`).
+
+## 2026-09-23 · The desktop app's own server (`llm.rs`) moves to Phase 12 · Phase 9
+Context: PHASE 9's file list includes `apps/desktop/src-tauri/src/llm.rs`, the app-owned,
+long-lived `llama-server` that loads a model once per batch (detail 3). The desktop app is a
+21-line hello-Tauri today. Phase 12 (Desktop UI) is being built at the same time on its own branch
+(`phase/12-desktop-ui`), which rewrites the app's `main.rs`, manifest and process model.
+**PROVISIONAL — needs maintainer ratification:** `llm.rs` is not written in Phase 9. Everything it
+needs exists and is tested: `OwnedServer`, `supervise`, `LlmEndpoint::choose`,
+`oc_net::loopback::free_port`, `HttpTransport`. Adding it to the app here would edit the files the
+concurrent Phase 12 branch is rewriting, for code nothing can exercise until the app's model
+manager exists. Phase 12 wires it, with the engine receiving the app's server through
+`--llm-endpoint` and `--llm-api-key-file`. Those two `convert` flags arrive with Phase 10's use of
+a model, not before, because a flag that does nothing is worse than no flag.
+Affects: PHASE 9 detail 3, Phase 10 (CLI flags), Phase 12 (`apps/desktop/src-tauri/src/llm.rs`).
+
+## 2026-09-23 · llama.cpp `b10456` digests filled, then checked by download · Phase 9 follow-up
+Context: the entry "llama.cpp pinned at `b10456`, digests unfilled" left `xtask/llama.lock` with
+`TODO_SHA256` and `size_bytes = 0` for all four assets. `fetch-llama-server` refused to run, so the
+nightly live job failed at its first step.
+Decision:
+1. The four digests and sizes are the `digest` (`sha256:…`) and `size` fields that GitHub's releases
+   API reports for each asset (`api.github.com/repos/ggml-org/llama.cpp/releases/tags/b10456`). They
+   were read twice, and the two reads matched.
+2. **Then they were checked by download.** When this follow-up ran, the sandbox's proxy let
+   github.com release downloads through, which the Phase 9 run had found refused.
+   `cargo run -p xtask -- fetch-llama-server` fetched the ubuntu-x64 asset, `verify` accepted its
+   size and SHA-256, and it unpacked the archive. The unpacked `llama-server --version` reports
+   build 10456, commit `f275595dd`. All four assets were then downloaded with `curl` and hashed
+   with `sha256sum`, and each digest and byte size matches the lock:
+   ubuntu-x64 `d07b3f80…c577` 16 645 205, macos-arm64 `5ab514e2…eb6f` 11 072 436, macos-x64
+   `5913d397…f489` 11 379 321, win-cpu-x64 `52ea16a7…2a2d` 18 464 144. The sizes also agree with
+   V1 §3's 10.6 / 15.9 / 17.6 MB.
+3. The digest and the download both come from GitHub, so the pin records what GitHub served on
+   2026-09-23. It catches a corrupted transfer or a later change to the asset. It cannot catch a
+   release that was already bad when it was uploaded. The PDFium and EPUBCheck pins have the same
+   limit.
+4. The pinned build's `--help` lists `(env: LLAMA_API_KEY)` under `--api-key`, which is the
+   variable `oc_core::sidecar::llama::command` sets. Whether a running server enforces the key
+   still needs a model to test, and none can be fetched here.
+**PROVISIONAL — needs maintainer ratification: verify by downloading.** Run
+`cargo run -p xtask -- fetch-llama-server` on a maintainer machine. It verifies that host's asset
+against the lock. The download check above was done by an unattended run, not by a maintainer
+reviewing the pin. The lock's header says moving a pin is a reviewed commit, and this commit fills
+the pin for the first time.
+Still blocked: `models.toml`. huggingface.co is still refused (`CONNECT` 403, checked again with
+`curl` for this entry), so the registry pins stay `TODO_`. The nightly live job now gets past the
+server fetch and fails at `model pull`.
+Evidence: `the_shipped_lock_pins_all_four_assets_by_sha256_and_size` (asserts four distinct
+lower-case SHA-256s and non-zero sizes, all accepted by `pinned`), and the `sha256sum` / `stat`
+output above.
+Affects: D8, D9, PHASE 9 detail 1, `xtask/llama.lock`, PROGRESS.md Blocked items 2 and 3.

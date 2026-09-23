@@ -20,8 +20,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CI = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 NIGHTLY = REPO_ROOT / ".github" / "workflows" / "nightly.yml"
 
-# Phase 9's, and correctly still a placeholder: there is no model to record a cassette from.
-STILL_PENDING = {"live-llm-cassette-refresh"}
+# Nothing is pending: Phase 9 gave `live-llm-cassette-refresh` its body.
+STILL_PENDING: set[str] = set()
 
 
 def workflow(path: Path) -> dict[str, Any]:
@@ -93,6 +93,18 @@ def test_the_bench_job_turns_on_the_feature_the_budget_assertions_live_behind() 
     assert "--features bench" in commands
     assert "perf_budget" in commands
     assert "cargo bench" in commands, "the criterion trend runs beside the gate"
+
+
+def test_the_live_llm_job_runs_the_live_tests_against_a_fetched_server_and_model() -> None:
+    """PHASE 9 rows 9.15 and 9.16: behind `--features live-llm`, never an ignore attribute, and
+    against a server and a model the job fetched and verified itself."""
+    commands = run_text(NIGHTLY, "live-llm-cassette-refresh")
+
+    assert "not yet implemented" not in commands
+    assert "fetch-llama-server" in commands
+    assert "model pull" in commands
+    assert "--features live-llm" in commands
+    assert "live_llm" in commands
 
 
 def test_the_deep_property_job_actually_raises_the_case_count() -> None:

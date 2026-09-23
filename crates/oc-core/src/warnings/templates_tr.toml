@@ -18,6 +18,7 @@ W_LANG_FALLBACK = "Dil saptanamadı, bu yüzden dc:language için bu iş için a
 W_LANG_UNSTABLE = "Kitabın saptanan dille çelişen bölümü, paragraf başına dil etiketlerinin güvenilir olabileceğinden fazlaydı; hiçbiri uygulanmadı."
 W_LIST_NUMBERING_GAP = "Numaralı bir liste numara atlıyor: {numbers}. Basılı numaralandırma olduğu gibi korundu."
 W_LLM_BUDGET_EXHAUSTED = "Kitap {calls} model çağrısının tamamını kullanmıştı; bu yüzden {task}, model olmadan, dönüştürücünün kendi kurallarıyla belirlendi."
+W_LLM_PREFIX_COLD = "{call}. model çağrısı ({task}) ortak istemi hazır yüklenmiş bulamadı, bu yüzden planlanandan uzun sürdü; modelin kullanabileceği süre yeniden denetlendi."
 W_LOW_RETENTION = "Kaynak metnin {retention} kadarı kitaba ulaştı; bu dönüştürücünün uyardığı {floor} eşiğinin altında. Kaldırılan sayfa başlıkları ve sayfa numaraları da bu hesaba dâhildir ve bir kayıp değildir."
 W_NOTE_UNMATCHED = "{markers} dipnot işareti ve {notes} dipnot gövdesi bulundu; bunlardan {matched} tanesi eşleştirilebildi. Eşleşmeyenler basıldıkları yerde metin içinde bırakıldı."
 W_NO_TEXT_EXTRACTED = "Bu belgeden hiç metin çıkarılamadı. Hiçbir şey yitmesin diye sayfaları görsel olarak taşınıyor; ama kitap ne aranabilir ne de yeniden akar."

@@ -16,6 +16,7 @@ pub mod digest;
 pub mod gates;
 pub mod gbnf;
 pub mod openai;
+pub mod prefix;
 pub mod prompt;
 pub mod provider;
 pub mod transport;

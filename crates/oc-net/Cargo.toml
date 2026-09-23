@@ -10,9 +10,11 @@ publish      = false
 
 [dependencies]
 oc-ai = { path = "../oc-ai", version = "0.1.0" }
-# ureq is added by Phase 9 (model downloads). It pulls webpki-roots, whose
-# CDLA-Permissive-2.0 licence is not on D15's allow-list - see docs/DECISIONS_LOG.md.
+ureq.workspace = true
+rustls.workspace = true
+secrecy.workspace = true
 sha2.workspace = true
 serde.workspace = true
+toml.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

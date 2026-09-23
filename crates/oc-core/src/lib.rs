@@ -13,6 +13,7 @@ pub mod jobspec;
 pub mod ledger_check;
 pub mod limits;
 pub mod progress;
+pub mod sidecar;
 pub mod stages;
 pub mod thresholds;
 pub mod warnings;

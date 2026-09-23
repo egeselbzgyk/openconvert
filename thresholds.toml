@@ -834,6 +834,20 @@ evidence = "RT C2 'idle-kill at 120 s'"
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[llm.health_poll_millis]
+value = 100
+source = "provisional"
+evidence = "PHASE 9 detail 3: how often an engine-owned llama-server's GET /health is asked while it loads its model. A 1.1 GB GGUF takes seconds to load, so a tenth of a second costs nothing measurable and keeps the wait within a tenth of a second of the server being ready. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.cache_reuse_min_chunk]
+value = 256
+source = "provisional"
+evidence = "PHASE 9 detail 2 / RT A3: `--cache-reuse N` is passed only to entries whose models.toml says cache_reuse = true; N is the smallest chunk llama-server will try to reuse from the KV cache by shifting. 256 tokens is the value llama.cpp's own examples use; it is not measured here, and gate G5 measures whether the prefix is reused at all"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [inventory.max_clusters]
 value = 24
 source = "provisional"
@@ -951,6 +965,21 @@ evidence = "D13.11 and IMPLEMENTATION_PLAN PHASE 7 row 7.11 state the budget for
 owner = "maintainer"
 review_by = "2027-06-30"
 
+# ---------- model downloads (PHASE 9 detail 6) ----------
+[net.max_redirects]
+value = 5
+source = "provisional"
+evidence = "PHASE 9 detail 6: a Hugging Face resolve URL answers with one redirect to its CDN. The downloader follows each hop itself so every hop meets the allowlist; five leaves room for a CDN that redirects once more and stops a loop long before it matters. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[net.connect_timeout_secs]
+value = 30
+source = "provisional"
+evidence = "PHASE 9 detail 6: how long `model pull` waits for a TCP and TLS connection before it gives up. Only the connection is bounded: a 1-3 GB transfer on a slow line legitimately takes longer than any fixed total would allow. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 # ---------- model promotion gate (D9 G1-G9) ----------
 [model_gate.g4_max_seconds_on_l]           # "L" = D9 reference machine L (4c/8t AVX2 x86, 16 GB)
 value = 50
@@ -972,6 +1001,48 @@ source = "provisional"
 evidence = "D9 G6: 2.5 GB at -c 8192 -np 1"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+[model_gate.g2_generations]
+value = 200
+source = "binary"
+evidence = "D9 G2: 200/200 grammar-constrained generations across all production schemas parse and pass semantic assertions; G3's thinking check reads the same 200"
+owner = "maintainer"
+review_by = "2099-01-01"
+
+[model_gate.g3_fixtures]
+value = 20
+source = "binary"
+evidence = "D9 G3: our prompt renderer matches the reference tokenizer on 20 fixtures (eval/data/probes/prompt_fixtures_20.jsonl)"
+owner = "maintainer"
+review_by = "2099-01-01"
+
+[model_gate.g6_release_seconds]
+value = 2
+source = "binary"
+evidence = "D9 G6: RSS returns to baseline within 2 s of kill(); the same 2 s as A9.4's no-orphan bound"
+owner = "maintainer"
+review_by = "2099-01-01"
+
+[model_gate.g7_alpha]
+value = 0.05
+source = "provisional"
+evidence = "D9 G7 names McNemar but no level. 0.05 is the conventional one, applied one-sided to non-inferiority and two-sided (exact binomial on the discordant pairs) to superiority. Not calibrated"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[model_gate.g7_noninferiority_margin]
+value = 0.02
+source = "provisional"
+evidence = "D9 G7: 'non-inferior on all four tasks vs the incumbent' needs a margin and D9 gives none. Two points of accuracy is the loss a promotion may risk on any one task in exchange for being significantly better on another; it matches the <= 1 % false-repair target's order of magnitude (D17). Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[model_gate.probe_items_per_language]
+value = 100
+source = "binary"
+evidence = "D9 G8: 100-item DE and TR flat-enum probes (eval/data/probes/de_100.jsonl, tr_100.jsonl)"
+owner = "maintainer"
+review_by = "2099-01-01"
 
 [model_gate.g8_min_probe_accuracy]
 value = 0.95

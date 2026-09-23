@@ -991,3 +991,94 @@ pipeline calls a model yet** — wiring the four tasks in is Phase 10's. Built o
 - The unbounded-repetition grammar form for GBNF engines without `{m,n}` (Appendix A.2's arity
   note) belongs with the BYO providers of Phase 11.
 - **The Phase 8 CI steps are unverified until this branch merges.**
+
+## Phase 9 — Local model integration: sidecar lifecycle, model manager, promotion gate
+
+The abstraction from Phase 8 gets a real backend: `oc-net` downloads a pinned model and carries
+requests, `oc-core` starts, supervises and tears down a `llama-server` it owns, `openconvert model`
+is the model manager's command line, and `eval/model_gate.py` is the nine-gate test that decides
+which model may ever be the default. **`ai.enabled` stays `false` and the pipeline still runs
+`--no-ai`** — asking a model anything during a conversion is Phase 10's. Built on
+`phase/09-local-model`.
+
+### New CLI subcommand
+
+- **`openconvert model pull <ID>`** — downloads a registry entry from its commit-pinned URL,
+  checks the host allowlist on every hop before fetching it, verifies SHA-256 while streaming,
+  writes `LICENSE` and `NOTICE`, renames atomically. `progress{stage:"download", unit:"bytes"}`
+  events at most once per percent with `--progress json`. Exit 1 on a failed download, 2 on an
+  unloadable registry (`E_MODEL_REGISTRY`) or an unknown id (`E_MODEL_UNKNOWN`).
+- **`openconvert model list [--json]`** — one `ModelReadiness` per entry: `id`, `display_name`,
+  `tier`, `is_default`, `installed`, `size_bytes`, `ram_estimate_bytes`, `cpu_expectation`,
+  `license`, `license_path`, `warn`. The GUI renders exactly these fields.
+- **`openconvert model remove <ID>`** — deletes the model's directory; an absent model is exit 0.
+- Flags: `--registry <PATH>` (default: the `models.toml` compiled into the binary), `--dir <PATH>`
+  (default: the per-OS data directory), `--json`, `--progress none|json`.
+
+### New warning code
+
+- **`W_LLM_PREFIX_COLD`** `{call, task}` — a call after a book's first did not find the shared
+  prompt prefix in the server's KV cache (`oc_ai::prefix::check`). Templates in en, de and tr.
+
+### New IR fields
+
+None. `oc_ai::provider::LlmResponse` gained `cached_tokens` (read from `timings.cache_n` or
+`usage.prompt_tokens_details.cached_tokens`), which is API, not IR.
+
+### New `thresholds.toml` entries
+
+- `llm.cache_reuse_min_chunk = 256` (provisional) — `--cache-reuse`'s chunk, passed only to entries
+  whose registry says `cache_reuse = true` (RT A3).
+- `llm.health_poll_millis = 100` (provisional) — how often a starting server's `/health` is asked.
+- `net.max_redirects = 5`, `net.connect_timeout_secs = 30` (provisional) — the downloader.
+- `model_gate.g2_generations = 200`, `model_gate.g3_fixtures = 20`,
+  `model_gate.g6_release_seconds = 2`, `model_gate.probe_items_per_language = 100` (binary, D9).
+- `model_gate.g7_alpha = 0.05`, `model_gate.g7_noninferiority_margin = 0.02` (provisional) — D9
+  names McNemar and gives neither number.
+
+### New registry field
+
+- **`cpu_expectation`** in `models.toml`, in UI_UX §2's words ("fast", "moderate", "slower, higher
+  quality", "not yet measured"); no timing is shipped that nobody has measured.
+
+### The pieces
+
+- **`oc-net`**: `registry` (refuses `TODO_` pins and anything but a 40-hex commit), `allowlist`,
+  `download` (`Downloader`, `HttpFetch`), `verify`, `store` (`list`, idempotent `remove`),
+  `transport::HttpTransport` (the `oc_ai::Transport` over HTTP; key in a header, never a proxy),
+  `loopback::free_port`. **TLS roots come from the platform verifier**, so `webpki-roots` is not in
+  the graph and `deny.toml` needs no exception.
+- **`oc_core::sidecar`**: `llama` (the command line: loopback, one slot, key in `LLAMA_API_KEY`,
+  never in argv), `server::OwnedServer` (spawn, `wait_healthy(probe)`, the idle-kill policy),
+  `supervise` (one child registry; `Drop`, a panic hook and a `ctrlc` signal handler all tear it
+  down; a signal exits 3), `endpoint::LlmEndpoint` (an external endpoint spawns nothing),
+  `readiness::ModelReadiness`. `oc-core` still opens no socket, and a test walks the lock file to
+  prove it.
+- **`oc-testkit`**: `oc-stub-llama-server` and `oc-sidecar-engine`, the two dev-only binaries the
+  lifecycle tests run as real processes; `tests/live_llm.rs` behind `--features live-llm`.
+- **`xtask fetch-llama-server`** and `xtask/llama.lock` (`b10456`, V1 §3).
+- **`eval/model_gate.py`** → `oc_eval.model_gate`: G1–G9, result files, `--render-table`
+  (generates `docs/MODEL_GATE.md`), `--emit-registry`, 100 DE + 100 TR generated probes, 20 prompt
+  fixtures. A gate that did not run is never a pass.
+- **CI:** the `no-network` job's disabled "oc-core cannot reach a socket crate" step now runs; the
+  nightly `live-llm-cassette-refresh` job fetches the server, pulls the default model and runs rows
+  9.15 and 9.16.
+
+### Known gaps, carried forward
+
+- **This sandbox's egress policy refuses huggingface.co** (and refused github.com release downloads
+  during the phase). So `models.toml`'s pins are still `TODO_` (`model list`/`pull` on the bundled
+  registry exit 2 until they are filled). No live test ran against a real model, and no gate result
+  is recorded. Qwen3-1.7B stays the default.
+- **Follow-up after the merge:** `xtask/llama.lock`'s four `b10456` digests and sizes are filled.
+  They were read from GitHub's releases API and then checked against downloads of all four assets.
+  They stay provisional until a maintainer ratifies them. New test:
+  `the_shipped_lock_pins_all_four_assets_by_sha256_and_size`.
+- **An engine killed outright** (`SIGKILL`, a segfault) can still orphan its server:
+  `PR_SET_PDEATHSIG` and Windows job objects need `unsafe`, which `forbid(unsafe_code)` excludes.
+  They are Phase 14's hardening.
+- `apps/desktop/src-tauri/src/llm.rs`, the app-owned long-lived server, is deferred to Phase 12,
+  which owns the desktop app.
+- G3's reference tokenizations, G7's paired answers and G9's own conversion are inputs this
+  phase could not produce. Those gates report `not_run`.
+- **The Phase 9 CI steps are unverified until CI runs.**
