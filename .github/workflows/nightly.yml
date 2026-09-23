@@ -145,9 +145,9 @@ jobs:
         with: { name: criterion, path: target/criterion }
 
   # Rows 9.15 and 9.16: the live tests, against the pinned llama-server and the default model, both
-  # fetched and verified before anything runs. This job fails while `xtask/llama.lock` and
-  # `models.toml` still carry `TODO_` placeholders, and that is deliberate: a live gate that passes
-  # without a model is not a gate. Re-recording the cassettes against the live model lands with
+  # fetched and verified before anything runs. This job fails at `model pull` while `models.toml`
+  # still carries `TODO_` placeholders, and that is deliberate: a live gate that passes without a
+  # model is not a gate. Re-recording the cassettes against the live model lands with
   # Phase 10's inventories, which are what a cassette is recorded from.
   live-llm-cassette-refresh:   # Phase 9
     runs-on: ubuntu-latest

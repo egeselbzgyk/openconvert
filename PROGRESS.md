@@ -57,9 +57,10 @@ LAST_UPDATED: 2026-09-23
 - [x] **Phase 9** — Local model integration: sidecar lifecycle, model manager, promotion gate
       *(all 20 named tests exist and pass, 9.15/9.16 behind `live-llm`; 33 Rust and 20 Python
       tests added; built on `phase/09-local-model` and merged into `main` 2026-09-23. No real model
-      or llama-server could be fetched here — huggingface.co and github.com release assets are
-      refused by the sandbox's egress policy — so the registry pins, the llama.lock digests, the
-      live tests and every gate run are unverified and listed in the Blocked section.)*
+      could be fetched here, because huggingface.co is refused by the sandbox's egress policy. So
+      the registry pins, the live tests and every gate run are unverified and listed in the Blocked
+      section. A follow-up (`fix/phase-09-llama-pins`) filled the llama.lock digests and checked
+      them against downloads.)*
 - [ ] **Phase 10** — AI-assisted decisions (the four tasks)
 - [ ] **Phase 11** — BYO providers
 - [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
@@ -84,11 +85,14 @@ Work items, in order, with the plan's test rows against each:
 
 What a fresh session needs:
 
-- **This sandbox's egress policy refuses `huggingface.co` and `github.com` release downloads
-  (HTTP 403 on CONNECT).** The proxy's README says not to route around a blocked host, so this
-  phase does not read Hugging Face's API or fetch any model file or llama.cpp release. That means
-  the registry fill (real `revision`/`sha256`/`size_bytes`), the pinned llama-server asset hash, the
-  A9.1 download and the live tests 9.15/9.16 are **unverified here**. Tests use synthetic hashes.
+- **This sandbox's egress policy refuses `huggingface.co` (HTTP 403 on CONNECT, checked again
+  2026-09-23 after the merge).** The proxy's README says not to route around a blocked host, so this
+  phase does not read Hugging Face's API or fetch any model file. That means the registry fill (real
+  `revision`/`sha256`/`size_bytes`), the A9.1 download and the live tests 9.15/9.16 are
+  **unverified here**. Tests use synthetic hashes. github.com release downloads were refused during
+  the phase but went through for the post-merge llama.lock follow-up: all four `b10456` assets
+  hashed to the lock's digests, and `cargo run -p xtask -- fetch-llama-server` stages a working
+  `vendor/llama-server/b10456/llama-b10456/llama-server` (gitignored).
 - **TLS roots are option (a):** `ureq` with `rustls-no-provider` + `platform-verifier`, and
   `rustls` with the `ring` provider. `cargo deny --all-features check` is clean and `webpki-roots`
   is in no target's graph.
@@ -116,8 +120,8 @@ What a fresh session needs:
   correct until the fill (Blocked).
 - **Live tests** are `crates/oc-testkit/tests/live_llm.rs` (`--features live-llm`, env
   `OC_LLAMA_SERVER`, `OC_LIVE_MODEL`), run by the nightly `live-llm-cassette-refresh` job after
-  `xtask fetch-llama-server` and `model pull`. `xtask/llama.lock` pins `b10456` with `TODO_`
-  digests, so that job fails until they are filled (Blocked).
+  `xtask fetch-llama-server` and `model pull`. `xtask/llama.lock`'s `b10456` digests are filled and
+  download-checked, so that job now fails at `model pull` until `models.toml` is filled (Blocked).
 - **The promotion gate** is `eval/model_gate.py` → `oc_eval.model_gate`. Probes and prompt
   fixtures are generated (`python -m oc_eval.model_gate.{probes,fixtures} --write`) and held equal to
   the committed files. `docs/MODEL_GATE.md` is rendered (`--render-table`), and no run is recorded:
@@ -132,7 +136,7 @@ What a fresh session needs:
 
 | Row | State |
 |---|---|
-| Every named test exists and passes | **Yes, with two unverified here.** All 20 rows exist under their names. 9.17 and 9.20 are pytest functions, so they carry pytest's required `test_` prefix. 9.15 and 9.16 are behind `--features live-llm`: they compile, and they fail loudly without a server and model. **Unverified here:** no llama-server or GGUF could be downloaded (egress 403). Against the stub server, 9.15 passes and 9.16 fails with `W_LLM_PREFIX_COLD`, which exercises the harness and says nothing about a model. |
+| Every named test exists and passes | **Yes, with two unverified here.** All 20 rows exist under their names. 9.17 and 9.20 are pytest functions, so they carry pytest's required `test_` prefix. 9.15 and 9.16 are behind `--features live-llm`: they compile, and they fail loudly without a server and model. **Unverified here:** no GGUF could be downloaded (huggingface.co egress 403). The pinned llama-server became fetchable and verified after the merge. Against the stub server, 9.15 passes and 9.16 fails with `W_LLM_PREFIX_COLD`, which exercises the harness and says nothing about a model. |
 | `cargo nextest run --workspace` green | **Yes**, 594 tests (561 + 33). eval: 214 pytest tests (+ 20). |
 | Green on Linux/macOS/Windows CI | **Unverified here:** GitHub Actions is disabled. `cargo check -p oc-core` passes for `x86_64-pc-windows-msvc` and `aarch64-apple-darwin`. `oc-net` cannot be cross-checked here because `ring` needs the MSVC C toolchain. |
 | clippy `-D warnings` clean | **Yes**, workspace, all targets, all features (including `live-llm`). |
@@ -200,6 +204,8 @@ What a fresh session needs:
   keyed by its *question*, so two scripted answers need two different payloads.
 - **Task validations are gate failures with codes**: `V.verbatim`, `S.range`, `S.order`,
   `S.overlap`, `S.holdout`, `S.roles` (`oc_ai::gates::GateFailure`).
+- **The pinned llama-server is fetchable and verified** since main's `fix/phase-09-llama-pins`
+  (`cargo run -p xtask -- fetch-llama-server`); a model still cannot be (huggingface.co refused).
 - Build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` (disk is shared with two other
   worktrees; the whole workspace is ~3.6 GB that way).
 
@@ -826,11 +832,16 @@ ratification**, and worked around. None of them blocks Phase 10's deterministic-
    all four entries: huggingface.co is refused by this sandbox's egress policy. Fill them on a
    machine that can reach it with `eval/model_gate.py --emit-registry`, which hashes the download
    itself. Until then `model list`/`pull` on the bundled registry exit 2.
-2. **llama.cpp digests** — `xtask/llama.lock` pins `b10456` with `TODO_SHA256` digests (github.com
-   release assets refused). `xtask fetch-llama-server` refuses to run until they are hashed, so the
-   nightly live job fails at its first step until then.
-3. **`LLAMA_API_KEY`** — the sidecar's key goes in that environment variable, never in argv. That
-   the pinned build reads it could not be run here. `--api-key-file` is the fallback.
+2. **llama.cpp digests** — filled after the merge (`fix/phase-09-llama-pins`). They were read from
+   GitHub's releases API and then checked by download: all four `b10456` assets match in digest and
+   size. **PROVISIONAL — needs maintainer ratification: verify by downloading** (run
+   `cargo run -p xtask -- fetch-llama-server` on a maintainer machine; DECISIONS_LOG 2026-09-23,
+   "llama.cpp `b10456` digests filled, then checked by download"). The nightly live job now fails
+   at `model pull` (item 1), not at the server fetch.
+3. **`LLAMA_API_KEY`** — the sidecar's key goes in that environment variable, never in argv. The
+   pinned build's `--help` lists `(env: LLAMA_API_KEY)` under `--api-key`. Whether a running server
+   enforces the key still needs a model, which cannot be fetched here. `--api-key-file` is the
+   fallback.
 4. **The allowlist's CDN hosts** are the plan's three, and today's redirect target could not be
    observed. An off-list redirect fails closed and names the host.
 5. **PDEATHSIG and Windows job objects** (crash and SIGKILL teardown) need `unsafe` and are
@@ -1350,5 +1361,6 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P9.8      oc-testkit: live tests behind live-llm; W_LLM_PREFIX_COLD; fetch-llama-server (9.15, 9.16 + 5)  9f223a0
 2026-09-23  P9.9      eval: model_gate.py, probes, fixtures, MODEL_GATE.md (9.17, 9.20 + 17)  b9c0ab4
 2026-09-23  PHASE 9   COMPLETE on phase/09-local-model - DoD checked; live model, gate runs, macOS/Windows and CI unverified here
+2026-09-23  P9.fix    xtask: llama.lock b10456 digests pinned, all four checked by download (+1)  2432458
 2026-09-23  P10.1     oc-structure: the verse band read through oc_core::escalation; --no-ai EPUB hashes pinned (+ 2)  33b00ce
 2026-09-23  P10.2     oc-structure: escalate.rs, EscalationRecord in Conversion and the report (10.1, 10.2 + 2)  d91276e
