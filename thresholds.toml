@@ -825,6 +825,27 @@ evidence = "PHASE 10: the context an engine-owned server is started with for a -
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[llm.ollama_num_ctx]
+value = 8192
+source = "provisional"
+evidence = "PHASE 11 detail 2 / D10: Ollama's default context is 2048 tokens and a longer prompt is cut from the front without a word, so every Ollama request states options.num_ctx - at least this, and at least the prompt's byte length plus its template overhead plus llm.max_output_tokens_per_call. The same 8192 as llm.sidecar_context_tokens, so a book's requests ask for one context and Ollama does not reload the model between them. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.ollama_template_overhead_tokens]
+value = 64
+source = "provisional"
+evidence = "PHASE 11 detail 2: what Ollama's chat template adds around the system and user messages (role markers, turn separators, an empty think block), in tokens, on top of the messages' byte length - which is already an upper bound on their tokens, a token never being shorter than one byte of UTF-8. Qwen3's ChatML adds about 20; 64 leaves room for other templates. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.ollama_keep_alive_secs]
+value = 600
+source = "provisional"
+evidence = "PHASE 11 detail 2: keep_alive is set explicitly on every Ollama request because Ollama's default unloads a model 5 minutes after its last request, and a batch of books would pay a model load per book. Ten minutes covers the gap between two books of a batch. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [llm.idle_kill_secs]
 value = 120
 source = "provisional"

@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 11
-CURRENT_ITEM: P11.3 — the Ollama adapter: native `/api/chat`, `num_ctx`, `format` (rows 11.2, 11.3).
-              Phase 11 is on `phase/11-byo-providers`; P11.1–P11.2 are done. Phase 7.5 is still parked.
+CURRENT_ITEM: P11.4 — `oc-net::detect`: `Transport::get`, `detect_ollama`, the probe (row 11.1).
+              Phase 11 is on `phase/11-byo-providers`; P11.1–P11.3 are done. Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -174,7 +174,7 @@ What a fresh session needs:
 ## Current work item
 
 **Phase 11 — BYO providers**, on `phase/11-byo-providers` (worktree `/home/user/wt/phase10`).
-Next: **P11.3**.
+Next: **P11.4**.
 
 ## Phase 11 — built on `phase/11-byo-providers`
 
@@ -184,7 +184,7 @@ Work items, in order, with the plan's test rows against each:
       cannot be built to a host off this machine without consent naming it — row 11.6
 - [x] **P11.2** `oc-ai::provider`: the adapter modules, `ProviderKind`, schema-in-prompt and
       `W_LLM_UNCONSTRAINED` when a provider constrains nothing — row 11.4
-- [ ] **P11.3** `oc-ai::provider::ollama`: native `/api/chat`, `format`, `options.num_ctx`,
+- [x] **P11.3** `oc-ai::provider::ollama`: native `/api/chat`, `format`, `options.num_ctx`,
       `keep_alive`, `think: false` — rows 11.2, 11.3
 - [ ] **P11.4** `oc-net::detect`: `Transport::get`, `detect_ollama`, the capability probe — row 11.1
 - [ ] **P11.5** the Phase-8 cassettes through every adapter — row 11.10
@@ -205,6 +205,10 @@ What a fresh session needs:
   is gone — moved to `provider::openai_compatible`). `custom_endpoint` takes probed `ProviderCaps`;
   with `ProviderCaps::neither()` the task's `schema.json` is appended to the user message and the
   `Session` raises `W_LLM_UNCONSTRAINED` once. `ProviderKind` names the adapter.
+- **Ollama is `/api/chat`, not `/v1`** (PROVISIONAL, DECISIONS_LOG 2026-09-23): Ollama's `/v1`
+  layer drops `num_ctx`/`format`/`keep_alive`/`think`. Every request sets `options.num_ctx` ≥
+  `llm.ollama_num_ctx` and ≥ prompt bytes + overhead + `max_tokens`, `truncate: false`,
+  `shift: false`. `tests/common/cassette_server.rs` answers both wire formats from the cassettes.
 - Build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0`. **Disk is tight** (~5 GB free while
   three worktrees build).
 
@@ -977,6 +981,9 @@ Phase 11's, each logged in `docs/DECISIONS_LOG.md` (2026-09-23):
 
 15. **Plain `http://` to a host off this machine is refused even with consent** (`PlaintextRemote`):
     D10 is silent on the scheme; consent to a host reading the text is not consent to the path.
+16. **Ollama speaks `/api/chat`**, although PHASE 11 detail 1 says every provider speaks `/v1`:
+    Ollama's `/v1` layer silently drops the `num_ctx` and `format` D10 requires. Three invented
+    thresholds: `llm.ollama_{num_ctx, template_overhead_tokens, keep_alive_secs}`.
 
 ## Phase 7 — Definition of Done
 
@@ -1500,3 +1507,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P10.11    openconvert: live convert --ai behind live-llm; CHANGELOG; the DoD  7659dae
 2026-09-23  PHASE 10  COMPLETE on phase/10-ai-decisions - DoD checked; A10.4/A10.5, live model, macOS/Windows and CI unverified here
 2026-09-23  P11.1     oc-net: consent names the host; HttpTransport refuses any other (11.6 + 4)  a1515b6
+2026-09-23  P11.2     oc-ai: provider adapters; an unconstrained provider warns (11.4 + 3)  ad6cea3

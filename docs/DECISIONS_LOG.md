@@ -4066,3 +4066,30 @@ Decisions:
    Argument: `model`. Gate S is not relaxed in any way.
 Evidence: `crates/oc-ai/tests/providers.rs` (row 11.4 and three more).
 Affects: PHASE 11 detail 1, D10, `oc_ai::{provider, session}`, the warning registry.
+
+## 2026-09-23 · Ollama speaks `/api/chat`, not `/v1/chat/completions` · Phase 11
+Context: PHASE 11 detail 1 says every provider speaks OpenAI-compatible `/v1/chat/completions`;
+detail 2 and D10 say Ollama's answer is constrained through its `format` field with the full JSON
+Schema and its `num_ctx` is explicitly overridden, because the 2 048-token default truncates.
+Read on 2026-09-23: Ollama's OpenAI-compatibility request type (`openai/openai.go`,
+`ChatCompletionRequest`) has no `options`, `num_ctx`, `format`, `keep_alive` or `think` field, and Go's
+JSON decoder drops unknown fields silently; `server/routes.go` truncates native chat messages that
+exceed `NumCtx`. The two details cannot both hold.
+Decisions:
+1. **PROVISIONAL — needs maintainer ratification: D10 wins over detail 1.** `oc_ai::provider::ollama`
+   posts to `/api/chat` — the same two messages, greedy decoding and answer as every adapter — with
+   `stream: false`, `format` (the task's `schema.json`), `options {temperature, num_ctx,
+   num_predict}`, `keep_alive`, `think: false`, `truncate: false` and `shift: false` (`api/types.go`
+   `ChatRequest` has both: an Ollama that knows them errors instead of truncating the prompt or
+   shifting it out of the context). A `num_ctx` sent to `/v1` would be ignored, and the failure it
+   exists to prevent — a silently cut prompt answered well-formed and wrong — would be back.
+2. **`num_ctx = max(llm.ollama_num_ctx, prompt bytes + llm.ollama_template_overhead_tokens +
+   max_tokens)`.** Bytes bound tokens from above for byte-level tokenizers, so the context is never
+   short; a book whose prompts fit asks for one context throughout, so Ollama does not reload the
+   model between calls. Thresholds, all provisional: `llm.ollama_num_ctx = 8192`,
+   `llm.ollama_template_overhead_tokens = 64`, `llm.ollama_keep_alive_secs = 600`.
+3. **The reply** is read from `message.content`, `message.thinking` (kept as `reasoning`, which gate
+   S refuses), `done_reason`, `prompt_eval_count`, `prompt_eval_cached_count`, `eval_count`.
+4. **The provider's id is the model as Ollama names it** (`qwen3:1.7b`): the cache key carries it.
+Evidence: `crates/oc-ai/tests/ollama.rs` (rows 11.2, 11.3 and one more).
+Affects: PHASE 11 details 1–2, D10, `oc_ai::provider::ollama`, `thresholds.toml` (`llm.ollama_*`).
