@@ -3828,3 +3828,195 @@ Evidence: `the_shipped_lock_pins_all_four_assets_by_sha256_and_size` (asserts fo
 lower-case SHA-256s and non-zero sizes, all accepted by `pinned`), and the `sha256sum` / `stat`
 output above.
 Affects: D8, D9, PHASE 9 detail 1, `xtask/llama.lock`, PROGRESS.md Blocked items 2 and 3.
+
+## 2026-09-23 · The verse band has one definition, and the classifier reads it · Phase 10
+Context: the open finding of 2026-09-22 — `oc-structure::quotes::classify_indented` compared the
+`f32` short-line ratio widened to `f64` against the band's bounds, so a block exactly on
+`verse.short_line_ratio_min` (7 short lines of 20) was a block quotation to the classifier and an
+escalation to `oc_core::escalation::verse_quote`.
+Decision: the band's edges are defined once, `oc_core::escalation::line_band` (`Full`, `Between`,
+`Short`, compared in `f32`), and `verse_quote` is written over it. The classifier asks
+`verse_quote` whether a block is ambiguous and `line_band` which side of the band a settled block is
+on; it passes `blocks_remaining: u32::MAX`, because the block budget is the AI step's to spend and
+not a property of a block. Behaviour is unchanged everywhere except on the lower bound itself.
+Evidence: `quotes::tests::a_block_exactly_on_the_lower_bound_is_ambiguous_not_a_quotation` fails on
+the widening (`left: BlockQuote, right: Ambiguous`) and passes on the fix; the ten fixtures'
+`--no-ai` EPUB hashes, pinned before the change in `ai__no_ai_epub_sha256.snap`, did not move.
+Affects: `oc-core::escalation`, `oc-structure::quotes` (the finding is closed).
+
+## 2026-09-23 · Task 2: what a heading mapping may change, and what the pre-gate cannot check · Phase 10
+Context: PHASE 10 detail 3 and ARCHITECTURE §9.6 say what the heading-roles call is shown and how
+its answer is checked; they do not say what an admitted role *does* to a book, and two of the
+checks they name have no input in this codebase.
+Decisions, each **PROVISIONAL — needs maintainer ratification**:
+1. **Only size-rank levels are touched.** A heading whose level the outline or the printed contents
+   page bound, or a numbering pattern refined, keeps it: size rank is the fallback the task stands
+   in for (ARCHITECTURE §6.1). The Typst fixtures all carry outlines, which is why test 10.8 clears
+   the outline first — without that the property held vacuously, and a mutation that emptied every
+   demoted block passed (checked).
+2. **Roles to levels:** part 1; chapter 1, or 2 when a heading cluster is a part; section chapter+1;
+   subsection chapter+2; the skip repair runs again afterwards. `body` demotes a heading to a
+   paragraph and `epigraph` to an epigraph wrapper. **`other`, `caption` and `running_head` change
+   nothing**: `other` is the prompt's own abstention (Appendix A.1 rule 3), and `running_head` is a
+   proposal furniture has already declined (D13.5). The edit type has no removal variant.
+3. **One rule beyond ARCHITECTURE's two:** a mapping that demotes every cluster holding a heading
+   is refused (`S.roles`). One answer should not be able to take a book's whole navigation away.
+4. **The silhouette floor is not checked.** Phase 4's clustering computes no silhouette and
+   `thresholds.toml` has no floor, so the pre-gate is the two measured conditions.
+5. **Fewer than `inventory.holdout_min_probes` (8) held-out lines → no call** (`pregate.holdout`):
+   "send 8–10" read as a minimum, since an unchecked mapping is not one to ask for.
+6. **Run-in candidates do not ride along.** PIPELINE §8.2 has them in the heading-roles call, but
+   the frozen v1 payload has no slot for them; that needs a v2 prompt.
+New thresholds: `inventory.holdout_{min,max}_probes` (8, 10 — the max held equal to the grammar's
+`"h"` bound by a test), `inventory.chapter_cluster_{min,max}_count` (2, 200).
+Evidence: rows 10.5–10.8 and `role_rules_refuse_what_the_design_forbids` in `crates/oc-ai/tests/tasks.rs`;
+`running_head_label_never_deletes_text` in `crates/openconvert/tests/ai.rs`.
+Affects: ARCHITECTURE §9.6 task 2, PIPELINE §8.2, `oc-ai::task::heading_roles`,
+`oc-structure::headings::levels`, `oc-structure::stage::structure_with`.
+
+## 2026-09-23 · Task 3: strictly increasing boundaries, local chunk indices, a partial answer · Phase 10
+Context: test 10.9 asserts `frontmatter_end_idx >= part_boundaries[0]` is rejected, and ARCHITECTURE
+§9.6 says "all indices strictly increasing". The frozen v1 prompt defines the front boundary as
+"the index of the first heading after the front matter (0 if there is none)" — an *exclusive* end.
+Under that definition a book whose body opens with a part answers `front == parts[0]` correctly.
+Decisions:
+1. **PROVISIONAL — needs maintainer ratification:** the rule is strict, as the test and
+   ARCHITECTURE state it, equality included. A book whose body opens with a part has its correct
+   answer refused (`S.order`) and keeps the deterministic structure — a lost improvement, never a
+   wrong edit. Two ways out, both outside this phase: ratify `front ≤ parts[0]`, or a v2 prompt
+   whose front boundary is the last front-matter heading.
+2. **Each chunk is its own question with indices from zero**, as the prompt's "0 if there is
+   none" and "the number of headings if there is none" read; the answer is mapped back to global
+   indices before stitching. Global indices in a middle chunk would make both conventions
+   ambiguous.
+3. **Stitching compares per-heading places** — zone and part flag — over every heading two chunks
+   both saw; one difference rejects the whole answer (`S.overlap`, test 10.10). The stitched zones
+   must still run front, body, back (`S.order`).
+4. **A chunk the call budget did not grant is not asked**, and the headings only it covered keep
+   the deterministic zones (the degradation order drops "`book_structure` chunks beyond the first",
+   D13.6). The first chunk's answer is still applied to the headings it saw.
+5. **The edit is a zone and a part flag per heading** (`oc_structure::book::ZoneEdits`), applied by
+   `book_structure_with` on the same headings at the same levels; a heading the numbering reads as
+   `Part` stays a part whatever the label says.
+New thresholds: `llm.book_structure_chunk_headings` (200, the design's) and
+`llm.book_structure_chunk_overlap` (20, invented).
+Evidence: rows 10.9–10.11, `agreeing_chunks_stitch_and_ungranted_chunks_are_not_asked`,
+`zone_labels_place_the_headings_they_cover`.
+Affects: ARCHITECTURE §9.6 task 3, PIPELINE §9, `oc-ai::task::book_structure`, `oc-structure::book`.
+
+## 2026-09-23 · The language gate ships empty; an unproven task runs only under `--ai-all-tasks` · Phase 10
+Context: PHASE 10 detail 7 — a task ships "enabled-by-opt-in" only when it is non-inferior to the
+deterministic path with a false-repair rate ≤ 1 % in every category, per language, and "otherwise
+it stays behind a flag"; the gating map lives in `thresholds.toml` as `[ai.task.<task>.languages]`.
+No evaluation can run here: no model is reachable (huggingface.co refused).
+Decisions, each **PROVISIONAL — needs maintainer ratification**:
+1. **All four maps ship empty.** No task has passed, so none is enabled for any language: `--ai`
+   alone asks nothing, and every escalation it would have sent is recorded with
+   `fallback = "language.gate"`. The alternative — enabling all three languages unmeasured — would
+   make the opt-in an unmeasured one, which detail 7 rules out.
+2. **The flag is `--ai-all-tasks`**: with `--ai`, it sets the language gate aside and runs every
+   escalated task for every language. It is how the evaluation's deterministic+LLM arm runs, and
+   how a maintainer experiments; the report records that it was set. It is not in §2.1's flag list,
+   which predates detail 7's "behind a flag".
+3. **`thresholds.toml` gains array values**: a closed set of names is a decision with provenance
+   like any number, so `oc-core`'s build script emits a string array as `&'static [&'static str]`.
+   Everything else still has to be a float, an integer or a boolean.
+4. **The wall-clock hard stop raises `W_LLM_TIME_EXHAUSTED`**, not `W_LLM_BUDGET_EXHAUSTED` as
+   detail 6 writes: that template says "all {calls} of its model calls", and a warning is a factual
+   claim (R10 §6.20). Both are "budget exhausted"; the report says which budget.
+5. **The degradation order drops, after "chunks beyond the first" and `heading_roles`, the first
+   book-structure chunk** — the order D13.6 gives ends there, and metadata is never dropped for
+   another task. With no call left at all, nothing is asked, metadata included, and the budget
+   says so.
+6. **The session stops at the first unreachable provider** (`llm.unavailable`): a dead endpoint is
+   asked once per book, not eight times, and the book is deterministic from there with
+   `W_LLM_UNAVAILABLE` (RT D20).
+Evidence: `crates/oc-ai/tests/plan.rs` (rows 10.21, 10.22 and three session tests).
+Affects: PHASE 10 details 5–7, IMPLEMENTATION_PLAN §2.1, `thresholds.toml`, `oc-core` build script,
+`oc-ai::{plan, session}`.
+
+## 2026-09-23 · The AI step: where it runs, how an edit reaches the book, what is recorded · Phase 10
+Context: PHASE 10's file list puts the step in `crates/oc-core/src/stages/ai.rs`. `oc-core` sits
+below every stage crate (they read `T` from it) and cannot depend on `oc-structure`, and it may not
+reach `oc-ai` either without `oc-structure` reaching it through `oc-core` (ARCHITECTURE §3.1:
+`oc-structure` must not depend on `oc-ai`). The stage driver has lived in `openconvert` since
+Phase 5 (2026-09-20, "the benchmarks live in `openconvert`").
+Decisions:
+1. **The step is `openconvert::ai`**, and `openconvert` gains the `oc-ai` edge — a workspace crate
+   with no network dependency, already reached through `oc-net`. `oc-core` gains nothing: the
+   escalation predicates were already there (Phase 8), and the stage set is unchanged — the step
+   runs inside `structure`'s slot and is timed as `ai` only when it runs.
+2. **An admitted answer is applied by re-running `structure`** with every edit admitted so far
+   plus the new one (`structure_with`), and gates L and V compare that run with the previous one.
+   The final run is checked under the conservation law exactly as the deterministic one is. Nothing
+   patches output; a model's label reaches the book through the code the rule's label took.
+3. **Order:** metadata, heading roles, verse or quote, then book structure over the heading list
+   the earlier edits left. Book structure's `Decision` names the `document` stage (PIPELINE §0.4),
+   although its zones are applied by `oc_structure::book`, where the section tree is built.
+4. **PROVISIONAL — needs maintainer ratification: heading roles is not asked when no heading has a
+   size-rank level** (`pregate.headings`). The edit touches only size-rank levels (2026-09-23,
+   task 2), so an answer could change nothing: gate D, "if deterministic evidence is sufficient,
+   the model is never consulted". The predicate in `oc_core::escalation` is unchanged; this is a
+   pre-gate, like the inventory's.
+5. **A verse label its counter-evidence overrode** is recorded with the model's trace and
+   `fallback = "counter_evidence"`: the model was asked and the rule's answer stood.
+6. **The report** gains `ai` (model id, `--ai-all-tasks`, calls, cached calls, LLM milliseconds),
+   omitted with AI off, and `engine.prompt_version` is set when the step ran.
+Evidence: `crates/openconvert/tests/ai_pipeline.rs` — rows 10.14, 10.15, 10.20, A10.2, and 10.2
+with AI on. With a cooperative in-process model all four tasks are applied somewhere across the
+twenty fixture variants and I-7 holds on every one.
+Affects: PHASE 10 file list, ARCHITECTURE §3.1 (`openconvert → oc-ai`), PIPELINE §0.4, the report.
+
+## 2026-09-23 · `convert --ai`: the flags, the refusal, and where answers are cached · Phase 10
+Context: §2.1 lists `--ai`, `--no-ai`, `--llm-endpoint`, `--llm-api-key-file` and `--model-path`;
+PHASE 9 left their arrival to Phase 10 ("a flag that does nothing is worse than no flag").
+Decisions:
+1. **`--no-ai` wins over `--ai`**, and the AI-only flags (`--ai-all-tasks`, `--llm-endpoint`,
+   `--llm-api-key-file`, `--model-path`) without `--ai` are a usage error, not ignored.
+2. **PROVISIONAL — needs maintainer ratification: an endpoint that is not this machine is refused
+   (exit 2) until Phase 11.** D10 requires consent before a book's text leaves the machine; the job
+   spec has `non_loopback_consent` and the command line has nothing yet. Phase 11 (A11.2) adds it.
+3. **Every other failure to reach a model converts deterministically with `W_LLM_UNAVAILABLE`**
+   and a reason (no `llama-server`, no installed model, a server that never became ready, an
+   endpoint that did not answer) — exit 0 (RT D20). With the shipped, empty language maps nothing
+   is asked, so a dead endpoint is only noticed under `--ai-all-tasks`; the banner is not raised for
+   a call that was never made.
+4. **The engine-owned server** is `OC_LLAMA_SERVER`, else a `llama-server` beside the engine (the
+   desktop bundle's `externalBin`, D8); the model is `--model-path` or the registry default in the
+   model store. It is started per conversion and stopped when the conversion ends. Four thresholds:
+   `llm.{load_timeout_secs, call_timeout_secs, health_probe_timeout_millis, sidecar_context_tokens}`.
+5. **The cache lives in the data directory** (`<data>/openconvert/cache/llm`, ARCHITECTURE §9.4),
+   which `openconvert::data_dir` now defines once for the model store and the cache alike. An
+   external endpoint's model id is `--model-path`'s file stem when given, else `endpoint@<host>` —
+   the cache cannot know which model sits behind someone else's server; Phase 11 names providers.
+6. **`llm` NDJSON events** are emitted after the conversion, one per call, cached ones included.
+Evidence: `crates/openconvert/tests/ai_cli.rs` (rows 10.16, 10.19 and two more);
+`ai_endpoint::only_this_machine_is_loopback`.
+Affects: IMPLEMENTATION_PLAN §2.1, D10, Phase 11, `openconvert::{ai_endpoint, data_dir}`, `cmd_convert`.
+
+## 2026-09-23 · The AI evaluation: what is built, what is seeded, what cannot run here · Phase 10
+Context: PHASE 10 detail 7 and rows 10.17/10.18 — run the corpus twice per task, tabulate the paired
+2×2 per assertion category and language, McNemar (χ², exact below 25), the false-repair rate
+`c / n` per category, and gate every enabled task at ≤ 1 %. No model is reachable here and the
+corpus is not downloaded.
+Decisions:
+1. **`eval/src/oc_eval/compare/`** holds the statistics (`mcnemar`, reusing G7's exact test and
+   non-inferiority), the table and gate (`false_repair`), the gold format (`gold`), the scoring of
+   gold items against both paths' answers (`score`) and the document (`render`).
+   `python -m oc_eval.compare --render | --check | --gate`; CI's eval job runs `--check` and `--gate`.
+2. **Standard library, not scipy**, for both McNemar forms (`math.comb`, `math.erfc`), as Phase 9's
+   G7 did: the plan names scipy, and it stays a declared dependency, but an untyped import would cost
+   the mypy gate for two closed-form functions.
+3. **The assertion category is the gold item's `category`** — the metadata field, the heading role,
+   the zone, the block kind. Phase 7's `.assert.json` vocabulary has no per-task AI categories; a
+   gold item is one assertion.
+4. **The four gold sets are seeds read off the Typst fixtures' sources** (`ours(typst)`, 47 items).
+   They fix the format; D18 forbids fitting or deciding on `ours(*)` alone, and the document shows
+   each set against `calibration.min_gold_instances_per_task` (200).
+5. **With nothing enabled, row 10.18's gate passes vacuously and says so**; an enabled task with no
+   outcomes fails ("a gate that did not run is never a pass", Phase 9). `docs/AI_EVALUATION.md`
+   records that no evaluation has run. **Unverified here:** A10.4 and A10.5 — every measured number.
+6. `oc_eval.model_gate.fixtures` now picks each task's **seed** cassette by its index name
+   (`<task>__a3__v1`): Phase 10 recorded more cassettes beside the seeds, and the loader assumed one.
+Evidence: `eval/tests/test_ai_evaluation.py` (rows 10.17, 10.18 and four more).
+Affects: PHASE 10 detail 7, D18, `thresholds.toml` (`ai_eval.*`), CI's eval job, `docs/AI_EVALUATION.md`.

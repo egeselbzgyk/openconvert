@@ -256,6 +256,71 @@ fn remove_level_skips(assignments: &mut [HeadingAssignment]) {
     }
 }
 
+/// What becomes of a heading the heading-roles task said is not one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HeadingDemotion {
+    /// An ordinary paragraph.
+    Paragraph,
+    /// An epigraph: the paragraph, wrapped.
+    Epigraph,
+}
+
+/// The heading-roles task's edit, in this crate's terms (PHASE 10 detail 3).
+///
+/// Levels and demotions, keyed by cluster. There is no way to say "remove": label authority is
+/// not deletion authority (D13.5), and the type is where that is enforced.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct HeadingEdits {
+    pub levels: std::collections::BTreeMap<ClusterId, u8>,
+    pub demote: std::collections::BTreeMap<ClusterId, HeadingDemotion>,
+}
+
+impl HeadingEdits {
+    pub fn is_empty(&self) -> bool {
+        self.levels.is_empty() && self.demote.is_empty()
+    }
+}
+
+/// Apply the heading-roles edit to the levels `assign_levels` produced.
+///
+/// Only a heading whose level came from **size rank** is touched: size rank is the fallback the
+/// task stands in for (ARCHITECTURE §6.1). A level the outline or the printed contents page
+/// bound, or that a numbering pattern refined, is the book's own statement and stands.
+///
+/// A demoted heading leaves the heading list — its block then flows as the paragraph it is,
+/// through the same path every other paragraph takes — and an epigraph's block is returned so the
+/// stage can wrap it. The skip repair runs again, so a model's levels meet the same rule the
+/// deterministic ones did.
+pub fn apply_heading_edits(
+    assignments: Vec<HeadingAssignment>,
+    edits: &HeadingEdits,
+) -> (Vec<HeadingAssignment>, std::collections::BTreeSet<BlockId>) {
+    let mut epigraphs = std::collections::BTreeSet::new();
+    if edits.is_empty() {
+        return (assignments, epigraphs);
+    }
+    let mut kept = Vec::with_capacity(assignments.len());
+    for mut assignment in assignments {
+        if assignment.source == LevelSource::SizeRank {
+            match edits.demote.get(&assignment.cluster) {
+                Some(HeadingDemotion::Paragraph) => continue,
+                Some(HeadingDemotion::Epigraph) => {
+                    epigraphs.insert(assignment.block);
+                    continue;
+                }
+                None => {}
+            }
+            if let Some(level) = edits.levels.get(&assignment.cluster) {
+                assignment.level = oc_model::doc::Heading::clamp_level(*level);
+            }
+        }
+        kept.push(assignment);
+    }
+    remove_level_skips(&mut kept);
+    (kept, epigraphs)
+}
+
 fn share(numerator: usize, denominator: usize) -> f32 {
     if denominator == 0 {
         return 0.0;

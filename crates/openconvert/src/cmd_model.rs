@@ -228,38 +228,5 @@ impl<W: Write> DownloadProgress for LiveProgress<'_, W> {
 }
 /// Where models live when `--dir` is not given: the per-OS data directory.
 fn default_store() -> PathBuf {
-    data_dir().join("openconvert").join("models")
-}
-
-#[cfg(target_os = "linux")]
-fn data_dir() -> PathBuf {
-    std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .filter(|path| path.is_absolute())
-        .or_else(|| home().map(|home| home.join(".local").join("share")))
-        .unwrap_or_else(|| PathBuf::from("."))
-}
-
-#[cfg(target_os = "macos")]
-fn data_dir() -> PathBuf {
-    home()
-        .map(|home| home.join("Library").join("Application Support"))
-        .unwrap_or_else(|| PathBuf::from("."))
-}
-
-#[cfg(windows)]
-fn data_dir() -> PathBuf {
-    std::env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."))
-}
-
-#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
-fn data_dir() -> PathBuf {
-    home().unwrap_or_else(|| PathBuf::from("."))
-}
-
-#[cfg(unix)]
-fn home() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from)
+    openconvert::data_dir::models()
 }

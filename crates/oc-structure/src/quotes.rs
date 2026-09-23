@@ -24,6 +24,7 @@
 //! the output is one enum, and **the change is a CSS class, so a wrong answer degrades
 //! presentation and cannot corrupt text**.
 
+use oc_core::escalation::{self, LineBand};
 use oc_core::thresholds::Thresholds;
 use oc_model::confidence::{Confidence, Signal};
 use oc_model::ids::BlockId;
@@ -143,16 +144,28 @@ pub fn classify_indented(
 
         // The monospace test is the one unambiguous signal in the whole section: a family
         // flagged fixed-pitch is preformatted and nothing else is.
+        //
+        // Everything else is read against the verse band through `oc_core::escalation`, the one
+        // definition of its edges: the block this classifier calls ambiguous is the block the
+        // `verse_quote` predicate escalates, and the two cannot disagree about one on a bound
+        // (`docs/DECISIONS_LOG.md`, 2026-09-22). The block budget is the AI step's to spend, not
+        // the classifier's, so it is not what is asked here.
+        let evidence = escalation::VerseQuoteEvidence {
+            indented: true,
+            short_line_ratio: short_ratio,
+            blocks_remaining: u32::MAX,
+        };
         let kind = if monospace {
             IndentedKind::Pre
-        } else if f64::from(short_ratio) > t.verse.short_line_ratio_max
-            && block.lines.len() >= min_lines
-        {
-            IndentedKind::Verse
-        } else if f64::from(short_ratio) < t.verse.short_line_ratio_min {
-            IndentedKind::BlockQuote
-        } else {
+        } else if escalation::verse_quote(&evidence, t).fires() {
             IndentedKind::Ambiguous
+        } else {
+            match escalation::line_band(short_ratio, t) {
+                LineBand::Short if block.lines.len() >= min_lines => IndentedKind::Verse,
+                LineBand::Full => IndentedKind::BlockQuote,
+                // Short lines, and too few of them to be a stanza.
+                LineBand::Short | LineBand::Between => IndentedKind::Ambiguous,
+            }
         };
 
         let resolved = match kind {
@@ -297,6 +310,111 @@ mod tests {
             "a dash \u{2014} followed by a whole sentence that runs on and on"
         ));
         assert!(!ends_with_attribution("a dash \u{2014} lowercase tail"));
+    }
+
+    fn line(x0: f32, width: f32, y: f32) -> crate::view::LineView {
+        let bbox = oc_model::geom::Rect {
+            x0,
+            y0: y,
+            x1: x0 + width,
+            y1: y + 8.0,
+        };
+        crate::view::LineView {
+            line: oc_model::text::Line {
+                runs: Vec::new(),
+                bbox,
+                baseline_y: y + 7.0,
+                ends_with_hyphen: false,
+                indent_pt: 0.0,
+                right_gap_pt: 0.0,
+            },
+            text: "word word word".to_owned(),
+            runs: Vec::new(),
+        }
+    }
+
+    fn block(page: u32, x0: f32, widths: &[f32]) -> BlockView {
+        let lines: Vec<_> = widths
+            .iter()
+            .enumerate()
+            .map(|(index, width)| line(x0, *width, 100.0 + 10.0 * index as f32))
+            .collect();
+        let bbox = oc_model::geom::Rect {
+            x0,
+            y0: 100.0,
+            x1: x0 + widths.iter().copied().fold(0.0, f32::max),
+            y1: 100.0 + 10.0 * widths.len() as f32,
+        };
+        let text = format!("block on page {page} at {x0}");
+        BlockView {
+            id: BlockId::derive(page, bbox, &text),
+            page,
+            order: page,
+            bbox,
+            column: 0,
+            kind_hint: oc_model::layout::BlockKindHint::Text,
+            text,
+            lines,
+            column_width_pt: 400.0,
+            space_above_pt: 0.0,
+            page_height_pt: 792.0,
+        }
+    }
+
+    /// The open finding of `docs/DECISIONS_LOG.md` 2026-09-22, closed: a block whose short-line
+    /// ratio is **exactly** `verse.short_line_ratio_min` — 7 short lines of 20 — is inside the
+    /// closed band, so it is ambiguous and escalated, not a block quotation.
+    ///
+    /// The ratio is measured as an `f32`, and 0.35 as an `f32` is 0.3499999940…; widened to `f64`
+    /// and compared with the threshold's `f64` 0.35 it reads as *below* the band. The classifier
+    /// now asks `oc_core::escalation` — the one definition of the band the escalation predicate
+    /// also uses — so the two cannot disagree about a block again.
+    #[test]
+    fn a_block_exactly_on_the_lower_bound_is_ambiguous_not_a_quotation() {
+        use oc_core::escalation::{line_band, verse_quote, LineBand, VerseQuoteEvidence};
+        use oc_core::thresholds::T;
+
+        // Three body blocks at the margin, so the margin is 0.
+        let mut blocks = vec![
+            block(0, 0.0, &[300.0, 300.0]),
+            block(1, 0.0, &[300.0, 300.0]),
+            block(2, 0.0, &[300.0, 300.0]),
+        ];
+        // Twenty counted lines, seven of them short, and a last line that is not counted.
+        let mut widths = vec![300.0f32; 13];
+        widths.extend([100.0f32; 7]);
+        widths.push(50.0);
+        blocks.push(block(3, 40.0, &widths));
+        let subject = blocks[3].id;
+
+        let (classified, candidates) = classify_indented(&blocks, 10.0, &T);
+        let entry = classified
+            .iter()
+            .find(|entry| entry.block == subject)
+            .expect("the indented block is classified");
+        let ratio = entry
+            .confidence
+            .signals
+            .iter()
+            .find(|signal| signal.name == "short_line_ratio")
+            .map(|signal| signal.value)
+            .expect("the ratio is recorded");
+        assert_eq!(ratio, T.verse.short_line_ratio_min as f32, "on the bound");
+        assert_eq!(line_band(ratio, &T), LineBand::Between);
+
+        assert_eq!(entry.kind, IndentedKind::Ambiguous);
+        assert_eq!(entry.resolved, IndentedKind::BlockQuote);
+        assert!(candidates
+            .iter()
+            .any(|candidate| candidate.block == subject));
+
+        // And the escalation predicate agrees about the very same block.
+        let evidence = VerseQuoteEvidence {
+            indented: true,
+            short_line_ratio: ratio,
+            blocks_remaining: 1,
+        };
+        assert!(verse_quote(&evidence, &T).fires());
     }
 
     /// The default is PIPELINE §8.6's, stated in the type: an ambiguous block is *resolved*

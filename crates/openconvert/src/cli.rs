@@ -56,7 +56,12 @@ pub struct ConvertArgs {
     /// which would make three template files that only a GUI could read — and the GUI is Phase 12.
     /// Precedence is CLI > job-spec either way (D13.11), so the flag is the spec's field named.
     pub locale: oc_core::warnings::Locale,
+    /// How the model is reached, when it is (PHASE 10). `None` is `ai.enabled = false`: the v1
+    /// default, and what `--no-ai` forces whatever else the line says.
+    pub ai: Option<AiArgs>,
 }
+
+pub use openconvert::ai_endpoint::AiArgs;
 
 /// `validate <INPUT.epub>`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -157,6 +162,8 @@ pub enum CliError {
     ValidateArgs,
     #[error("model needs pull <ID>, list, or remove <ID>")]
     ModelArgs,
+    #[error("`{0}` only means something with `--ai`")]
+    NeedsAi(&'static str),
 }
 
 pub const USAGE: &str = "\
@@ -167,6 +174,9 @@ usage:
                                   [--password <STRING>] [--progress none|json]
                                   [--modified <YYYY-MM-DDThh:mm:ssZ>] [--report <PATH.json>]
                                   [--locale en|de|tr]
+                                  [--ai [--ai-all-tasks] [--llm-endpoint <URL>]
+                                        [--llm-api-key-file <PATH>] [--model-path <PATH>]]
+                                  [--no-ai]
   openconvert validate <INPUT.epub> [--tier 1|2] [--json] [--epubcheck-jar <PATH>]
   openconvert inspect <INPUT.pdf> [--json] [--pages <RANGE>] [--password <STRING>]
                                   [--progress none|json] [--max-pages <N>]
@@ -297,7 +307,13 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
         modified: None,
         report: None,
         locale: oc_core::warnings::Locale::En,
+        ai: None,
     };
+    let mut ai = false;
+    let mut no_ai = false;
+    let mut ai_args = AiArgs::default();
+    // The first AI-only flag given, for the error when `--ai` is not.
+    let mut ai_only: Option<&'static str> = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -334,8 +350,34 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
                 parsed.progress = parse_progress(&value)?;
             }
             // v1 ships with the LLM off, so `--no-ai` is the default spelled out. It is
-            // accepted from day one because every script that wants determinism will write it.
-            "--no-ai" => {}
+            // accepted from day one because every script that wants determinism will write it,
+            // and it wins over `--ai`: a script that asks for determinism gets it.
+            "--no-ai" => no_ai = true,
+            "--ai" => ai = true,
+            "--ai-all-tasks" => {
+                ai_args.all_tasks = true;
+                ai_only.get_or_insert("--ai-all-tasks");
+            }
+            "--llm-endpoint" => {
+                ai_args.endpoint = Some(
+                    args.next()
+                        .ok_or(CliError::MissingValue("--llm-endpoint"))?,
+                );
+                ai_only.get_or_insert("--llm-endpoint");
+            }
+            "--llm-api-key-file" => {
+                ai_args.api_key_file = Some(PathBuf::from(
+                    args.next()
+                        .ok_or(CliError::MissingValue("--llm-api-key-file"))?,
+                ));
+                ai_only.get_or_insert("--llm-api-key-file");
+            }
+            "--model-path" => {
+                ai_args.model_path = Some(PathBuf::from(
+                    args.next().ok_or(CliError::MissingValue("--model-path"))?,
+                ));
+                ai_only.get_or_insert("--model-path");
+            }
             "--help" | "-h" => return Ok(Command::Print(USAGE.to_owned())),
             other if other.starts_with('-') => {
                 return Err(CliError::UnknownOption(other.to_owned()))
@@ -343,6 +385,12 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
             other => inputs.push(PathBuf::from(other)),
         }
     }
+
+    // A flag that does nothing is worse than no flag: the AI-only ones need `--ai`.
+    if let (false, Some(flag)) = (ai, ai_only) {
+        return Err(CliError::NeedsAi(flag));
+    }
+    parsed.ai = (ai && !no_ai).then_some(ai_args);
 
     match inputs.len() {
         1 => {

@@ -3,8 +3,8 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 10
-CURRENT_ITEM: 10.1 — not started. Phase 9 is complete and merged (2026-09-23); its provisional
+CURRENT_PHASE: 11
+CURRENT_ITEM: 11.1 — not started. Phase 10 is complete and merged (2026-09-23); its provisional
               decisions are listed in the Blocked section. Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
@@ -61,7 +61,12 @@ LAST_UPDATED: 2026-09-23
       the registry pins, the live tests and every gate run are unverified and listed in the Blocked
       section. A follow-up (`fix/phase-09-llama-pins`) filled the llama.lock digests and checked
       them against downloads.)*
-- [ ] **Phase 10** — AI-assisted decisions (the four tasks)
+- [x] **Phase 10** — AI-assisted decisions (the four tasks)
+      *(all 22 named tests exist and pass, 10.17/10.18 as pytest functions; 40 Rust and 6 Python
+      tests added, plus one live test behind `live-llm`; built on `phase/10-ai-decisions` and merged
+      into `main` 2026-09-23. `--no-ai` output is byte-identical to the pre-phase snapshot. No model
+      is reachable here, so A10.4/A10.5 — McNemar and the false-repair rate — are unmeasured, the
+      language maps ship empty, and every provisional decision is in the Blocked section.)*
 - [ ] **Phase 11** — BYO providers
 - [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
 - [ ] **Phase 13** — OCR  *(VD-g must close)*
@@ -168,14 +173,112 @@ What a fresh session needs:
 
 ## Current work item
 
-**Phase 10 — AI-assisted decisions (the four tasks).** Not started. What it builds on from Phase 9:
-`oc_core::sidecar` (an `OwnedServer` or an external endpoint via `LlmEndpoint::choose`),
-`oc_net::transport::HttpTransport`, `oc_ai::prefix::check` for `W_LLM_PREFIX_COLD`, and
-`OwnedServer::kill_if_idle`, whose calling loop is Phase 10's. The `convert` flags `--ai`,
-`--llm-endpoint`, `--llm-api-key-file` and `--model-path` arrive with Phase 10 as well. Before any
-live measurement, the registry pins have to be filled on a machine that can reach huggingface.co.
-The pinned llama-server is already fetchable and verified here (`cargo run -p xtask --
-fetch-llama-server`).
+**Phase 11 — BYO providers.** Not started. What it builds on from Phase 10: `convert --ai` with
+`--llm-endpoint` (loopback only today — a non-loopback host is exit 2 until Phase 11's consent),
+`openconvert::ai_endpoint::open`, `oc_ai::session::Session`, and the external endpoint's model id
+(`--model-path`'s stem or `endpoint@<host>`), which a named provider should replace. Enabling any AI
+task for a language still needs the evaluation (Blocked 9).
+
+## Phase 10 — built on `phase/10-ai-decisions`, merged 2026-09-23
+
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P10.1** one definition of the verse band (`oc_core::escalation::line_band`), used by
+      `oc-structure::quotes`; the pre-phase `--no-ai` EPUB hashes pinned — the open finding of
+      2026-09-22, and the byte-identity artefact the rest of the phase is held to
+- [x] **P10.2** `oc-structure::escalate`: the four predicates over the stage's evidence, the
+      `EscalationRecord`, in `Conversion` and the report with AI off — rows 10.1, 10.2
+- [x] **P10.3** `oc-ai::task::metadata`: the verbatim-substring check — rows 10.3, 10.4
+- [x] **P10.4** `oc-ai::task::heading_roles`: pre-gate, held-out check, label ≠ deletion — rows 10.5–10.8
+- [x] **P10.5** `oc-ai::task::book_structure`: boundaries, chunking with overlap — rows 10.9–10.11
+- [x] **P10.6** `oc-ai::task::verse_quote`: counter-evidence, the 30-block cap — rows 10.12, 10.13
+- [x] **P10.7** the plan: degradation order, language gate, wall-clock meter — rows 10.21, 10.22
+- [x] **P10.8** `openconvert`: the AI step in the pipeline — rows 10.14, 10.15, 10.20
+- [x] **P10.9** `convert --ai` and the endpoint flags; a missing sidecar degrades — rows 10.16, 10.19
+- [x] **P10.10** `eval/compare`: McNemar, false repair, gold sets, `docs/AI_EVALUATION.md` — rows 10.17, 10.18
+- [x] **P10.11** the Definition of Done, CHANGELOG, merge
+
+What a fresh session needs:
+
+- **No model is reachable here** (huggingface.co and GitHub release downloads: 403 on CONNECT). Every
+  live measurement is unverified here; tests use cassettes recorded through the stub and synthetic
+  data. `ai.enabled = false` stays the default.
+- **`--no-ai` output is pinned**: `crates/openconvert/tests/snapshots/ai__no_ai_epub_sha256.snap`
+  was written at `8f045a1` (Phase 9's merge), before any Phase 10 change. It must not move.
+- **The tagged fixtures** are a separate invocation: `cargo run -p xtask -- fixtures` and
+  `cargo run -p xtask -- fixtures --keep-structtree` (oc-pdf's `struct_tree_is_read_from_the_catalogue`
+  needs the second).
+- **Escalation records** (`oc_structure::escalate`) are gathered after `structure` on every
+  conversion and land in `Conversion.escalations` and the report's `escalations`, AI on or off.
+  `report__report_f07.snap` gained its one record (the ambiguous block); the EPUB did not move.
+- **Phase 10 cassettes** are scripted answers recorded through the stub (`model_id = "stub"`),
+  written by `crates/oc-ai/tests/tasks.rs::replayed` under `OC_AI_RECORD_SEEDS=1` — record with
+  `-j 1` (nextest runs tests as parallel processes and the index is read-modify-write). A cassette is
+  keyed by its *question*, so two scripted answers need two different payloads.
+- **A task runs through an `Asker`** (`oc_ai::session`): `task::<name>::run` pre-gates, asks, gates
+  S, validates, and returns `TaskResult::{Refused, Unasked, Rejected, Admitted}` with the edit.
+  Admitted edits are applied by **re-running `structure`** — `oc_structure::stage::structure_with`
+  with `StructureEdits` — never by patching output. `openconvert::convert::prepare` gives a test the
+  stage's input.
+- **`oc_ai::session::Session`** is the production `Asker`: stop → wall-clock share → budget →
+  cache → provider, in that order; `oc_ai::plan` decides the grant before any call (language gate,
+  degradation order). **The language maps ship empty** (nothing evaluated): `--ai` alone asks
+  nothing; `--ai-all-tasks` runs unproven tasks (DECISIONS_LOG 2026-09-23, PROVISIONAL).
+- **The AI step is `openconvert::ai::run`**, called from `convert::convert_prepared` when an
+  `AiContext` is given (`convert` passes none). Tests drive it with in-process providers
+  (`crates/openconvert/tests/ai_pipeline.rs`: `Echo` answers every task from its payload).
+- **`convert --ai`** opens a provider in `openconvert::ai_endpoint` (loopback endpoint, or an
+  owned `llama-server` from `OC_LLAMA_SERVER`/beside the binary with `--model-path` or the store's
+  default); a non-loopback endpoint is exit 2 until Phase 11; anything else unavailable is
+  `W_LLM_UNAVAILABLE`, exit 0. The answer cache is `openconvert::data_dir::llm_cache()`.
+- **The evaluation** is `eval/src/oc_eval/compare` (`python -m oc_eval.compare --render|--check|--gate`,
+  run from `eval/` with `PYTHONPATH=$PWD/src` in a worktree — the shared venv's `.pth` points at
+  main's sources). `eval/data/ai_eval/outcomes.jsonl` is empty: no evaluation has run.
+- **Task validations are gate failures with codes**: `V.verbatim`, `S.range`, `S.order`,
+  `S.overlap`, `S.holdout`, `S.roles` (`oc_ai::gates::GateFailure`).
+- **The pinned llama-server is fetchable and verified** since main's `fix/phase-09-llama-pins`
+  (`cargo run -p xtask -- fetch-llama-server`); a model still cannot be (huggingface.co refused).
+- Build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` (disk is shared with two other
+  worktrees; the whole workspace is ~3.6 GB that way).
+
+### Phase 10 — Definition of Done
+
+`IMPLEMENTATION_PLAN.md` §0.3, row by row. Checked on this machine unless the row says otherwise.
+
+| Row | State |
+|---|---|
+| Every named test exists and passes | **Yes.** All 22 rows under their names: 10.1 in `oc-structure`, 10.3–10.13 and 10.21–10.22 in `oc-ai`, 10.2, 10.8, 10.14–10.16, 10.19, 10.20 in `openconvert`, 10.17/10.18 as pytest functions (`test_` prefix). Plus 24 Rust and 4 Python additions, and `ai_against_a_live_model_conserves_every_book` behind `--features live-llm` (fails loudly without a server and model — **unverified here**: no model can be fetched). |
+| `cargo nextest run --workspace` green | **Yes**, 635 tests (595 + 40). eval: 220 pytest tests (+ 6). |
+| Green on Linux/macOS/Windows CI | **Unverified here:** GitHub Actions is disabled. The cross-`cargo check` Phase 9 used no longer gets past `blake3`'s C build here (`ml64.exe` / Apple `cc` missing) — a toolchain limit of this box, not a change of this phase. |
+| clippy `-D warnings` clean | **Yes**, workspace, all targets, all features (including `live-llm`). |
+| `cargo fmt --check` clean | **Yes.** ruff, ruff format and mypy clean on `eval/`. |
+| `cargo deny check` clean | **Yes.** No new external crate; `openconvert → oc-ai` and `oc-structure → blake3` are workspace edges. |
+| `cargo xtask thresholds-lint` clean | **Yes.** 27 thresholds added, each with source, evidence, owner and `review_by`; string arrays are a new value type. |
+| Every Given/When/Then demonstrated | **A10.1, A10.3, A10.6 yes; A10.2 yes with an in-process model, live unverified; A10.4, A10.5 unverified here** (below). |
+| `docs/CHANGELOG.md` entry | **Yes.** |
+| No `TODO`/`FIXME` without an issue number | **Yes**, `xtask ci-lint` clean. |
+
+- **A10.1** — `ai_default_is_off` (the binary: no `llm` event, no `ai` report section, no model
+  trace; the escalations are still recorded) and `no_ai_output_is_byte_identical_to_the_pre_phase_snapshot`
+  (all ten fixtures' `--no-ai` EPUB hashes, pinned at `8f045a1` before any change).
+- **A10.2** — `a_book_with_no_outline_and_boilerplate_metadata` (≤ 8 calls, the model's title in
+  `dc:title` with `source = llm`), `wallclock_share_hard_stop` (injected clock),
+  `task_priority_order_on_budget_overflow`; every admitted edit passes S, the task validation, L
+  and V, and every escalation ends in a `Decision`. **Unverified here:** the same against a real
+  model (the live test).
+- **A10.3** — `ai_edits_are_conserving_end_to_end`: every fixture, as filed and with outline and
+  title removed, with a cooperative in-process model whose answers are applied (all four tasks are
+  applied somewhere across the twenty variants): I-7 holds on every one.
+- **A10.4 / A10.5 — unverified here.** No model, no corpus: `eval/data/ai_eval/outcomes.jsonl` is
+  empty and `docs/AI_EVALUATION.md` says no evaluation has run. The harness is tested
+  (`test_mcnemar_and_false_repair_reported_per_category`, `test_false_repair_rate_under_one_percent`),
+  and with no task enabled the gate passes vacuously and says so.
+- **A10.6** — `running_head_label_never_deletes_text`: 2 000 generated mappings, outlines removed
+  so the mappings act; mutation-checked (emptying a demoted block fails it). The edit type has no
+  removal variant.
+- **Regression artefacts:** 12 scripted cassettes recorded through the stub beside the four seeds;
+  the four gold sets (47 seed items). "One cassette per task per gold fixture" needs a model's
+  answers — **unverified here**.
 
 Phase 7.5 is **parked, not done**. Its section below is the resume point. The deterministic
 baseline Phase 10 will be compared against is the parked one: 79 of 104 corpus documents clean,
@@ -794,7 +897,7 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 
 STATUS stays IN_PROGRESS: each item below was decided in the most conservative way consistent with
 DECISIONS.md, logged in `docs/DECISIONS_LOG.md` (2026-09-23) as **PROVISIONAL — needs maintainer
-ratification**, and worked around. None of them blocks Phase 10's deterministic-side work.
+ratification**, and worked around. None of them blocks Phase 11's work.
 
 1. **Registry pins** — `models.toml` still has `TODO_` `revision`/`sha256` and `size_bytes = 0` for
    all four entries: huggingface.co is refused by this sandbox's egress policy. Fill them on a
@@ -820,6 +923,26 @@ ratification**, and worked around. None of them blocks Phase 10's deterministic-
    is being built concurrently.
 8. **G8's probes are generated, not native-speaker authored**, and their labels follow from their
    templates.
+
+Phase 10's, each logged in `docs/DECISIONS_LOG.md` (2026-09-23):
+
+9. **The language maps ship empty** (`[ai.task.<task>.languages] = []`): no task has passed an
+   evaluation, so `--ai` alone asks nothing, and `--ai-all-tasks` is the flag an unproven task stays
+   behind. Enabling a language needs a McNemar run on the real strata (A10.4/A10.5).
+10. **Book-structure boundaries are strictly increasing**, `front == parts[0]` included, although
+    the frozen v1 prompt makes that a legitimate answer for a book whose body opens with a part.
+    Ratify `≤`, or write a v2 prompt.
+11. **What a heading mapping may change:** size-rank levels only; `body`/`epigraph` demote,
+    `other`/`caption`/`running_head` change nothing; a mapping that demotes every heading is
+    refused; no silhouette check (none is computed); run-in candidates do not ride along (no slot in
+    the v1 payload); fewer than 8 held-out lines → no call; no size-rank heading → no call
+    (`pregate.headings`).
+12. **A non-loopback `--llm-endpoint` is exit 2** until Phase 11 brings consent (D10).
+13. **The wall-clock stop raises `W_LLM_TIME_EXHAUSTED`**, not detail 6's `W_LLM_BUDGET_EXHAUSTED`,
+    whose template speaks of calls.
+14. **Invented numbers**, each `provisional` with owner and `review_by`: the chunk overlap (20), the
+    metadata size-category ratios and input cap, the deep-indent em, the centred-cluster ratio, the
+    sidecar timeouts, and `ai_eval.{alpha, noninferiority_margin}`.
 
 ## Phase 7 — Definition of Done
 
@@ -1330,3 +1453,15 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P9.9      eval: model_gate.py, probes, fixtures, MODEL_GATE.md (9.17, 9.20 + 17)  b9c0ab4
 2026-09-23  PHASE 9   COMPLETE on phase/09-local-model - DoD checked; live model, gate runs, macOS/Windows and CI unverified here
 2026-09-23  P9.fix    xtask: llama.lock b10456 digests pinned, all four checked by download (+1)  2432458
+2026-09-23  P10.1     oc-structure: the verse band read through oc_core::escalation; --no-ai EPUB hashes pinned (+ 2)  33b00ce
+2026-09-23  P10.2     oc-structure: escalate.rs, EscalationRecord in Conversion and the report (10.1, 10.2 + 2)  d91276e
+2026-09-23  P10.3     oc-ai: task 1, the verbatim-substring check and apply_metadata (10.3, 10.4 + 1)  85f2e3a
+2026-09-23  P10.4     oc-ai: task 2, pre-gate, held-out check, role rules; structure_with (10.5-10.8 + 4)  d8e4567
+2026-09-23  P10.5     oc-ai: task 3, strict boundaries, chunks agreeing on the overlap (10.9-10.11 + 2)  ea56fb9
+2026-09-23  P10.6     oc-ai: task 4, batches of ten, the 30-block cap, counter-evidence (10.12, 10.13)  b914848
+2026-09-23  P10.7     oc-ai: plan (language gate, degradation order) and Session (10.21, 10.22 + 3)  56cc540
+2026-09-23  P10.8     openconvert: the AI step, applied through structure, gated, recorded (10.14, 10.15, 10.20 + 3)  ffb529d
+2026-09-23  P10.9     openconvert: convert --ai, endpoint flags, missing model degrades (10.16, 10.19 + 3)  1a506e2
+2026-09-23  P10.10    eval: McNemar and false repair per task/category/language, the gate (10.17, 10.18 + 4)  203533e
+2026-09-23  P10.11    openconvert: live convert --ai behind live-llm; CHANGELOG; the DoD  7659dae
+2026-09-23  PHASE 10  COMPLETE on phase/10-ai-decisions - DoD checked; A10.4/A10.5, live model, macOS/Windows and CI unverified here

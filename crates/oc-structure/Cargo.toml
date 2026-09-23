@@ -16,6 +16,7 @@ oc-text = { path = "../oc-text", version = "0.1.0" }
 oc-layout = { path = "../oc-layout", version = "0.1.0" }
 serde.workspace = true
 uuid.workspace = true
+blake3.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

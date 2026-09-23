@@ -120,18 +120,46 @@ pub struct VerseQuoteEvidence {
     pub blocks_remaining: u32,
 }
 
+/// Where a block's short-line ratio falls against the verse band
+/// `[verse.short_line_ratio_min, verse.short_line_ratio_max]`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LineBand {
+    /// Below the band: the lines fill their measure, as a quotation's do.
+    Full,
+    /// Inside the band, bounds included: the line lengths say neither verse nor quotation.
+    Between,
+    /// Above the band: the lines stop short, as verse does.
+    Short,
+}
+
+/// The band a short-line ratio falls in — **the one definition of the band's edges**.
+///
+/// [`verse_quote`] reads it, and so does `oc-structure`'s classifier of indented blocks, so the
+/// block the classifier calls ambiguous and the block this predicate escalates are the same block
+/// by construction. Compared in `f32`, the space the ratio is measured in: widening the ratio to
+/// the thresholds' `f64` instead would put a block exactly on the closed lower bound outside it —
+/// `f64::from(0.35f32)` is 0.3499999… — and a block with 7 of 20 short lines would read as "full
+/// lines" (`docs/DECISIONS_LOG.md`, 2026-09-22).
+pub fn line_band(short_line_ratio: f32, t: &Thresholds) -> LineBand {
+    if short_line_ratio < t.verse.short_line_ratio_min as f32 {
+        LineBand::Full
+    } else if short_line_ratio > t.verse.short_line_ratio_max as f32 {
+        LineBand::Short
+    } else {
+        LineBand::Between
+    }
+}
+
 /// Verse or quote: indented, **and** a short-line ratio inside
 /// `[verse.short_line_ratio_min, verse.short_line_ratio_max]` — where the line lengths say neither
 /// verse nor quotation — **and** the book's block budget has room.
 pub fn verse_quote(evidence: &VerseQuoteEvidence, t: &Thresholds) -> Verdict {
-    // Compared in `f32`, the space the ratio is measured in. Widening the ratio instead would put
-    // a block exactly on the closed bound outside it: `f64::from(0.35f32)` is 0.3499999…
-    let ratio = evidence.short_line_ratio;
+    let band = line_band(evidence.short_line_ratio, t);
     if !evidence.indented {
         Verdict::Abstains("not indented: a paragraph")
-    } else if ratio < t.verse.short_line_ratio_min as f32 {
+    } else if band == LineBand::Full {
         Verdict::Abstains("full lines: a block quotation")
-    } else if ratio > t.verse.short_line_ratio_max as f32 {
+    } else if band == LineBand::Short {
         Verdict::Abstains("short lines: verse")
     } else if evidence.blocks_remaining == 0 {
         Verdict::Abstains("the book's block budget is spent")

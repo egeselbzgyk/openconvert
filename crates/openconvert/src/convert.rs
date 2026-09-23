@@ -87,6 +87,11 @@ pub struct Conversion {
     pub producer_family: oc_pdf::producer::ProducerFamily,
     /// How many pages of each class the document has (D13.10), by the class's report name.
     pub page_classes: BTreeMap<String, u32>,
+    /// Every choice the deterministic evidence could not settle, with the evidence — written to
+    /// the report whether or not a model was asked (PHASE 10 detail 1).
+    pub escalations: Vec<oc_structure::escalate::EscalationRecord>,
+    /// What the AI step did, when it ran. `None` with AI off — the v1 default.
+    pub ai: Option<crate::ai::AiOutcome>,
 }
 
 /// Why a conversion failed.
@@ -115,6 +120,123 @@ pub fn convert(
     options: &ConvertOptions,
     t: &Thresholds,
 ) -> Result<Conversion, ConvertError> {
+    convert_with_ai(pdf, source_sha256, options, None, t)
+}
+
+/// Convert one open document, asking a model where the escalations say to when `ai` is given
+/// (PHASE 10). `None` is the v1 default, `ai.enabled = false`, and is exactly [`convert`].
+pub fn convert_with_ai(
+    pdf: &dyn PdfDoc,
+    source_sha256: &str,
+    options: &ConvertOptions,
+    ai: Option<&crate::ai::AiContext<'_>>,
+    t: &Thresholds,
+) -> Result<Conversion, ConvertError> {
+    let prepared = prepare(pdf, source_sha256, options, t)?;
+    convert_prepared(pdf, source_sha256, options, prepared, ai, t)
+}
+
+/// Everything from `structure` on, from what [`prepare`] produced — the seam a test uses to
+/// change a book's evidence (its outline, its declared title) before `structure` reads it.
+pub fn convert_prepared(
+    pdf: &dyn PdfDoc,
+    source_sha256: &str,
+    options: &ConvertOptions,
+    prepared: Prepared,
+    ai: Option<&crate::ai::AiContext<'_>>,
+    t: &Thresholds,
+) -> Result<Conversion, ConvertError> {
+    let Prepared {
+        mut timings,
+        mut totals,
+        text,
+        furniture,
+        layout,
+        images,
+        language,
+        doc_info,
+        structure_input,
+    } = prepared;
+    let extracted_images = u32::try_from(images.len()).unwrap_or(u32::MAX);
+
+    let mut structure = timings.stage("structure", || {
+        structure_stage(&layout, &structure_input, &mut totals, t)
+    })?;
+    // Every escalation is recorded whether or not a model is ever asked: the first books
+    // converted are the calibration corpus (PHASE 10 detail 1, RT A7.2).
+    let escalations =
+        oc_structure::escalate::Escalations::gather(&structure_input, &structure.output, t);
+
+    // The AI step, when asked for: the admitted edits are applied by running `structure` again
+    // with them, and that run is checked under the conservation law like the first.
+    let ai = match ai {
+        Some(context) => {
+            let deterministic = structure.output;
+            let (_, outcome) = timings.stage("ai", || {
+                Ok::<_, ConvertError>(crate::ai::run(
+                    context,
+                    &structure_input,
+                    deterministic,
+                    &escalations,
+                    t,
+                ))
+            })?;
+            structure = crate::pipeline::structure_stage_with(
+                &layout,
+                &structure_input,
+                &outcome.edits,
+                &mut totals,
+                t,
+            )?;
+            Some(outcome)
+        }
+        None => None,
+    };
+
+    finish(
+        pdf,
+        source_sha256,
+        options,
+        t,
+        Finishing {
+            timings,
+            totals,
+            text,
+            furniture,
+            layout,
+            images,
+            extracted_images,
+            language,
+            doc_info,
+            structure,
+            escalations,
+            ai,
+        },
+    )
+}
+
+/// Everything a conversion knows when `structure` is about to run: the four stages before it,
+/// checked, and the stage's input. The AI step and the tests that drive `structure` directly
+/// start here.
+pub struct Prepared {
+    pub timings: Timings,
+    pub totals: ReasonTotals,
+    pub text: crate::pipeline::TextStage,
+    pub furniture: crate::pipeline::FurnitureStage,
+    pub layout: crate::pipeline::LayoutStage,
+    pub images: Vec<oc_model::extract::ImageRef>,
+    pub language: LangTag,
+    pub doc_info: oc_pdf::inspect::DocMetadata,
+    pub structure_input: StructureInput,
+}
+
+/// `ingest`, `text`, `furniture` and `layout`, each checked, and `structure`'s input.
+pub fn prepare(
+    pdf: &dyn PdfDoc,
+    source_sha256: &str,
+    options: &ConvertOptions,
+    t: &Thresholds,
+) -> Result<Prepared, ConvertError> {
     let mut timings = Timings::default();
     let input = timings.stage("ingest", || crate::input::page_inputs(pdf))?;
     let mut totals = ReasonTotals::default();
@@ -131,7 +253,6 @@ pub fn convert(
     let layout = timings.stage("layout", || layout_stage(&text, &furniture, &mut totals, t))?;
 
     let images = document_images(&text);
-    let extracted_images = u32::try_from(images.len()).unwrap_or(u32::MAX);
     let hashes = image_hashes(pdf, &images, t);
     let vectors = (0..pdf.page_count())
         .filter_map(|page| pdf.page_vectors(page).ok())
@@ -162,9 +283,57 @@ pub fn convert(
         },
         lang: language.clone(),
     };
-    let structure = timings.stage("structure", || {
-        structure_stage(&layout, &structure_input, &mut totals, t)
-    })?;
+    Ok(Prepared {
+        timings,
+        totals,
+        text,
+        furniture,
+        layout,
+        images,
+        language,
+        doc_info,
+        structure_input,
+    })
+}
+
+/// Everything `finish` needs: what `prepare` produced, and `structure`'s settled output.
+struct Finishing {
+    timings: Timings,
+    totals: ReasonTotals,
+    text: crate::pipeline::TextStage,
+    furniture: crate::pipeline::FurnitureStage,
+    layout: crate::pipeline::LayoutStage,
+    images: Vec<oc_model::extract::ImageRef>,
+    extracted_images: u32,
+    language: LangTag,
+    doc_info: oc_pdf::inspect::DocMetadata,
+    structure: crate::pipeline::StructureStage,
+    escalations: oc_structure::escalate::Escalations,
+    ai: Option<crate::ai::AiOutcome>,
+}
+
+/// `document`, `epub`, `validate` and `repair`, from a settled `structure`.
+fn finish(
+    pdf: &dyn PdfDoc,
+    source_sha256: &str,
+    options: &ConvertOptions,
+    t: &Thresholds,
+    finishing: Finishing,
+) -> Result<Conversion, ConvertError> {
+    let Finishing {
+        mut timings,
+        mut totals,
+        text,
+        furniture,
+        layout,
+        images,
+        extracted_images,
+        language,
+        doc_info,
+        structure,
+        escalations,
+        ai,
+    } = finishing;
 
     let producer_family = oc_pdf::producer::producer_family(
         doc_info.producer.as_deref(),
@@ -261,6 +430,12 @@ pub fn convert(
     for check in loop_result.checks {
         settled.ledger.push_stage(&LedgerDelta::default(), check);
     }
+    // What the AI step decided and warned about: every escalated choice it settled, refused or
+    // never asked, and the reasons — recorded on the document, which is what the report reads.
+    if let Some(outcome) = &ai {
+        settled.decisions.extend(outcome.decisions.iter().cloned());
+        settled.warnings.extend(outcome.warnings.iter().cloned());
+    }
     settled
         .warnings
         .extend(loop_result.structural.warnings.iter().cloned());
@@ -284,6 +459,8 @@ pub fn convert(
         timings,
         producer_family,
         page_classes: class_histogram(&classes),
+        escalations: escalations.records(),
+        ai,
     })
 }
 
@@ -295,8 +472,20 @@ pub fn convert_bytes(
     options: &ConvertOptions,
     t: &Thresholds,
 ) -> Result<Conversion, ConvertError> {
+    convert_bytes_with_ai(backend, bytes, password, options, None, t)
+}
+
+/// Open a document and convert it, with the AI step when `ai` is given (PHASE 10).
+pub fn convert_bytes_with_ai(
+    backend: &dyn PdfOpen,
+    bytes: &[u8],
+    password: Option<&str>,
+    options: &ConvertOptions,
+    ai: Option<&crate::ai::AiContext<'_>>,
+    t: &Thresholds,
+) -> Result<Conversion, ConvertError> {
     let pdf = backend.open(bytes, password)?;
-    convert(pdf.as_ref(), &sha256_hex(bytes), options, t)
+    convert_with_ai(pdf.as_ref(), &sha256_hex(bytes), options, ai, t)
 }
 
 /// How many pages fall into each class, by the name the report prints (D13.10).

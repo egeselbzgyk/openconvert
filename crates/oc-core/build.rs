@@ -270,8 +270,28 @@ fn read_entry(table: &toml::Table, path: &[String]) -> Entry {
         Some(toml::Value::Float(f)) => ("f64".to_owned(), format!("{f:?}f64")),
         Some(toml::Value::Integer(i)) => ("i64".to_owned(), format!("{i}i64")),
         Some(toml::Value::Boolean(b)) => ("bool".to_owned(), b.to_string()),
+        // A closed set of names — the languages a task is enabled for (PHASE 10 detail 7) — is
+        // a decision with provenance like any number, so it lives here too, as a static slice.
+        Some(toml::Value::Array(items)) => {
+            let names: Vec<String> = items
+                .iter()
+                .map(|item| {
+                    item.as_str().map(quote).unwrap_or_else(|| {
+                        fail(&format!(
+                            "{key} is an array with a {} in it; an array threshold holds strings",
+                            item.type_str()
+                        ))
+                    })
+                })
+                .collect();
+            (
+                "&'static [&'static str]".to_owned(),
+                format!("&[{}]", names.join(", ")),
+            )
+        }
         Some(other) => fail(&format!(
-            "{key} has value of type {}; thresholds are floats, integers or booleans",
+            "{key} has value of type {}; thresholds are floats, integers, booleans or arrays \
+             of strings",
             other.type_str()
         )),
         None => fail(&format!("{key} has no value")),

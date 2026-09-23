@@ -1,0 +1,34 @@
+{
+  "cassette_version": 1,
+  "task": "book_structure",
+  "fixture": "chunk_two_disagrees",
+  "prompt_sha256": "57fe6dc9aa76b599752a60005437baee5faa7731c70914e88b6d4729ea62b7b0",
+  "prompt_version": 1,
+  "grammar_sha256": "86b33ec1bfa1add35ede6e7b6b15503662b654a4b82280eb63f85b74701d24f4",
+  "model_id": "stub",
+  "params": {
+    "temperature": 0.0,
+    "max_tokens": 1500,
+    "enable_thinking": false,
+    "top_p": null,
+    "seed": null,
+    "n_ctx": null,
+    "n_parallel": null
+  },
+  "request": {
+    "system_sha256": "e1ab692d8fcf406006ad51129b6054c6f1952cbafc7a00a03f6540615d56f9bf",
+    "user": "Give the index of the first heading after the front matter (0 if there is none), the index of every heading that starts a part, and the index of the first heading of the back matter (the number of headings if there is none).\n{\"language\":\"en\",\"headings\":[{\"idx\":0,\"text\":\"Entry 180\",\"page\":181,\"c\":0},{\"idx\":1,\"text\":\"Entry 181\",\"page\":182,\"c\":0},{\"idx\":2,\"text\":\"Entry 182\",\"page\":183,\"c\":0},{\"idx\":3,\"text\":\"Entry 183\",\"page\":184,\"c\":0},{\"idx\":4,\"text\":\"Entry 184\",\"page\":185,\"c\":0},{\"idx\":5,\"text\":\"Entry 185\",\"page\":186,\"c\":0},{\"idx\":6,\"text\":\"Entry 186\",\"page\":187,\"c\":0},{\"idx\":7,\"text\":\"Entry 187\",\"page\":188,\"c\":0},{\"idx\":8,\"text\":\"Entry 188\",\"page\":189,\"c\":0},{\"idx\":9,\"text\":\"Entry 189\",\"page\":190,\"c\":0},{\"idx\":10,\"text\":\"Entry 190\",\"page\":191,\"c\":0},{\"idx\":11,\"text\":\"Entry 191\",\"page\":192,\"c\":0},{\"idx\":12,\"text\":\"Entry 192\",\"page\":193,\"c\":0},{\"idx\":13,\"text\":\"Entry 193\",\"page\":194,\"c\":0},{\"idx\":14,\"text\":\"Entry 194\",\"page\":195,\"c\":0},{\"idx\":15,\"text\":\"Entry 195\",\"page\":196,\"c\":0},{\"idx\":16,\"text\":\"Entry 196\",\"page\":197,\"c\":0},{\"idx\":17,\"text\":\"Entry 197\",\"page\":198,\"c\":0},{\"idx\":18,\"text\":\"Entry 198\",\"page\":199,\"c\":0},{\"idx\":19,\"text\":\"Entry 199\",\"page\":200,\"c\":0},{\"idx\":20,\"text\":\"Entry 200\",\"page\":201,\"c\":0},{\"idx\":21,\"text\":\"Entry 201\",\"page\":202,\"c\":0},{\"idx\":22,\"text\":\"Entry 202\",\"page\":203,\"c\":0},{\"idx\":23,\"text\":\"Entry 203\",\"page\":204,\"c\":0},{\"idx\":24,\"text\":\"Entry 204\",\"page\":205,\"c\":0},{\"idx\":25,\"text\":\"Entry 205\",\"page\":206,\"c\":0},{\"idx\":26,\"text\":\"Entry 206\",\"page\":207,\"c\":0},{\"idx\":27,\"text\":\"Entry 207\",\"page\":208,\"c\":0},{\"idx\":28,\"text\":\"Entry 208\",\"page\":209,\"c\":0},{\"idx\":29,\"text\":\"Entry 209\",\"page\":210,\"c\":0},{\"idx\":30,\"text\":\"Entry 210\",\"page\":211,\"c\":0},{\"idx\":31,\"text\":\"Entry 211\",\"page\":212,\"c\":0},{\"idx\":32,\"text\":\"Entry 212\",\"page\":213,\"c\":0},{\"idx\":33,\"text\":\"Entry 213\",\"page\":214,\"c\":0},{\"idx\":34,\"text\":\"Entry 214\",\"page\":215,\"c\":0},{\"idx\":35,\"text\":\"Entry 215\",\"page\":216,\"c\":0},{\"idx\":36,\"text\":\"Entry 216\",\"page\":217,\"c\":0},{\"idx\":37,\"text\":\"Entry 217\",\"page\":218,\"c\":0},{\"idx\":38,\"text\":\"Entry 218\",\"page\":219,\"c\":0},{\"idx\":39,\"text\":\"Entry 219\",\"page\":220,\"c\":0},{\"idx\":40,\"text\":\"Entry 220\",\"page\":221,\"c\":0},{\"idx\":41,\"text\":\"Entry 221\",\"page\":222,\"c\":0},{\"idx\":42,\"text\":\"Entry 222\",\"page\":223,\"c\":0},{\"idx\":43,\"text\":\"Entry 223\",\"page\":224,\"c\":0},{\"idx\":44,\"text\":\"Entry 224\",\"page\":225,\"c\":0},{\"idx\":45,\"text\":\"Entry 225\",\"page\":226,\"c\":0},{\"idx\":46,\"text\":\"Entry 226\",\"page\":227,\"c\":0},{\"idx\":47,\"text\":\"Entry 227\",\"page\":228,\"c\":0},{\"idx\":48,\"text\":\"Entry 228\",\"page\":229,\"c\":0},{\"idx\":49,\"text\":\"Entry 229\",\"page\":230,\"c\":0},{\"idx\":50,\"text\":\"Entry 230\",\"page\":231,\"c\":0},{\"idx\":51,\"text\":\"Entry 231\",\"page\":232,\"c\":0},{\"idx\":52,\"text\":\"Entry 232\",\"page\":233,\"c\":0},{\"idx\":53,\"text\":\"Entry 233\",\"page\":234,\"c\":0},{\"idx\":54,\"text\":\"Entry 234\",\"page\":235,\"c\":0},{\"idx\":55,\"text\":\"Entry 235\",\"page\":236,\"c\":0},{\"idx\":56,\"text\":\"Entry 236\",\"page\":237,\"c\":0},{\"idx\":57,\"text\":\"Entry 237\",\"page\":238,\"c\":0},{\"idx\":58,\"text\":\"Entry 238\",\"page\":239,\"c\":0},{\"idx\":59,\"text\":\"Entry 239\",\"page\":240,\"c\":0},{\"idx\":60,\"text\":\"Entry 240\",\"page\":241,\"c\":0},{\"idx\":61,\"text\":\"Entry 241\",\"page\":242,\"c\":0},{\"idx\":62,\"text\":\"Entry 242\",\"page\":243,\"c\":0},{\"idx\":63,\"text\":\"Entry 243\",\"page\":244,\"c\":0},{\"idx\":64,\"text\":\"Entry 244\",\"page\":245,\"c\":0},{\"idx\":65,\"text\":\"Entry 245\",\"page\":246,\"c\":0},{\"idx\":66,\"text\":\"Entry 246\",\"page\":247,\"c\":0},{\"idx\":67,\"text\":\"Entry 247\",\"page\":248,\"c\":0},{\"idx\":68,\"text\":\"Entry 248\",\"page\":249,\"c\":0},{\"idx\":69,\"text\":\"Index\",\"page\":250,\"c\":1}]}\n"
+  },
+  "response": {
+    "content": "{\"frontmatter_end_idx\":0,\"part_boundaries\":[],\"backmatter_start_idx\":5}",
+    "reasoning": null,
+    "finish_reason": "stop",
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "cached_prefix": null
+  },
+  "recorded_at": "2026-09-23T00:00:00Z",
+  "llama_cpp_build": null,
+  "threads": null,
+  "machine": "stub"
+}

@@ -355,6 +355,10 @@ jobs:
       - run: eval/.venv/bin/python -m ruff check eval corpus
       - run: eval/.venv/bin/python -m ruff format --check eval corpus
       - run: eval/.venv/bin/python -m mypy eval/src/oc_eval eval/tests corpus
+      # PHASE 10 rows 10.17 and 10.18: docs/AI_EVALUATION.md is the render of the committed
+      # outcomes, and no enabled AI task exceeds the false-repair bound in any category.
+      - run: cd eval && .venv/bin/python -m oc_eval.compare --check
+      - run: cd eval && .venv/bin/python -m oc_eval.compare --gate
       # `cargo run -p xtask -- fixtures --keep-structtree` is what the struct-tree ground-truth
       # test reads; it builds it itself if it is missing, and doing it here keeps that off the
       # critical path of a single test.

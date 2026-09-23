@@ -482,8 +482,26 @@ pub fn structure_stage(
     totals: &mut ReasonTotals,
     t: &Thresholds,
 ) -> Result<StructureStage, ConservationError> {
+    structure_stage_with(
+        layout,
+        input,
+        &oc_structure::stage::StructureEdits::default(),
+        totals,
+        t,
+    )
+}
+
+/// Run `structure` with the AI step's edits applied (PHASE 10), checked exactly as the
+/// deterministic run is: an edit is a label, so the stage is still Conserving and I-3 still holds.
+pub fn structure_stage_with(
+    layout: &LayoutStage,
+    input: &oc_structure::stage::StructureInput,
+    edits: &oc_structure::stage::StructureEdits,
+    totals: &mut ReasonTotals,
+    t: &Thresholds,
+) -> Result<StructureStage, ConservationError> {
     let before = block_chars(&layout.blocks, &layout.pages);
-    let output = oc_structure::stage::structure(input, t);
+    let output = oc_structure::stage::structure_with(input, t, edits);
 
     let emitted = output.emitted_text();
     let after = c_of_parts(emitted.iter().map(String::as_str));

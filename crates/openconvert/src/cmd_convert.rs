@@ -16,7 +16,12 @@ use oc_pdf::backend::PdfBackend;
 use oc_pdf::pdfium::PdfiumBackend;
 
 use crate::cli::ConvertArgs;
-use openconvert::convert::{convert_bytes, ConvertOptions};
+use oc_ai::session::Clock;
+use openconvert::ai_endpoint::{self, OpenError};
+use openconvert::convert::{convert_bytes_with_ai, ConvertOptions};
+
+/// The model registry the engine was built with (PHASE 9 detail 6).
+const BUNDLED_REGISTRY: &str = include_str!("../../../models.toml");
 
 const E_PDFIUM: &str = "E_PDFIUM_ABI";
 const E_INPUT: &str = "E_INPUT";
@@ -24,9 +29,13 @@ const E_PDF: &str = "E_PDF";
 const E_OUTPUT: &str = "E_OUTPUT";
 const E_CONVERT: &str = "E_CONVERT";
 const E_REPORT: &str = "E_REPORT";
+const E_USAGE: &str = "E_USAGE";
 
 /// Run the subcommand, returning the process exit code.
 pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode {
+    // The wall-clock share is of the whole conversion, so its clock starts here (D13.6).
+    let clock = oc_ai::session::SystemClock::new();
+    let started_ms = clock.now_ms();
     let backend = match PdfiumBackend::bind() {
         Ok(backend) => backend,
         Err(error) => {
@@ -65,8 +74,43 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
         },
     };
 
+    // `--ai`: open the model, or learn why not. Only an endpoint off this machine is refused;
+    // anything else that stops a model answering converts the book without one, and says so.
+    let (opened, unavailable) = match &args.ai {
+        None => (None, None),
+        Some(ai) => match ai_endpoint::open(ai, BUNDLED_REGISTRY, &T) {
+            Ok(opened) => (Some(opened), None),
+            Err(OpenError::Refused(message)) => {
+                events.fatal(E_USAGE, &message);
+                eprintln!("error: {message}");
+                return ExitCode::Usage;
+            }
+            Err(OpenError::Unavailable(reason)) => (None, Some(reason)),
+        },
+    };
+    let cache = oc_ai::cache::FileCache::new(openconvert::data_dir::llm_cache());
+    let context = opened.as_ref().map(|opened| openconvert::ai::AiContext {
+        provider: opened.provider.as_ref(),
+        cache: Some(&cache),
+        clock: &clock,
+        started_ms,
+        all_tasks: args.ai.as_ref().is_some_and(|ai| ai.all_tasks),
+    });
+
     events.stage("convert", "begin");
-    let conversion = match convert_bytes(&backend, &bytes, args.password.as_deref(), &options, &T) {
+    let converted = convert_bytes_with_ai(
+        &backend,
+        &bytes,
+        args.password.as_deref(),
+        &options,
+        context.as_ref(),
+        &T,
+    );
+    // The engine-owned server, if any, is not needed past the conversion: stop it now rather
+    // than at exit (D8's idle-kill, reached at once).
+    let _ = context;
+    drop(opened);
+    let mut conversion = match converted {
         Ok(conversion) => conversion,
         Err(error) => {
             let code = match &error {
@@ -79,6 +123,30 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
         }
     };
     events.stage("convert", "end");
+
+    // AI was asked for and no model could be reached: the banner (RT D20).
+    if let Some(reason) = unavailable {
+        conversion
+            .document
+            .warnings
+            .push(openconvert::ai::unavailable(reason));
+    }
+    // One `llm` event per call, cached ones included (D13.2).
+    if let Some(outcome) = &conversion.ai {
+        for call in &outcome.calls {
+            events.emit(
+                "llm",
+                serde_json::json!({
+                    "call_id": call.call_id,
+                    "purpose": call.purpose.as_str(),
+                    "cached": call.cached,
+                    "tokens_in": call.tokens_in,
+                    "tokens_out": call.tokens_out,
+                    "ms": call.ms,
+                }),
+            );
+        }
+    }
 
     // Every warning the conversion collected, as `code` + `args`. Phase 5 emitted the emitter's
     // codes with an empty argument object; the document now carries the arguments too, and a

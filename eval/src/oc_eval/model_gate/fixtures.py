@@ -55,8 +55,15 @@ def grammar(purpose: str) -> str:
     return (PROMPTS / purpose / "v1" / "grammar.gbnf").read_text(encoding="utf-8")
 
 
+def seed_cassette(purpose: str) -> Path:
+    """The task's seed cassette: Appendix A.3's worked example, `<task>__a3__v1` in the task's
+    index. Phase 10 recorded more cassettes beside it; the fixtures start from the seed."""
+    index = json.loads((CASSETTES / purpose / "index.json").read_text(encoding="utf-8"))
+    return CASSETTES / purpose / f"{index[f'{purpose}__a3__v1']}.json"
+
+
 def _from_cassette(purpose: str) -> dict[str, Any]:
-    [path] = [p for p in (CASSETTES / purpose).glob("*.json") if p.name != "index.json"]
+    path = seed_cassette(purpose)
     user = json.loads(path.read_text(encoding="utf-8"))["request"]["user"]
     fixture: dict[str, Any] = {"purpose": purpose, "user": user, "source": f"cassette:{purpose}"}
     body = user.split("\n", 1)[1] if purpose != "metadata" else user
