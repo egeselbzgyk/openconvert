@@ -221,3 +221,87 @@ fn forty_dropped_books_all_complete_one_at_a_time() {
         std::thread::sleep(Duration::from_millis(20));
     }
 }
+
+/// The models screen renders exactly what `openconvert model list --json` prints (PHASE 9 detail
+/// 7): the same `ModelReadiness` rows, read the same way from the same registry and store.
+#[test]
+fn the_app_and_the_cli_list_the_same_models() {
+    let root = scratch("models");
+    let store = root.join("store");
+    let registry_path = root.join("models.toml");
+    let commit = "0123456789abcdef0123456789abcdef01234567";
+    let hash = "ab".repeat(32);
+    std::fs::write(
+        &registry_path,
+        format!(
+            r#"schema_version = 1
+default = "tiny"
+
+[[model]]
+id = "tiny"
+tier = "default"
+display_name = "Tiny"
+family = "qwen3"
+arch = "dense"
+license = "Apache-2.0"
+repo = "org/tiny-GGUF"
+revision = "{commit}"
+file = "tiny.gguf"
+sha256 = "{hash}"
+size_bytes = 1000
+context = 8192
+parallel = 1
+min_ram_bytes = 3221225472
+cpu_expectation = "moderate"
+prompt_profile = "qwen3-chatml"
+cache_reuse = true
+
+[[model]]
+id = "later"
+tier = "experimental"
+display_name = "Later"
+family = "qwen3"
+arch = "hybrid"
+license = "Apache-2.0"
+repo = "org/later-GGUF"
+revision = "{commit}"
+file = "later.gguf"
+sha256 = "{hash}"
+size_bytes = 2000
+context = 8192
+parallel = 1
+min_ram_bytes = 1610612736
+prompt_profile = "qwen3-chatml"
+cache_reuse = false
+warn = "Experimental."
+"#
+        ),
+    )
+    .expect("written");
+    // One model installed, as a download leaves it; the other absent.
+    std::fs::create_dir_all(store.join("tiny")).expect("made");
+    std::fs::write(store.join("tiny").join("tiny.gguf"), [0u8; 1000]).expect("written");
+    std::fs::write(store.join("tiny").join("LICENSE"), "Apache").expect("written");
+
+    let output = std::process::Command::new(engine_binary())
+        .args(["model", "list", "--json", "--registry"])
+        .arg(&registry_path)
+        .arg("--dir")
+        .arg(&store)
+        .output()
+        .expect("the engine ran");
+    assert!(output.status.success(), "{output:?}");
+    let cli: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON");
+
+    let registry = oc_net::registry::ModelRegistry::load(&registry_path).expect("a registry");
+    let app = serde_json::to_value(openconvert_desktop::models::readiness(
+        &registry,
+        &oc_net::store::ModelStore::new(&store),
+    ))
+    .expect("JSON");
+    assert_eq!(app, cli);
+    assert_eq!(
+        app[0]["installed"], true,
+        "the case where the two could differ"
+    );
+}

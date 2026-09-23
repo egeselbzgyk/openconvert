@@ -29,6 +29,9 @@ use openconvert_desktop::engine::{
 use openconvert_desktop::fs_scope::{partition_drop, AppDirs, CacheUsage};
 use openconvert_desktop::jobqueue::{JobQueue, JobView, QueueSink, Rebuild};
 use openconvert_desktop::llm::{self, LlmHost};
+use openconvert_desktop::models::{
+    self, LicenseView, ModelManager, ModelRow, ModelSink, ModelsView,
+};
 use openconvert_desktop::preview::{self, PreviewIndex};
 use openconvert_desktop::settings::{self, Settings};
 use openconvert_desktop::tree;
@@ -70,6 +73,55 @@ impl QueueSink for WebviewSink {
     fn changed(&self, job: &JobView) {
         let _ = self.0.emit("job-changed", job);
     }
+}
+
+/// The model manager (Phase 12 detail 9), once the app knows its config directory.
+struct Models(ModelManager);
+
+/// Relays the model manager's rows to the webview.
+struct WebviewModels(AppHandle);
+
+impl ModelSink for WebviewModels {
+    fn changed(&self, row: &ModelRow) {
+        let _ = self.0.emit("model-changed", row);
+    }
+}
+
+/// The models screen: every registry entry's `ModelReadiness`, or why there are none.
+#[tauri::command]
+fn models_list(models: tauri::State<'_, Models>) -> ModelsView {
+    models.0.view()
+}
+
+/// A model's licence, in full, to show before its download (UI_UX §2.4).
+#[tauri::command]
+fn model_license(id: String, models: tauri::State<'_, Models>) -> Result<LicenseView, UiError> {
+    models.0.license(&id)
+}
+
+/// "Accept licence and download", first half: the acceptance, kept in the app's local state.
+#[tauri::command]
+fn model_accept_license(id: String, models: tauri::State<'_, Models>) -> Result<(), UiError> {
+    models.0.accept_license(&id)
+}
+
+/// Start a download; progress arrives as `model-changed` events. Refused until the licence has
+/// been accepted.
+#[tauri::command]
+fn model_pull(id: String, models: tauri::State<'_, Models>) -> Result<(), UiError> {
+    models.0.pull(&id)
+}
+
+/// Cancel a download: the transfer stops and its `.part` is deleted (row 12.12).
+#[tauri::command]
+fn model_cancel(id: String, models: tauri::State<'_, Models>) -> Result<(), UiError> {
+    models.0.cancel(&id)
+}
+
+/// Delete an installed model and its licence files.
+#[tauri::command]
+fn model_remove(id: String, models: tauri::State<'_, Models>) -> Result<(), UiError> {
+    models.0.remove(&id)
 }
 
 /// The startup handshake's result, for the UI to render.
@@ -429,7 +481,16 @@ fn main() {
         })
         .setup(move |app| {
             let dirs = AppDirs::under(&app.path().app_data_dir()?)?;
-            let settings_file = settings::settings_path(&app.path().app_config_dir()?);
+            let config_dir = app.path().app_config_dir()?;
+            let settings_file = settings::settings_path(&config_dir);
+            // One store for the app and `openconvert model`, so a model is fetched once.
+            app.manage(Models(ModelManager::new(
+                models::bundled_registry(),
+                oc_net::store::ModelStore::new(oc_net::store::default_root()),
+                models::http_fetch(),
+                Some(models::accepted_path(&config_dir)),
+                Arc::new(WebviewModels(app.handle().clone())),
+            )));
             let prefs = app.state::<Prefs>();
             *prefs.current.lock().unwrap_or_else(PoisonError::into_inner) =
                 settings::load(&settings_file);
@@ -500,7 +561,13 @@ fn main() {
             preview_index,
             preview_base,
             export_diagnostics,
-            show_bundle
+            show_bundle,
+            models_list,
+            model_license,
+            model_accept_license,
+            model_pull,
+            model_cancel,
+            model_remove
         ])
         .build(tauri::generate_context!())
         .expect("the Tauri application starts")

@@ -7,7 +7,6 @@
 
 use std::cell::{Cell, RefCell};
 use std::io::Write;
-use std::path::PathBuf;
 use std::time::Duration;
 
 use oc_core::events::EventSink;
@@ -19,9 +18,6 @@ use oc_net::registry::{ModelId, ModelRegistry};
 use oc_net::store::{self, ModelStore, Removal};
 
 use crate::cli::{ModelAction, ModelArgs, Progress};
-
-/// The registry that ships with the engine (D9: "no remote registry in v1").
-const BUNDLED_REGISTRY: &str = include_str!("../../../models.toml");
 
 const E_REGISTRY: &str = "E_MODEL_REGISTRY";
 const E_UNKNOWN_MODEL: &str = "E_MODEL_UNKNOWN";
@@ -37,7 +33,7 @@ pub fn run<W: Write>(
     events: &mut EventSink<W>,
     stdout: &mut dyn Write,
 ) -> ExitCode {
-    let store = ModelStore::new(args.dir.clone().unwrap_or_else(default_store));
+    let store = ModelStore::new(args.dir.clone().unwrap_or_else(store::default_root));
     let human = args.progress != Progress::Json;
     match args.action {
         // Removing needs no registry: whatever is on disk can always be deleted.
@@ -67,7 +63,7 @@ pub fn run<W: Write>(
 fn registry<W: Write>(args: &ModelArgs, events: &mut EventSink<W>) -> Option<ModelRegistry> {
     let loaded = match &args.registry {
         Some(path) => ModelRegistry::load(path),
-        None => ModelRegistry::parse(BUNDLED_REGISTRY),
+        None => ModelRegistry::parse(oc_net::registry::BUNDLED),
     };
     match loaded {
         Ok(registry) => Some(registry),
@@ -225,41 +221,4 @@ impl<W: Write> DownloadProgress for LiveProgress<'_, W> {
             serde_json::json!({ "stage": "download", "done": done, "total": total, "unit": "bytes" }),
         );
     }
-}
-/// Where models live when `--dir` is not given: the per-OS data directory.
-fn default_store() -> PathBuf {
-    data_dir().join("openconvert").join("models")
-}
-
-#[cfg(target_os = "linux")]
-fn data_dir() -> PathBuf {
-    std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .filter(|path| path.is_absolute())
-        .or_else(|| home().map(|home| home.join(".local").join("share")))
-        .unwrap_or_else(|| PathBuf::from("."))
-}
-
-#[cfg(target_os = "macos")]
-fn data_dir() -> PathBuf {
-    home()
-        .map(|home| home.join("Library").join("Application Support"))
-        .unwrap_or_else(|| PathBuf::from("."))
-}
-
-#[cfg(windows)]
-fn data_dir() -> PathBuf {
-    std::env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."))
-}
-
-#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
-fn data_dir() -> PathBuf {
-    home().unwrap_or_else(|| PathBuf::from("."))
-}
-
-#[cfg(unix)]
-fn home() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from)
 }

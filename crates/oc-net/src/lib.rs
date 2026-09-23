@@ -40,4 +40,7 @@ pub enum NetError {
     /// The downloader writes the licence text beside every model, and has none for this one.
     #[error("no licence text is bundled for `{0}`")]
     UnknownLicense(String),
+    /// The caller asked the download to stop. Its `.part` is gone.
+    #[error("the download was cancelled")]
+    Cancelled,
 }

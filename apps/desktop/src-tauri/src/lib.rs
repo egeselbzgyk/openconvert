@@ -13,6 +13,7 @@ pub mod engine;
 pub mod fs_scope;
 pub mod jobqueue;
 pub mod llm;
+pub mod models;
 pub mod preview;
 pub mod settings;
 pub mod tree;

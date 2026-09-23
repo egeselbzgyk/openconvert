@@ -4141,3 +4141,44 @@ by the orphan — with the group kill or the sweep removed), `quitting_the_app_e
 **Unverified here:** macOS (same code) and Windows (job objects).
 Affects: ARCHITECTURE §8.2, PHASE 9 detail 5, `Cargo.toml` (`rustix`, `win32job`),
 `crates/oc-core/src/sidecar/supervise.rs`, `apps/desktop/src-tauri/src/{tree.rs,engine.rs,main.rs}`.
+
+## 2026-09-23 · The app's model manager: one store, the licence first, Cancel deletes · Phase 12
+Context: PHASE 12 detail 9 and row 12.12 ("progress events arrive; cancelling deletes the
+`.part`"), UI_UX §2.4 and §3, LICENSE_AND_DEPENDENCIES §6. The first-run mockup (`firstrun.html`
+step 2b) shows a cancelled download keeping its partial file with "Resume download" and "Discard
+partial file", and `components.md` has "failed (Retry, resumes)"; UI_UX §4 says a failed download
+resumes "where the transport supports it".
+Decision:
+1. **Cancel deletes the `.part`**, as row 12.12 says; behaviour follows the plan, not the mockup
+   (`docs/design/README.md`: the design governs appearance only). A cancelled row is simply "not
+   installed" again. `oc-net`'s transport sends no `Range` request, so it does not "support" a
+   resume: **Retry starts again from the first byte**, and a failed download leaves nothing on disk
+   either. `DownloadProgress::cancelled()` (default `false`) is asked between chunks and ends the
+   pull with `NetError::Cancelled`; a first download that fails or is cancelled also removes its
+   empty model directory. A transfer stalled inside one read sees the cancel when the read returns;
+   the row shows "cancelling" until then.
+2. **One store for the CLI and the app**: `oc_net::store::default_root()` (moved from
+   `cmd_model.rs`), `<data dir>/openconvert/models`, so a model is fetched once. The registry the
+   app reads is the one the engine compiles in (`oc_net::registry::BUNDLED`, moved likewise).
+3. **The licence is accepted per model and per licence**, in `<app config>/licenses.json`
+   (`{model id: SPDX}`); a changed licence needs a new acceptance. The Rust side refuses a pull
+   nobody accepted (`UiError::LicenseNotAccepted`), so the webview cannot skip the step. The text
+   shown is `oc_net::download::license_text`, the same text written beside the model.
+4. **Rows are `ModelReadiness` plus two things the manager owns**: `license_accepted` and the
+   download's state (`idle` / `downloading{done,total}` / `cancelling` / `failed{kind}`). The app's
+   `models::readiness` builds the rows the way `cmd_model::readiness` does; `oc-net` may not depend
+   on `oc-core` (ARCHITECTURE §3.1), so the function exists twice and an engine-integration test
+   (`the_app_and_the_cli_list_the_same_models`) holds the two outputs equal.
+5. **A registry with placeholder pins offers no model at all**: `ModelRegistry` refuses the whole
+   file, so the screen says models are not available in this build, and why. That is today's
+   shipped state (Phase 9 Blocked item 1).
+6. Progress is announced at most once per percent, as `openconvert model pull` does.
+Evidence: `model_download_progress_streams_and_cancels` (fails with the cancel ignored),
+`a_model_is_downloaded_only_after_its_license_is_accepted`, `a_failed_download_is_a_row_to_retry`,
+`model_rows_are_the_readiness_fields`, `an_unpinned_registry_offers_no_download`,
+`the_app_and_the_cli_list_the_same_models`, `a_cancelled_download_deletes_its_part` (oc-net). All
+against `oc-testkit`'s loopback model host through the real client and allowlist. **Unverified
+here:** a download from huggingface.co (egress 403, and no pins).
+Affects: PHASE 12 detail 9, row 12.12, UI_UX §2.4/§4, `docs/design/handoff/firstrun.html` step 2b,
+`crates/oc-net/src/{download.rs,verify.rs,store.rs,registry.rs,lib.rs}`,
+`crates/openconvert/src/cmd_model.rs`, `apps/desktop/src-tauri/src/{models.rs,main.rs}`.

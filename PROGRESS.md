@@ -433,7 +433,16 @@ oc-testkit --bins` (the stub llama-server).
       (PROVISIONAL, see Blocked; compile- and clippy-checked for windows-msvc and apple-darwin with
       a scratch crate, **unverified here** at run time). Resource limits on the job stay Phase 14
       (+ 4 desktop tests, Linux, + 1 oc-core test)
-- [ ] **P12.14** the model manager — row **12.12** `model_download_progress_streams_and_cancels`
+- [x] **P12.14** the model manager (Rust) — row **12.12** `model_download_progress_streams_and_cancels`:
+      `models.rs` over `oc-net`'s `Downloader` (the CLI's store, `oc_net::store::default_root`, and
+      its compiled-in registry, `oc_net::registry::BUNDLED`); rows = `ModelReadiness` +
+      `license_accepted` + download state; licence accepted per model in `<config>/licenses.json`
+      and enforced in Rust; progress once per percent as `model-changed` events; Cancel →
+      `NetError::Cancelled` (new `DownloadProgress::cancelled`) deletes the `.part`; Retry restarts.
+      Commands `models_list`, `model_license`, `model_accept_license`, `model_pull`,
+      `model_cancel`, `model_remove`. Test double: `oc_testkit::download_stub` (loopback host, slow
+      bodies). The shipped registry still has `TODO_` pins, so the app says models are unavailable
+      in this build (+ 5 desktop, 1 engine-integration, 1 oc-net test)
 - [ ] **P12.15** packs through the same download mechanism
 - [ ] **P12.16** the Models and Packs screens and the first-run route
 

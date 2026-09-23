@@ -62,6 +62,17 @@ pub enum UiError {
     /// A job that has not finished cannot be started again.
     #[error("job {0} has not finished")]
     JobBusy(String),
+    /// The registry this build ships cannot be downloaded from: its pins are not filled in.
+    #[error("models are not available in this build: {0}")]
+    ModelsUnavailable(String),
+    #[error("no model {0} in the registry")]
+    UnknownModel(String),
+    /// A download before its licence was shown and accepted (UI_UX §2.4).
+    #[error("the licence of {0} has not been accepted")]
+    LicenseNotAccepted(String),
+    /// Deleting, or downloading again, a model that is downloading.
+    #[error("{0} is downloading")]
+    ModelBusy(String),
 }
 
 impl From<std::io::Error> for UiError {

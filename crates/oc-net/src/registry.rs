@@ -7,6 +7,10 @@
 
 use std::path::Path;
 
+/// The registry that ships with the engine and the app (D9: "no remote registry in v1"), compiled
+/// in so the hash a download is checked against never comes from the host that serves the weights.
+pub const BUNDLED: &str = include_str!("../../../models.toml");
+
 /// A registry entry's id, e.g. `qwen3-1.7b-q4_k_m`.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize, serde::Serialize)]
 #[serde(transparent)]

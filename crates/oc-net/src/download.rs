@@ -32,6 +32,12 @@ pub const DEFAULT_URL_TEMPLATE: &str = "https://huggingface.co/{repo}/resolve/{r
 const APACHE_2_0: &str = "Apache-2.0";
 const APACHE_2_0_TEXT: &str = include_str!("../licenses/Apache-2.0.txt");
 
+/// The licence text written beside a download under `spdx`, if one is bundled — what a model
+/// manager shows the user, word for word, before they accept it (UI_UX §2.4).
+pub fn license_text(spdx: &str) -> Option<&'static str> {
+    (spdx == APACHE_2_0).then_some(APACHE_2_0_TEXT)
+}
+
 /// What one GET brought back.
 pub enum Fetched {
     Body(Box<dyn Read + Send>),
@@ -90,9 +96,15 @@ impl Fetch for HttpFetch {
     }
 }
 
-/// Told how far a download has got.
+/// Told how far a download has got, and asked whether to go on.
 pub trait DownloadProgress {
     fn bytes(&self, done: u64, total: u64);
+    /// Whether the caller wants the download stopped. Asked between chunks: a cancel takes effect
+    /// when the next chunk would be read, and the download then fails with
+    /// [`NetError::Cancelled`] and deletes its `.part`.
+    fn cancelled(&self) -> bool {
+        false
+    }
 }
 
 /// The numbers a download needs, read by the caller from `thresholds.toml`.
@@ -122,9 +134,8 @@ impl Downloader {
 
     /// Download, verify and install one registry entry. Returns the model file's path.
     pub fn pull(&self, e: &ModelEntry, p: &dyn DownloadProgress) -> Result<PathBuf, NetError> {
-        if e.license != APACHE_2_0 {
-            return Err(NetError::UnknownLicense(e.license.clone()));
-        }
+        let license =
+            license_text(&e.license).ok_or_else(|| NetError::UnknownLicense(e.license.clone()))?;
         let url = resolve_url(e)?;
         let dir = self.store.dir_of(e)?;
         let target = self.store.path_of(e)?;
@@ -134,13 +145,18 @@ impl Downloader {
         std::fs::create_dir_all(&dir).map_err(io)?;
         let file = File::create(&part).map_err(io)?;
         let mut writer = BufWriter::new(file);
-        let copied = verify::copy_hashed(&mut body, &mut writer, e.size_bytes, &mut |done| {
-            p.bytes(done, e.size_bytes)
-        })
+        let copied = verify::copy_hashed(
+            &mut body,
+            &mut writer,
+            e.size_bytes,
+            &mut |done| p.bytes(done, e.size_bytes),
+            &|| p.cancelled(),
+        )
         .map_err(|error| match error {
             CopyError::TooLarge => NetError::TooLarge {
                 expected: e.size_bytes,
             },
+            CopyError::Stopped => NetError::Cancelled,
             CopyError::Read(error) => NetError::Transport(error.to_string()),
             CopyError::Write(error) => io(error),
         })
@@ -154,19 +170,19 @@ impl Downloader {
         let (_, actual) = match copied {
             Ok(copied) => copied,
             Err(error) => {
-                let _ = std::fs::remove_file(&part);
+                discard(&part, &dir);
                 return Err(error);
             }
         };
         if actual != e.sha256 {
-            let _ = std::fs::remove_file(&part);
+            discard(&part, &dir);
             return Err(NetError::ShaMismatch {
                 expected: e.sha256.clone(),
                 actual,
             });
         }
 
-        write_beside(&dir.join(store::LICENSE_FILE), APACHE_2_0_TEXT)?;
+        write_beside(&dir.join(store::LICENSE_FILE), license)?;
         write_beside(&dir.join(store::NOTICE_FILE), &notice(e, &url))?;
         std::fs::rename(&part, &target).map_err(io)?;
         Ok(target)
@@ -222,6 +238,14 @@ fn check_repo(repo: &str) -> Result<(), NetError> {
         }
         None => Err(NetError::BadUrl(repo.to_owned())),
     }
+}
+
+/// Delete a download that will not be installed, and its directory if that leaves it empty (a
+/// first download that failed). A directory still holding an earlier verified model is kept:
+/// `remove_dir` only removes an empty one.
+fn discard(part: &Path, dir: &Path) {
+    let _ = std::fs::remove_file(part);
+    let _ = std::fs::remove_dir(dir);
 }
 
 fn part_path(target: &Path) -> PathBuf {
