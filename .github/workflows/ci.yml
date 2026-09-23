@@ -52,6 +52,9 @@ jobs:
       # branch no placeholder values left in models.toml.
       - run: cargo run -p xtask -- ci-lint
       - run: cargo run -p xtask -- thresholds-lint    # provenance + expiry
+      # docs/VERSIONING.md: an IR, protocol, prompt or job-spec change without its version bump
+      # since the last release (PHASE 15 detail 8). Notes only until the first release.
+      - run: cargo run -p xtask -- bump-rules-check
 
   deny:
     runs-on: ubuntu-latest

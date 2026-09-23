@@ -50,6 +50,11 @@ typst-assets.workspace = true
 # Without its default features, which resolve remote schemas over HTTP: everything is offline.
 jsonschema = { version = "0.57", default-features = false }
 uuid.workspace = true
+# `bump-rules-check` digests the IR's and the protocol's code as the compiler sees it: parsed, with
+# comments, docs and tests left out (PHASE 15 detail 8). All three already build every derive.
+syn = { version = "2", features = ["full"] }
+quote = "1"
+proc-macro2 = "1"
 
 [dev-dependencies]
 # The release tests read the macOS entitlements plist (PHASE 15 row 15.5).

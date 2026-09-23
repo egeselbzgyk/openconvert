@@ -5118,3 +5118,28 @@ the release job's, **unverified here**.
 Evidence: `repro_check_names_the_first_differing_zip_entry`; `reproducible_no_ai_output_across_os`
 (release-artifacts, `OC_REPRO_DIR`; needs all three OS tables — unverified here).
 Affects: `xtask/src/repro.rs`, `xtask/tests/release.rs`.
+
+## 2026-09-23 · Version-bump rules, enforced by digests of code as the compiler sees it · Phase 15 (P15.10)
+Context: detail 8 — `bump-rules-check` compares a committed type-layout digest of the IR (and, row
+15.17, of the event schema) with the tree's and fails a release that changed one without bumping its
+version. The event protocol has no schema file: events are built with `serde_json::json!` in
+`events.rs` and emitted by name from `cmd_convert.rs` and `cmd_model.rs`.
+Decision: `docs/releases/baseline.toml` records the last release's versions (app, `ir_version`,
+`protocol`, `prompt_version`, `job_spec_schema`) and a SHA-256 of what each guards, computed with
+`syn` over the parsed source with comments, doc attributes and test items removed (see
+`docs/VERSIONING.md` for exactly which items). The protocol digest is the event constructors, every
+`.emit("<literal>", …)` call in `oc-core` and `openconvert`, and the control channel. The versions are
+read from the source (`const IR_VERSION` etc.), not from the binary's own compiled constants, so the
+check describes the tree it is pointed at; a test ties the two together. The comparison is always
+against the last release, so between releases one bump covers any number of changes. Before the
+first release `released = "none"` and drift is a note, not a failure — nothing has shipped that a
+change could break; Phase 14 and Phase 7.5 may change the IR before v1.0.0 without owing a bump, and
+the v1.0.0 release records the first strict baseline. **PROVISIONAL — needs maintainer
+ratification**: the digest is deliberately coarse (a behaviour-preserving refactor of `canonical.rs`
+or of an `emit` call asks for a bump); VERSIONING.md says "when in doubt, bump".
+Evidence: `ir_version_bump_is_enforced` and `protocol_bump_is_enforced` (rehearsals on a copy of the
+tree: a field, a `Reason` variant, a payload field and a `job` event field each fail without a bump;
+comments, docs and tests do not; a bump passes; a version going back fails),
+`prompt_and_job_spec_changes_follow_their_rules`, `the_committed_baseline_describes_this_tree`.
+Affects: `xtask/src/versions.rs`, `docs/releases/baseline.toml`, `docs/VERSIONING.md`,
+`.github/workflows/ci.yml` (lint job).

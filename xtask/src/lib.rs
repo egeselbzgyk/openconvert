@@ -18,3 +18,4 @@ pub mod sbom;
 pub mod stage_sidecars;
 pub mod thresholds_lint;
 pub mod vendor_pdfium;
+pub mod versions;

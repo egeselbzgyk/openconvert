@@ -138,7 +138,11 @@ Work items, in order, with the plan's test rows against each:
       `reproducible_no_ai_output_across_os` (release-artifacts) needs the three OS tables —
       **unverified here**; the Linux half ran: three runs (other cwd, TZ, tr_TR locale, debug vs
       release engine) gave identical tables
-- [ ] **P15.10** version bump rules (`xtask bump-rules-check`), `docs/VERSIONING.md` — rows 15.16, 15.17
+- [x] **P15.10** `xtask bump-rules-check [--tag|--record]` against `docs/releases/baseline.toml`
+      (`released = "none"` until v1.0.0: drift is a note), `docs/VERSIONING.md`, a step in CI's lint
+      job — rows 15.16 `ir_version_bump_is_enforced`, 15.17 `protocol_bump_is_enforced` (rehearsals on
+      a copy of the tree), plus `prompt_and_job_spec_changes_follow_their_rules`,
+      `the_committed_baseline_describes_this_tree`
 - [ ] **P15.11** release gates and `release.yml`: placeholders, no Python — rows 15.14, 15.18
 - [ ] **P15.12** `docs/RELEASE_CHECKLIST.md`, `docs/INSTALL.md`, the part-B hand-off
 

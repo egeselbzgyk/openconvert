@@ -5,7 +5,7 @@
 use xtask::{
     ci_lint, dom_fixtures, epubcheck_parity, fetch_epubcheck, fetch_epubcheck_corpus,
     fetch_llama_server, fixtures, handmade_fixtures, mutations, release, repro, sbom,
-    stage_sidecars, thresholds_lint, vendor_pdfium,
+    stage_sidecars, thresholds_lint, vendor_pdfium, versions,
 };
 
 use std::path::{Path, PathBuf};
@@ -42,6 +42,10 @@ tasks:
                     PDFium and the server's libraries in native/, the natives' licences,
                     and a build stamp (needs vendor-pdfium and fetch-llama-server first)
                       --release           stage the release build instead of debug
+  bump-rules-check  docs/VERSIONING.md, enforced: a changed IR layout, event protocol, prompt or
+                    job-spec schema without its version bumped since the last release fails
+                      --tag <vX.Y.Z>      also require the tag to be the tree's version
+                      --record <tag>      write docs/releases/baseline.toml for a new release
   repro             the reproducibility gate (D13.8): convert the fast corpus --no-ai and hash
                     it, then require every OS's table to agree
                       hash --engine <path> --os <os> --out <table.json> --epubs <dir>
@@ -81,6 +85,10 @@ fn main() -> Result<()> {
         }
         Some("thresholds-lint") => thresholds_lint::run(&root),
         Some("dom-fixtures") => dom_fixtures::run(&root),
+        Some("bump-rules-check") => {
+            let args: Vec<String> = std::env::args().skip(2).collect();
+            versions::run(&root, &args)
+        }
         Some("repro") => {
             let args: Vec<String> = std::env::args().skip(2).collect();
             repro::run(&root, &args)

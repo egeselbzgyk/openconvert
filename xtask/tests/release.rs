@@ -1090,3 +1090,266 @@ fn reproducible_no_ai_output_across_os() {
         panic!("{error} — a release blocker (D13.8)");
     }
 }
+
+/// A scratch copy of everything `bump-rules-check` reads, with a baseline recorded as if `tag` had
+/// just been released from it.
+fn rehearsal(name: &str, tag: &str) -> PathBuf {
+    use xtask::versions::{
+        baseline_text, copy_tree, declared_versions, digests, guarded_paths, Baseline, BASELINE,
+    };
+    let root = workspace_root();
+    let copy = std::env::temp_dir().join(format!("oc-bump-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&copy);
+    for path in guarded_paths() {
+        if path != BASELINE {
+            copy_tree(&root, &copy, path).expect("copied");
+        }
+    }
+    let versions = declared_versions(&copy).expect("versions");
+    let baseline = Baseline {
+        released: tag.to_owned(),
+        digests: digests(&copy, &versions).expect("digests"),
+        versions,
+    };
+    let path = copy.join(BASELINE);
+    std::fs::create_dir_all(path.parent().expect("a parent")).expect("dir");
+    std::fs::write(path, baseline_text(&baseline).expect("toml")).expect("written");
+    copy
+}
+
+/// `bump-rules-check` on a rehearsal copy, as the release job runs it.
+fn bump_check(copy: &Path) -> Result<(), Vec<xtask::versions::BumpViolation>> {
+    use xtask::versions::{
+        bump_rules_check, declared_versions, digests, job_spec_digest, Baseline, BASELINE,
+    };
+    let prev: Baseline = toml::from_str(&read(&copy.join(BASELINE))).expect("a baseline");
+    let declared = declared_versions(copy).expect("versions");
+    let now = digests(copy, &declared).expect("digests");
+    let old = job_spec_digest(copy, prev.versions.job_spec_schema);
+    bump_rules_check(&prev, &now, &declared, old.as_deref())
+}
+
+fn edit(copy: &Path, path: &str, from: &str, to: &str) {
+    let file = copy.join(path);
+    let text = read(&file);
+    assert!(text.contains(from), "{path} contains {from:?}");
+    std::fs::write(&file, text.replacen(from, to, 1)).expect("edited");
+}
+
+/// Row 15.16 (A15.7), rehearsed as the plan's Expected-behaviour paragraph asks: after a release,
+/// an IR field added without bumping `ir_version` fails the release; so does a new `Reason`
+/// variant; a comment, a doc line or a new test does not; bumping passes; going back fails.
+#[test]
+fn ir_version_bump_is_enforced() {
+    use xtask::versions::BumpViolation;
+
+    let copy = rehearsal("ir", "v1.0.0");
+    assert_eq!(
+        bump_check(&copy),
+        Ok(()),
+        "a release is consistent with itself"
+    );
+
+    edit(
+        &copy,
+        "crates/oc-model/src/doc.rs",
+        "    pub level: u8,\n",
+        "    // A comment is not layout.\n    /// Nor is a doc line.\n    pub level: u8,\n",
+    );
+    std::fs::write(
+        copy.join("crates/oc-model/src/rehearsal_test.rs"),
+        "#[cfg(test)]\nmod t { #[test] fn x() {} }\n#[test]\nfn y() {}\n",
+    )
+    .expect("a test file");
+    assert_eq!(
+        bump_check(&copy),
+        Ok(()),
+        "comments, docs and tests owe no bump"
+    );
+
+    edit(
+        &copy,
+        "crates/oc-model/src/doc.rs",
+        "    pub numbering: Option<String>,\n",
+        "    pub numbering: Option<String>,\n    pub rehearsal: bool,\n",
+    );
+    let violations = bump_check(&copy).expect_err("a field was added");
+    assert!(
+        matches!(
+            violations.as_slice(),
+            [BumpViolation::NotBumped {
+                version: "ir_version",
+                value: 1,
+                ..
+            }]
+        ),
+        "{violations:?}"
+    );
+    assert!(violations[0].to_string().contains("since v1.0.0"));
+
+    edit(
+        &copy,
+        "crates/oc-model/src/lib.rs",
+        "pub const IR_VERSION: u32 = 1;",
+        "pub const IR_VERSION: u32 = 2;",
+    );
+    assert_eq!(bump_check(&copy), Ok(()), "bumped");
+    edit(
+        &copy,
+        "crates/oc-model/src/lib.rs",
+        "pub const IR_VERSION: u32 = 2;",
+        "pub const IR_VERSION: u32 = 0;",
+    );
+    assert!(matches!(
+        bump_check(&copy).expect_err("backwards").as_slice(),
+        [BumpViolation::Backwards {
+            version: "ir_version",
+            ..
+        }]
+    ));
+
+    // A new `Reason` variant is an IR change too (the plan's table names it).
+    let copy = rehearsal("reason", "v1.0.0");
+    edit(
+        &copy,
+        "crates/oc-model/src/ledger.rs",
+        "    SoftHyphen,\n",
+        "    SoftHyphen,\n    Rehearsal,\n",
+    );
+    assert!(matches!(
+        bump_check(&copy)
+            .expect_err("a variant was added")
+            .as_slice(),
+        [BumpViolation::NotBumped {
+            version: "ir_version",
+            ..
+        }]
+    ));
+    let _ = std::fs::remove_dir_all(copy);
+}
+
+/// Row 15.17 (A15.7): a changed event — a field in a payload, a new event type — without a
+/// `protocol` bump fails the release; the bump passes; an edited comment in `events.rs` does not.
+#[test]
+fn protocol_bump_is_enforced() {
+    use xtask::versions::BumpViolation;
+
+    let copy = rehearsal("protocol", "v1.0.0");
+    edit(
+        &copy,
+        "crates/oc-core/src/events.rs",
+        "//! One UTF-8 JSON object per line.",
+        "//! One UTF-8 JSON object per line, reworded.",
+    );
+    assert_eq!(bump_check(&copy), Ok(()));
+
+    edit(
+        &copy,
+        "crates/oc-core/src/events.rs",
+        "self.emit(\"heartbeat\", serde_json::json!({}));",
+        "self.emit(\"heartbeat\", serde_json::json!({ \"alive\": true }));",
+    );
+    let violations = bump_check(&copy).expect_err("a payload changed");
+    assert!(
+        matches!(
+            violations.as_slice(),
+            [BumpViolation::NotBumped {
+                version: "protocol",
+                ..
+            }]
+        ),
+        "{violations:?}"
+    );
+    edit(
+        &copy,
+        "crates/oc-core/src/events.rs",
+        "pub const PROTOCOL_VERSION: u32 = 1;",
+        "pub const PROTOCOL_VERSION: u32 = 2;",
+    );
+    assert_eq!(bump_check(&copy), Ok(()), "bumped");
+
+    // An event emitted by name outside `events.rs` is part of the protocol as well.
+    let copy = rehearsal("emit", "v1.0.0");
+    edit(
+        &copy,
+        "crates/openconvert/src/cmd_convert.rs",
+        "\"phase\": \"started\",",
+        "\"phase\": \"started\", \"rehearsal\": 1,",
+    );
+    assert!(matches!(
+        bump_check(&copy)
+            .expect_err("the job event changed")
+            .as_slice(),
+        [BumpViolation::NotBumped {
+            version: "protocol",
+            ..
+        }]
+    ));
+    let _ = std::fs::remove_dir_all(copy);
+}
+
+/// The two other rules of `docs/VERSIONING.md` that are mechanical: a prompt edit needs a
+/// `prompt_version` bump, and a job-spec change is a new schema file, never an edit of the old one.
+#[test]
+fn prompt_and_job_spec_changes_follow_their_rules() {
+    use xtask::versions::BumpViolation;
+
+    let copy = rehearsal("prompt", "v1.0.0");
+    edit(
+        &copy,
+        "crates/oc-ai/prompts/metadata/v1/system.md",
+        "",
+        "Rehearsal. ",
+    );
+    assert!(matches!(
+        bump_check(&copy).expect_err("a prompt changed").as_slice(),
+        [BumpViolation::NotBumped {
+            version: "prompt_version",
+            ..
+        }]
+    ));
+
+    let copy = rehearsal("jobspec", "v1.0.0");
+    edit(
+        &copy,
+        "schemas/job-spec.v1.json",
+        "\"type\": \"object\"",
+        "\"type\":\"object\"",
+    );
+    assert!(matches!(
+        bump_check(&copy).expect_err("v1 was edited").as_slice(),
+        [BumpViolation::JobSpecMutated { version: 1, .. }]
+    ));
+    // The right way: v1 untouched, a new v2, oc-core pointed at it.
+    let copy = rehearsal("jobspec2", "v1.0.0");
+    std::fs::copy(
+        copy.join("schemas/job-spec.v1.json"),
+        copy.join("schemas/job-spec.v2.json"),
+    )
+    .expect("a new file");
+    edit(
+        &copy,
+        "crates/oc-core/src/jobspec.rs",
+        "schemas/job-spec.v1.json",
+        "schemas/job-spec.v2.json",
+    );
+    assert_eq!(bump_check(&copy), Ok(()));
+    let _ = std::fs::remove_dir_all(copy);
+}
+
+/// The committed baseline is the tree's own: it parses, and before the first release it is
+/// marked unreleased (so nothing owes a bump yet) and records the versions the tree declares.
+#[test]
+fn the_committed_baseline_describes_this_tree() {
+    use xtask::versions::{declared_versions, Baseline, BASELINE, UNRELEASED};
+
+    let root = workspace_root();
+    let baseline: Baseline = toml::from_str(&read(&root.join(BASELINE))).expect("a baseline");
+    let declared = declared_versions(&root).expect("versions");
+    if baseline.released == UNRELEASED {
+        assert_eq!(baseline.versions.ir_version, declared.ir_version);
+        assert_eq!(baseline.versions.protocol, declared.protocol);
+    }
+    assert_eq!(declared.ir_version, oc_model::IR_VERSION);
+    assert_eq!(declared.protocol, oc_core::events::PROTOCOL_VERSION);
+}

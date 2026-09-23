@@ -1,0 +1,18 @@
+# The versions and guarded digests of the last release (docs/VERSIONING.md, PHASE 15 detail 8).
+# Written by `cargo run -p xtask -- bump-rules-check --record <tag>` once a release is tagged,
+# and by nothing else; read by `bump-rules-check` in CI and in the release job.
+# `released = "none"` until the first release: nothing has shipped, so drift is reported, not failed.
+released = "none"
+
+[versions]
+app = "0.1.0"
+ir_version = 1
+protocol = 1
+prompt_version = 1
+job_spec_schema = 1
+
+[digests]
+ir = "36950ba3116445bc8ad9bc9d16d0f91bc5dfa9ce0b0c6330b101082c6f5fff09"
+protocol = "8d1a88f63a62c23da4342fd47f1425b23c5a58eeea4ebc6ad269512cd6fb55f9"
+prompt = "184acbfe5998d4f07ed63886147a7e17a2e1f26c051f67928567669cb01d9219"
+job_spec = "1a7d2537a5ff15c6da33c36e425b40cd22221574ad2c35b913b42018b2ec3feb"
