@@ -14,6 +14,7 @@ use oc_epub::images::SourceImage;
 use oc_epub::{BuiltEpub, EpubOptions};
 use oc_model::doc::{Severity, Warning};
 use oc_model::document::{Document, PresetName};
+use oc_model::extract::ImageRef;
 use oc_model::ids::BlockId;
 use oc_model::lang::LangTag;
 use oc_model::ledger::{Ledger, LedgerDelta};
@@ -23,7 +24,7 @@ use oc_pdf::inspect::{PdfDoc, PdfOpen};
 use oc_structure::meta::{InfoDict, MetaSources};
 use oc_structure::stage::StructureInput;
 
-use crate::document::DocumentInput;
+use crate::document::{DocumentInput, Structured};
 use crate::pipeline::{
     body_runs, document_stage, epub_check, furniture_stage, layout_stage, structure_stage,
     text_stage, validate_repair_stage, DocumentError, EpubStageError, ValidateRepairError,
@@ -43,6 +44,9 @@ pub struct ConvertOptions {
     /// against the book's digest inside the conversion; a file that does not apply is reported by
     /// name and the book is converted without it.
     pub overrides: Option<String>,
+    /// Where a full run saves what `structure` settled and a run with corrections resumes from
+    /// it (A12.4b). `None` saves nothing and always runs every stage.
+    pub cache_dir: Option<std::path::PathBuf>,
 }
 
 /// Per-stage wall-clock, in milliseconds, in stage order.
@@ -186,6 +190,14 @@ pub fn convert(
 /// The stage names are the twelve of IR_SKETCH, emitted only for stages this driver runs: a
 /// supervisor that shows "Reconstructing" is shown it because `layout` began, not because a timer
 /// said it probably had (UI_UX §2.2).
+///
+/// **The partial re-run** (ratified R-15, A12.4b). With a cache directory, a full run saves what
+/// `structure` settled ([`Upstream`]) under the book's digest; a run that brings the user's
+/// corrections and finds that save — same book, same engine, same IR, same forced language —
+/// starts at `document` from it and runs only `document`, `epub`, `validate`, `repair` and
+/// `report`, because a metadata or TOC edit cannot change a glyph. Anything else about the save
+/// that does not fit is a full run, never an error: the cache is an optimisation, and the book is
+/// the same book either way.
 pub fn convert_observed(
     pdf: &dyn PdfDoc,
     source_sha256: &str,
@@ -193,21 +205,98 @@ pub fn convert_observed(
     t: &Thresholds,
     observe: Observe<'_>,
 ) -> Result<Conversion, ConvertError> {
-    let mut timings = Timings::default();
-    let input = timings.observed(observe, "ingest", || read_pages(pdf, observe))?;
-    let mut totals = ReasonTotals::default();
+    let cache = options
+        .cache_dir
+        .as_deref()
+        .map(crate::cache::StructureCache::new);
+    let key = crate::cache::CacheKey::for_run(source_sha256, options);
+    if let (Some(cache), Some(_)) = (&cache, &options.overrides) {
+        if let Some(upstream) = cache.read(&key) {
+            let totals = ReasonTotals::replay(&upstream.ledger.c_0, &upstream.ledger.entries);
+            return downstream(
+                pdf,
+                source_sha256,
+                options,
+                &upstream,
+                totals,
+                Timings::default(),
+                t,
+                observe,
+            );
+        }
+    }
 
-    let text = timings.observed(observe, "text", || text_stage(&input, &mut totals, t))?;
+    let mut timings = Timings::default();
+    let mut totals = ReasonTotals::default();
+    let upstream = upstream(
+        pdf,
+        source_sha256,
+        options,
+        t,
+        observe,
+        &mut timings,
+        &mut totals,
+    )?;
+    if let Some(cache) = &cache {
+        // Best effort: a save that fails costs the next rebuild its shortcut and nothing else.
+        let _ = cache.write(&key, &upstream);
+    }
+    downstream(
+        pdf,
+        source_sha256,
+        options,
+        &upstream,
+        totals,
+        timings,
+        t,
+        observe,
+    )
+}
+
+/// Everything the stages after `structure` read of the stages up to it: what the partial re-run
+/// resumes from (A12.4b), and what a full run hands on without a detour through the cache.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Upstream {
+    pub structured: Structured,
+    /// The printed page label per page, as `furniture` recovered it.
+    pub labels: Vec<Option<String>>,
+    pub classes: Vec<PageClass>,
+    pub landscape: Vec<bool>,
+    pub column_counts: Vec<usize>,
+    pub block_pages: BTreeMap<BlockId, u32>,
+    /// Every image in the document, in page order: `epub` decodes them from the PDF by these.
+    pub images: Vec<ImageRef>,
+    pub extracted_images: u32,
+    pub language: LangTag,
+    pub producer_family: oc_pdf::producer::ProducerFamily,
+    /// The ledger through `structure`: every entry and every check the stages up to it made.
+    pub ledger: Ledger,
+}
+
+/// `ingest` through `structure`, and what `document` needs besides.
+#[allow(clippy::too_many_arguments)] // the pipeline's two accumulators travel with its inputs
+fn upstream(
+    pdf: &dyn PdfDoc,
+    source_sha256: &str,
+    options: &ConvertOptions,
+    t: &Thresholds,
+    observe: Observe<'_>,
+    timings: &mut Timings,
+    totals: &mut ReasonTotals,
+) -> Result<Upstream, ConvertError> {
+    let input = timings.observed(observe, "ingest", || read_pages(pdf, observe))?;
+
+    let text = timings.observed(observe, "text", || text_stage(&input, totals, t))?;
     // Language detection is Phase 2's and is not wired into the stage driver yet, so the
     // configured tag is the one that is used; `LangTag::UND` is what a book gets when nobody
     // said. Guessing English would tell a screen reader to pronounce a German book in English.
     let language = options.language.clone().unwrap_or(LangTag::UND);
 
     let furniture = timings.observed(observe, "furniture", || {
-        furniture_stage(&text, language.clone(), &mut totals, t)
+        furniture_stage(&text, language.clone(), totals, t)
     })?;
     let layout = timings.observed(observe, "layout", || {
-        layout_stage(&text, &furniture, &mut totals, t)
+        layout_stage(&text, &furniture, totals, t)
     })?;
 
     let images = document_images(&text);
@@ -247,7 +336,7 @@ pub fn convert_observed(
         lang: language.clone(),
     };
     let structure = timings.stage("structure", || {
-        structure_stage(&layout, &structure_input, &mut totals, t)
+        structure_stage(&layout, &structure_input, totals, t)
     })?;
     observe.progress.stage(
         "structure",
@@ -295,22 +384,48 @@ pub fn convert_observed(
     ledger.push_stage(&layout.delta, layout.check.clone());
     ledger.push_stage(&structure.delta, structure.check.clone());
 
+    Ok(Upstream {
+        structured: Structured::of(&structure.output),
+        labels: furniture.labels.clone(),
+        classes,
+        landscape,
+        column_counts,
+        block_pages,
+        images,
+        extracted_images,
+        language,
+        producer_family,
+        ledger,
+    })
+}
+
+/// `document` through the validate→repair loop, from what the stages before it settled.
+#[allow(clippy::too_many_arguments)] // the pipeline's two accumulators travel with its inputs
+fn downstream(
+    pdf: &dyn PdfDoc,
+    source_sha256: &str,
+    options: &ConvertOptions,
+    upstream: &Upstream,
+    mut totals: ReasonTotals,
+    mut timings: Timings,
+    t: &Thresholds,
+    observe: Observe<'_>,
+) -> Result<Conversion, ConvertError> {
     let (overrides, refused) = crate::overrides::load(options.overrides.as_deref(), source_sha256);
     let document = timings.observed(observe, "document", || {
         document_stage(
-            &structure,
             DocumentInput {
                 source_sha256,
-                structure: &structure.output,
-                labels: &furniture.labels,
-                classes: &classes,
-                landscape: &landscape,
-                column_counts: &column_counts,
-                block_pages: &block_pages,
-                images: &images,
-                language,
+                structure: &upstream.structured,
+                labels: &upstream.labels,
+                classes: &upstream.classes,
+                landscape: &upstream.landscape,
+                column_counts: &upstream.column_counts,
+                block_pages: &upstream.block_pages,
+                images: &upstream.images,
+                language: upstream.language.clone(),
                 preset: options.preset,
-                ledger,
+                ledger: upstream.ledger.clone(),
             },
             overrides.as_ref(),
             &mut totals,
@@ -321,7 +436,7 @@ pub fn convert_observed(
     // The images are decoded for `epub`, and reported as its work: the first thing a user sees of
     // "Building" on an illustrated book is this loop.
     observe.check()?;
-    let sources = decode_images(pdf, &images, observe)?;
+    let sources = decode_images(pdf, &upstream.images, observe)?;
 
     // `epub`, `validate` and `repair` are one call, because the loop owns the emission: each of its
     // iterations is one regeneration plus one validation pass, and a caller that emitted once for
@@ -334,7 +449,7 @@ pub fn convert_observed(
             &sources,
             &options.epub,
             oc_validate::Expectations {
-                images: Some(extracted_images),
+                images: Some(upstream.extracted_images),
             },
             pdf.page_count(),
             &mut totals,
@@ -378,13 +493,13 @@ pub fn convert_observed(
     Ok(Conversion {
         document: settled,
         built: epub.built,
-        extracted_images,
+        extracted_images: upstream.extracted_images,
         tier1: loop_result.tier1,
         structural: loop_result.structural,
         repair: loop_result.outcome,
         timings,
-        producer_family,
-        page_classes: class_histogram(&classes),
+        producer_family: upstream.producer_family,
+        page_classes: class_histogram(&upstream.classes),
     })
 }
 

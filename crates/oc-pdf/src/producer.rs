@@ -7,13 +7,13 @@
 use std::sync::OnceLock;
 
 use regex::RegexSet;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// The tool that produced a PDF, as far as its metadata admits.
 ///
 /// The spelling of each variant is a committed interface: it appears in `inspect --json`,
 /// in the conversion report, and as the stratum key the corpus is reported by (D18).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ProducerFamily {
     /// Any TeX engine that writes PDF directly.
     #[serde(rename = "pdfTeX")]

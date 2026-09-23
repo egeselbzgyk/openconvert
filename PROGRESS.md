@@ -262,8 +262,13 @@ Work items, in order, with the plan's test rows against each:
         `Decision{method: User}` each — row **12.10**; job spec `overrides_path` and
         `convert --overrides`; a refused file is a named warning and the book converts without it;
         report gains `document.authors` / `document.toc` (PROVISIONAL, see Blocked) (+ 7 tests)
-  - [ ] **P12.9b** the editors: MetadataEditor, TocEditor, `save_overrides`, "Fix and rebuild"
-  - [ ] **P12.9c** the partial re-run from the cached `structure` output (A12.4b)
+  - [x] **P12.9b** the partial re-run (A12.4b): with `OC_CACHE_DIR` set a full run saves what
+        `structure` settled (`convert::Upstream`, `cache.rs`) under the book's digest; a run with
+        corrections that finds a matching save runs only `document`→`report`, its budget totals
+        replayed from the saved ledger. The rebuilt EPUB is byte-identical to a full run with the
+        same corrections. IR types gained `Deserialize` (PROVISIONAL location/trigger, see
+        Blocked) (+ 5 tests)
+  - [ ] **P12.9c** the editors: MetadataEditor, TocEditor, `save_overrides`, "Fix and rebuild"
 - [ ] **P12.10** Playwright under the shipped CSP — rows 12.14 (keyboard), 12.15, 12.16
 - [ ] **P12.11** CI wiring, the signing dry-run workflow (row 12.14 signing, unverified here)
 
@@ -800,6 +805,9 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
   when a job names an `overrides.json`), not by `repair` as PIPELINE §2's table and IR_SKETCH say,
   and draws on no conservation budget (ARCHITECTURE §4.7). PIPELINE §9 and ARCHITECTURE §4.7 put
   the application in `document`; DECISIONS.md is silent on the owner.
+- The partial re-run's save lives in `<OC_CACHE_DIR>/structure/<sha256>.json`, named by an
+  environment variable (not a job-spec field) and written only when that variable is set; the
+  desktop app points it at its own cache directory. No document says where R-15's cache lives.
 
 Otherwise nothing. The NFC question raised on 2026-09-20 was ruled the same day — `C(·)` is taken after
 canonical **de**composition — and is implemented. `docs/DECISIONS_LOG.md` 2026-09-20 and the

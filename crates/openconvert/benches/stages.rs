@@ -33,6 +33,7 @@ fn stages(criterion: &mut Criterion) {
             modified: "2026-01-01T00:00:00Z".to_owned(),
         },
         overrides: None,
+        cache_dir: None,
     };
 
     // One conversion, read once: what each stage spent, per page, printed where a reader of

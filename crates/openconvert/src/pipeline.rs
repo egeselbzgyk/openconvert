@@ -521,13 +521,12 @@ pub struct DocumentStage {
 /// `UserOverride` entries a renamed heading makes. Those entries go into the document's own ledger
 /// here, because the validate→repair loop measures I-7 against it next.
 pub fn document_stage(
-    structure: &StructureStage,
     input: crate::document::DocumentInput<'_>,
     overrides: Option<&oc_model::overrides::Overrides>,
     totals: &mut ReasonTotals,
     t: &Thresholds,
 ) -> Result<DocumentStage, DocumentError> {
-    let emitted = structure.output.emitted_text();
+    let emitted = input.structure.emitted_text();
     let before = c_of_parts(emitted.iter().map(String::as_str));
 
     let mut document = crate::document::assemble(input, t);

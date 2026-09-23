@@ -37,6 +37,7 @@ fn options() -> ConvertOptions {
             modified: "2026-01-01T00:00:00Z".to_owned(),
         },
         overrides: None,
+        cache_dir: None,
     }
 }
 

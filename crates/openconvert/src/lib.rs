@@ -11,6 +11,7 @@
 //! What `oc-core` keeps is the part that does not need the stages: the thresholds, the
 //! conservation checker, the stage declarations, cancellation, events and exit codes.
 
+pub mod cache;
 pub mod convert;
 pub mod document;
 pub mod dump_layout;

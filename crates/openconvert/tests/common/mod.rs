@@ -102,6 +102,7 @@ pub fn build_with(stem: &str, epub: EpubOptions) -> Built {
             preset: PresetName::Auto,
             epub,
             overrides: None,
+            cache_dir: None,
         },
         &T,
     )

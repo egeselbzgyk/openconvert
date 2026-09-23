@@ -175,7 +175,9 @@ usage:
   --modified <STAMP>   force dcterms:modified, for byte-identical output
   --report <PATH>      where report.json goes; default <output>.report.json
   --locale <TAG>       en|de|tr; which language the warnings are printed in (default en)
-  --overrides <PATH>   the user's metadata and TOC corrections (overrides.json)
+  --overrides <PATH>   the user's metadata and TOC corrections (overrides.json); with
+                       OC_CACHE_DIR set, a run resumes after `structure` from the last
+                       full run of the same PDF, which saves there
   --tier <1|2>         1 = the internal validator (default), 2 = plus EPUBCheck
 
   dump-stage writes one canonical-JSON object per line: a header, then one per page.

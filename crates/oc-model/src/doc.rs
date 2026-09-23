@@ -8,7 +8,7 @@
 //! from a [`crate::layout::Block`], and why every one of them carries a
 //! [`crate::confidence::Confidence`] saying how the label was arrived at (D13.5).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::confidence::Confidence;
 use crate::extract::{ImageId, PageRef};
@@ -20,7 +20,7 @@ use crate::layout::Para;
 ///
 /// Six independent booleans rather than an enum: a run can be bold *and* italic *and*
 /// superscript at once, and the EPUB that comes out has to carry all three.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SpanStyle {
     pub bold: bool,
     pub italic: bool,
@@ -38,7 +38,7 @@ impl SpanStyle {
 }
 
 /// Where a link points.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LinkTarget {
     /// Somewhere else in this book.
@@ -49,7 +49,7 @@ pub enum LinkTarget {
 }
 
 /// One stretch of text in one style — the semantic counterpart of a `Run`.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Span {
     pub text: String,
     pub style: SpanStyle,
@@ -86,7 +86,7 @@ pub fn spans_text(spans: &[Span]) -> String {
 }
 
 /// How a block is aligned on the page.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Align {
     #[default]
@@ -97,7 +97,7 @@ pub enum Align {
 }
 
 /// A heading, at a level between 1 and 6.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Heading {
     pub id: BlockId,
     /// 1..=6. A level outside that range cannot be serialised into XHTML, so the constructor
@@ -127,7 +127,7 @@ impl Heading {
 }
 
 /// One item of a list: its own content, and any list nested inside it.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ListItem {
     pub content: Vec<Content>,
     pub nested: Option<Box<List>>,
@@ -143,7 +143,7 @@ pub struct ListItem {
 }
 
 /// An ordered or unordered list.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct List {
     pub id: BlockId,
     pub ordered: bool,
@@ -161,7 +161,7 @@ pub const MAX_LIST_DEPTH: u8 = 5;
 /// Three levels deep because that is what verse is — a poem is stanzas, a stanza is lines,
 /// and a line is styled text — and because flattening any of the three loses the line breaks,
 /// which are the one thing about verse a reflowable format must not re-wrap.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Verse {
     pub id: BlockId,
     pub stanzas: Vec<Vec<Vec<Span>>>,
@@ -169,7 +169,7 @@ pub struct Verse {
 }
 
 /// Preformatted text: a monospace block whose line breaks and spaces are content.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Pre {
     pub id: BlockId,
     pub lines: Vec<String>,
@@ -177,7 +177,7 @@ pub struct Pre {
 }
 
 /// Whether a note sits at the foot of its page or at the back of the book.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NoteKind {
     Footnote,
@@ -189,7 +189,7 @@ pub enum NoteKind {
 /// `anchor` is `Option` and the bijection check in PIPELINE §8.3 is what makes it almost
 /// always `Some`: a note nothing refers to is a detection failure that has to be visible
 /// rather than hidden behind a link to nowhere, which is the EPUBCheck `RSC-007` class.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Note {
     pub id: NoteId,
     pub kind: NoteKind,
@@ -202,7 +202,7 @@ pub struct Note {
 }
 
 /// An image plus, when one could be associated, its caption.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Figure {
     pub id: FigureId,
     pub image: ImageId,
@@ -217,7 +217,7 @@ pub struct Figure {
 }
 
 /// One cell of a table.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Cell {
     pub spans: Vec<Span>,
     pub colspan: u16,
@@ -245,7 +245,7 @@ impl Cell {
 }
 
 /// A table, either as a real grid or as the image fallback plus its text.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Table {
     pub id: TableId,
     pub rows: Vec<Vec<Cell>>,
@@ -270,7 +270,7 @@ impl Table {
 }
 
 /// Where one source page ended, so a reflowed book can still carry a page list.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PageBreak {
     pub id: PageBreakId,
     pub page: PageRef,
@@ -278,7 +278,7 @@ pub struct PageBreak {
 }
 
 /// One piece of a section's flow.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Content {
     Paragraph(Para),
@@ -342,7 +342,7 @@ impl Content {
 }
 
 /// Which part of a book a front-matter section is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FrontMatterKind {
     HalfTitle,
@@ -359,7 +359,7 @@ pub enum FrontMatterKind {
 }
 
 /// Which part of a book a back-matter section is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BackMatterKind {
     Appendix,
@@ -373,7 +373,7 @@ pub enum BackMatterKind {
 }
 
 /// What a section is in the architecture of a book.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SectionRole {
     FrontMatter(FrontMatterKind),
@@ -397,7 +397,7 @@ impl SectionRole {
 }
 
 /// The three zones of a book, in the order they must appear.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Zone {
     Front,
@@ -406,7 +406,7 @@ pub enum Zone {
 }
 
 /// One node of the document tree.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Section {
     pub id: BlockId,
     pub role: SectionRole,
@@ -432,7 +432,7 @@ impl Section {
 
 /// Where a metadata field came from. Load-bearing: a title a model guessed and a title the
 /// file declared must not be indistinguishable (D13.5).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MetaSource {
     Xmp,
@@ -443,7 +443,7 @@ pub enum MetaSource {
 }
 
 /// The book's metadata.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Metadata {
     pub title: Option<String>,
     pub subtitle: Option<String>,
@@ -459,7 +459,7 @@ pub struct Metadata {
 }
 
 /// How bad a warning is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Severity {
     Info,

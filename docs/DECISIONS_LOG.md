@@ -3699,3 +3699,32 @@ Evidence: `overrides_with_wrong_ir_version_are_refused` (12.11), `overrides_roun
 (12.10), `a_stale_overrides_file_is_named_and_the_book_converts_without_it`,
 `a_user_override_is_balanced_but_draws_on_no_budget`.
 Affects: PIPELINE §2 and §9, IR_SKETCH stage kinds, ARCHITECTURE §4.6–4.7, thresholds.toml comment.
+
+## 2026-09-23 · "Fix and rebuild" resumes from a per-book save named by `OC_CACHE_DIR` · Phase 12 · PROVISIONAL — needs maintainer ratification
+Context: R-15 ratified the partial re-run — a correction re-runs only `document` → `epub` →
+`validate` → `repair` → `report` "from the cached `structure` output" (A12.4b) — but no document says
+where that cache lives, what it holds, who names it, or when a run may resume from it. The job spec
+(schemas/job-spec.v1.json) has no field for it, and the save holds the book's text, which SECURITY
+§10 treats as something to disclose and make clearable.
+Decision (provisional): the engine saves what `structure` settled — `Upstream`: the sections, notes,
+figures, tables, metadata and warnings `document` reads, the per-page labels, classes, orientation and
+column counts, the block→page map, the image list, the producer family and the ledger through
+`structure` — as `<OC_CACHE_DIR>/structure/<source_sha256>.json`, keyed by engine version, IR version,
+digest and forced language, after every full run **when and only when** the environment variable
+`OC_CACHE_DIR` names a directory (the CLI writes nothing by default). A run that brings corrections
+(`overrides_path` / `--overrides`) and finds a save whose key matches starts at `document` from it,
+with the budget totals replayed from the saved ledger (`ReasonTotals::replay`); any mismatch or
+damage is a full run, never an error. The images are still decoded from the PDF for `epub` — that is
+`epub`'s work, not a stage before `structure`. The IR types gained `Deserialize` (plus `BlockId`
+from its text and `CharHistogram` from its map); the three `&'static str` fields are saved as text
+and read back against the warning registry and the stage declarations, so an unknown code or stage
+is a miss. A variable rather than a job-spec field because the location is the app's, not the job's
+(like `OC_PDF_PASSWORD`) and the committed v1 schema stays as the plan wrote it. The desktop app sets
+it to its own `cache/` directory and clears saves with the rest of its cache.
+To ratify: the variable (vs a job-spec field) and the save's lifetime (the app clears it at start).
+Evidence: `a_rebuild_runs_only_the_stages_after_structure` (A12.4b: only downstream stage events; the
+rebuilt EPUB is byte-identical to a full run with the same corrections, the report equal but for
+timings), `a_save_that_does_not_fit_is_a_full_run`, `replaying_a_ledger_charges_what_the_stages_charged`,
+`a_histogram_reads_back_as_written`, `a_block_id_reads_back_from_its_text_and_only_from_it`.
+Affects: UI_UX §2.3, IMPLEMENTATION_PLAN Phase 12 detail 8 / A12.4b, SECURITY §10 (a second on-disk
+store of document text, in the app's cache directory).

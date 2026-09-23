@@ -156,26 +156,36 @@ impl core::fmt::Display for BlockId {
 /// Its own type rather than a `BlockId` because a note is not a block: its body may be
 /// several blocks and its marker is not text anybody selected. Small integers because the
 /// bijection check in PIPELINE §8.3 counts them, and a counting check wants a dense index.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct NoteId(pub u32);
 
 /// A figure's identifier: one image plus, when one could be associated, one caption.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct FigureId(pub u32);
 
 /// A table's identifier.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct TableId(pub u32);
 
 /// A style cluster's identifier, assigned by `structure`'s clustering in size-rank order.
 ///
 /// Recorded on every heading so the report can say *which* cluster decided a level, and so
 /// that an override can move a whole cluster rather than one heading at a time.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct ClusterId(pub u32);
 
 /// A page break's identifier. One per source page that contributes content, in page order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct PageBreakId(pub u32);
 
 /// Round a coordinate to whole points for hashing (D13.3, "bbox rounded to 1 pt").
@@ -298,5 +308,25 @@ proptest::proptest! {
         for id in &family {
             proptest::prop_assert_eq!(id.as_str().len(), 10);
         }
+    }
+}
+
+/// A block id reads back from the text it is written as, and nothing else reads as one: an
+/// `overrides.json` that names a heading must name one this derivation could have produced.
+#[test]
+fn a_block_id_reads_back_from_its_text_and_only_from_it() {
+    let id = BlockId::derive(3, golden_rect(), "Chapter 3");
+    let text = serde_json::to_string(&id).expect("serialises");
+    assert_eq!(serde_json::from_str::<BlockId>(&text).expect("reads"), id);
+    assert_eq!(id.as_str().parse::<BlockId>(), Ok(id));
+    for bad in [
+        "",
+        "ABCDEFGHI",
+        "ABCDEFGHIJK",
+        "abcdefghij",
+        "ABCDEFGH1J",
+        "ABCDEFGHI!",
+    ] {
+        assert!(bad.parse::<BlockId>().is_err(), "{bad:?} is not an id");
     }
 }

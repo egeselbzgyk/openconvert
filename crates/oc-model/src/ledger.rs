@@ -4,7 +4,7 @@
 //! silently, because every removal has to name a reason and stay inside that reason's
 //! budget. The ledger is what makes that checkable rather than aspirational.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::extract::CharHistogram;
 
@@ -13,7 +13,7 @@ use crate::extract::CharHistogram;
 /// **Closed, and deliberately so.** A stage that wants to remove text for a reason not on
 /// this list is a stage proposing a new way to lose a reader's book, and that belongs in a
 /// decision record before it belongs in code.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Reason {
     /// A soft hyphen, U+00AD, removed by normalisation `N`.
@@ -336,7 +336,7 @@ impl Ledger {
 }
 
 /// Whether a stage is allowed to change the text at all (ARCHITECTURE §5.3).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StageKind {
     /// Plain multiset equality holds across the stage; an empty ledger is the only legal one.

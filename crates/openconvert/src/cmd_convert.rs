@@ -36,6 +36,10 @@ const E_OUTPUT_EXISTS: &str = "E_OUTPUT_EXISTS";
 const E_CONVERT: &str = "E_CONVERT";
 const E_REPORT: &str = "E_REPORT";
 
+/// The environment variable naming the directory where a run saves what `structure` settled, for
+/// a later run with the user's corrections to resume from (A12.4b).
+pub const CACHE_VAR: &str = "OC_CACHE_DIR";
+
 /// One conversion, however it was asked for: from `convert`'s flags or from a job spec.
 ///
 /// The two front ends resolve to this and nothing downstream knows which one it was — which is
@@ -253,6 +257,9 @@ fn steps<W: Write + Send>(
             .overrides
             .as_ref()
             .map(|path| std::fs::read_to_string(path).unwrap_or_default()),
+        // The app names its cache directory in the environment of every engine it starts, so a
+        // "Fix and rebuild" can resume after `structure` (A12.4b). Unset, nothing is saved.
+        cache_dir: std::env::var_os(CACHE_VAR).map(PathBuf::from),
     };
 
     let pdf = match backend.open_with_limits(&bytes, args.password.as_deref(), &job.limits) {

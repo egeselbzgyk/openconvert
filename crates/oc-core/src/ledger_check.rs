@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use oc_model::extract::CharHistogram;
-use oc_model::ledger::{LedgerDelta, Reason, StageCheck, StageKind};
+use oc_model::ledger::{LedgerDelta, LedgerEntry, Reason, StageCheck, StageKind};
 
 pub use oc_model::ledger::{c_of, c_of_parts};
 
@@ -91,7 +91,7 @@ pub fn budget_group(reason: Reason) -> Option<BudgetGroup> {
 /// Cumulative rather than per stage because the budget is cumulative: three stages each
 /// taking 3 % of a book under one reason have taken 9 % of it, and a per-stage check would
 /// pass all three.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ReasonTotals {
     c0_total: u64,
     per_group: BTreeMap<&'static str, u64>,
@@ -120,6 +120,45 @@ impl ReasonTotals {
     /// Net non-OCR characters removed so far, the quantity the global cap bounds.
     pub fn non_ocr_removed(&self) -> u64 {
         self.non_ocr_removed
+    }
+
+    /// Charge one stage's net removal under `reason`, returning the budget group it drew on.
+    fn charge(&mut self, reason: Reason, net: u64) -> Option<BudgetGroup> {
+        if net == 0 {
+            return None;
+        }
+        // The global cap bounds what the pipeline removes; a user's correction is not the pipeline.
+        if reason != Reason::Ocr && reason != Reason::UserOverride {
+            self.non_ocr_removed = self.non_ocr_removed.saturating_add(net);
+        }
+        let group = budget_group(reason)?;
+        let slot = self.per_group.entry(group.name).or_default();
+        *slot = slot.saturating_add(net);
+        Some(group)
+    }
+
+    /// The totals the stages that wrote `entries` charged, recomputed from the entries alone.
+    ///
+    /// Net per stage and reason, then summed — exactly as [`check_invariants`] charged them one
+    /// stage at a time, since each entry names its stage. This is what a run resuming after
+    /// `structure` from a saved ledger starts `document` with (Phase 12, A12.4b): the budgets the
+    /// earlier stages used are still used.
+    pub fn replay(c0: &CharHistogram, entries: &[LedgerEntry]) -> Self {
+        let mut sides: BTreeMap<(&'static str, Reason), (u64, u64)> = BTreeMap::new();
+        for entry in entries {
+            let chars = oc_model::ledger::c_of(&entry.text).total();
+            let (removed, added) = sides.entry((entry.stage, entry.reason)).or_default();
+            if entry.added {
+                *added = added.saturating_add(chars);
+            } else {
+                *removed = removed.saturating_add(chars);
+            }
+        }
+        let mut totals = Self::new(c0);
+        for ((_, reason), (removed, added)) in sides {
+            totals.charge(reason, removed.saturating_sub(added));
+        }
+        totals
     }
 }
 
@@ -301,17 +340,7 @@ pub fn check_invariants(
     // running total, not against the order the reasons happened to arrive in.
     let mut touched: Vec<BudgetGroup> = Vec::new();
     for reason in delta.reasons() {
-        let net = delta.net_removed(reason);
-        if net == 0 {
-            continue;
-        }
-        // The global cap bounds what the pipeline removes; a user's correction is not the pipeline.
-        if reason != Reason::Ocr && reason != Reason::UserOverride {
-            totals.non_ocr_removed = totals.non_ocr_removed.saturating_add(net);
-        }
-        if let Some(group) = budget_group(reason) {
-            let slot = totals.per_group.entry(group.name).or_default();
-            *slot = slot.saturating_add(net);
+        if let Some(group) = totals.charge(reason, delta.net_removed(reason)) {
             if !touched.iter().any(|g| g.name == group.name) {
                 touched.push(group);
             }
@@ -359,9 +388,6 @@ fn share(part: u64, whole: u64) -> f64 {
 // Phase 2 table, plus the unit-level I-1 and I-2 cases row 2.15 exercises over
 // whole documents once the `text` and `furniture` stages exist.
 // ---------------------------------------------------------------------------
-
-#[cfg(test)]
-use oc_model::ledger::LedgerEntry;
 
 /// A stage that removes nothing and adds nothing, used by the I-3 test.
 #[cfg(test)]
@@ -694,4 +720,70 @@ fn a_user_override_is_balanced_but_draws_on_no_budget() {
         ),
         Err(ConservationError::ConservingStageMutated { .. })
     ));
+}
+
+/// The totals replayed from a ledger's entries are the totals the stages charged as they ran — the
+/// starting point of a run that resumes after `structure` (A12.4b).
+#[test]
+fn replaying_a_ledger_charges_what_the_stages_charged() {
+    let body = format!("Call me Ishmael {}", repeated('x', 400));
+    let c0 = c_of(&format!("Header {body} 12"));
+    let mut totals = ReasonTotals::new(&c0);
+    let furniture = LedgerDelta::new(vec![
+        LedgerEntry::removed(
+            crate::stages::FURNITURE.name,
+            Reason::RunningHeader,
+            0,
+            (0, 6),
+            "Header".to_owned(),
+        ),
+        LedgerEntry::removed(
+            crate::stages::FURNITURE.name,
+            Reason::PageNumber,
+            0,
+            (21, 23),
+            "12".to_owned(),
+        ),
+    ]);
+    check_invariants(
+        &c0,
+        &c_of(&body),
+        &furniture,
+        crate::stages::FURNITURE,
+        &mut totals,
+    )
+    .expect("within budget");
+    let text = LedgerDelta::new(vec![
+        LedgerEntry::removed(
+            crate::stages::TEXT.name,
+            Reason::LigatureExpand,
+            0,
+            (0, 1),
+            "\u{FB01}".to_owned(),
+        ),
+        LedgerEntry::added(
+            crate::stages::TEXT.name,
+            Reason::LigatureExpand,
+            0,
+            (0, 2),
+            "fi".to_owned(),
+        ),
+    ]);
+    check_invariants(
+        &c_of("\u{FB01}"),
+        &c_of("fi"),
+        &text,
+        crate::stages::TEXT,
+        &mut totals,
+    )
+    .expect("an expansion loses nothing");
+
+    let entries: Vec<LedgerEntry> = furniture
+        .entries()
+        .iter()
+        .chain(text.entries())
+        .cloned()
+        .collect();
+    assert_eq!(ReasonTotals::replay(&c0, &entries), totals);
+    assert_eq!(totals.group_total("furniture"), 8);
 }
