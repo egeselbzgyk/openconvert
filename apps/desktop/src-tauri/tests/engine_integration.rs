@@ -154,3 +154,70 @@ fn stale_sidecar_is_refused_at_startup() {
     let hello = handshake(&engine, env!("CARGO_PKG_VERSION")).expect("the matched pair starts");
     assert!(!hello.pdfium_version.is_empty());
 }
+
+/// A12.1 — forty dropped PDFs are forty jobs, one converting at a time, every one of them
+/// completing: the queue driving the real engine, forty times over.
+#[test]
+fn forty_dropped_books_all_complete_one_at_a_time() {
+    use std::sync::Arc;
+
+    use oc_model::document::PresetName;
+    use openconvert_desktop::jobqueue::{JobQueue, JobState, JobView, QueueSink};
+
+    struct Quiet;
+    impl QueueSink for Quiet {
+        fn line(&self, _job: &str, _line: String) {}
+        fn changed(&self, _job: &JobView) {}
+    }
+
+    let root = scratch("forty");
+    let dirs = AppDirs::under(&root.join("app")).expect("made");
+    let books = root.join("books");
+    std::fs::create_dir_all(&books).expect("made");
+    let book = oc_testkit::handmade::reference_book(1);
+    let drop: Vec<PathBuf> = (1..=40)
+        .map(|n| {
+            let path = books.join(format!("book-{n:02}.pdf"));
+            std::fs::write(&path, &book).expect("written");
+            path
+        })
+        .collect();
+
+    let engine = Engine::new(
+        dirs.jobs.clone(),
+        ProcessLauncher::new(engine_binary(), dirs.jobs.clone()).with_cache(dirs.cache.clone()),
+    );
+    let mut queue = JobQueue::new(engine, Arc::new(Quiet));
+    assert_eq!(queue.enqueue(&drop, PresetName::Auto).len(), 40);
+
+    let started = Instant::now();
+    loop {
+        queue.tick(Instant::now());
+        let views = queue.views();
+        let running = views
+            .iter()
+            .filter(|view| matches!(view.state, JobState::Running | JobState::Cancelling))
+            .count();
+        assert!(running <= 1, "{running} converting at once");
+        if views
+            .iter()
+            .all(|view| matches!(view.state, JobState::Exited { .. }))
+        {
+            for view in &views {
+                assert_eq!(
+                    view.state,
+                    JobState::Exited { code: Some(0) },
+                    "{}",
+                    view.id
+                );
+                assert!(view.output.is_file(), "{} wrote no EPUB", view.id);
+            }
+            break;
+        }
+        assert!(
+            started.elapsed() < Duration::from_secs(600),
+            "forty one-page books took more than ten minutes"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}

@@ -289,7 +289,45 @@ Work items, in order, with the plan's test rows against each:
       `scrollable-region-focusable`), Settings is a `main`. Projects `chromium-ui` (PR) and
       `webkit-ui` (nightly, **unverified here** — no WebKit on this machine); `npm run test:ui`
       (+ 3 Playwright tests)
-- [ ] **P12.11** CI wiring, the signing dry-run workflow (row 12.14 signing, unverified here)
+- [x] **P12.11** CI wiring and the signing dry run: `desktop` job runs the crate's tests with
+      `engine-integration` (after `vendor-pdfium`) and clippy `--all-features`; `ui` job runs
+      Vitest, svelte-check, lint, build and the Playwright UI spec (Chromium); nightly `webkit-ui`;
+      `.github/workflows/signing-dryrun.yml` (manual, `v0.0.0-*` only, deletes its tag) — row
+      12.14 signing / A12.7 **not run, unverified here** (no Actions, certificates, macOS or
+      Windows). A12.1 is now anchored on the real engine: `forty_dropped_books_all_complete_one_at_a_time`
+      (+ 1 integration test)
+
+**Part A verification here (Linux, no display):** workspace nextest 595 passed; desktop crate 26
+passed with `engine-integration`; UI Vitest 36 passed, svelte-check/lint/build clean; Playwright
+`chromium-ui` 3 passed; EPUB DOM checks 198 passed; fmt, clippy (incl. the desktop crate,
+`--all-features`), `xtask ci-lint`, `thresholds-lint`, `cargo deny` clean. **Unverified here:** the
+real Tauri window on WebKitGTK/WKWebView/WebView2 (IPC `postMessage` fallback under
+`connect-src 'none'`, drag and drop, the `ocpreview:` frame), `webkit-ui`, every CI job, macOS and
+Windows, the signing dry run (A12.7).
+
+### Part B — what remains, after Phase 9 and Phase 11 merge
+
+1. **Work item 9 / row 12.12 `model_download_progress_streams_and_cancels`**: the model manager and
+   packs against Phase 9's registry and `ModelReadiness` — download with streamed progress events,
+   cancel deletes the `.part`, checksum verification; Settings › Models (today a static shell,
+   drawn disabled, no data path) and Packs wired to it; the `firstrun` route and card (hidden today:
+   no entry point) driven by `ModelReadiness`.
+2. **Process groups / job objects from Phase 9** in `ProcessLauncher`: today Unix only puts the
+   engine in its own process group and kills the child; the engine + `llama-server` tree must be
+   ended as a group on the kill deadline and at app exit (Windows job object, D13.2, RT A5).
+3. **AI toggle**: Settings › AI assistance is drawn disabled; enabling it needs Phase 9's sidecar
+   and the engine to accept `ai.enabled` (it refuses the field by name today — Phase 10 decisions
+   and the non-inferiority gate). Show `llm` events on the row.
+4. **Phase 11 wiring**: Settings › Provider (endpoint, API-key file, the non-loopback consent
+   dialog → job spec `ai.endpoint`/`api_key_file`/`non_loopback_consent`) and Settings › Network log
+   fed from `oc-net`'s audit log (today empty, saying this build opens no connection).
+5. **Merge chores**: recount the report snapshot's threshold entries (176 here) after Phase 9's
+   thresholds land; reconcile `docs/DECISIONS_LOG.md` / `PROGRESS.md`; re-run `xtask ci-lint`
+   (warning registry) and the UI's 12.9 locale gate if Phase 9 adds warning codes; Phase 9 edits to
+   `oc-model` meet this branch's `Deserialize` derives.
+6. **Phase DoD**: `docs/CHANGELOG.md` Phase 12 entry; CI green on Linux/macOS/Windows (the
+   `desktop`, `ui`, `webkit-ui` jobs have never run); the signing dry run (A12.7) run by a
+   maintainer and its outcome logged; ratify the provisional decisions under Blocked.
 
 ## Phase 8 — built on `worktree-phase8`, merged 2026-09-23
 

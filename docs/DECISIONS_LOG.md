@@ -3770,3 +3770,25 @@ exists (Phase 9, part B).
 Evidence: `settings.svelte.test.ts` (4), `the_cache_is_cleared_and_corrections_are_kept_by_digest`,
 `axe_has_no_serious_violations` (settings and its Advanced section).
 Affects: UI_UX §2.4, settings.html §Advanced, Phase 12 part B.
+
+## 2026-09-23 · Phase 12 in CI, and the signing dry run that could not run here · Phase 12
+Context: Phase 12's tests span three toolchains (the Tauri crate, the Svelte UI, Playwright), and
+detail 13 asks for the Phase-15 signing and notarization workflow to be run once on a throwaway tag
+(row 12.14 `signing_dry_run_completes_on_a_throwaway_tag`, A12.7, ratified R-17).
+Decision: ci.yml's `desktop` job now also lints with `--all-features` and runs the desktop crate's
+tests with `engine-integration` against the real engine (12.1, 12.2, 12.6, 12.7, 12.13, 12.17 and
+the binary-anchored A12.1); the `ui` job runs Vitest, svelte-check, the UI lint, the build, and the
+Playwright spec under the shipped CSP in Chromium (12.14–12.16, A12.5); nightly.yml gains
+`webkit-ui`, the same spec in WebKit. `.github/workflows/signing-dryrun.yml` is the dry run:
+manual only, `v0.0.0-*` tags only, the three platforms' bundles (NSIS + MSI, app + DMG, AppImage)
+with updater artefacts, every Mach-O in the macOS bundle verified with `codesign --strict`, the app
+with `spctl --assess` and `stapler validate` (app and DMG), Authenticode verified with `signtool`,
+every updater signature verified against the public key, and the tag deleted whatever happened. The
+bundle settings Phase 15 will own are passed as `--config` overrides rather than committed.
+Outcome: **not run — unverified here.** This machine has no GitHub Actions, no signing certificates
+and no macOS or Windows; the workflow's YAML parses and nothing more is known. Until a maintainer
+runs it with the secrets it names, A12.7 is open. The bundle does not yet carry `libpdfium`
+(Phase 15) or `llama-server` (Phase 9); the nested-signature walk covers them unchanged once they
+are packaged.
+Evidence: the workflows; `forty_dropped_books_all_complete_one_at_a_time` (A12.1, real engine).
+Affects: IMPLEMENTATION_PLAN Phase 12 detail 13, A12.1, A12.5, A12.7; Phase 15.
