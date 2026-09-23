@@ -113,11 +113,12 @@ size_bytes   = {}
     );
 }
 
-/// The pack registry that ships has nothing pinned: the Packs screen says the validation pack is
-/// not available in this version, and no download can start.
+/// The pack registry that ships offers no pack: the validation pack is deferred past v1.0
+/// (maintainer decision 2026-09-23). The Packs screen has no row to download, and installing it —
+/// its licence, its download — is refused with the registry's reason, never started.
 #[test]
-fn the_shipped_validation_pack_is_not_available_in_this_version() {
-    let (tx, _rx) = mpsc::channel();
+fn the_shipped_validation_pack_is_deferred_past_1_0() {
+    let (tx, rx) = mpsc::channel();
     let packs = PackManager::new(
         openconvert_desktop::packs::bundled_registry(),
         ModelStore::new(scratch("bundled")),
@@ -126,9 +127,20 @@ fn the_shipped_validation_pack_is_not_available_in_this_version() {
         Arc::new(Recorder(Mutex::new(tx))),
     );
     let view = packs.view();
-    assert!(view.unavailable.is_some());
-    assert!(matches!(
+    assert_eq!(view.unavailable, None, "the shipped registry parses");
+    assert!(view.rows.is_empty(), "1.0 offers no pack");
+    for refused in [
         packs.pull("validation"),
-        Err(UiError::ModelsUnavailable(_))
-    ));
+        packs.accept_license("validation"),
+        packs.license("validation").map(|_| ()),
+    ] {
+        match refused {
+            Err(UiError::NotOffered { id, reason }) => {
+                assert_eq!(id, "validation");
+                assert!(reason.contains("later release"), "{reason}");
+            }
+            other => panic!("not refused as not offered: {other:?}"),
+        }
+    }
+    assert!(rx.try_recv().is_err(), "no row changed: nothing started");
 }

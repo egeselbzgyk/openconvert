@@ -31,7 +31,7 @@ describe("report route", () => {
     expect(text).toContain("f03_image_only.pdf");
     expect(text).toContain("What's in the book");
     expect(text).toContain("Built-in check");
-    expect(text).toContain("not run: the validation pack isn't installed");
+    expect(text).toContain("not run: the validation pack arrives in a later version");
     expect(text).toContain("Time per step");
     expect(text).toContain("Building and checking");
     expect(text).toContain("scanned");

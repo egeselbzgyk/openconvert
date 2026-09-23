@@ -66,7 +66,7 @@
   const PACKS: Record<string, string> = { validation: "packs.contents.validation" };
   const licenseId = $derived(`oc-license-${row.id}`);
   /** The refusals the Rust side can answer a row's action with; anything else is an I/O error. */
-  const ERRORS = new Set(["license_not_accepted", "model_busy", "models_unavailable", "unknown_model"]);
+  const ERRORS = new Set(["license_not_accepted", "model_busy", "models_unavailable", "not_offered", "unknown_model"]);
 </script>
 
 <div class="oc-model" class:oc-model--failed={download.state === "failed"} data-row={row.id}>

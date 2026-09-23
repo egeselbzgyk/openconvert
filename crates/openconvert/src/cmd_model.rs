@@ -21,6 +21,8 @@ use crate::cli::{ModelAction, ModelArgs, Progress};
 
 const E_REGISTRY: &str = "E_MODEL_REGISTRY";
 const E_UNKNOWN_MODEL: &str = "E_MODEL_UNKNOWN";
+/// A pack the pack registry names and this version does not offer (the validation pack in 1.0).
+const E_NOT_OFFERED: &str = "E_PACK_NOT_OFFERED";
 const E_DOWNLOAD: &str = "E_MODEL_DOWNLOAD";
 const E_STORE: &str = "E_MODEL_STORE";
 
@@ -148,6 +150,13 @@ fn pull<W: Write>(
     human: bool,
 ) -> ExitCode {
     let Some(entry) = registry.get(&ModelId(id.to_owned())) else {
+        if let Some(reason) = not_offered(id) {
+            events.fatal(
+                E_NOT_OFFERED,
+                &format!("`{id}` cannot be installed: {reason}"),
+            );
+            return ExitCode::Usage;
+        }
         events.fatal(
             E_UNKNOWN_MODEL,
             &format!("`{id}` is not in the model registry"),
@@ -180,6 +189,15 @@ fn pull<W: Write>(
             ExitCode::Failed
         }
     }
+}
+
+/// Why `id` cannot be installed in this version, when it is a pack the bundled pack registry names
+/// but defers — the validation pack in 1.0 (maintainer decision 2026-09-23; D6 amendment). Asking
+/// for it by name gets that answer, not "unknown".
+fn not_offered(id: &str) -> Option<String> {
+    let packs = oc_net::packs::PackRegistry::parse(oc_net::packs::BUNDLED).ok()?;
+    let later = packs.get_deferred(&ModelId(id.to_owned()))?;
+    Some(later.reason.clone())
 }
 
 fn remove<W: Write>(

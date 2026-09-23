@@ -51,9 +51,34 @@ fn pack_registry_rejects_placeholders() {
         Err(RegistryError::UnpinnedRevision { .. })
     ));
 
-    // The pack registry that ships has no pack pinned yet: the validation pack's payload and its
-    // Java runtime's licence are still to be settled (LICENSE_AND_DEPENDENCIES §6).
-    assert!(PackRegistry::parse(oc_net::packs::BUNDLED).is_err());
+    // A deferred pack carries no pins at all, and a pack cannot be offered and deferred at once.
+    let deferred = "[[deferred]]\nid = \"validation\"\ndisplay_name = \"V\"\ncontents = \"C\"\nreason = \"later\"\n";
+    assert!(matches!(
+        PackRegistry::parse(&format!("{deferred}sha256 = \"TODO_SHA256\"\n")),
+        Err(RegistryError::Parse(_))
+    ));
+    assert!(matches!(
+        PackRegistry::parse(&format!(
+            "{}\n{deferred}",
+            pack_toml(&"a".repeat(64), 1, "Apache-2.0")
+        )),
+        Err(RegistryError::Parse(_))
+    ));
+}
+
+/// Maintainer decision 2026-09-23 (D6 amendment): the validation pack is deferred past v1.0. The
+/// registry that ships parses, offers no pack, and names the validation pack as arriving later —
+/// with no pin to fill, so the release gate (row 15.18) has nothing in `packs.toml` to refuse.
+#[test]
+fn the_validation_pack_is_deferred_past_1_0() {
+    let registry = PackRegistry::parse(oc_net::packs::BUNDLED).expect("the shipped registry");
+    assert!(registry.entries().is_empty(), "1.0 offers no pack");
+    let id = oc_net::registry::ModelId("validation".to_owned());
+    assert!(registry.get(&id).is_none());
+    let later = registry.get_deferred(&id).expect("named as deferred");
+    assert_eq!(later.display_name, "Validation pack");
+    assert!(later.reason.contains("later release"), "{}", later.reason);
+    assert!(!oc_net::packs::BUNDLED.contains("TODO_"));
 }
 
 /// A pack installs through the model downloader: verified while it streams, `LICENSE` and `NOTICE`

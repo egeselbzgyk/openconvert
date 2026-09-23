@@ -140,9 +140,10 @@ describe("models route", () => {
     expect(backend.calls).toContainEqual(["download", ["models", DEFAULT]]);
   });
 
-  it("a registry without pins offers no model, and the validation pack is not available", async () => {
+  it("a registry without pins offers no model, and the validation pack arrives later", async () => {
     const backend = new FakeBackend();
     backend.models = { unavailable: "model `qwen3-1.7b-q4_k_m` still has a placeholder in `revision`", rows: [] };
+    backend.packs = { unavailable: "pack `validation` still has a placeholder in `license`", rows: [] };
     await openModels(backend);
     expect(document.querySelector(".oc-settings__body")?.textContent).toContain(
       "No model can be downloaded with this build of the app.",
@@ -152,7 +153,7 @@ describe("models route", () => {
     nav("Packs")?.click();
     flushSync();
     const validation = [...document.querySelectorAll(".oc-model")].find((element) => element.textContent?.includes("Validation pack"));
-    expect(validation?.textContent).toContain("Not available in this version");
+    expect(validation?.textContent).toContain("Arrives in a later version");
     expect(validation?.querySelector("button")).toBeNull();
 
     // And no first-run card offers a download that cannot happen.
@@ -163,6 +164,21 @@ describe("models route", () => {
     })();
     expect(queue).toBe(backend);
     expect(document.querySelector(".oc-card--firstrun")).toBeNull();
+  });
+});
+
+describe("packs route", () => {
+  it("1.0 offers no pack: the validation pack says it arrives in a later version, with nothing to download", async () => {
+    // The registry as it ships: usable, no `[[pack]]`, the validation pack `[[deferred]]`.
+    await openModels();
+    nav("Packs")?.click();
+    flushSync();
+    const validation = row("validation");
+    expect(validation?.querySelector(".oc-model__name")?.textContent).toBe("Validation pack");
+    expect(validation?.querySelector(".oc-model__state")?.textContent).toBe("Arrives in a later version");
+    expect(validation?.textContent).toContain("Arrives after 1.0.");
+    expect(validation?.textContent).toContain("the built-in check always runs");
+    expect(validation?.querySelector("button")).toBeNull();
   });
 });
 

@@ -518,13 +518,15 @@
         {#each packs.rows as row (row.id)}
           {@render downloadable("packs", row)}
         {/each}
-      {:else}
-        <!-- The pack registry this build ships pins no pack (packs.toml): nothing to download. -->
-        <div class="oc-model oc-model--unavailable">
+      {/if}
+      {#if !(packs?.rows ?? []).some((row) => row.id === "validation")}
+        <!-- 1.0 does not offer the validation pack (packs.toml `[[deferred]]`, maintainer decision
+             2026-09-23): it arrives in a later version, and nothing here can download it. -->
+        <div class="oc-model oc-model--unavailable" data-row="validation">
           <div class="oc-model__head">
             <span class="oc-model__name">{t("settings.packs.validation")}</span><span class="oc-model__tier">EPUBCheck</span>
             <span class="oc-model__spacer"></span>
-            <span class="oc-model__state">{t("settings.packs.notAvailable")}</span>
+            <span class="oc-model__state">{t("settings.packs.later")}</span>
           </div>
           <div class="oc-model__facts"><span class="oc-model__note">{t("settings.packs.validationNote")}</span></div>
         </div>

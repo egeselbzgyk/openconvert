@@ -263,3 +263,33 @@ fn an_unknown_model_id_is_a_usage_error() {
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("no-such-model"));
 }
+
+/// Maintainer decision 2026-09-23 (D6 amendment): the validation pack is deferred past v1.0.
+/// Asking for it by name is refused as a usage error that says it is not offered in 1.0 and comes
+/// later — never "unknown", and nothing is downloaded or written.
+#[test]
+fn the_validation_pack_is_refused_with_a_clear_message() {
+    let dir = scratch("validation");
+    let store = dir.join("store");
+    let output = model(&[
+        "pull",
+        "validation",
+        "--progress",
+        "json",
+        "--dir",
+        &store.to_string_lossy(),
+    ]);
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("E_PACK_NOT_OFFERED"), "{stderr}");
+    assert!(
+        stderr.contains("does not offer the validation pack"),
+        "{stderr}"
+    );
+    assert!(stderr.contains("later release"), "{stderr}");
+    assert!(!store.join("validation").exists(), "nothing was installed");
+
+    let human = model(&["pull", "validation", "--dir", &store.to_string_lossy()]);
+    assert_eq!(human.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&human.stderr).contains("arrives in a later release"));
+}
