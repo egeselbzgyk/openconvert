@@ -46,10 +46,14 @@ pub struct BudgetGroup {
 ///
 /// `None` for `Ocr`: it is Added-only and region-scoped by I-6, so a bound stated as a
 /// fraction of the source text would forbid transcribing a scanned book at all.
+///
+/// `None` for `UserOverride` too: it is "the one place a human may overrule the conservation
+/// budgets" (ARCHITECTURE §4.7). A budget is a bound on what a *rule* may take; a person renaming
+/// a heading in a short book would otherwise be refused by an allowance written for running heads.
 pub fn budget_group(reason: Reason) -> Option<BudgetGroup> {
     let budget = &T.conservation.budget;
     let group = match reason {
-        Reason::Ocr => return None,
+        Reason::Ocr | Reason::UserOverride => return None,
         Reason::RunningHeader | Reason::RunningFooter | Reason::PageNumber => BudgetGroup {
             name: "furniture",
             fraction: budget.furniture,
@@ -301,7 +305,8 @@ pub fn check_invariants(
         if net == 0 {
             continue;
         }
-        if reason != Reason::Ocr {
+        // The global cap bounds what the pipeline removes; a user's correction is not the pipeline.
+        if reason != Reason::Ocr && reason != Reason::UserOverride {
             totals.non_ocr_removed = totals.non_ocr_removed.saturating_add(net);
         }
         if let Some(group) = budget_group(reason) {
@@ -623,4 +628,70 @@ fn budget_charges_net_loss_not_churn() {
     assert_eq!(check.added_chars, 200);
     assert_eq!(totals.group_total("other"), 0);
     assert_eq!(totals.non_ocr_removed(), 0);
+}
+
+/// A heading the user renamed: ledgered and balanced like any other change, but drawn on no budget,
+/// because "the one place a human may overrule the conservation budgets" is this one (ARCHITECTURE
+/// §4.7). And only under the corrected contract: without corrections `document` is Conserving.
+#[test]
+fn a_user_override_is_balanced_but_draws_on_no_budget() {
+    let before_text = "Chapter One Call me Ishmael";
+    let after_text = "I Call me Ishmael";
+    let c0 = c_of(before_text);
+    let delta = LedgerDelta::new(vec![
+        LedgerEntry::removed(
+            crate::stages::DOCUMENT.name,
+            Reason::UserOverride,
+            0,
+            (0, 11),
+            "Chapter One".to_owned(),
+        ),
+        LedgerEntry::added(
+            crate::stages::DOCUMENT.name,
+            Reason::UserOverride,
+            0,
+            (0, 1),
+            "I".to_owned(),
+        ),
+    ]);
+
+    let mut totals = ReasonTotals::new(&c0);
+    let check = check_invariants(
+        &c0,
+        &c_of(after_text),
+        &delta,
+        crate::stages::DOCUMENT_CORRECTED,
+        &mut totals,
+    )
+    .expect("a third of this tiny book, renamed by its reader, is not a budget violation");
+    assert_eq!((check.removed_chars, check.added_chars), (10, 1));
+    assert_eq!(totals.group_total("other"), 0);
+    assert_eq!(totals.non_ocr_removed(), 0);
+    assert_eq!(budget_group(Reason::UserOverride), None);
+
+    // The same change, unexplained, is still caught: the exemption is from budgets, not from I-1.
+    let mut totals = ReasonTotals::new(&c0);
+    assert!(matches!(
+        check_invariants(
+            &c0,
+            &c_of("I Call me"),
+            &delta,
+            crate::stages::DOCUMENT_CORRECTED,
+            &mut totals,
+        ),
+        Err(ConservationError::NotConserved { .. })
+    ));
+
+    // And a `document` run without corrections may not cite it at all.
+    let mut totals = ReasonTotals::new(&c0);
+    assert!(matches!(
+        check_invariants(
+            &c0,
+            &c_of(after_text),
+            &delta,
+            crate::stages::DOCUMENT,
+            &mut totals,
+        ),
+        Err(ConservationError::ConservingStageMutated { .. })
+    ));
 }

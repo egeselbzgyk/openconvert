@@ -60,6 +60,8 @@ pub struct ConvertJob {
     pub job_id: Option<String>,
     /// NDJSON events on stderr. Always true for a job spec, whose only reader is a supervisor.
     pub json_events: bool,
+    /// The `overrides.json` the job named (ARCHITECTURE §4.7).
+    pub overrides: Option<PathBuf>,
 }
 
 impl ConvertJob {
@@ -86,6 +88,7 @@ impl ConvertJob {
             limits: oc_core::limits::Limits::default(),
             job_id: None,
             json_events: args.progress == Progress::Json,
+            overrides: args.overrides.clone(),
         }
     }
 }
@@ -243,6 +246,13 @@ fn steps<W: Write + Send>(
             warn_total_bytes: u64::try_from(T.epub.warn_total_bytes).unwrap_or(u64::MAX),
             modified: args.modified.clone().unwrap_or_else(now_utc),
         },
+        // An unreadable file reads as empty text, which the conversion refuses by name
+        // (`W_OVERRIDES_UNREADABLE`) and converts the book without: the job asked for corrections,
+        // and the report has to say they were not applied rather than the run pretend none were asked.
+        overrides: args
+            .overrides
+            .as_ref()
+            .map(|path| std::fs::read_to_string(path).unwrap_or_default()),
     };
 
     let pdf = match backend.open_with_limits(&bytes, args.password.as_deref(), &job.limits) {

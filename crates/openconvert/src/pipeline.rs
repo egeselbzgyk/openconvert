@@ -515,16 +515,31 @@ pub struct DocumentStage {
 /// document carries. A dangling one here becomes an `<img src>` or an `<a href>` pointing at
 /// a file the manifest does not list, and it is cheaper to fail now than to have EPUBCheck
 /// find it (PIPELINE §9, "every nav target resolves to a heading id").
+///
+/// The user's corrections, when there are any, are applied last (PIPELINE §9 step 7), and then
+/// the stage is checked under [`stages::DOCUMENT_CORRECTED`]: Conserving except for the
+/// `UserOverride` entries a renamed heading makes. Those entries go into the document's own ledger
+/// here, because the validate→repair loop measures I-7 against it next.
 pub fn document_stage(
     structure: &StructureStage,
     input: crate::document::DocumentInput<'_>,
+    overrides: Option<&oc_model::overrides::Overrides>,
     totals: &mut ReasonTotals,
     t: &Thresholds,
 ) -> Result<DocumentStage, DocumentError> {
     let emitted = structure.output.emitted_text();
     let before = c_of_parts(emitted.iter().map(String::as_str));
 
-    let document = crate::document::assemble(input, t);
+    let mut document = crate::document::assemble(input, t);
+    let (delta, decl) = match overrides {
+        Some(overrides) => {
+            let applied = crate::overrides::apply(&mut document, overrides);
+            document.decisions.extend(applied.decisions);
+            document.warnings.extend(applied.warnings);
+            (applied.delta, stages::DOCUMENT_CORRECTED)
+        }
+        None => (LedgerDelta::default(), stages::DOCUMENT),
+    };
 
     let dangling = document.dangling_references();
     if !dangling.is_empty() {
@@ -533,8 +548,11 @@ pub fn document_stage(
 
     let pieces = document.text_pieces();
     let after = c_of_parts(pieces.iter().map(String::as_str));
-    let delta = LedgerDelta::default();
-    let check = check_invariants(&before, &after, &delta, stages::DOCUMENT, totals)?;
+    let check = check_invariants(&before, &after, &delta, decl, totals)?;
+    document
+        .ledger
+        .entries
+        .extend(delta.entries().iter().cloned());
 
     Ok(DocumentStage {
         document,

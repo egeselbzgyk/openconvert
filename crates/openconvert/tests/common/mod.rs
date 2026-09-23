@@ -101,6 +101,7 @@ pub fn build_with(stem: &str, epub: EpubOptions) -> Built {
             language: Some(LangTag::EN),
             preset: PresetName::Auto,
             epub,
+            overrides: None,
         },
         &T,
     )

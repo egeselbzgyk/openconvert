@@ -96,6 +96,26 @@ pub const CODES: &[WarningSpec] = &[
         args: &["pages", "page_count"],
     },
     WarningSpec {
+        code: "W_OVERRIDES_BLOCKS",
+        args: &[],
+    },
+    WarningSpec {
+        code: "W_OVERRIDES_OTHER_SOURCE",
+        args: &[],
+    },
+    WarningSpec {
+        code: "W_OVERRIDES_STALE",
+        args: &["file_ir", "engine_ir"],
+    },
+    WarningSpec {
+        code: "W_OVERRIDES_UNMATCHED",
+        args: &["count"],
+    },
+    WarningSpec {
+        code: "W_OVERRIDES_UNREADABLE",
+        args: &[],
+    },
+    WarningSpec {
         code: "W_PAGE_BREAK_UNPLACED",
         args: &[],
     },

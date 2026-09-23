@@ -107,6 +107,37 @@ impl serde::Serialize for BlockId {
     }
 }
 
+/// Read back from its base32 text — the form `overrides.json` and the report carry. Exactly
+/// [`ID_LEN`] characters of the alphabet the encoder emits; anything else is not an id this
+/// derivation could have produced.
+impl core::str::FromStr for BlockId {
+    type Err = InvalidBlockId;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        let bytes: [u8; ID_LEN] = text
+            .as_bytes()
+            .try_into()
+            .map_err(|_| InvalidBlockId(text.to_owned()))?;
+        if bytes.iter().all(|byte| BASE32_ALPHABET.contains(byte)) {
+            Ok(Self(bytes))
+        } else {
+            Err(InvalidBlockId(text.to_owned()))
+        }
+    }
+}
+
+/// Text that is not a block id.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("{0:?} is not a block id")]
+pub struct InvalidBlockId(pub String);
+
+impl<'de> serde::Deserialize<'de> for BlockId {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        text.parse().map_err(serde::de::Error::custom)
+    }
+}
+
 impl core::fmt::Debug for BlockId {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "BlockId({})", self.as_str())

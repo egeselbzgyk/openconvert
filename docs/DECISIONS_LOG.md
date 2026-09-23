@@ -3668,3 +3668,34 @@ blocks by id in the XHTML, which it does not today. Unverified here: rendering i
 and WebView2 (no display on this machine; the component tests run in jsdom).
 Evidence: `preview::tests`, `webview_has_no_network_permission`, `preview.svelte.test.ts`.
 Affects: Phase 12 detail 7, D13.9 (CSP, narrowed widening), UI_UX §2.3, report.html §3.
+
+## 2026-09-23 · User corrections are applied by `document` and draw on no budget · Phase 12 · PROVISIONAL — needs maintainer ratification
+Context: the documents disagree about which stage cites `UserOverride`. PIPELINE §9 (step 7, and the
+stage's Purpose) and ARCHITECTURE §4.7 apply `overrides.json` in `document` — "after `structure` and
+before `document`", "overrides applied last" — while PIPELINE §2's stage table and IR_SKETCH give
+`UserOverride` to `repair` ("Conserving, except `UserOverride`"), and `thresholds.toml` counted it in
+the `other` budget, which ARCHITECTURE §4.7 contradicts ("the one place a human may overrule the
+conservation budgets"). DECISIONS.md is silent on the owner. A renamed heading is text inside `C`,
+so the choice decides which invariant check sees it.
+Decision (provisional): `document` applies the corrections as its last step and is checked under a
+second declared contract, `stages::DOCUMENT_CORRECTED` = Budgeted{`UserOverride`}, used only when a
+job names an `overrides.json`; a run without one keeps `document` Conserving. `repair` stays
+Conserving (it never sees a correction). `UserOverride` may add text (`Reason::may_add`: a renamed
+heading's new words), and draws on no budget group and not on the global non-OCR cap; I-1, I-2 and
+I-7 apply to it in full. The corrections' ledger entries go into the document's ledger before the
+validate→repair loop, so the loop's I-7 balances with them. A file that does not apply — another IR
+version, another PDF, block-level entries (D16), unreadable — converts the book without it and is
+named by a warning (`W_OVERRIDES_STALE{file_ir, engine_ir}`, `W_OVERRIDES_OTHER_SOURCE`,
+`W_OVERRIDES_BLOCKS`, `W_OVERRIDES_UNREADABLE`); a TOC correction naming a heading the book does not
+have is counted in `W_OVERRIDES_UNMATCHED{count}`. A level change re-nests the section tree by level
+in reading order, and a moved section takes the role its place implies (a chapter under a chapter
+becomes a section; a section moved to the top becomes a chapter; front and back matter keep theirs).
+Every applied correction is a `Decision{method: User}` whose alternative is what the pipeline chose.
+The report gains `document.authors` and `document.toc` (heading id, title, level, printed page) — the
+editors' starting point — and `convert` gains `--overrides <PATH>` (§2.1 lists it).
+To ratify: the owner (document vs repair) and the budget exemption; PIPELINE §2's table, IR_SKETCH's
+stage-kind line and the `repair.rs` comment would then be aligned.
+Evidence: `overrides_with_wrong_ir_version_are_refused` (12.11), `overrides_roundtrip_metadata_and_toc`
+(12.10), `a_stale_overrides_file_is_named_and_the_book_converts_without_it`,
+`a_user_override_is_balanced_but_draws_on_no_budget`.
+Affects: PIPELINE §2 and §9, IR_SKETCH stage kinds, ARCHITECTURE §4.6–4.7, thresholds.toml comment.

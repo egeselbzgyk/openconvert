@@ -39,6 +39,10 @@ pub struct ConvertOptions {
     /// The preset before [`PresetName::resolve`] has run.
     pub preset: PresetName,
     pub epub: EpubOptions,
+    /// The text of the user's `overrides.json`, when the job named one (ARCHITECTURE §4.7). Read
+    /// against the book's digest inside the conversion; a file that does not apply is reported by
+    /// name and the book is converted without it.
+    pub overrides: Option<String>,
 }
 
 /// Per-stage wall-clock, in milliseconds, in stage order.
@@ -291,6 +295,7 @@ pub fn convert_observed(
     ledger.push_stage(&layout.delta, layout.check.clone());
     ledger.push_stage(&structure.delta, structure.check.clone());
 
+    let (overrides, refused) = crate::overrides::load(options.overrides.as_deref(), source_sha256);
     let document = timings.observed(observe, "document", || {
         document_stage(
             &structure,
@@ -307,6 +312,7 @@ pub fn convert_observed(
                 preset: options.preset,
                 ledger,
             },
+            overrides.as_ref(),
             &mut totals,
             t,
         )
@@ -344,11 +350,12 @@ pub fn convert_observed(
     // named seven stages where the pipeline had checked eight. The check itself always ran — a
     // violation returns `DocumentError` — but the record is the evidence, and a stage missing from
     // it is a stage nobody can show was checked.
+    //
+    // `document`'s delta — the user's corrections, when there are any — is already in its ledger
+    // (`document_stage` put it there for the loop's I-7), so only its check is added here.
     let mut settled = loop_result.document;
     settled.ledger = document.document.ledger.clone();
-    settled
-        .ledger
-        .push_stage(&document.delta, document.check.clone());
+    settled.ledger.per_stage_checks.push(document.check.clone());
     settled.ledger.push_stage(&epub.delta, epub.check.clone());
     for check in loop_result.checks {
         settled.ledger.push_stage(&LedgerDelta::default(), check);
@@ -365,6 +372,8 @@ pub fn convert_observed(
             .iter()
             .map(|code| Warning::new(code, Severity::Warn)),
     );
+    // Corrections the job named but this engine would not apply, by name (ARCHITECTURE §4.6).
+    settled.warnings.extend(refused);
 
     Ok(Conversion {
         document: settled,

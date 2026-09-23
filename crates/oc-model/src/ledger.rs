@@ -48,12 +48,16 @@ pub enum Reason {
 impl Reason {
     /// Whether this reason may put an `Added` entry in the ledger.
     ///
-    /// Two do. `Ocr` invents text that was not in the document; `LigatureExpand` turns one
-    /// scalar into two and so appears on both sides at once. Stated as a method rather than
-    /// left implicit because invariant I-1 balances added against removed, and getting the
-    /// side wrong would make the equation hold while the text was lost.
+    /// Three do. `Ocr` invents text that was not in the document; `LigatureExpand` turns one
+    /// scalar into two and so appears on both sides at once; `UserOverride` is a heading the user
+    /// renamed, whose new text the PDF never printed. Stated as a method rather than left implicit
+    /// because invariant I-1 balances added against removed, and getting the side wrong would make
+    /// the equation hold while the text was lost.
     pub fn may_add(self) -> bool {
-        matches!(self, Reason::Ocr | Reason::LigatureExpand)
+        matches!(
+            self,
+            Reason::Ocr | Reason::LigatureExpand | Reason::UserOverride
+        )
     }
 
     /// Whether this reason may put a `Removed` entry in the ledger. Every reason but `Ocr`

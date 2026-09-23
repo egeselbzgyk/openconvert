@@ -109,6 +109,7 @@ mod timed {
                 // Fixed, so two runs of the benchmark differ in timing and in nothing else.
                 modified: "2026-01-01T00:00:00Z".to_owned(),
             },
+            overrides: None,
         };
 
         let started = Instant::now();

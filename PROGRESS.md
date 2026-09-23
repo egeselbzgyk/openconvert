@@ -254,7 +254,16 @@ Work items, in order, with the plan's test rows against each:
         (`OC_PDF_PASSWORD`) — never in the spec, on the command line or on disk; a second failure
         says the password did not open it. The engine's job-spec form reads the password from
         `password_file` or that variable (+ 1 engine, 2 Rust, 1 UI test)
-- [ ] **P12.9** metadata and TOC overrides — rows 12.10, 12.11
+- [ ] **P12.9** metadata and TOC overrides — rows 12.10, 12.11, in three commits:
+  - [x] **P12.9a** the engine applies `overrides.json`: `oc_model::overrides` (`Overrides`,
+        `ir_version` first, refused when stale / for another PDF / with block entries — row
+        **12.11**); `document` applies metadata (title, authors, language) and TOC (rename, level →
+        re-nested tree) last, ledgered as `UserOverride` under `stages::DOCUMENT_CORRECTED`, one
+        `Decision{method: User}` each — row **12.10**; job spec `overrides_path` and
+        `convert --overrides`; a refused file is a named warning and the book converts without it;
+        report gains `document.authors` / `document.toc` (PROVISIONAL, see Blocked) (+ 7 tests)
+  - [ ] **P12.9b** the editors: MetadataEditor, TocEditor, `save_overrides`, "Fix and rebuild"
+  - [ ] **P12.9c** the partial re-run from the cached `structure` output (A12.4b)
 - [ ] **P12.10** Playwright under the shipped CSP — rows 12.14 (keyboard), 12.15, 12.16
 - [ ] **P12.11** CI wiring, the signing dry-run workflow (row 12.14 signing, unverified here)
 
@@ -787,6 +796,10 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 - The startup version handshake spawns the engine with the one argument `--version`, which
   answers with `hello` on stderr when stderr is not a terminal. D13.2 names only the job-spec
   path as the GUI's argument.
+- `UserOverride` is cited by `document` (under a second contract, `DOCUMENT_CORRECTED`, used only
+  when a job names an `overrides.json`), not by `repair` as PIPELINE §2's table and IR_SKETCH say,
+  and draws on no conservation budget (ARCHITECTURE §4.7). PIPELINE §9 and ARCHITECTURE §4.7 put
+  the application in `document`; DECISIONS.md is silent on the owner.
 
 Otherwise nothing. The NFC question raised on 2026-09-20 was ruled the same day — `C(·)` is taken after
 canonical **de**composition — and is implemented. `docs/DECISIONS_LOG.md` 2026-09-20 and the

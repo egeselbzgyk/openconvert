@@ -79,10 +79,6 @@ pub fn resolve(spec: &JobSpec) -> Result<ConvertJob, String> {
     {
         return Err(unsupported("dump_stages"));
     }
-    if spec.overrides_path.is_some() {
-        return Err(unsupported("overrides_path"));
-    }
-
     // A password comes from a file the spec names, or from `OC_PDF_PASSWORD` — the same variable
     // `convert` reads (D13.11) — and never from the spec itself or the command line, where anything
     // that can list processes or read the job directory would see it. The desktop app uses the
@@ -126,6 +122,7 @@ pub fn resolve(spec: &JobSpec) -> Result<ConvertJob, String> {
         limits,
         job_id: spec.job_id.clone(),
         json_events: true,
+        overrides: spec.overrides_path.clone(),
     })
 }
 

@@ -27,7 +27,18 @@ expression: value
     "figures": 0,
     "tables": 0,
     "notes": 0,
-    "images_extracted": 0
+    "images_extracted": 0,
+    "authors": [
+      "O. Convert"
+    ],
+    "toc": [
+      {
+        "heading": "AH5RIBDA3A",
+        "title": "Chapter One",
+        "level": 1,
+        "page": "1"
+      }
+    ]
   },
   "timings_ms": "[redacted]",
   "conservation": {

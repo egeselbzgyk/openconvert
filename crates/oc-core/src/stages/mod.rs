@@ -16,7 +16,7 @@ pub mod structure;
 pub mod text;
 pub mod validate;
 
-pub use document::DOCUMENT;
+pub use document::{DOCUMENT, DOCUMENT_CORRECTED};
 pub use epub::EPUB;
 pub use furniture::FURNITURE;
 pub use layout::LAYOUT;

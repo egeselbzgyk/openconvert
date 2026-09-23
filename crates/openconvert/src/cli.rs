@@ -60,6 +60,8 @@ pub struct ConvertArgs {
     /// which would make three template files that only a GUI could read — and the GUI is Phase 12.
     /// Precedence is CLI > job-spec either way (D13.11), so the flag is the spec's field named.
     pub locale: oc_core::warnings::Locale,
+    /// The user's corrections (`overrides.json`, ARCHITECTURE §4.7).
+    pub overrides: Option<PathBuf>,
 }
 
 /// `validate <INPUT.epub>`.
@@ -146,7 +148,7 @@ usage:
   openconvert convert <INPUT.pdf> [-o <OUT.epub>] [--preset <NAME>] [--lang <TAG>]
                                   [--password <STRING>] [--progress none|json]
                                   [--modified <YYYY-MM-DDThh:mm:ssZ>] [--report <PATH.json>]
-                                  [--locale en|de|tr]
+                                  [--locale en|de|tr] [--overrides <PATH.json>]
   openconvert validate <INPUT.epub> [--tier 1|2] [--json] [--epubcheck-jar <PATH>]
   openconvert inspect <INPUT.pdf> [--json] [--pages <RANGE>] [--password <STRING>]
                                   [--progress none|json] [--max-pages <N>]
@@ -173,6 +175,7 @@ usage:
   --modified <STAMP>   force dcterms:modified, for byte-identical output
   --report <PATH>      where report.json goes; default <output>.report.json
   --locale <TAG>       en|de|tr; which language the warnings are printed in (default en)
+  --overrides <PATH>   the user's metadata and TOC corrections (overrides.json)
   --tier <1|2>         1 = the internal validator (default), 2 = plus EPUBCheck
 
   dump-stage writes one canonical-JSON object per line: a header, then one per page.
@@ -292,6 +295,7 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
         modified: None,
         report: None,
         locale: oc_core::warnings::Locale::En,
+        overrides: None,
     };
 
     while let Some(arg) = args.next() {
@@ -320,6 +324,11 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
             "--locale" => {
                 let value = args.next().ok_or(CliError::MissingValue("--locale"))?;
                 parsed.locale = oc_core::warnings::Locale::from_tag(&value);
+            }
+            "--overrides" => {
+                parsed.overrides = Some(PathBuf::from(
+                    args.next().ok_or(CliError::MissingValue("--overrides"))?,
+                ));
             }
             "--password" => {
                 parsed.password = Some(args.next().ok_or(CliError::MissingValue("--password"))?);
