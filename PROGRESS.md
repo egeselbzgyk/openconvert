@@ -828,7 +828,8 @@ validation pack's payload, host, Java runtime licence and job-spec field — sti
 decision (Blocked).
 
 **Part B2 verification here (Linux, no display), on the branch head before the merge:** workspace
-nextest **745 passed** (`--exclude openconvert-desktop`); desktop crate **57 passed** with
+nextest **745 passed** (`--exclude openconvert-desktop`; 747 on the merge commit, with main's two
+new tests); desktop crate **58 passed** with
 `engine-integration` (after `cargo build -p openconvert -p oc-testkit --bins` and
 `cargo run -p xtask -- stage-sidecars`); UI Vitest **53 passed**, svelte-check (0 errors, 0
 warnings), lint and build clean; Playwright `chromium-ui` **4 passed** under the shipped CSP; EPUB
@@ -854,7 +855,7 @@ DOM checks **210 passed** (`xtask dom-fixtures`, three Chromium viewports); fmt,
       `dark_and_light_render_without_contrast_failures` (Playwright `chromium-ui`). **12.14
       `signing_dry_run_completes_on_a_throwaway_tag`** exists as `.github/workflows/signing-dryrun.yml`
       and has **not run — unverified here** (certificates, GitHub Actions, macOS, Windows).
-- [x] `cargo nextest run --workspace` green on Linux (745 + the desktop crate's 57). **macOS and
+- [x] `cargo nextest run --workspace` green on Linux (747 on the merge + the desktop crate's 58). **macOS and
       Windows CI: unverified here** (Actions disabled).
 - [x] clippy `-D warnings` (workspace `--all-features`, and the desktop crate `--all-features`),
       `cargo fmt --check`, `cargo deny --all-features check`, `xtask thresholds-lint`, `xtask ci-lint`
