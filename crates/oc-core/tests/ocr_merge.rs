@@ -226,3 +226,51 @@ fn ocr_regions_excluded_from_source_retention() {
     assert_eq!(ledger.ocr_added(), c_of(ocr));
     assert_eq!(ledger.c_0, c0);
 }
+
+/// An OCR line's size is its median word's height, not its box's — a skewed scan's line box
+/// grows with the climb — and body lines within `ocr.line_size_snap_ratio` of the median are one
+/// size, so a heading is the one that stands out (the scanned fixtures' 13.20 depends on it).
+#[test]
+fn ocr_line_sizes_are_word_heights_snapped_to_one_body_size() {
+    use oc_core::ocr::merge::snap_line_sizes;
+
+    // A line climbing 8 pt across the page, each word 7 pt tall: size 7, not 15.
+    let climbing: Vec<OcrWord> = (0..6)
+        .map(|i| {
+            let x = 50.0 + i as f32 * 50.0;
+            let y = 100.0 + i as f32 * 1.6;
+            OcrWord {
+                text: "word".to_owned(),
+                bbox: rect(x, y, x + 40.0, y + 7.0),
+                conf: 0.9,
+                block: 1,
+                par: 1,
+                line: 1,
+            }
+        })
+        .collect();
+    let mut page = page();
+    merge_ocr_runs(&mut page, climbing, rect(0.0, 0.0, 600.0, 800.0)).expect("merges");
+    assert!(
+        (page.runs[0].size_pt - 7.0).abs() < 1e-4,
+        "{:?}",
+        page.runs[0]
+    );
+    assert!(
+        page.runs[0].bbox.y1 - page.runs[0].bbox.y0 > 14.0,
+        "the box still spans the climb"
+    );
+
+    // Body lines at 7.2 and 8.9 are one size; the 13.7 pt heading is not.
+    let mut runs = page.runs.clone();
+    for (index, size) in [13.7f32, 7.2, 8.9, 8.9, 7.2, 8.9].into_iter().enumerate() {
+        let mut run = page.runs[0].clone();
+        run.size_pt = size;
+        run.id = oc_model::text::RunId(u32::try_from(index).expect("small"));
+        runs.push(run);
+    }
+    runs.remove(0);
+    snap_line_sizes(&mut runs, T.ocr.line_size_snap_ratio as f32);
+    let sizes: Vec<f32> = runs.iter().map(|run| run.size_pt).collect();
+    assert_eq!(sizes, [13.7, 8.9, 8.9, 8.9, 8.9, 8.9]);
+}

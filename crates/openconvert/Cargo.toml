@@ -21,6 +21,10 @@ ace = []
 # assertion on a shared CI runner measures the runner, and a gate that fails for that
 # reason is one people learn to re-run until it passes. The nightly `bench` job turns it on.
 bench = []
+# PHASE 13: A13.1, rows 13.20 and 13.21 need a real system Tesseract 5 with `eng`, `deu` and
+# `tur`. Gated so that a machine without one runs the ordinary suite green; the `ocr` CI job
+# installs Tesseract and turns it on, and with the feature on a missing engine fails the tests.
+tesseract = []
 
 [lib]
 name = "openconvert"

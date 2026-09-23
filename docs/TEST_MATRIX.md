@@ -578,3 +578,15 @@ back on.
 | 13.22 | `ocr_e2e::ocr_never_calls_the_llm` | `openconvert` | unit (source + dependency scan, conversion) | `test` | green |
 | 13.25 | `ocr_e2e::a_doubtful_or_failed_region_keeps_its_picture` | `openconvert` | fixture — details 9 and 11 | `test` | green |
 | 13.25a | `ocr_e2e::hello_reports_the_discovered_engine` | `openconvert` | binary (fake engine, Unix) — detail 1 | `test` | green |
+| 13.20 | `ocr_tesseract::scanned_fixture_assertions_pass` | `openconvert` (feature `tesseract`) | fixture (4 synthetic scans, real Tesseract) | `ocr` | green |
+| 13.21 | `ocr_tesseract::cer_per_stratum_within_budget` | `openconvert` (feature `tesseract`) | CI-gate — synthetic-scan CER, real stratum reported, gap printed; the nightly `full-corpus` report's `ocr_cer` section | `ocr`, nightly `full-corpus` | green (synthetic); real stratum unverified here |
+| 13.21a | `ocr_tesseract::cer_is_levenshtein_over_the_truths_length` | `openconvert` (feature `tesseract`) | unit | `ocr` | green |
+| 13.21b | `test_metrics::test_ocr_cer_is_reported_per_stratum_with_the_real_minus_synthetic_gap` | `eval` | unit | `python` | green |
+| 13.21c | `test_metrics::test_cer_is_edit_distance_over_the_truths_length` | `eval` | unit | `python` | green |
+| 13.21d | `test_run::test_a_committed_scanned_fixture_is_its_own_source_and_has_a_ground_truth` | `eval` | unit | `python` | green |
+| 13.21e | `test_run::test_the_reading_text_of_an_epub_is_its_spine_a_block_per_line` | `eval` | unit | `python` | green |
+| 13.26 | `ocr_tesseract::image_only_pdf_converts_with_system_tesseract` | `openconvert` (feature `tesseract`) | fixture (f03, real Tesseract) — A13.1 | `ocr` | green |
+| 13.26a | `ocr_scanned::scanned_ground_truth_is_the_born_digital_text` | `openconvert` | fixture — the committed `.gt.txt` is this pipeline's text of the source | `test` | green |
+| 13.26b | `ocr_scanned::scanned_fixtures_are_image_only_without_ocr` | `openconvert` | fixture | `test` | green |
+| 13.26c | `ocr_merge::ocr_line_sizes_are_word_heights_snapped_to_one_body_size` | `oc-core` | unit | `test` | green |
+| 13.26d | `tesseract::tests::every_call_caps_openmp_at_one_thread` | `oc-core` | unit | `test` | green |

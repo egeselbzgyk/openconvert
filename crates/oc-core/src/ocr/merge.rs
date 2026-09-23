@@ -134,7 +134,7 @@ fn line_run(page: &OcrPage, words: &[OcrWord]) -> Option<Run> {
         bbox,
         baseline_y: baseline(words),
         font: page.font,
-        size_pt: bbox.y1 - bbox.y0,
+        size_pt: word_height(words),
         weight: NORMAL_WEIGHT,
         italic: false,
         superscript: false,
@@ -144,12 +144,56 @@ fn line_run(page: &OcrPage, words: &[OcrWord]) -> Option<Run> {
     })
 }
 
+/// The line's size: the median of its words' heights.
+///
+/// Not the line box's height. Every word box is tight around its own ink, but a line of them on a
+/// page scanned 1.5° off square climbs across the page, and the union of its boxes grows by the
+/// climb — 7.8 pt over a 300 pt measure, most of a body line's height again. The median word is
+/// short and barely rotated, so its height is the face's, give or take an ascender.
+fn word_height(words: &[OcrWord]) -> f32 {
+    let mut heights: Vec<f32> = words
+        .iter()
+        .map(|word| word.bbox.y1 - word.bbox.y0)
+        .collect();
+    heights.sort_by(f32::total_cmp);
+    heights.get(heights.len() / 2).copied().unwrap_or_default()
+}
+
 /// The line's baseline: the median of its words' bottoms. Most words have no descender, so the
 /// median sits on the baseline where the lowest bottom would sit on a `g` or a `p`.
 fn baseline(words: &[OcrWord]) -> f32 {
     let mut bottoms: Vec<f32> = words.iter().map(|word| word.bbox.y1).collect();
     bottoms.sort_by(f32::total_cmp);
     bottoms.get(bottoms.len() / 2).copied().unwrap_or_default()
+}
+
+/// Snap every OCR line whose size is within `ratio` of the region's median line size to that
+/// median.
+///
+/// An OCR run's size is its line box's height, because Tesseract reports boxes and not font
+/// sizes — and a box's height depends on what is in it: a line with a `g` and a `T` is taller
+/// than one of `acorns`. Clustering those raw heights, as `structure` clusters PDF font sizes,
+/// splits one body face into a dozen "sizes" and leaves a chapter heading as one outlier among
+/// many. Snapping the lines that are plausibly the same face to one size gives `structure` what a
+/// PDF would have given it: one body size, and headings that stand out from it. A line further
+/// from the median than `ratio` keeps its own height — that is the heading.
+pub fn snap_line_sizes(runs: &mut [Run], ratio: f32) {
+    let mut sizes: Vec<f32> = runs.iter().map(|run| run.size_pt).collect();
+    if sizes.is_empty() {
+        return;
+    }
+    sizes.sort_by(f32::total_cmp);
+    let Some(median) = sizes.get(sizes.len() / 2).copied() else {
+        return;
+    };
+    if median <= 0.0 {
+        return;
+    }
+    for run in runs {
+        if ((run.size_pt - median) / median).abs() <= ratio {
+            run.size_pt = median;
+        }
+    }
 }
 
 /// A region's confidence, in the terms detail 9 decides on.

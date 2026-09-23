@@ -49,6 +49,7 @@ def build(rows: Iterable[Row]) -> dict[str, Any]:
         ],
         "per_stratum": _per_stratum(ordered),
         "ours_vs_real": _gap(ordered),
+        "ocr_cer": _ocr_cer(ordered),
     }
 
 
@@ -88,5 +89,51 @@ def _gap(rows: Sequence[Row]) -> dict[str, Any]:
         "note": (
             "D18: a release may not pass on ours(*) alone, and a widening gap is the earliest "
             "signal that a heuristic has been fitted to our renderer rather than to books"
+        ),
+    }
+
+
+# The metric the OCR rows carry (PHASE 13 row 13.21).
+OCR_CER = "ocr_cer"
+
+
+def _ocr_cer(rows: Sequence[Row]) -> dict[str, Any]:
+    """CER per stratum, and the real-minus-synthetic gap, stated on its own.
+
+    Separate from `ours_vs_real`, which averages every metric together: a CER is an error rate
+    where lower is better, and averaging it with scores where higher is better would produce a
+    number that means nothing. A synthetic scan is far easier than a 1910 German printing, and
+    the gap between them is the number D18 makes first-class — so it is printed even when the
+    synthetic stratum passes its gate, and refused (`None`) when either side has no documents.
+    """
+    per_stratum: dict[str, list[float]] = {}
+    for row in rows:
+        if row.metric == OCR_CER:
+            per_stratum.setdefault(row.stratum, []).append(row.value)
+    synthetic = [
+        value
+        for stratum, values in per_stratum.items()
+        if stratum.startswith(OURS_PREFIX)
+        for value in values
+    ]
+    real = [
+        value
+        for stratum, values in per_stratum.items()
+        if not stratum.startswith(OURS_PREFIX)
+        for value in values
+    ]
+    synthetic_mean = statistics.fmean(synthetic) if synthetic else None
+    real_mean = statistics.fmean(real) if real else None
+    return {
+        "per_stratum": {
+            stratum: {"n": len(values), "mean": statistics.fmean(values)}
+            for stratum, values in sorted(per_stratum.items())
+        },
+        "synthetic": synthetic_mean,
+        "real": real_mean,
+        "gap": (
+            real_mean - synthetic_mean
+            if real_mean is not None and synthetic_mean is not None
+            else None
         ),
     }

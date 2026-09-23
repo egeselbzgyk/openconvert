@@ -285,3 +285,40 @@ def test_a_confidence_level_with_no_quantile_is_refused_rather_than_approximated
 
     with pytest.raises(assertion_metrics.UnknownConfidence):
         rate.interval(level=0.975)
+
+
+# --------------------------------------------------------------------------- PHASE 13 row 13.21
+
+
+def test_cer_is_edit_distance_over_the_truths_length() -> None:
+    """Row 13.21's metric: not capped at one, and measured after the same normalisation."""
+    from oc_eval.metrics import cer as cer_mod
+
+    assert cer_mod.cer("abcd", "abcd") == 0.0
+    assert cer_mod.cer("abcd", "abed") == pytest.approx(0.25)
+    assert cer_mod.cer("ab", "ab and a page of noise") > 1.0
+    assert cer_mod.cer("a  b\n c", "a b c") == 0.0
+    assert cer_mod.cer("", "") == 0.0
+    assert cer_mod.cer("", "x") == 1.0
+
+
+def test_ocr_cer_is_reported_per_stratum_with_the_real_minus_synthetic_gap() -> None:
+    """Row 13.21 / A13.6: the synthetic-scan stratum and the real one side by side, and the gap
+    printed — never one averaged CER, and never averaged with the scores `ours_vs_real` holds."""
+    rows = [
+        *sample_rows(),
+        report.Row("ours(Typst)", "f01__scan300", report.OCR_CER, 0.01),
+        report.Row("ours(Typst)", "f04__scan300", report.OCR_CER, 0.03),
+        report.Row("ABBYY-scanner", "ia-1", report.OCR_CER, 0.12),
+    ]
+    built = report.build(rows)
+    ocr = built["ocr_cer"]
+
+    assert ocr["synthetic"] == pytest.approx(0.02)
+    assert ocr["real"] == pytest.approx(0.12)
+    assert ocr["gap"] == pytest.approx(0.10)
+    assert ocr["per_stratum"]["ABBYY-scanner"]["n"] == 1
+
+    only_synthetic = report.build([report.Row("ours(Typst)", "f01__scan300", report.OCR_CER, 0.01)])
+    assert only_synthetic["ocr_cer"]["real"] is None
+    assert only_synthetic["ocr_cer"]["gap"] is None, "a gap against nothing is not a number"

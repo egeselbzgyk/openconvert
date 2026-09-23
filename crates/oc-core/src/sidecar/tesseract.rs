@@ -40,6 +40,16 @@ const TSV_CONFIG: &str = "tsv";
 /// complete description of what the engine asks for.
 const PRESERVE_SPACES: &str = "preserve_interword_spaces=1";
 
+/// OpenMP's thread cap for the child, and its value: one thread per `tesseract`.
+///
+/// Tesseract's LSTM parallelises with OpenMP, whose idle workers spin. On a machine that is already
+/// busy — which a converting machine is — four spinning workers per call turned a one-second page
+/// into a thirty-second one and every page hit `ocr.region_deadline_secs` (measured here at load
+/// 9 on 4 cores: 0.96 s standalone, killed at 30 s inside a loaded run). Tesseract's own
+/// documentation recommends the cap when it is not alone on the machine. An environment variable,
+/// not an argument: the argument vector stays the fixed one detail 2 names.
+pub const OMP_THREAD_LIMIT: (&str, &str) = ("OMP_THREAD_LIMIT", "1");
+
 /// What one OCR call asks Tesseract for.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OcrArgs {
@@ -63,7 +73,8 @@ pub fn command(program: &Path, image: &Path, args: &OcrArgs) -> Command {
         .arg(args.dpi.to_string())
         .arg("-c")
         .arg(PRESERVE_SPACES)
-        .arg(TSV_CONFIG);
+        .arg(TSV_CONFIG)
+        .env(OMP_THREAD_LIMIT.0, OMP_THREAD_LIMIT.1);
     command
 }
 
@@ -160,4 +171,33 @@ pub fn run_captured(mut command: Command, deadline: Duration) -> Result<Captured
         stdout,
         stderr,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every call runs single-threaded under OpenMP, so a busy machine slows it rather than stalling
+    /// it past its deadline.
+    #[test]
+    fn every_call_caps_openmp_at_one_thread() {
+        let args = OcrArgs {
+            langs: LangSpec::single("eng"),
+            psm: Psm::AutoOsd,
+            dpi: 300,
+        };
+        let built = command(
+            Path::new("/usr/bin/tesseract"),
+            Path::new("page.png"),
+            &args,
+        );
+        let envs: Vec<_> = built.get_envs().collect();
+        assert!(
+            envs.contains(&(
+                std::ffi::OsStr::new(OMP_THREAD_LIMIT.0),
+                Some(std::ffi::OsStr::new(OMP_THREAD_LIMIT.1))
+            )),
+            "{envs:?}"
+        );
+    }
 }

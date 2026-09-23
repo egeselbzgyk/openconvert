@@ -174,7 +174,15 @@ pub fn sha256_hex_of(bytes: &[u8]) -> String {
 /// whitespace collapsed within a line. What CER and the scanned-fixture ground truth are stated over.
 pub fn reading_text(built: &Built) -> String {
     const BLOCK_ENDS: [&str; 9] = [
-        "</p>", "</h1>", "</h2>", "</h3>", "</h4>", "</h5>", "</h6>", "</li>", "</figcaption>",
+        "</p>",
+        "</h1>",
+        "</h2>",
+        "</h3>",
+        "</h4>",
+        "</h5>",
+        "</h6>",
+        "</li>",
+        "</figcaption>",
     ];
     // A private-use character marks where a block ended: a newline inside a paragraph's markup is
     // whitespace, as a reading system renders it, and must not end a line here.

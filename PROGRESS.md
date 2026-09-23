@@ -79,7 +79,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P13.5** `oc-pdf` rasterization (`render_region`) — rows 13.23, 13.23a, 13.23b (additions)
 - [x] **P13.6** merge, the `ingest` declaration, region-scoped I-6, retention — rows 13.13, 13.15
 - [x] **P13.7** OCR routing in `ingest`, the `convert` flags, degradation — rows 13.11, 13.12, 13.14, 13.16, 13.17, 13.18, 13.22
-- [ ] **P13.8** scanned fixtures, `.assert.json`, CER per stratum — rows 13.20, 13.21
+- [x] **P13.8** scanned fixtures, `.assert.json`, CER per stratum — rows 13.20, 13.21 *(synthetic CER 0.0007; real stratum unverified here)*
 - [ ] **P13.9** `docs/OCR_PACK_SPIKE.md`, CI job, Definition of Done, CHANGELOG, merge
 
 What a fresh session needs:
@@ -94,6 +94,10 @@ What a fresh session needs:
 - OCR routing is `openconvert::ocr::ocr_stage`, inside `convert`'s `ingest`; tests use the in-process
   `tests/common/ocr.rs::ScriptedEngine`. `common::build*` convert with `OcrOptions::off()`. New
   fixture `f11_mixed_plate` (Typst, `mixed`); `h05_invisible_layer` is the sandwich.
+- Real-engine tests: `cargo nextest run -p openconvert --features tesseract -E 'binary(ocr_tesseract)'`.
+  Scanned fixtures: `PYTHONPATH=eval/src eval/.venv/bin/python -m oc_eval.generate.scan_sim
+  --scanned-fixtures [--check]` (the shared `eval/.venv` has the main checkout's `oc_eval` installed,
+  so the worktree's source must be put first on the path).
 - Disk: build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` and run the suite per package with
   `scratchpad/p13_test_all.sh` (deletes each package's test binaries after it runs) — the whole
   workspace's test binaries at once filled the disk.

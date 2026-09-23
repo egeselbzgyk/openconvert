@@ -28,7 +28,7 @@ use oc_core::ocr::discover::{engine_install_hint, OcrUnavailable};
 use oc_core::ocr::invoke::{OcrEngine, OcrRequest};
 use oc_core::ocr::lang::{select_explicit, select_langs, stack_second, LangSpec};
 use oc_core::ocr::merge::{
-    clean_bands, merge_ocr_runs, region_confidence, split_by_bands, OcrPage,
+    clean_bands, merge_ocr_runs, region_confidence, snap_line_sizes, split_by_bands, OcrPage,
 };
 use oc_core::ocr::W_OCR_LOW_CONFIDENCE;
 use oc_core::ocr::{OcrMode, OcrScope, OcrWord, Os, ReOcr, W_OCR_ENGINE_MISSING, W_OCR_FAILED};
@@ -479,6 +479,7 @@ fn read_region(
         let merged: Vec<OcrWord> = band_words;
         entries.extend(merge_ocr_runs(&mut ocr_page, merged, *band).map_err(|e| e.to_string())?);
     }
+    snap_line_sizes(&mut ocr_page.runs, t.ocr.line_size_snap_ratio as f32);
     let offset = u32::try_from(page.ocr_runs.len()).unwrap_or(u32::MAX);
     for mut run in ocr_page.runs {
         run.id = oc_model::text::RunId(run.id.0.saturating_add(offset));

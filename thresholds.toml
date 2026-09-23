@@ -1328,3 +1328,10 @@ source = "provisional"
 evidence = "PHASE 13 detail 5: languages are stacked with `+` only when per-block detection says a second language holds at least 20 % of blocks, because stacking costs Tesseract speed and accuracy and the default is one language"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+[ocr.line_size_snap_ratio]
+value = 0.25
+source = "provisional"
+evidence = "An OCR line's size is the median height of its words, which moves with the mix of ascenders, descenders and x-height-only words: on the synthetic-scan fixtures one 10 pt body face measured 7.2 and 8.9 pt on alternate lines (19 % apart) while their 14 pt headings measured 13-14 pt (1.5x). Lines within 25 % of a region's median are one body size; not measured on real scans"
+owner = "maintainer"
+review_by = "2027-06-30"

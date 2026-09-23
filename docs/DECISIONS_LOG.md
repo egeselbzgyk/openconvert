@@ -3955,3 +3955,42 @@ extracted text and the existing `W_BROKEN_TEXT_PAGES` flag, and OCR does not rea
 `ir_version` question), (b) extending `OcrLayerDuplicate` to a broken visible layer, or (c) ratifying
 that v1 does not OCR broken-text pages.
 Affects: D13.10, PIPELINE §3, PHASE 13 details 3 and 6.
+
+## 2026-09-23 · Scanned fixtures, their ground truth, and three things real Tesseract taught · Phase 13
+Context: PHASE 13 detail 12 and rows 13.20/13.21. Tesseract 5.3.4 (`eng`, `deu`, `tur`, `osd`) is
+installed on this machine, so the real engine ran here.
+Decision:
+1. **Four synthetic scans** — `f01` at 300 and 200 dpi, `f04` (de) and `f05` (tr) at 300 — made by
+   `python -m oc_eval.generate.scan_sim --scanned-fixtures`: pypdfium2 render in grayscale, a
+   rotation drawn from ±1.5°, a 12 % left-to-right brightness gradient, Gaussian noise σ 6, JPEG
+   quality 60, wrapped by img2pdf's *internal* engine at the source's page size (the pikepdf engine
+   writes a random `/ID` per run). Every random draw is seeded from the fixture's name.
+   **Committed** as golden binaries (1.5 MB together) under `corpus/fixtures/scanned/`, per
+   TEST_CORPUS §6.4's fallback: the render and the JPEG encoder are not promised to be the same bytes
+   across platforms, and D1 keeps Python out of the Rust test path. `--check` regenerates in memory
+   and fails on any difference; the `ocr` CI job runs it. They are `ours(Typst)` in the manifest and
+   count against `corpus.ours_max_share` (D18).
+2. **Ground truth is this pipeline's own text of the born-digital source**, OCR off (`<id>.gt.txt`),
+   not the source PDF's raw text layer: the scan and its source then lose the same running heads and
+   folios to `furniture`, so CER measures OCR and nothing else. `scanned_ground_truth_is_the_born_digital_text`
+   holds the committed files equal to the live pipeline (`OC_UPDATE_SCAN_GT=1` rewrites them).
+3. **`OMP_THREAD_LIMIT=1` in `tesseract`'s environment.** On this machine at load ~9 on 4 cores, a
+   page Tesseract reads in 0.96 s standalone was still running at the 30 s deadline inside a run —
+   OpenMP's spinning workers — and every page degraded to a picture. Tesseract's documentation
+   recommends the cap when it is not alone on the machine. Environment, not argv: the argument
+   vector stays detail 2's.
+4. **An OCR line's size is its median word's height**, and lines within `ocr.line_size_snap_ratio`
+   (0.25, provisional, new) of a region's median are snapped to it. The line box's height is wrong
+   on a skewed scan (a 1.5° climb adds ~8 pt over a 300 pt measure), and raw heights split one body
+   face into several clusters, so `structure` found no heading on three of the four scans. With both,
+   all four headings are found at level 1.
+Measured here: synthetic-scan CER **0.0000 / 0.0011 / 0.0000 / 0.0015** (f01@300, f01@200, f04, f05),
+mean **0.0007** against `ocr.max_cer_synthetic = 0.03`; all twelve `.assert.json` assertions pass.
+**Unverified here:** the real stratum. The manifest's `ABBYY-scanner` holdout documents are not on
+this machine (`corpus/downloads` is absent) and have no ground-truth text; the test and the nightly
+report print the real stratum as `n = 0` and refuse to state a gap rather than print one against
+nothing. Adding 6–10 Internet Archive volumes with hOCR-derived ground truth is the plan's
+"real scans" half of detail 12 and is left for the maintainer (their download needs a rights check
+per item, TEST_CORPUS §2).
+Evidence: `ocr_tesseract` (feature `tesseract`), `ocr_scanned`, `test_metrics`/`test_run` additions.
+Affects: PHASE 13 detail 12, TEST_CORPUS §6.3/§6.4, `thresholds.toml` (`ocr.line_size_snap_ratio`).
