@@ -18,6 +18,7 @@
     onshow,
     ondetails,
     onpreview,
+    onexport,
     onpage = null,
   }: {
     row: Row;
@@ -27,6 +28,7 @@
     onshow: () => void;
     ondetails: () => void;
     onpreview: () => void;
+    onexport: () => void;
     onpage?: ((page: string) => void) | null;
   } = $props();
 
@@ -68,4 +70,5 @@
 <div class="oc-actions">
   <button class="oc-btn oc-btn--sm" onclick={ondetails}>{t("action.details")}</button>
   <button class="oc-btn oc-btn--sm" onclick={onpreview}>{t("action.preview")}</button>
+  <button class="oc-btn oc-btn--quiet oc-btn--sm" onclick={onexport}>{t("action.exportDiag")}</button>
 </div>

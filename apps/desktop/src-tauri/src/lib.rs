@@ -7,6 +7,7 @@
 //! ([`fs_scope`]). `main.rs` is the Tauri wiring around them.
 
 pub mod config;
+pub mod diagnostics;
 pub mod engine;
 pub mod fs_scope;
 pub mod jobqueue;

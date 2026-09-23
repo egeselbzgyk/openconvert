@@ -243,7 +243,12 @@ Work items, in order, with the plan's test rows against each:
         OS's Tesseract command; validation pack: not in this version), Network log (empty: this
         build opens no connection). Route `models` is the Models section; `firstrun` has no entry
         point until part B (+ 3 tests)
-  - [ ] **P12.8f** the diagnostic bundle (export, review)
+  - [x] **P12.8f** the diagnostic bundle (`diagnostics.rs`): native save dialog, then a zip of
+        the job's `report.json` and event log (the queue now keeps each job's lines), versions from
+        the handshake and OS/arch/cores — never the PDF, the EPUB, settings or keys; review screen
+        (result.html §4); offered on the result panel, failed rows, the blocking screen and
+        Settings › About "Report a problem…" (+ 1 Rust, 2 UI tests)
+  - [ ] **P12.8g** the locked-PDF row: inline password, used for one job, never saved
 - [ ] **P12.9** metadata and TOC overrides — rows 12.10, 12.11
 - [ ] **P12.10** Playwright under the shipped CSP — rows 12.14 (keyboard), 12.15, 12.16
 - [ ] **P12.11** CI wiring, the signing dry-run workflow (row 12.14 signing, unverified here)

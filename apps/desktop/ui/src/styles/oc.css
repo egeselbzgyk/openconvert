@@ -462,3 +462,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .oc-dialog--wide { width: 44rem; }
 /* PackRow: a sentence among the facts wraps (the facts' spans do not). */
 .oc-model__facts .oc-model__note { white-space: normal; }
+
+/* Diagnostic bundle review: the notes sit flush (were inline margin:0). */
+.oc-bundle__para { margin: 0; }

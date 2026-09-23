@@ -96,6 +96,8 @@ pub struct JobQueue<L: Launch> {
     kill_after: Duration,
     jobs: VecDeque<Job>,
     next: u64,
+    /// Every event line each job's engine wrote, for its diagnostic bundle.
+    logs: Arc<std::sync::Mutex<std::collections::BTreeMap<String, Vec<String>>>>,
 }
 
 impl<L: Launch> JobQueue<L> {
@@ -111,6 +113,7 @@ impl<L: Launch> JobQueue<L> {
             ),
             jobs: VecDeque::new(),
             next: 0,
+            logs: Arc::default(),
         }
     }
 
@@ -275,15 +278,20 @@ impl<L: Launch> JobQueue<L> {
             spec.preset = Some(job.preset);
             spec.limits = job.limits;
             let sink = Arc::clone(&self.sink);
+            let logs = Arc::clone(&self.logs);
             let id = job.id.clone();
-            job.phase =
-                match self
-                    .engine
-                    .start(&job.id, &spec, Box::new(move |line| sink.line(&id, line)))
-                {
-                    Ok(running) => Phase::Running(running),
-                    Err(error) => Phase::Done(JobState::FailedToStart { error }),
-                };
+            let on_line = Box::new(move |line: String| {
+                logs.lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .entry(id.clone())
+                    .or_default()
+                    .push(line.clone());
+                sink.line(&id, line);
+            });
+            job.phase = match self.engine.start(&job.id, &spec, on_line) {
+                Ok(running) => Phase::Running(running),
+                Err(error) => Phase::Done(JobState::FailedToStart { error }),
+            };
             started = true;
         }
     }
@@ -299,6 +307,16 @@ impl<L: Launch> JobQueue<L> {
         let mut report = job.output.as_os_str().to_os_string();
         report.push(".report.json");
         Ok((job.output.clone(), PathBuf::from(report)))
+    }
+
+    /// The event lines job `id`'s engine has written so far.
+    pub fn events(&self, id: &str) -> Vec<String> {
+        self.logs
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(id)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// Every row, in queue order, with waiting positions counted from the running job as #1.

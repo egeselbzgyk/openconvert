@@ -56,6 +56,13 @@ export interface PreviewIndex {
   lang: string;
 }
 
+/** A written diagnostic bundle (`src-tauri/src/diagnostics.rs`). */
+export interface Bundle {
+  path: string;
+  bytes: number;
+  entries: Array<{ name: string; bytes: number }>;
+}
+
 export interface Enqueued {
   jobs: string[];
   skipped: string[];
@@ -83,6 +90,8 @@ export interface Backend {
   showOutput(job: string): Promise<void>;
   previewIndex(job: string): Promise<PreviewIndex>;
   previewBase(): Promise<string>;
+  exportDiagnostics(job: string | null): Promise<Bundle | null>;
+  showBundle(): Promise<void>;
   cancel(job: string): Promise<void>;
   remove(job: string): Promise<void>;
   onLine(handler: (job: string, line: string) => void): Promise<Unlisten>;
@@ -106,6 +115,8 @@ export function tauriBackend(): Backend {
     showOutput: (job) => invoke<void>("show_output", { job }),
     previewIndex: (job) => invoke<PreviewIndex>("preview_index", { job }),
     previewBase: () => invoke<string>("preview_base"),
+    exportDiagnostics: (job) => invoke<Bundle | null>("export_diagnostics", { job }),
+    showBundle: () => invoke<void>("show_bundle"),
     cancel: (job) => invoke<void>("cancel", { job }),
     remove: (job) => invoke<void>("remove", { job }),
     onLine: (handler) =>

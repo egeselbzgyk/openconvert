@@ -5,6 +5,7 @@
 
 import type {
   Backend,
+  Bundle,
   DropEvent,
   Enqueued,
   PreviewIndex,
@@ -112,6 +113,23 @@ export class FakeBackend implements Backend {
   }
   async previewBase(): Promise<string> {
     return "ocpreview://localhost/";
+  }
+  bundle: Bundle | null = {
+    path: "/home/me/Desktop/openconvert-diagnostics-2026-09-23.zip",
+    bytes: 188416,
+    entries: [
+      { name: "report.json", bytes: 63488 },
+      { name: "events.ndjson", bytes: 106496 },
+      { name: "versions.txt", bytes: 80 },
+      { name: "system.txt", bytes: 40 },
+    ],
+  };
+  async exportDiagnostics(job: string | null): Promise<Bundle | null> {
+    this.calls.push(["export", job]);
+    return this.bundle;
+  }
+  async showBundle(): Promise<void> {
+    this.calls.push(["showBundle", null]);
   }
   async cancel(job: string): Promise<void> {
     this.calls.push(["cancel", job]);

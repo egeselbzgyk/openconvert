@@ -24,6 +24,7 @@
     onshow = () => undefined,
     ondetails = () => undefined,
     onpreview = () => undefined,
+    onexport = () => undefined,
     onpage = null,
   }: {
     row: Row;
@@ -38,6 +39,7 @@
     onshow?: (id: string) => void;
     ondetails?: (id: string) => void;
     onpreview?: (id: string) => void;
+    onexport?: (id: string) => void;
     onpage?: ((id: string, page: string) => void) | null;
   } = $props();
 
@@ -181,6 +183,7 @@
         onclick={() => ontoggle(row.id)}
       ><Icon name={row.expanded ? "chevup" : "chevdown"} size="md" /></button>
     {:else if row.phase === "failed"}
+      <button class="oc-btn oc-btn--sm" tabindex={tab} onclick={() => onexport(row.id)}>{t("action.exportDiag")}</button>
       {#if failure.retry}<button class="oc-btn oc-btn--sm" tabindex={tab} onclick={() => onretry(row)}>{t("queue.again")}</button>{/if}
       <button class="oc-btn oc-btn--quiet oc-btn--sm" tabindex={tab} aria-label={t("queue.removeFile", { file: name })} onclick={() => onremove(row.id)}>{t("queue.remove")}</button>
     {/if}
@@ -198,6 +201,7 @@
         onshow={() => onshow(row.id)}
         ondetails={() => ondetails(row.id)}
         onpreview={() => onpreview(row.id)}
+        onexport={() => onexport(row.id)}
         onpage={onpage === null ? null : (page) => onpage(row.id, page)}
       />
     {:else if row.report === "unavailable"}

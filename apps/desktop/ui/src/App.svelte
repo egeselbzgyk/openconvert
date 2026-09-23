@@ -9,6 +9,7 @@
   import {
     tauriBackend,
     type Backend,
+    type Bundle,
     type DropEvent,
     type Settings as UserSettings,
     type UiConfig,
@@ -19,6 +20,7 @@
   import { JobStore, type Blocking } from "./lib/jobs.svelte";
   import type { Row } from "./lib/jobstate";
   import { i18n, setLanguage, t, tn } from "./lib/locale.svelte";
+  import BundleReview from "./routes/bundle/Bundle.svelte";
   import Queue from "./routes/queue/Queue.svelte";
   import Preview from "./routes/preview/Preview.svelte";
   import Report from "./routes/report/Report.svelte";
@@ -28,6 +30,7 @@
   let { backend = tauriBackend(), clock = () => Date.now() }: { backend?: Backend; clock?: () => number } = $props();
 
   type Route =
+    | { name: "bundle"; bundle: Bundle; back: Route | null }
     | { name: "queue" }
     | { name: "settings" }
     | { name: "report"; job: string }
@@ -147,6 +150,13 @@
     }
   }
 
+  /** Write a diagnostic bundle (the native save dialog first), then review it. `back` is where
+      Done returns; `null` is the blocking screen. */
+  async function exportBundle(job: string | null, back: Route | null) {
+    const bundle = await backend.exportDiagnostics(job);
+    if (bundle !== null) route = { name: "bundle", bundle, back };
+  }
+
   async function cancel(id: string) {
     await backend.cancel(id);
   }
@@ -175,8 +185,16 @@
 <div class="oc-sprite" aria-hidden="true">{@html SPRITE}</div>
 
 <div class="oc-app oc-app--window" lang={i18n.locale}>
-  {#if blocking !== null && config !== null}
-    <BlockingError {blocking} appVersion={config.appVersion} onquit={() => backend.quit()} />
+  {#if route.name === "bundle"}
+    {@const review = route}
+    <BundleReview
+      bundle={review.bundle}
+      onshow={() => void backend.showBundle()}
+      ondone={() => (route = review.back ?? { name: "queue" })}
+    />
+    <AppHeader title={t("bundle.title")} />
+  {:else if blocking !== null && config !== null}
+    <BlockingError {blocking} appVersion={config.appVersion} onquit={() => backend.quit()} onexport={() => void exportBundle(null, null)} />
     <AppHeader />
   {:else if store !== null}
     {#if route.name === "queue"}
@@ -194,6 +212,7 @@
         ondetails={(id) => (route = { name: "report", job: id })}
         onpreview={(id) => (route = { name: "preview", job: id, page: null, from: "queue" })}
         onpage={(id, page) => (route = { name: "preview", job: id, page, from: "queue" })}
+        onexport={(id) => void exportBundle(id, { name: "queue" })}
       />
       <AppHeader onsettings={() => (route = { name: "settings" })} />
     {:else if route.name === "report"}
@@ -228,6 +247,7 @@
         {config}
         {hello}
         bind:section={settingsSection}
+        onreport={() => void exportBundle(null, { name: "settings" })}
         onsave={(next) => {
           settings = next;
           void backend.saveSettings(next);

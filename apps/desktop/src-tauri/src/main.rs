@@ -21,6 +21,7 @@ use std::time::{Duration, Instant};
 
 use oc_core::thresholds::T;
 use openconvert_desktop::config::UiConfig;
+use openconvert_desktop::diagnostics::{self, Bundle};
 use openconvert_desktop::engine::{
     handshake, sidecar_path, Engine, Hello, ProcessLauncher, UiError,
 };
@@ -235,6 +236,65 @@ fn serve_preview(app: &AppHandle, path: &str) -> tauri::http::Response<Vec<u8>> 
     .unwrap_or_default()
 }
 
+/// The last bundle written, so "Show in folder" reveals it without the webview naming a path.
+struct LastBundle(Mutex<Option<PathBuf>>);
+
+/// "Export diagnostic bundle" / "Report a problem…": the native save dialog, then the bundle —
+/// the job's report and event log when there is a job, the versions and the system always. The
+/// review screen lists what was written. Nothing is sent anywhere (SECURITY §10).
+#[tauri::command]
+async fn export_diagnostics(
+    job: Option<String>,
+    app: AppHandle,
+) -> Result<Option<Bundle>, UiError> {
+    let picker = app.clone();
+    let chosen = tauri::async_runtime::spawn_blocking(move || {
+        picker
+            .dialog()
+            .file()
+            .set_file_name(diagnostics::default_name())
+            .add_filter("ZIP", &["zip"])
+            .blocking_save_file()
+    })
+    .await
+    .map_err(|error| UiError::Io(error.to_string()))?;
+    let Some(path) = chosen.and_then(|path| path.into_path().ok()) else {
+        return Ok(None);
+    };
+
+    let (report, events) = match &job {
+        Some(id) => {
+            let state = app.state::<Queue>();
+            let (_, report) = with_queue(&state, |queue| queue.outputs(id))?;
+            let events = with_queue(&state, |queue| Ok(queue.events(id)))?;
+            (std::fs::read(report).ok(), Some(events))
+        }
+        None => (None, None),
+    };
+    let hello = app.state::<Startup>().0.as_ref().ok().cloned();
+    let files = diagnostics::contents(report, events, env!("CARGO_PKG_VERSION"), hello.as_ref());
+    let bundle = diagnostics::write(&path, &files)?;
+    *app.state::<LastBundle>()
+        .0
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = Some(path);
+    Ok(Some(bundle))
+}
+
+/// "Show in folder" on the bundle review screen.
+#[tauri::command]
+fn show_bundle(app: AppHandle, last: tauri::State<'_, LastBundle>) -> Result<(), UiError> {
+    let path = last
+        .0
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()
+        .ok_or_else(|| UiError::Io("no bundle has been written".to_owned()))?;
+    app.opener()
+        .reveal_item_in_dir(path)
+        .map_err(|error| UiError::Io(error.to_string()))
+}
+
 /// The thresholds the webview needs (`openconvert_desktop::config`).
 #[tauri::command]
 fn ui_config() -> UiConfig {
@@ -297,6 +357,7 @@ fn main() {
         })
         .manage(Startup(startup))
         .manage(Queue(Mutex::new(None)))
+        .manage(LastBundle(Mutex::new(None)))
         .manage(Prefs {
             path: Mutex::new(None),
             current: Mutex::new(Settings::default()),
@@ -345,7 +406,9 @@ fn main() {
             open_output,
             show_output,
             preview_index,
-            preview_base
+            preview_base,
+            export_diagnostics,
+            show_bundle
         ])
         .run(tauri::generate_context!())
         .expect("the Tauri application starts");

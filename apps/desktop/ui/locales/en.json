@@ -288,5 +288,19 @@
  "settings.about.licensesTitle": "Third-party notices",
  "settings.about.updates": "Updates",
  "settings.about.updatesHelp": "This build does not check for updates.",
- "dialog.close": "Close"
+ "dialog.close": "Close",
+ "bundle.title": "Diagnostic bundle",
+ "bundle.saved": "Diagnostic bundle saved",
+ "bundle.notSent": "OpenConvert did not send this anywhere. Check what is inside before you share it. The report and event log can contain text from your document.",
+ "bundle.file": "File",
+ "bundle.holds": "What it holds",
+ "bundle.size": "Size",
+ "bundle.what.report.json": "The conversion report: counts, warnings, ledger, timing",
+ "bundle.what.events.ndjson": "The converter's event log for this job (stages, progress, warnings)",
+ "bundle.what.versions.txt": "The app's and the converter's versions",
+ "bundle.what.system.txt": "Operating system, architecture and core count",
+ "bundle.excluded": "Not included: the PDF, the EPUB, your settings file, any API key.",
+ "bundle.done": "Done",
+ "bundle.where": "{folder} · {size}",
+ "size.kb": "{n} KB"
 }

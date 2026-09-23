@@ -11,7 +11,8 @@
     blocking,
     appVersion,
     onquit,
-  }: { blocking: Blocking; appVersion: string; onquit: () => void } = $props();
+    onexport,
+  }: { blocking: Blocking; appVersion: string; onquit: () => void; onexport: () => void } = $props();
 
   const title = $derived(t(blocking.kind === "version" ? "startup.version" : "startup.protocol"));
   const unknown = $derived(t("startup.unknown"));
@@ -76,6 +77,7 @@
     </dl>
     <div class="oc-actions">
       <button class="oc-btn oc-btn--primary" use:focusOnMount onclick={copy}>{copied ? t("command.copied") : t("startup.copyDetails")}</button>
+      <button class="oc-btn" onclick={onexport}>{t("action.exportDiag")}</button>
       <button class="oc-btn oc-btn--quiet" onclick={onquit}>{t("startup.quit")}</button>
     </div>
     <span class="oc-sr-only" role="status">{copied ? t("command.copied") : ""}</span>

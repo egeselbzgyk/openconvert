@@ -36,6 +36,8 @@ thiserror.workspace = true
 # preview frame (`preview.rs`).
 zip.workspace = true
 quick-xml.workspace = true
+# The diagnostic bundle's default file name carries the date.
+time.workspace = true
 
 [dev-dependencies]
 # The 300-page reference book for the cancel test, built where it is used.

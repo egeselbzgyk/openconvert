@@ -288,5 +288,19 @@
  "settings.about.licensesTitle": "Üçüncü taraf bildirimleri",
  "settings.about.updates": "Güncellemeler",
  "settings.about.updatesHelp": "Bu sürüm güncellemeleri denetlemez.",
- "dialog.close": "Kapat"
+ "dialog.close": "Kapat",
+ "bundle.title": "Tanılama paketi",
+ "bundle.saved": "Tanılama paketi kaydedildi",
+ "bundle.notSent": "OpenConvert bunu hiçbir yere göndermedi. Paylaşmadan önce içinde ne olduğunu kontrol edin. Rapor ve olay günlüğü belgenizden metin içerebilir.",
+ "bundle.file": "Dosya",
+ "bundle.holds": "Ne içerir",
+ "bundle.size": "Boyut",
+ "bundle.what.report.json": "Dönüştürme raporu: sayılar, uyarılar, defter, süreler",
+ "bundle.what.events.ndjson": "Dönüştürücünün bu iş için olay günlüğü (adımlar, ilerleme, uyarılar)",
+ "bundle.what.versions.txt": "Uygulamanın ve dönüştürücünün sürümleri",
+ "bundle.what.system.txt": "İşletim sistemi, mimari ve çekirdek sayısı",
+ "bundle.excluded": "Dahil değil: PDF, EPUB, ayar dosyanız, hiçbir API anahtarı.",
+ "bundle.done": "Tamam",
+ "bundle.where": "{folder} · {size}",
+ "size.kb": "{n} KB"
 }

@@ -288,5 +288,19 @@
  "settings.about.licensesTitle": "Hinweise zu Drittanbietern",
  "settings.about.updates": "Updates",
  "settings.about.updatesHelp": "Diese Version sucht nicht nach Updates.",
- "dialog.close": "Schließen"
+ "dialog.close": "Schließen",
+ "bundle.title": "Diagnosepaket",
+ "bundle.saved": "Diagnosepaket gespeichert",
+ "bundle.notSent": "OpenConvert hat dies nirgendwohin gesendet. Prüfen Sie den Inhalt, bevor Sie es weitergeben. Bericht und Ereignisprotokoll können Text aus Ihrem Dokument enthalten.",
+ "bundle.file": "Datei",
+ "bundle.holds": "Was sie enthält",
+ "bundle.size": "Größe",
+ "bundle.what.report.json": "Der Konvertierungsbericht: Zählungen, Warnungen, Ledger, Zeiten",
+ "bundle.what.events.ndjson": "Das Ereignisprotokoll des Konverters für diesen Auftrag (Schritte, Fortschritt, Warnungen)",
+ "bundle.what.versions.txt": "Die Versionen von App und Konverter",
+ "bundle.what.system.txt": "Betriebssystem, Architektur und Kernzahl",
+ "bundle.excluded": "Nicht enthalten: die PDF, das EPUB, Ihre Einstellungsdatei, API-Schlüssel.",
+ "bundle.done": "Fertig",
+ "bundle.where": "{folder} · {size}",
+ "size.kb": "{n} KB"
 }
