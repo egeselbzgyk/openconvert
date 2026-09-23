@@ -178,7 +178,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@nextest
       - name: fetch the pinned llama-server
-        run: echo "OC_LLAMA_SERVER=$(cargo run -q -p xtask -- fetch-llama-server)" >> "$GITHUB_ENV"
+        # Assigned first: inside `echo "…$(…)"` a failed fetch would be swallowed, leaving the
+        # variable empty for the steps below.
+        run: |
+          server=$(cargo run -q -p xtask -- fetch-llama-server)
+          echo "OC_LLAMA_SERVER=$server" >> "$GITHUB_ENV"
       - name: pull the default model through the engine's own verified download
         run: |
           cargo run -q -p openconvert --locked -- model pull qwen3-1.7b-q4_k_m --dir "$RUNNER_TEMP/models"

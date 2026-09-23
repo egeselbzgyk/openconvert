@@ -1573,22 +1573,28 @@ fn workflow_steps(workflow: &serde_yaml::Value) -> Vec<(String, serde_yaml::Valu
 /// the Linux build, the Linux reproducibility leg, the SBOM, the comparison and the publication — is
 /// a Debian image without Python that asserts so before anything else. (That the job then succeeds
 /// is the release run's to show — unverified here.)
+///
+/// The Linux build's first step is the one that installs packages, and the GTK/WebKit -dev packages
+/// bring Python with them (v1.0.0's first release run): there the step diverts every interpreter off
+/// PATH (`dpkg-divert --rename`) after the install and asserts at its end, so every later step of the
+/// build runs where Python cannot be called (`the_linux_build_diverts_python_after_installing`).
 #[test]
 fn release_job_needs_no_python() {
     let workflow = release_workflow();
     let assertion = "command -v python3 || command -v python";
+    let diversion = "dpkg-divert --local --rename";
     for (job, step) in workflow_steps(&workflow) {
         let uses = step["uses"].as_str().unwrap_or_default();
         assert!(
             !uses.contains("setup-python") && !uses.contains("setup-uv"),
             "{job}: {uses}"
         );
-        // The assertion line itself names Python, to say it is absent.
+        // The assertion line itself names Python, to say it is absent; the diversion, to remove it.
         let run: String = step["run"]
             .as_str()
             .unwrap_or_default()
             .lines()
-            .filter(|line| !line.contains(assertion))
+            .filter(|line| !line.contains(assertion) && !line.contains(diversion))
             .collect::<Vec<_>>()
             .join("\n");
         for word in ["python", "pip ", "pip3", "uv ", "uv sync", "eval/", ".venv"] {
@@ -1631,6 +1637,51 @@ fn release_job_needs_no_python() {
         containers >= 6,
         "gates, build (Linux), repro (Linux), repro-compare, sbom, publish"
     );
+}
+
+/// Row 15.14 on the Linux build image: the packages are installed, then every `python*` on the
+/// image is diverted off PATH, then the absence is asserted — in that order, in the job's first
+/// step, as its last command. Asserting before the install (the gates' pattern) proves nothing here,
+/// and installing after the diversion could bring an interpreter back.
+#[test]
+fn the_linux_build_diverts_python_after_installing() {
+    let workflow = release_workflow();
+    let steps = workflow["jobs"]["build"]["steps"]
+        .as_sequence()
+        .expect("build steps");
+    let first = steps.first().expect("a first step");
+    assert_eq!(first["if"].as_str(), Some("matrix.os == 'linux'"));
+    let run = first["run"].as_str().expect("a run");
+    let lines: Vec<&str> = run
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
+    let at = |needle: &str| {
+        lines
+            .iter()
+            .position(|l| l.contains(needle))
+            .unwrap_or_else(|| panic!("the first build step has no {needle:?}"))
+    };
+    let install = at("apt-get install");
+    let divert = at("dpkg-divert --local --rename");
+    let assertion = at("command -v python3 || command -v python");
+    assert!(install < divert && divert < assertion, "{run}");
+    assert_eq!(
+        assertion,
+        lines.len() - 1,
+        "the assertion is the step's last command"
+    );
+    assert!(
+        lines[divert].contains("/usr/bin/python*"),
+        "{}",
+        lines[divert]
+    );
+    // Nothing later installs a package again.
+    for step in &steps[1..] {
+        let later = step["run"].as_str().unwrap_or_default();
+        assert!(!later.contains("apt-get install"), "{later}");
+    }
 }
 
 /// Every CI-gate row of the plan's table is a step of the release workflow, named with its row
