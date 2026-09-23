@@ -253,9 +253,10 @@ export class FakeBackend implements Backend {
     this.calls.push(["quit", null]);
   }
 
-  /** The model manager's screen, and the pack registry's (unpinned, as it ships). */
+  /** The model manager's screen, and the pack registry's as 1.0 ships it: usable, offering no pack
+   * (the validation pack is deferred past 1.0). */
   models: CatalogView<ModelReadiness> = { unavailable: null, rows: modelRows() };
-  packs: CatalogView<PackReadiness> = { unavailable: "model `validation` still has a placeholder in `license`", rows: [] };
+  packs: CatalogView<PackReadiness> = { unavailable: null, rows: [] };
   private catalogHandlers: { models: Array<(row: ModelRow) => void>; packs: Array<(row: PackRow) => void> } = {
     models: [],
     packs: [],

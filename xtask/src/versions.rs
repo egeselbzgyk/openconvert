@@ -505,6 +505,36 @@ pub fn baseline_text(baseline: &Baseline) -> Result<String> {
     ))
 }
 
+/// The app configuration whose `version` the installers and the updater manifest carry.
+pub const TAURI_CONF: &str = "apps/desktop/src-tauri/tauri.conf.json";
+
+/// The tag must be the version the tree declares, in both places it is declared: the workspace's
+/// `Cargo.toml` (the engine, `--version`, the report) and `tauri.conf.json` (the installers' names
+/// and the version the updater compares against). A tag that matches one and not the other would
+/// ship an app that offers itself as its own update, or an engine the app calls stale.
+pub fn tag_check(root: &Path, tag: &str) -> Result<()> {
+    let wanted = tag.trim_start_matches('v');
+    let declared = declared_versions(root)?;
+    if wanted != declared.app {
+        bail!(
+            "the tag {tag} is not the version the tree declares (Cargo.toml: {})",
+            declared.app
+        );
+    }
+    let conf: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(root.join(TAURI_CONF))
+            .with_context(|| format!("cannot read {TAURI_CONF}"))?,
+    )
+    .with_context(|| format!("{TAURI_CONF} is not JSON"))?;
+    let app = conf["version"]
+        .as_str()
+        .with_context(|| format!("{TAURI_CONF} has no version"))?;
+    if app != wanted {
+        bail!("the tag {tag} is not the version {TAURI_CONF} declares ({app})");
+    }
+    Ok(())
+}
+
 pub fn run(root: &Path, args: &[String]) -> Result<()> {
     let declared = declared_versions(root)?;
     let now = digests(root, &declared)?;
@@ -528,12 +558,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     let prev = read_baseline(root)?;
     if let Some(at) = args.iter().position(|a| a == "--tag") {
         let tag = args.get(at + 1).context("--tag <vX.Y.Z>")?;
-        if tag.trim_start_matches('v') != declared.app {
-            bail!(
-                "the tag {tag} is not the version the tree declares ({})",
-                declared.app
-            );
-        }
+        tag_check(root, tag)?;
     }
     let old_job_spec = job_spec_digest(root, prev.versions.job_spec_schema);
     let result = bump_rules_check(&prev, &now, &declared, old_job_spec.as_deref());

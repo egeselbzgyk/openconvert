@@ -83,7 +83,18 @@ pub fn config() -> UpdateConfig {
     UpdateConfig {
         max_redirects: u32::try_from(T.net.max_redirects).unwrap_or_default(),
         manifest_max_bytes: u64::try_from(T.net.update_manifest_max_bytes).unwrap_or_default(),
-        payload_max_bytes: u64::try_from(T.release.max_installer_bytes).unwrap_or_default(),
+        payload_max_bytes: u64::try_from(payload_max_bytes()).unwrap_or_default(),
+    }
+}
+
+/// The largest update payload this build downloads: its own installer's budget. On Linux the
+/// payload is the AppImage, which carries WebKitGTK and has a budget of its own (maintainer
+/// decision 2026-09-23); a cap at the other installers' budget would refuse every AppImage update.
+fn payload_max_bytes() -> i64 {
+    if cfg!(target_os = "linux") {
+        T.release.max_linux_installer_bytes
+    } else {
+        T.release.max_installer_bytes
     }
 }
 
@@ -230,5 +241,21 @@ mod tests {
             assert!(verified.is_none());
         }
         assert_eq!(Setup::from_plugin_config(None), None);
+    }
+
+    /// An update may be as large as this OS's installer budget, and no larger: on Linux the
+    /// AppImage's (it carries WebKitGTK; 112 953 848 bytes measured), elsewhere D12's.
+    #[test]
+    fn an_update_payload_may_be_as_large_as_this_os_installer() {
+        let cap = config().payload_max_bytes;
+        let budget = if cfg!(target_os = "linux") {
+            T.release.max_linux_installer_bytes
+        } else {
+            T.release.max_installer_bytes
+        };
+        assert_eq!(i64::try_from(cap).expect("fits"), budget);
+        if cfg!(target_os = "linux") {
+            assert!(cap >= 112_953_848, "the measured AppImage must fit");
+        }
     }
 }

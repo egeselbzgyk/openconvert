@@ -68,6 +68,9 @@ pub enum UiError {
     /// A model or pack the registry does not name.
     #[error("no model or pack {0} in the registry")]
     UnknownModel(String),
+    /// A pack the registry names but this version does not offer (the validation pack in 1.0).
+    #[error("{id} is not offered in this version: {reason}")]
+    NotOffered { id: String, reason: String },
     /// A download before its licence was shown and accepted (UI_UX §2.4).
     #[error("the licence of {0} has not been accepted")]
     LicenseNotAccepted(String),

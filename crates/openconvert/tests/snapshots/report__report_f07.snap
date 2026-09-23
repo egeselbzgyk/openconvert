@@ -6,7 +6,7 @@ expression: value
   "schema": "openconvert.report/1",
   "status": "ok",
   "engine": {
-    "version": "0.1.0",
+    "version": "1.0.0",
     "ir_version": 1,
     "pdfium_version": "pinned-for-the-snapshot",
     "prompt_version": null
@@ -256,5 +256,5 @@ expression: value
       "input_hash": "adc3de8ec21ab7d5d16b72e02fc20ac7bb4deb29d0b34a22a31535e227bfae2b"
     }
   ],
-  "thresholds": "[229 entries, redacted]"
+  "thresholds": "[230 entries, redacted]"
 }

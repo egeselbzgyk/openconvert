@@ -503,7 +503,20 @@ fn a_release_body_missing_one_hash_is_refused() {
 fn the_installer_budget_counts_installers_only() {
     use xtask::release::{collect, installer_budget, over_budget, Os};
 
-    assert_eq!(installer_budget(), 45_000_000, "D12's upper estimate");
+    assert_eq!(
+        installer_budget(Os::Windows),
+        45_000_000,
+        "D12's upper estimate"
+    );
+    assert_eq!(
+        installer_budget(Os::Macos),
+        45_000_000,
+        "D12's upper estimate"
+    );
+    // The AppImage carries WebKitGTK: 112 953 848 bytes measured after Phase 14, and a budget of
+    // its own (maintainer decision 2026-09-23).
+    assert_eq!(installer_budget(Os::Linux), 120_000_000);
+    assert!(112_953_848 <= installer_budget(Os::Linux));
     let bundle = fake_bundle(
         "macos",
         &[
@@ -556,7 +569,7 @@ fn installer_size_within_budget() {
     use xtask::release::{collect, installer_budget, over_budget, Os};
 
     let release = collect(&required_env("OC_BUNDLE_DIR"), Os::host()).expect("installers");
-    let budget = installer_budget();
+    let budget = installer_budget(Os::host());
     for file in release.files.iter().filter(|f| f.kind.is_installer()) {
         println!("{} bytes  {}  (budget {budget})", file.bytes, file.name);
     }
@@ -1057,9 +1070,16 @@ fn repro_check_names_the_first_differing_zip_entry() {
     let linux = agree[&Os::Linux].clone();
     agree.insert(Os::Windows, linux);
     assert_eq!(repro_check(&agree, &epubs), Ok(()));
-    let mut two = agree.clone();
-    two.remove(&Os::Macos);
-    assert_eq!(repro_check(&two, &epubs), Err(ReproMismatch::MissingOs(2)));
+    // 1.0 ships Linux and Windows: those two are the gate, and one of them missing fails it.
+    let mut shipped = agree.clone();
+    shipped.remove(&Os::Macos);
+    assert_eq!(repro_check(&shipped, &epubs), Ok(()));
+    let mut linux_only = shipped.clone();
+    linux_only.remove(&Os::Windows);
+    assert_eq!(
+        repro_check(&linux_only, &epubs),
+        Err(ReproMismatch::MissingOs(Os::Windows))
+    );
     let mut short = agree.clone();
     short
         .get_mut(&Os::Macos)
@@ -1072,22 +1092,24 @@ fn repro_check_names_the_first_differing_zip_entry() {
     let _ = std::fs::remove_dir_all(scratch);
 }
 
-/// Row 15.13 in the release job: the three OS jobs' tables (and EPUBs) in `OC_REPRO_DIR` as
-/// `<os>.json` and `<os>/`, byte-identical across ubuntu, macOS and Windows (D13.8).
+/// Row 15.13 in the release job: each shipped OS's table (and EPUBs) in `OC_REPRO_DIR` as
+/// `<os>.json` and `<os>/`, byte-identical across them (D13.8) — Linux and Windows in 1.0, whose
+/// release has no macOS leg (maintainer decision 2026-09-23).
 #[cfg(feature = "release-artifacts")]
 #[test]
 fn reproducible_no_ai_output_across_os() {
     use std::collections::BTreeMap;
-    use xtask::release::Os;
+    use xtask::release::SHIPPED;
     use xtask::repro::{repro_check, HashTable};
 
     let dir = required_env("OC_REPRO_DIR");
     let mut tables = BTreeMap::new();
     let mut epubs = BTreeMap::new();
-    for os in ["linux", "macos", "windows"] {
+    for os in SHIPPED {
+        let name = format!("{os:?}").to_lowercase();
         let table: HashTable =
-            serde_json::from_str(&read(&dir.join(format!("{os}.json")))).expect("a hash table");
-        epubs.insert(Os::parse(os).expect("os"), dir.join(os));
+            serde_json::from_str(&read(&dir.join(format!("{name}.json")))).expect("a hash table");
+        epubs.insert(os, dir.join(&name));
         tables.insert(table.os, table.fixtures);
     }
     if let Err(error) = repro_check(&tables, &epubs) {
@@ -1358,14 +1380,38 @@ fn the_committed_baseline_describes_this_tree() {
     assert_eq!(declared.protocol, oc_core::events::PROTOCOL_VERSION);
 }
 
+/// Rows 15.16/15.17's tag half: `bump-rules-check --tag vX.Y.Z` accepts the tag only when both
+/// `Cargo.toml` and `tauri.conf.json` declare `X.Y.Z`. The tree itself passes for its own version.
+#[test]
+fn the_tag_is_the_version_both_manifests_declare() {
+    use xtask::versions::{declared_versions, tag_check, TAURI_CONF};
+
+    let root = workspace_root();
+    let declared = declared_versions(&root).expect("versions");
+    tag_check(&root, &format!("v{}", declared.app)).expect("the tree's own tag");
+    assert!(tag_check(&root, "v0.0.1").is_err(), "a tag the tree is not");
+
+    let copy = rehearsal("tag", "none");
+    let conf = copy.join(TAURI_CONF);
+    std::fs::create_dir_all(conf.parent().expect("a parent")).expect("dir");
+    std::fs::write(&conf, "{\"version\": \"0.9.0\"}").expect("written");
+    let error = tag_check(&copy, &format!("v{}", declared.app)).expect_err("tauri.conf.json lags");
+    assert!(
+        format!("{error:#}").contains("tauri.conf.json"),
+        "{error:#}"
+    );
+    std::fs::write(&conf, format!("{{\"version\": \"{}\"}}", declared.app)).expect("written");
+    tag_check(&copy, &format!("v{}", declared.app)).expect("both agree");
+    let _ = std::fs::remove_dir_all(copy);
+}
+
 /// Row 15.18: on a release tag, no `TODO_` in `models.toml`, `packs.toml`, `thresholds.toml` or the
 /// app's configuration (the updater key), and no threshold whose `review_by` has passed. Checked on
 /// a scratch tree built to fail each way, and clean once everything is filled.
 ///
-/// The repository itself fails this gate today, correctly: the validation pack is unbuilt, and the
-/// updater keypair is the maintainer's to generate (`models.toml` has been pinned since 2026-09-23).
-/// `cargo run -p xtask -- ci-lint --release-branch` lists them; PROGRESS.md carries them as release
-/// blockers.
+/// The repository itself passes it since 2026-09-23: `models.toml` is pinned, the validation pack is
+/// a `[[deferred]]` entry with no pins (maintainer decision), and the updater's public key is the
+/// maintainer's (`the_shipped_updater_key_is_the_maintainers_minisign_key`).
 #[test]
 fn no_todo_placeholders_on_a_release_tag() {
     use xtask::ci_lint::{release_placeholders, RELEASE_PLACEHOLDER_FILES};
@@ -1597,11 +1643,9 @@ fn every_release_gate_row_is_a_named_release_step() {
         .iter()
         .filter_map(|(_, s)| s["name"].as_str().map(str::to_owned))
         .collect();
+    // Rows 15.1–15.4 are macOS's, and 1.0 ships no macOS (maintainer decision 2026-09-23):
+    // `the_1_0_release_ships_windows_and_linux_only` holds them out until it does.
     for row in [
-        "row 15.1 every_nested_macho_is_signed_with_one_team_id",
-        "row 15.2 codesign_verify_deep_strict_passes",
-        "row 15.3 spctl_assess_accepts_the_bundle",
-        "row 15.4 notarization_ticket_is_stapled",
         "row 15.6 windows_installers_are_produced_and_hashed",
         "row 15.7 appimage_launches_and_converts_headless",
         "row 15.9",
@@ -1620,8 +1664,6 @@ fn every_release_gate_row_is_a_named_release_step() {
     }
     let text = read(&workspace_root().join(".github/workflows/release.yml"));
     for tool in [
-        "packaging/macos/sign_nested.sh",
-        "packaging/macos/notarize.sh",
         "xtask --locked -- sbom",
         "xtask --locked -- repro hash",
         "release latest-json",
@@ -1637,6 +1679,100 @@ fn every_release_gate_row_is_a_named_release_step() {
     // Windows is unsigned in v1 and the release says so (D12), rather than half-signing it.
     assert!(!text.contains("signtool"));
     assert!(text.contains("not code-signed"));
+}
+
+/// The updater's public key in `tauri.conf.json` (`plugins.updater.pubkey`) is the maintainer's: the
+/// keypair was generated on the maintainer's own machine (2026-09-23) and only its public half is in
+/// the tree. It is Tauri's base64 wrapping of a minisign Ed25519 public key whose key id is
+/// `0C6C69CA122C11B0` (Tauri prints it as `C6C69CA122C11B0`), the verifier the app and
+/// `release verify-latest` use accepts it, and the release gate (row 15.18) no longer finds a
+/// placeholder anywhere in the tree. A rotated key fails here on purpose: rotation strands every
+/// install (RELEASE_CHECKLIST, "Keys and signing").
+#[test]
+fn the_shipped_updater_key_is_the_maintainers_minisign_key() {
+    use base64::Engine as _;
+    use xtask::ci_lint::release_placeholders;
+    use xtask::release::configured_pubkey;
+
+    const KEY_ID: u64 = 0x0C6C_69CA_122C_11B0;
+    let root = workspace_root();
+    let wrapped = configured_pubkey(&root).expect("a pubkey");
+    oc_net::update::public_key(&wrapped).expect("the verifier accepts it");
+
+    let text = String::from_utf8(
+        base64::engine::general_purpose::STANDARD
+            .decode(wrapped.trim())
+            .expect("base64"),
+    )
+    .expect("UTF-8");
+    let mut lines = text.lines();
+    assert_eq!(
+        lines.next(),
+        Some("untrusted comment: minisign public key: C6C69CA122C11B0")
+    );
+    let key = base64::engine::general_purpose::STANDARD
+        .decode(lines.next().expect("the key line"))
+        .expect("base64 key");
+    assert_eq!(key.len(), 2 + 8 + 32, "algorithm, key id, Ed25519 key");
+    assert_eq!(&key[..2], b"Ed", "an Ed25519 minisign key");
+    let id = u64::from_le_bytes(key[2..10].try_into().expect("eight bytes"));
+    assert_eq!(id, KEY_ID);
+
+    let placeholders: Vec<String> = release_placeholders(&root, "2026-09-23")
+        .expect("readable")
+        .into_iter()
+        .filter(|finding| finding.contains("TODO_"))
+        .collect();
+    assert_eq!(placeholders, Vec::<String>::new(), "row 15.18 on the tree");
+}
+
+/// Maintainer decision 2026-09-23 (D12 amendment): v1.0.0 ships Windows and Linux only. The build
+/// and reproducibility legs of `release.yml` are exactly those two, no step outside a comment runs
+/// on macOS or reads an Apple secret, the signing dry run has no macOS leg either, and the macOS
+/// signing scripts stay in the tree for the later 1.x that brings macOS back (rows 15.1–15.4 then
+/// return as steps, and `SHIPPED` gains macOS).
+#[test]
+fn the_1_0_release_ships_windows_and_linux_only() {
+    use xtask::release::{Os, SHIPPED};
+
+    assert_eq!(SHIPPED, [Os::Linux, Os::Windows]);
+    let workflow = release_workflow();
+    for job in ["build", "repro"] {
+        let legs: Vec<&str> = workflow["jobs"][job]["strategy"]["matrix"]["include"]
+            .as_sequence()
+            .expect("legs")
+            .iter()
+            .map(|leg| leg["os"].as_str().expect("an os"))
+            .collect();
+        assert_eq!(legs, ["linux", "windows"], "{job}");
+    }
+    let root = workspace_root();
+    let code = |path: &str| -> String {
+        read(&root.join(path))
+            .lines()
+            .filter(|line| !line.trim_start().starts_with('#'))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let release = code(".github/workflows/release.yml");
+    for macos in [
+        "macos-",
+        "os: macos",
+        "APPLE_",
+        "codesign",
+        "notarize",
+        "stapler",
+        "spctl",
+    ] {
+        assert!(!release.contains(macos), "release.yml still has {macos:?}");
+    }
+    assert!(!code(".github/workflows/signing-dryrun.yml").contains("macos-latest"));
+    for script in ["sign_nested.sh", "notarize.sh", "entitlements.plist"] {
+        assert!(
+            root.join("packaging/macos").join(script).is_file(),
+            "{script} kept"
+        );
+    }
 }
 
 /// PHASE 15 part B: the Rust side's licence notices ship in every bundle and are regenerated from

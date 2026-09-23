@@ -5763,3 +5763,84 @@ Affects: `crates/oc-epub/src/{resample.rs,images.rs,lib.rs}`, `crates/oc-layout/
 `crates/oc-structure/src/figures.rs`, `crates/oc-pdf/src/filters.rs`, `Cargo.toml`, three crate manifests,
 `xtask/src/ci_lint.rs`, `xtask/tests/ci.rs`, `crates/openconvert/tests/snapshots/ai__no_ai_epub_sha256.snap`,
 `licenses/third-party-rust.txt`, `docs/LICENSE_AND_DEPENDENCIES.md`.
+
+## 2026-09-23 · v1.0.0 ships for Windows and Linux only; macOS later · maintainer decision (ratified)
+Context: D12 promises a macOS `.dmg` signed with a Developer ID and notarized. The project has no Apple
+Developer ID, so no macOS build can be signed, notarized or accepted by Gatekeeper (rows 15.1–15.4).
+Decision (maintainer, 2026-09-23): **v1.0.0 ships Windows + Linux; macOS comes in a later 1.x.**
+`release.yml` loses its two macOS build legs, the macOS bundle/sign/notarize/staple steps, rows
+15.1–15.4 and the macOS reproducibility leg; the Apple secrets are no longer read. `xtask::release::SHIPPED`
+(`[Linux, Windows]`) names the shipped OSes and row 15.13's `repro_check` requires exactly those (a macOS
+table, if given, is still held to the same bytes). The signing dry run loses its macOS leg; its macOS
+steps stay, gated on `runner.os`. `packaging/macos/` is kept for the release that brings macOS back, and
+`ci.yml` keeps building and testing on macOS on every push to `main`. README, `docs/INSTALL.md`, the
+1.0.0 notes and `docs/RELEASE_CHECKLIST.md` say macOS comes later. No UI text claimed macOS.
+Evidence: `the_1_0_release_ships_windows_and_linux_only`, `repro_check_names_the_first_differing_zip_entry`
+(the shipped-OS half), `every_release_gate_row_is_a_named_release_step`.
+Affects: D12 (dated amendment), `.github/workflows/{release,signing-dryrun}.yml`, `xtask/src/{release,repro}.rs`.
+
+## 2026-09-23 · The validation pack is deferred past v1.0 · maintainer decision (ratified)
+Context: D6 offers EPUBCheck in the app through an optional "validation pack" (jlink'd JRE +
+`epubcheck.jar`). It was never built, its Java runtime's licence is unverified for any vendor (VD-f), and
+`packs.toml` shipped six `TODO_` pins that row 15.18 refuses on a tag.
+Decision (maintainer, 2026-09-23): **the pack is not offered in 1.0**, rather than shipped with unpinned
+entries. `packs.toml` names it in a new `[[deferred]]` table (`oc_net::packs::DeferredPack`: id, name,
+contents, a user-facing reason; `deny_unknown_fields`, so no pin field can hide there; an id cannot be both
+offered and deferred). The desktop's pack manager refuses its licence, download and removal as
+`UiError::NotOffered` (kind `not_offered`, worded in EN/DE/TR); the Packs screen shows it as "Arrives in a
+later version" with no button; `openconvert model pull validation` exits 2 with `E_PACK_NOT_OFFERED` and
+the reason. The report's "EPUBCheck: not run" line says the pack arrives in a later version. The built-in
+Tier-1 validator is unchanged and always on; `openconvert validate --tier 2 --epubcheck-jar` still runs a
+user's own EPUBCheck. `packs.toml` keeps `schema_version = 1`: the table is additive, and a v1 reader
+ignores it. **VD-f: deferred past v1**, with the pack — there is no vendor to read a licence from until the
+pack is built.
+Evidence: `the_validation_pack_is_deferred_past_1_0` (oc-net), `the_shipped_validation_pack_is_deferred_past_1_0`
+(desktop), `the_validation_pack_is_refused_with_a_clear_message` (CLI), the Packs-route UI test;
+`ci-lint --release-branch` finds nothing in `packs.toml`.
+Affects: D6 (dated amendment), `packs.toml`, `crates/oc-net/src/packs.rs`,
+`apps/desktop/src-tauri/src/{models,packs,engine}.rs`, `crates/openconvert/src/cmd_model.rs`, the UI.
+
+## 2026-09-23 · The Linux AppImage's installer budget is 120 MB · maintainer decision (ratified)
+Context: row 15.15 held every installer to `release.max_installer_bytes` = 45 000 000 (D12's base-install
+estimate, provisional). The AppImage bundles WebKitGTK (~58 MB compressed) and measured 112 953 848 bytes.
+Decision (maintainer, 2026-09-23): a budget of its own for the AppImage, **120 000 000 bytes**; Windows (and
+macOS when it ships) keep 45 000 000. New entry `release.max_linux_installer_bytes`, `source = "binary"`:
+D17 allows only `binary | published | provisional | calibrated` (the build script refuses anything else),
+and `binary` — a pass/fail gate fixed by decision — is the one that says "not provisional"; the evidence
+field names the maintainer's decision. `xtask::release::installer_budget(os)` is per OS. Found on the way
+and fixed: the in-app updater capped every update payload at `max_installer_bytes`, and on Linux the
+payload *is* the AppImage, so every AppImage update would have been refused as too large; the cap is now
+this OS's installer budget (`an_update_payload_may_be_as_large_as_this_os_installer`).
+Evidence: `the_installer_budget_counts_installers_only`; row 15.15 (`installer_size_within_budget`) against
+the AppImage measured in Phase 15 (112 953 848 ≤ 120 000 000).
+Affects: D12 (dated amendment), `thresholds.toml`, `xtask/src/release.rs`,
+`apps/desktop/src-tauri/src/updater.rs`, the report snapshot's threshold count (230).
+
+## 2026-09-23 · The updater key, generated by the maintainer on their own machine · maintainer decision (ratified)
+Context: row 15.18 refused `TODO_UPDATER_PUBKEY` in `tauri.conf.json`; the Ed25519 (minisign) keypair that
+signs every update must never be generated in CI or by anyone but the maintainer.
+Decision (maintainer, 2026-09-23): the maintainer generated the keypair on their own machine
+(`npx @tauri-apps/cli signer generate -w openconvert.key`) and adds the private key and its password as
+the repository secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` themselves.
+Only the public key entered the tree: Tauri's base64 wrapping of the minisign public key, in
+`apps/desktop/src-tauri/tauri.conf.json` at `plugins.updater.pubkey`, which is what both the app's verifier
+(`oc_net::update::public_key`) and `xtask release verify-latest` read. Key id `0C6C69CA122C11B0` (Tauri
+prints `C6C69CA122C11B0`, without the leading zero). The steps are in `docs/RELEASE_CHECKLIST.md`, "Keys
+and signing". A rotation strands every install and fails `the_shipped_updater_key_is_the_maintainers_minisign_key`
+on purpose.
+Evidence: that test (the verifier accepts the key; algorithm `Ed`; key id; no `TODO_` left anywhere row
+15.18 looks); `cargo run -p xtask -- ci-lint --release-branch` clean.
+Affects: `apps/desktop/src-tauri/tauri.conf.json`, `docs/RELEASE_CHECKLIST.md`.
+
+## 2026-09-23 · Version 1.0.0, and the tag checked against both manifests · release preparation
+Context: the tree declared 0.1.0; the release job's `bump-rules-check --tag` compared the tag with
+`Cargo.toml` only, while the installers and the updater take their version from `tauri.conf.json`.
+Decision: 1.0.0 in the workspace `Cargo.toml` and every path dependency's version requirement,
+`tauri.conf.json`, the UI's `package.json`/`package-lock.json` and the AppStream metainfo (a `stable`
+1.0.0 release). `Cargo.lock` and `fuzz/Cargo.lock` regenerated by cargo (the fuzz lock had also fallen
+behind `libm`, `base64` 0.22 and `minisign-verify`). `bump-rules-check --tag` now also refuses a tag that
+`tauri.conf.json` does not carry. The baseline stays `released = "none"` until the release records it
+(`--record v1.0.0`, RELEASE_CHECKLIST). The maintainer ships 1.0.0 knowing Appendix D does not fully pass;
+the gaps are the 1.0.0 notes' "Known limitations" and `PROGRESS.md` › Blocked.
+Evidence: `the_tag_is_the_version_both_manifests_declare`; `cargo run -p xtask -- bump-rules-check --tag v1.0.0` clean.
+Affects: every manifest, `xtask/src/versions.rs`, `crates/openconvert/tests/snapshots/report__report_f07.snap`.

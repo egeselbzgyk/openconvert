@@ -5,11 +5,12 @@
 //! licence-first rule, progress and Cancel. The Packs screen renders the registry, never constants:
 //! the validation pack's size and licence are whatever its entry pins.
 //!
-//! The registry that ships pins nothing yet. The validation pack's payload (a jlink'd Java runtime
-//! and `epubcheck.jar`) is not built or published, and its runtime's licence is to be verified
-//! per vendor before it ships (LICENSE_AND_DEPENDENCIES §6), so the screen says it is not
-//! available in this version. The OCR pack is not in v1 at all: v1 uses the system's Tesseract
-//! (D4), which the Packs screen offers to install instead.
+//! The registry that ships offers no pack. The validation pack (a jlink'd Java runtime and
+//! `epubcheck.jar`) is deferred past v1.0 (maintainer decision 2026-09-23, D6 amendment): it is
+//! a `[[deferred]]` entry with no pins, the screen says it arrives in a later version, and every
+//! request to install it is refused as [`UiError::NotOffered`](crate::engine::UiError) with the
+//! registry's reason. The OCR pack is not in v1 at all: v1 uses the system's Tesseract (D4), which
+//! the Packs screen offers to install instead.
 
 use std::path::PathBuf;
 
@@ -61,6 +62,11 @@ impl Catalog for PackRegistry {
                 }
             })
             .collect()
+    }
+
+    fn not_offered(&self, id: &str) -> Option<String> {
+        self.get_deferred(&oc_net::registry::ModelId(id.to_owned()))
+            .map(|later| later.reason.clone())
     }
 }
 

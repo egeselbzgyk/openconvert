@@ -1,19 +1,24 @@
 # Installing OpenConvert
 
+OpenConvert 1.0 is available for **Windows and Linux**. A macOS version comes in a later 1.x
+release: it needs an Apple Developer ID to be signed and notarized, and the project does not have one
+yet. Until then, macOS users can build the converter and the app from source (`README.md`), unsigned.
+
 Download the file for your system from the project's GitHub Releases page. Every file's SHA-256 is
 listed at the end of the release notes; to check a download, compare it with
 
 - Linux: `sha256sum OpenConvert_*.AppImage`
-- macOS: `shasum -a 256 OpenConvert_*.dmg`
 - Windows (PowerShell): `Get-FileHash .\OpenConvert_*-setup.exe -Algorithm SHA256`
 
 The release also carries an SBOM (`openconvert-<version>.cdx.json`, CycloneDX 1.6) listing every
 component inside the app, including PDFium and llama.cpp with their exact builds.
 
-What you install is the app, the converter and the libraries it needs. The AI model, the OCR language
-data and the validation pack are **not** in the installer: they are optional downloads you choose in
-the app, each with its size and licence shown first. Converting a book needs none of them and never
-uses the network.
+What you install is the app, the converter and the libraries it needs. The AI model is **not** in the
+installer: it is an optional download you choose in the app, with its size and licence shown first.
+Scanned pages are read with Tesseract when your system has it installed. The optional validation
+pack (the full EPUBCheck) is not offered in 1.0 and comes in a later release; the built-in
+validator checks every EPUB either way. Converting a book needs none of these and never uses the
+network.
 
 ## Windows
 
@@ -29,9 +34,8 @@ until then we say so rather than work around it.
 
 ## macOS
 
-Open `OpenConvert_<version>_<arch>.dmg` (`aarch64` for Apple silicon, `x86_64` for Intel Macs) and
-drag OpenConvert to Applications. The app is signed with a Developer ID and notarized by Apple, so it
-opens without a Gatekeeper warning.
+Not in 1.0: a signed and notarized macOS app (a `.dmg` for Apple silicon and Intel) comes in a later
+1.x release.
 
 ## Linux
 
@@ -46,11 +50,15 @@ If your system has no FUSE (some containers and minimal installs), run it with
 `APPIMAGE_EXTRACT_AND_RUN=1`. The AppImage updates itself when you ask it to (Settings), and only
 after the update's signature has verified.
 
-**Flatpak (Flathub).** `flatpak install flathub io.openconvert.OpenConvert`. Flathub keeps it up to
-date; the in-app updater is not part of this build. The Flatpak runs without network access — a
-conversion never needs it — so inside the Flatpak the app cannot download an AI model or a pack, and
+**Flatpak (Flathub).** Once Flathub has accepted it (the manifest is
+`packaging/linux/flatpak/io.openconvert.OpenConvert.yml`):
+`flatpak install flathub io.openconvert.OpenConvert`. Flathub keeps it up to date; the in-app updater is not part of this build. The Flatpak runs without network access — a
+conversion never needs it — so inside the Flatpak the app cannot download an AI model, and
 AI assistance through Ollama on your computer is not reachable either. Use the AppImage if you want
 those.
+
+The AppImage is larger than the Windows installer (about 113 MB) because it carries its own copy of
+the WebKitGTK web engine, so it runs the same on every distribution.
 
 `.deb` and `.rpm` packages are not provided for this version.
 
@@ -68,5 +76,5 @@ writes `book.epub` beside the PDF (never over an existing file) and exits with 0
 
 OpenConvert keeps its settings and temporary files in your user's application-data folder and
 nothing anywhere else. There is no telemetry and no crash reporting. Network access happens only when
-you download a model or a pack, when you choose an AI provider off your computer (after you consent
+you download a model, when you choose an AI provider off your computer (after you consent
 to that host), and when you check for updates.

@@ -18,16 +18,16 @@ live-llm = []
 # `oc-core` is a dev-dependency and never a normal one. `oc-net` depends on this crate and must not
 # reach `oc-core` through it (ARCHITECTURE §3.1).
 [dependencies]
-oc-model = { path = "../oc-model", version = "0.1.0" }
+oc-model = { path = "../oc-model", version = "1.0.0" }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-oc-core = { path = "../oc-core", version = "0.1.0" }
+oc-core = { path = "../oc-core", version = "1.0.0" }
 # Only to hold gate V's restatement of the Gopher statistics equal to oc-text's own.
-oc-text = { path = "../oc-text", version = "0.1.0" }
+oc-text = { path = "../oc-text", version = "1.0.0" }
 insta.workspace = true
 proptest.workspace = true
 # Test 8.15 reads Cargo.lock and deny.toml.

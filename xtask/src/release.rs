@@ -64,6 +64,14 @@ impl Os {
     }
 }
 
+/// The operating systems this release ships installers for, and which the release gates cover.
+///
+/// v1.0.0 is Windows and Linux (maintainer decision 2026-09-23; D12 amendment): there is no Apple
+/// Developer ID, so there is no signed and notarized macOS build to ship. macOS comes in a later
+/// 1.x — it joins this list, and its legs return to `release.yml`, together. [`Os::Macos`] stays
+/// known to every tool here so that nothing else has to change when it does.
+pub const SHIPPED: [Os; 2] = [Os::Linux, Os::Windows];
+
 /// What a file in the bundle directory is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -243,9 +251,16 @@ pub fn over_budget(release: &ReleaseArtifacts, budget: u64) -> Vec<(String, u64)
         .collect()
 }
 
-/// The installer budget, from `thresholds.toml` (D17).
-pub fn installer_budget() -> u64 {
-    u64::try_from(oc_core::thresholds::T.release.max_installer_bytes).unwrap_or_default()
+/// The installer budget on `os`, from `thresholds.toml` (D17). The Linux AppImage has its own,
+/// because it carries WebKitGTK (maintainer decision 2026-09-23, D12 amendment); every other
+/// installer keeps D12's.
+pub fn installer_budget(os: Os) -> u64 {
+    let t = &oc_core::thresholds::T.release;
+    let bytes = match os {
+        Os::Linux => t.max_linux_installer_bytes,
+        Os::Macos | Os::Windows => t.max_installer_bytes,
+    };
+    u64::try_from(bytes).unwrap_or_default()
 }
 
 /// The release notes for `tag`: the body of `docs/CHANGELOG.md`'s `## [X.Y.Z]` section, up to the
@@ -493,7 +508,7 @@ pub fn run(workspace_root: &Path, args: &[String]) -> Result<()> {
         Some("size-check") => {
             let os = Os::parse(&flag(args, "--os")?)?;
             let release = collect(Path::new(&flag(args, "--bundle-dir")?), os)?;
-            let budget = installer_budget();
+            let budget = installer_budget(os);
             for file in release.files.iter().filter(|f| f.kind.is_installer()) {
                 println!("{} bytes  {}  (budget {budget})", file.bytes, file.name);
             }

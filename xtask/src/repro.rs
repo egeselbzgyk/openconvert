@@ -24,7 +24,7 @@ use std::process::Command;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::release::{sha256_file, Os};
+use crate::release::{sha256_file, Os, SHIPPED};
 
 /// The `dcterms:modified` every conversion is pinned to, so the timestamp is not a difference.
 pub const PINNED_MODIFIED: &str = "2026-01-01T00:00:00Z";
@@ -133,8 +133,8 @@ pub struct ZipDifference {
 /// A table that does not agree with the others.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ReproMismatch {
-    #[error("{0} OS table(s) given; the gate compares all three of linux, macos, windows")]
-    MissingOs(usize),
+    #[error("no {0:?} table; the gate compares every OS the release ships (release::SHIPPED)")]
+    MissingOs(Os),
     #[error("the fast corpus differs between {left:?} and {right:?}: {only}")]
     DifferentCorpus { left: Os, right: Os, only: String },
     #[error(
@@ -219,12 +219,14 @@ pub fn repro_check(
     tables: &BTreeMap<Os, BTreeMap<String, String>>,
     epubs: &BTreeMap<Os, PathBuf>,
 ) -> std::result::Result<(), ReproMismatch> {
-    if tables.len() != [Os::Linux, Os::Macos, Os::Windows].len() {
-        return Err(ReproMismatch::MissingOs(tables.len()));
+    // Every OS the release ships must have a table; one it does not ship (macOS in 1.0, from
+    // ci.yml's matrix, say) may be given too, and is then held to the same bytes.
+    if let Some(missing) = SHIPPED.iter().find(|os| !tables.contains_key(os)) {
+        return Err(ReproMismatch::MissingOs(*missing));
     }
     let mut iter = tables.iter();
     let Some((first_os, first)) = iter.next() else {
-        return Err(ReproMismatch::MissingOs(0));
+        return Err(ReproMismatch::MissingOs(Os::Linux));
     };
     for (os, table) in iter {
         let left_keys: Vec<&String> = first.keys().collect();
@@ -314,7 +316,10 @@ pub fn run(workspace_root: &Path, args: &[String]) -> Result<()> {
                 tables.insert(table.os, table.fixtures);
             }
             repro_check(&tables, &epubs).map_err(|e| anyhow::anyhow!("{e} (D13.8)"))?;
-            println!("the three operating systems made byte-identical EPUBs");
+            println!(
+                "{} operating systems made byte-identical EPUBs",
+                tables.len()
+            );
             Ok(())
         }
         other => bail!("repro: unknown step {other:?} (hash, compare)"),

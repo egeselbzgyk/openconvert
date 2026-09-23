@@ -53,6 +53,10 @@ pub trait Catalog: Send + Sync + 'static {
     fn artifacts(&self) -> Vec<Artifact>;
     /// One readiness per item, in the same order.
     fn readiness(&self, store: &ModelStore) -> Vec<Self::Readiness>;
+    /// Why item `id` is named but not offered in this version, when it is (a deferred pack).
+    fn not_offered(&self, _id: &str) -> Option<String> {
+        None
+    }
 }
 
 impl Catalog for ModelRegistry {
@@ -371,7 +375,14 @@ impl<C: Catalog> Inner<C> {
 
     fn entry(&self, id: &str) -> Result<Artifact, UiError> {
         let wanted = ModelId(id.to_owned());
-        self.registry()?
+        let registry = self.registry()?;
+        if let Some(reason) = registry.not_offered(id) {
+            return Err(UiError::NotOffered {
+                id: id.to_owned(),
+                reason,
+            });
+        }
+        registry
             .artifacts()
             .into_iter()
             .find(|artifact| artifact.id == wanted)

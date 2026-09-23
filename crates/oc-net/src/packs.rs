@@ -5,6 +5,11 @@
 //! later the OCR pack. It is pinned exactly as a model is (a 40-hex commit, a hash the download is
 //! checked against while it streams) and installed by the same [`crate::download::Downloader`], as
 //! an [`Artifact`].
+//!
+//! A pack the registry names but this version does not offer is a [`DeferredPack`] (a
+//! `[[deferred]]` table): it carries no pins and nothing can download it, so the app can say when
+//! it arrives instead of shipping an unpinned entry. The validation pack is one in 1.0 (maintainer
+//! decision 2026-09-23; D6 amendment).
 
 use crate::download::Artifact;
 use crate::registry::{check_pins, ModelId, RegistryError};
@@ -31,16 +36,31 @@ pub struct PackEntry {
     pub size_bytes: u64,
 }
 
+/// One `[[deferred]]` table: a pack this version names and does not offer. It has no pin fields
+/// at all — a `sha256` or `revision` here is refused, so a half-filled pack cannot hide in it.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeferredPack {
+    pub id: ModelId,
+    pub display_name: String,
+    pub contents: String,
+    /// Why it is not offered, and when it comes, in words a user reads.
+    pub reason: String,
+}
+
 #[derive(serde::Deserialize)]
 struct PackFile {
     #[serde(default, rename = "pack")]
     packs: Vec<PackEntry>,
+    #[serde(default)]
+    deferred: Vec<DeferredPack>,
 }
 
 /// The parsed pack registry.
 #[derive(Clone, Debug)]
 pub struct PackRegistry {
     entries: Vec<PackEntry>,
+    deferred: Vec<DeferredPack>,
 }
 
 impl PackRegistry {
@@ -60,8 +80,17 @@ impl PackRegistry {
                 &entry.sha256,
             )?;
         }
+        for later in &file.deferred {
+            if file.packs.iter().any(|pack| pack.id == later.id) {
+                return Err(RegistryError::Parse(format!(
+                    "pack `{}` is both offered and deferred",
+                    later.id.0
+                )));
+            }
+        }
         Ok(Self {
             entries: file.packs,
+            deferred: file.deferred,
         })
     }
 
@@ -72,6 +101,16 @@ impl PackRegistry {
 
     pub fn get(&self, id: &ModelId) -> Option<&PackEntry> {
         self.entries.iter().find(|entry| &entry.id == id)
+    }
+
+    /// Every pack this version names but does not offer, in file order.
+    pub fn deferred(&self) -> &[DeferredPack] {
+        &self.deferred
+    }
+
+    /// The deferred pack `id`, when this version does not offer it.
+    pub fn get_deferred(&self, id: &ModelId) -> Option<&DeferredPack> {
+        self.deferred.iter().find(|later| &later.id == id)
     }
 }
 

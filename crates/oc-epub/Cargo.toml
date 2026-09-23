@@ -9,7 +9,7 @@ description  = "Typed XHTML builder, OPF/nav/NCX, CSS, splitting, deterministic 
 publish      = false
 
 [dependencies]
-oc-model = { path = "../oc-model", version = "0.1.0" }
+oc-model = { path = "../oc-model", version = "1.0.0" }
 quick-xml.workspace = true
 zip.workspace = true
 image.workspace = true

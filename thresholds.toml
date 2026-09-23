@@ -261,10 +261,17 @@ owner = "maintainer"
 review_by = "2028-01-01"
 
 # ---------- release (PHASE 15) ----------
-[release.max_installer_bytes]             # every installer a release ships (AppImage, dmg, NSIS, MSI), each
+[release.max_installer_bytes]             # every installer a release ships but the Linux AppImage (NSIS, MSI; the dmg when macOS ships), each
 value = 45000000
 source = "provisional"
-evidence = "D12: base install ~35-45 MB (shell + engine + libpdfium + llama-server); A15.6 is anchored on that estimate, read as decimal megabytes, the stricter reading; the Linux AppImage is measured by row 15.15"
+evidence = "D12: base install ~35-45 MB (shell + engine + libpdfium + llama-server); A15.6 is anchored on that estimate, read as decimal megabytes, the stricter reading; the Windows installers are measured by row 15.15 in the release job"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[release.max_linux_installer_bytes]       # the Linux AppImage, which bundles WebKitGTK; also the most an AppImage update may download
+value = 120000000
+source = "binary"
+evidence = "maintainer decision 2026-09-23 (docs/DECISIONS_LOG.md; D12 amendment): the AppImage bundles WebKitGTK (~58 MB compressed) and measured 112 953 848 bytes after Phase 14; the budget is 120 MB, decimal. A pass/fail gate fixed by the maintainer, not an estimate"
 owner = "maintainer"
 review_by = "2027-06-30"
 

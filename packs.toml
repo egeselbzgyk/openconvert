@@ -2,23 +2,21 @@
 # downloads, never fetched during a conversion, installed by the same downloader as a model
 # (`oc_net::packs`, IMPLEMENTATION_PLAN Phase 12 detail 9).
 #
-# Every field works as in models.toml: `revision` is a 40-hex commit, `sha256` is checked while the
-# file streams, and a `TODO_` placeholder anywhere makes the app say "not available in this
-# version" for every pack. The OCR pack is not listed: v1 uses the system's Tesseract (D4).
+# A `[[pack]]` works as in models.toml: `revision` is a 40-hex commit, `sha256` is checked while the
+# file streams, and an unfilled placeholder anywhere refuses the whole file. A `[[deferred]]` pack is
+# named but not offered in this version: it has no pin fields (any is refused), the app's Packs
+# screen says it arrives later, and nothing downloads it. The OCR pack is not listed: v1 uses the
+# system's Tesseract (D4).
 schema_version = 1
 
-[[pack]]
+# Deferred past v1.0 (maintainer decision 2026-09-23; D6 amendment, docs/DECISIONS_LOG.md): the pack
+# is not built, and the licence of the Java runtime it would bundle (GPL-2.0 with the Classpath
+# Exception for an OpenJDK build such as Temurin) has not been verified for a chosen vendor (VD-f).
+# When it comes, it moves to a `[[pack]]` with every pin filled, its runtime's licence text bundled
+# beside Apache-2.0's (LICENSE_AND_DEPENDENCIES §6, §9 note 1), and its host on the downloader's
+# allowlist. The built-in Tier-1 validator runs on every conversion either way.
+[[deferred]]
 id           = "validation"
 display_name = "Validation pack"
 contents     = "EPUBCheck with a minimal Java runtime"
-# EPUBCheck is BSD-3-Clause; the jlink'd runtime's licence (GPL-2.0 with the Classpath Exception
-# for an OpenJDK build such as Temurin) must be verified for the vendor chosen before this is
-# filled in, and its text bundled beside Apache-2.0's (LICENSE_AND_DEPENDENCIES §6, §9 note 1).
-license      = "TODO_LICENSE"
-# The pack is built and published by the project; where is not decided yet. The host must be on
-# the downloader's allowlist, which today names only the model host.
-repo         = "TODO_REPO"
-revision     = "TODO_COMMIT_SHA"
-file         = "TODO_FILE"
-sha256       = "TODO_SHA256"
-size_bytes   = 0
+reason       = "OpenConvert 1.0 does not offer the validation pack; it arrives in a later release. The built-in validator checks every EPUB it writes."
