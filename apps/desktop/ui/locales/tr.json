@@ -437,5 +437,7 @@
  "settings.network.when": "Ne zaman",
  "settings.network.host": "Ana makine",
  "settings.network.why": "Neden",
- "settings.network.data": "Veri"
+ "settings.network.data": "Veri",
+ "queue.modelCalls.one": "{n} model çağrısı",
+ "queue.modelCalls.other": "{n} model çağrısı"
 }

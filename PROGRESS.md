@@ -803,6 +803,9 @@ Part B2 work items:
       `Entries` as a table). It says this build records nothing yet and names the connections it can
       make — downloads, and with AI on the chosen provider — never a row nobody wrote down
       (+ 1 Rust, 1 Vitest)
+- [x] **P12.22** the engine's `llm` events on the row: one per model call (cached ones included,
+      D13.2), counted while the job runs ("· 3 model calls"); the result's "AI-assisted decisions: N"
+      and the report's calls line come from the report (+ 1 Vitest assertion block)
 
 1. **The AI toggle** (Settings › AI assistance and the first-run route's "installed" step): it is
    drawn disabled, saying the converter has no AI support in this build. Enabling it needs Phase

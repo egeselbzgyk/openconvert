@@ -30,6 +30,10 @@ describe("jobstate", () => {
     row = applyEvent(row, event({ t: "warning", code: "W_LLM_UNAVAILABLE", severity: "warn", args: {} }), 1);
     expect(aiUnavailable(row), "the engine's own finding").toBe("engine");
     expect(aiUnavailable(newRow({ ...view, state: "running" })), "AI off: nothing to say").toBeNull();
+    // One `llm` event per model call, cached ones included: the row counts them.
+    row = applyEvent(row, event({ t: "llm", call_id: "c1", purpose: "metadata", cached: false }), 2);
+    row = applyEvent(row, event({ t: "llm", call_id: "c2", purpose: "verse_quote", cached: true }), 3);
+    expect(row.llmCalls).toBe(2);
   });
 
   it("maps engine stages onto the five user-facing steps", () => {

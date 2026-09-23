@@ -8,7 +8,7 @@
   import { needsConsent, silentSeconds, visibleSteps } from "../lib/jobstate";
   import { totalMs } from "../lib/report";
   import { countText, stepLabel, stepOf } from "../lib/labels";
-  import { i18n, t } from "../lib/locale.svelte";
+  import { i18n, t, tn } from "../lib/locale.svelte";
   import { pulse } from "../lib/motion";
   import Icon from "./Icon.svelte";
   import Spinner from "./Spinner.svelte";
@@ -195,6 +195,8 @@
           <b>{status}</b><span>· {t("queue.notRespondingDetail", { s: silentSeconds(row, now) })}</span>
         {:else if row.phase === "running" && row.rebuild}
           <b>{t("action.fixRebuild")}</b><span>· {row.current === null ? t("queue.converting") : stepLabel(row.current)}{#if fromCache}, {t("queue.rebuilding")}{/if}</span>
+        {:else if row.phase === "running" && row.llmCalls > 0}
+          <Spinner stopped={row.stalled} /><b>{status}</b><span>· {tn("queue.modelCalls", row.llmCalls)}</span>
         {:else if row.phase === "running" && row.progress !== null && row.progress.step === row.current}
           <b>{status}</b><span class="oc-num">{countText(row.progress)}</span>
         {:else if row.phase === "running" && row.preparing}

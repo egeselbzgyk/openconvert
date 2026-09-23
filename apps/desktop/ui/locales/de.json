@@ -437,5 +437,7 @@
  "settings.network.when": "Wann",
  "settings.network.host": "Host",
  "settings.network.why": "Warum",
- "settings.network.data": "Daten"
+ "settings.network.data": "Daten",
+ "queue.modelCalls.one": "{n} Modellaufruf",
+ "queue.modelCalls.other": "{n} Modellaufrufe"
 }

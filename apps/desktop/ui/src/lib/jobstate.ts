@@ -90,6 +90,8 @@ export interface Row {
   ai: AiView | null;
   /** Its turn has come and it waits for the app's model server to load. */
   preparing: boolean;
+  /** How many `llm` events the engine sent: one per model call, cached ones included (D13.2). */
+  llmCalls: number;
   phase: Phase;
   /** Waiting position, the running job counted as #1 (design decision 6). */
   position: number | null;
@@ -132,6 +134,7 @@ export function newRow(view: JobView): Row {
       rebuild: view.rebuild,
       ai: view.ai ?? null,
       preparing: false,
+      llmCalls: 0,
       phase: "queued",
       position: null,
       current: null,
@@ -275,7 +278,7 @@ export function applyEvent(row: Row, event: Event, now: number): Row {
     case "fatal":
       return { ...row, fatal: event, phase: "failed", stalled: false };
     case "llm":
-      return row;
+      return { ...row, llmCalls: row.llmCalls + 1 };
   }
 }
 
