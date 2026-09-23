@@ -68,6 +68,15 @@ pub struct I7Result {
     pub epub_chars: u64,
     /// `|C_0|`, the retention denominator (ARCHITECTURE §5.2).
     pub c0_chars: u64,
+    /// What OCR added to the book (`Reason::Ocr`). Part of I-7's equation like every addition, and
+    /// taken out of the retention numerator: text read off pixels is not text retained from the
+    /// document (I-6, RT C1). Omitted from the report when zero, which is every born-digital book.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub ocr_chars: u64,
+}
+
+fn is_zero(value: &u64) -> bool {
+    *value == 0
 }
 
 impl I7Result {
@@ -76,12 +85,13 @@ impl I7Result {
         self.missing.is_empty() && self.extra.is_empty()
     }
 
-    /// `|C(EPUB)| / |C_0|` — the headline number PIPELINE §13 shows the user.
+    /// `(|C(EPUB)| − |OCR-added|) / |C_0|` — the headline number PIPELINE §13 shows the user. OCR
+    /// text is in neither side, so an OCR'd page can never be scored as if it had been extracted.
     pub fn retention(&self) -> f32 {
         if self.c0_chars == 0 {
             return 0.0;
         }
-        self.epub_chars as f32 / self.c0_chars as f32
+        self.epub_chars.saturating_sub(self.ocr_chars) as f32 / self.c0_chars as f32
     }
 }
 
@@ -118,6 +128,7 @@ pub fn check_i7(epub: &CharHistogram, ledger: &Ledger) -> I7Result {
         extra: left.difference(&right),
         epub_chars: epub.total(),
         c0_chars: ledger.c_0.total(),
+        ocr_chars: ledger.ocr_added().total(),
     }
 }
 
@@ -598,6 +609,49 @@ fn a_book_with_no_source_text_has_no_retention_to_report() {
 
     assert!(result.holds(), "nothing in, nothing out: {result:?}");
     assert_eq!(result.c0_chars, 0);
+    assert!(retention_warnings(&result, 0.98).is_empty());
+}
+
+/// Row 13.15's end-to-end half: a book with an OCR'd plate beside its extracted text keeps a
+/// retention of 1 — the plate's characters are in I-7's equation (as an addition) and in neither
+/// side of the ratio.
+#[test]
+fn retention_excludes_ocr_added_characters() {
+    use oc_model::ledger::{LedgerDelta, LedgerEntry, Reason};
+
+    let source = "Extracted text of the born-digital pages";
+    let plate = "Read off a scanned plate";
+    let mut ledger = ledger_of(source, "");
+    ledger.push_stage(
+        &LedgerDelta::new(vec![LedgerEntry::added(
+            "ingest",
+            Reason::Ocr,
+            0,
+            (0, 24),
+            plate.to_owned(),
+        )]),
+        oc_model::ledger::StageCheck {
+            stage: "ingest",
+            kind: oc_model::ledger::StageKind::Budgeted,
+            removed_chars: 0,
+            added_chars: c_of(plate).total(),
+            retention: 1.0,
+        },
+    );
+    let emitted = c_of(&format!("{source} {plate}"));
+    let result = check_i7(&emitted, &ledger);
+
+    assert!(
+        result.holds(),
+        "OCR text is accounted for by its entry: {result:?}"
+    );
+    assert_eq!(result.c0_chars, c_of(source).total());
+    assert_eq!(result.ocr_chars, c_of(plate).total());
+    assert!(
+        (result.retention() - 1.0).abs() < 1e-6,
+        "OCR text inflates neither side: {}",
+        result.retention()
+    );
     assert!(retention_warnings(&result, 0.98).is_empty());
 }
 

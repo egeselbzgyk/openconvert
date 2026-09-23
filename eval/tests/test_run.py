@@ -173,3 +173,51 @@ def test_corpus_files_pairs_every_manifest_entry_with_its_file_or_none(tmp_path:
     from oc_eval.corpus import manifest as mf
 
     assert len(paired) == len(mf.load(MANIFEST).entries), "every entry is accounted for"
+
+
+# --------------------------------------------------------------------------- PHASE 13
+
+
+def test_a_committed_scanned_fixture_is_its_own_source_and_has_a_ground_truth(
+    tmp_path: Path,
+) -> None:
+    """The scanned fixtures are committed, so the nightly converts them without a download and
+    scores them against their `.gt.txt` as `ocr_cer` (row 13.21)."""
+    from oc_eval.corpus import manifest as mf
+
+    paired = dict(
+        (entry.id, (entry, path)) for entry, path in run_mod.corpus_files(MANIFEST, tmp_path)
+    )
+    entry, path = paired["f01__scan300"]
+    assert path == REPO_ROOT / "corpus/fixtures/scanned/f01__scan300.pdf"
+    truth = run_mod.truth_of(entry)
+    assert truth is not None and "stormy night" in truth
+    assert entry.is_ours, "a scan of our own render is ours(*) and counts against the share"
+    assert mf.load(MANIFEST).ours_share <= mf.ours_max_share()
+
+
+def test_the_reading_text_of_an_epub_is_its_spine_a_block_per_line(tmp_path: Path) -> None:
+    import zipfile
+
+    epub = tmp_path / "book.epub"
+    with zipfile.ZipFile(epub, "w") as archive:
+        archive.writestr("mimetype", "application/epub+zip")
+        archive.writestr(
+            "META-INF/container.xml",
+            '<container><rootfiles><rootfile full-path="OEBPS/content.opf"/>'
+            "</rootfiles></container>",
+        )
+        archive.writestr(
+            "OEBPS/content.opf",
+            '<package><manifest><item id="c1" href="text/c1.xhtml" media-type="x"/>'
+            '<item id="nav" href="nav.xhtml" media-type="x"/></manifest>'
+            '<spine><itemref idref="c1"/></spine></package>',
+        )
+        archive.writestr(
+            "OEBPS/text/c1.xhtml",
+            "<html><head><title>T</title></head><body><h1>Chapter 3</h1>"
+            "<p>It was a dark &amp;\n stormy night</p></body></html>",
+        )
+        archive.writestr("OEBPS/nav.xhtml", "<html><body><p>Contents</p></body></html>")
+
+    assert run_mod.reading_text(epub) == "Chapter 3\nIt was a dark & stormy night"

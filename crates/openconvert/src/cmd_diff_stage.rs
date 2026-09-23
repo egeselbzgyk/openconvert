@@ -265,7 +265,12 @@ fn structure_diff(
         .map_err(|error| format!("layout: {error}"))?;
 
     let images = document_images(&text);
-    let hashes = openconvert::convert::image_hashes(pdf, &images, t);
+    let hashes = openconvert::convert::image_hashes(
+        pdf,
+        &images,
+        &openconvert::structure_input::image_slots(&text),
+        t,
+    );
     let vectors = (0..pdf.page_count())
         .filter_map(|page| pdf.page_vectors(page).ok())
         .flatten()

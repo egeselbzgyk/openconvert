@@ -110,3 +110,16 @@ pub fn document_images(text: &TextStage) -> Vec<ImageRef> {
         })
         .collect()
 }
+
+/// Per document-wide image, in [`document_images`]'s order, its index among its page's images —
+/// the number [`oc_pdf::inspect::PdfDoc::image_bytes`] decodes it by.
+///
+/// Read from the page-local ids `ingest` numbered ([`crate::input::number_images`]), not recovered
+/// from positions in the document-wide list: an image OCR replaced is no longer in the list, and
+/// the positions of the ones after it on its page moved when it left.
+pub fn image_slots(text: &TextStage) -> Vec<ImageId> {
+    text.pages
+        .iter()
+        .flat_map(|page| page.images.iter().map(|image| image.id))
+        .collect()
+}

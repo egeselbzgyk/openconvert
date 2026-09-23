@@ -7,6 +7,7 @@
 #![allow(dead_code)]
 
 pub mod endpoint;
+pub mod ocr;
 
 use oc_core::thresholds::T;
 use oc_epub::EpubOptions;
@@ -83,6 +84,55 @@ pub fn build(stem: &str) -> Built {
     build_with(stem, epub_options())
 }
 
+/// Convert the PDF at `path` with the OCR options given — the one helper that turns OCR on.
+pub fn build_path_with_ocr(path: &std::path::Path, ocr: openconvert::ocr::OcrOptions) -> Built {
+    build_path_with(path, ocr, LangTag::EN)
+}
+
+/// The same, with the book's language given.
+pub fn build_path_with(
+    path: &std::path::Path,
+    ocr: openconvert::ocr::OcrOptions,
+    language: LangTag,
+) -> Built {
+    let bytes = std::fs::read(path).unwrap_or_else(|error| {
+        panic!(
+            "missing fixture {}: {error}; run `cargo run -p xtask -- fixtures`",
+            path.display()
+        )
+    });
+    let backend = PdfiumBackend::bind().expect("PDFium is vendored");
+    let pdf = backend.open(&bytes, None).expect("the fixture opens");
+    let conversion = convert(
+        pdf.as_ref(),
+        &sha256_hex(&bytes),
+        &ConvertOptions {
+            filename: path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            language: Some(language),
+            preset: PresetName::Auto,
+            epub: epub_options(),
+            ocr,
+        },
+        &T,
+    )
+    .expect("the fixture converts and conserves");
+    let entries = oc_epub::read_entries(&conversion.built.bytes).expect("the container reads back");
+    Built {
+        conversion,
+        entries,
+    }
+}
+
+/// A hand-made fixture's path, by name.
+pub fn handmade(name: &str) -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/fixtures/handmade")
+        .join(format!("{name}.pdf"))
+}
+
 /// The same, with the emitter configured differently — a smaller split bound, say.
 pub fn build_with(stem: &str, epub: EpubOptions) -> Built {
     let path = fixture(stem);
@@ -103,6 +153,7 @@ pub fn build_with(stem: &str, epub: EpubOptions) -> Built {
             language: Some(LangTag::EN),
             preset: PresetName::Auto,
             epub,
+            ocr: openconvert::ocr::OcrOptions::off(),
         },
         &T,
     )
@@ -118,4 +169,90 @@ pub fn build_with(stem: &str, epub: EpubOptions) -> Built {
 /// The lowercase hex SHA-256 of some bytes.
 pub fn sha256_hex_of(bytes: &[u8]) -> String {
     sha256_hex(bytes)
+}
+
+/// The book's text as a reader meets it: every spine document's body, one block per line,
+/// whitespace collapsed within a line. What CER and the scanned-fixture ground truth are stated over.
+pub fn reading_text(built: &Built) -> String {
+    const BLOCK_ENDS: [&str; 9] = [
+        "</p>",
+        "</h1>",
+        "</h2>",
+        "</h3>",
+        "</h4>",
+        "</h5>",
+        "</h6>",
+        "</li>",
+        "</figcaption>",
+    ];
+    // A private-use character marks where a block ended: a newline inside a paragraph's markup is
+    // whitespace, as a reading system renders it, and must not end a line here.
+    const BREAK: char = '\u{E000}';
+    let mut lines = Vec::new();
+    for (_, markup) in built.content_documents() {
+        let mut marked = markup.clone();
+        for end in BLOCK_ENDS {
+            marked = marked.replace(end, &format!("{end}{BREAK}"));
+        }
+        let text = oc_epub::textcontent::body_text(&marked).expect("the body reads back");
+        lines.extend(
+            text.split(BREAK)
+                .map(|line| line.split_whitespace().collect::<Vec<_>>().join(" "))
+                .filter(|line| !line.is_empty()),
+        );
+    }
+    lines.join("\n")
+}
+
+/// The headings of a converted document, as `(level, text)` in document order.
+pub fn headings(built: &Built) -> Vec<(u8, String)> {
+    fn spans(spans: &[oc_model::doc::Span]) -> String {
+        spans.iter().map(|span| span.text.as_str()).collect()
+    }
+    fn walk(contents: &[oc_model::doc::Content], out: &mut Vec<(u8, String)>) {
+        for content in contents {
+            match content {
+                oc_model::doc::Content::Heading(heading) => {
+                    out.push((heading.level, spans(&heading.spans)))
+                }
+                oc_model::doc::Content::BlockQuote(inner)
+                | oc_model::doc::Content::Epigraph(inner) => walk(inner, out),
+                _ => {}
+            }
+        }
+    }
+    let mut out = Vec::new();
+    for top in &built.document.sections {
+        for section in top.walk() {
+            if let Some(heading) = &section.heading {
+                out.push((heading.level, spans(&heading.spans)));
+            }
+            walk(&section.content, &mut out);
+        }
+    }
+    out
+}
+
+/// A committed scanned fixture (PHASE 13 detail 12), by id.
+pub fn scanned(id: &str) -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/fixtures/scanned")
+        .join(id)
+}
+
+/// The scanned fixtures and the Typst fixture each was rendered from.
+pub const SCANNED: [(&str, &str); 4] = [
+    ("f01__scan300", "f01_prose_single_column"),
+    ("f01__scan200", "f01_prose_single_column"),
+    ("f04__scan300", "f04_german_prose"),
+    ("f05__scan300", "f05_turkish_prose"),
+];
+
+/// The language each scanned fixture's source is in.
+pub fn scanned_lang(id: &str) -> LangTag {
+    match id.split("__").next() {
+        Some("f04") => LangTag::DE,
+        Some("f05") => LangTag::TR,
+        _ => LangTag::EN,
+    }
 }

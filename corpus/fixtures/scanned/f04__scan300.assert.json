@@ -1,0 +1,18 @@
+[
+  {
+    "kind": "text_present",
+    "text": "Der Herbst kam früh in diesem Jahr",
+    "note": "a line of body text, recovered by OCR from pixels"
+  },
+  {
+    "kind": "heading_level",
+    "text": "Der Herbst im Dorf",
+    "level": 1,
+    "note": "the chapter heading, recovered by OCR and recognised as one"
+  },
+  {
+    "kind": "image_count",
+    "equals": 0,
+    "note": "all 1 scanned pages were read, so none is carried as a picture"
+  }
+]

@@ -24,6 +24,10 @@ bench = []
 # PHASE 10: `convert --ai --ai-all-tasks` against a real llama-server and model (`OC_LLAMA_SERVER`,
 # `OC_LIVE_MODEL`). Gated like `oc-testkit`'s live tests, and run by the same nightly job.
 live-llm = []
+# PHASE 13: A13.1, rows 13.20 and 13.21 need a real system Tesseract 5 with `eng`, `deu` and
+# `tur`. Gated so that a machine without one runs the ordinary suite green; the `ocr` CI job
+# installs Tesseract and turns it on, and with the feature on a missing engine fails the tests.
+tesseract = []
 
 [lib]
 name = "openconvert"

@@ -3579,8 +3579,10 @@ version = "0.1.0"
 dependencies = [
  "ctrlc",
  "getrandom 0.3.4",
+ "image",
  "insta",
  "oc-model",
+ "proptest",
  "rayon",
  "secrecy",
  "serde",
@@ -3658,6 +3660,7 @@ dependencies = [
 name = "oc-pdf"
 version = "0.1.0"
 dependencies = [
+ "image",
  "insta",
  "lopdf",
  "oc-core",
@@ -3696,6 +3699,7 @@ dependencies = [
 name = "oc-testkit"
 version = "0.1.0"
 dependencies = [
+ "image",
  "lopdf",
  "oc-ai",
  "oc-core",

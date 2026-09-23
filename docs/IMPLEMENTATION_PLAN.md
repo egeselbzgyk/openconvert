@@ -1201,6 +1201,10 @@ convert <INPUT.pdf>
       --dump-stage <STAGE|->       # stage name or '-' for stdout (data channel only)
       --lang <TAG>                 # force dc:language, skip detection
       --jobs <N>                   # rayon threads; default = physical cores, max 8
+      --ocr <auto|never|always>    # default auto: follows the page class from `inspect` (Phase 13)
+      --ocr-path <PATH>            # explicit tesseract binary; overrides discovery (Phase 13)
+      --ocr-lang <SPEC>            # e.g. deu, deu+eng; default: derived from document language
+      --re-ocr <never|auto|always> # OCR-sandwich pages; default never (D13.10)
 
 inspect <INPUT.pdf>
       --json                       # machine-readable (the Phase-0 milestone shape)

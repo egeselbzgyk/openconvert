@@ -878,6 +878,32 @@
       "source_path": "corpus/fixtures/typst/f10_lists_and_table.typ"
     },
     {
+      "id": "f11_mixed_plate",
+      "title": "f11_mixed_plate",
+      "source": {
+        "name": "synthetic-generator",
+        "url": "https://github.com/openconvert/openconvert",
+        "retrieved_date": "2026-09-09"
+      },
+      "license": {
+        "name": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "verified_by": "maintainer",
+        "verified_date": "2026-09-09"
+      },
+      "sha256": "df68f332351dd6f034edefb7246ad4b7e4e13de9aaedca82ebb2ca6ff11a9f95",
+      "file_size_bytes": 67589,
+      "category": "simple",
+      "producer_stratum": "ours(Typst)",
+      "producer_raw": "Typst 0.15.1",
+      "tagged": false,
+      "holdout": false,
+      "ground_truth_type": "none",
+      "generator": "typst-0.15.1",
+      "defect_injection": [],
+      "source_path": "corpus/fixtures/typst/f11_mixed_plate.typ"
+    },
+    {
       "id": "ia-152017-20170505",
       "title": "مقال فراس الطرابلسي مجلة أفكار عدد 15 أفريل 2017",
       "source": {
@@ -4074,6 +4100,174 @@
       "generator": "n/a-real-world",
       "defect_injection": [],
       "download_url": "https://ntrs.nasa.gov/api/citations/20060010177/downloads/20060010177.pdf"
+    },
+    {
+      "id": "f01__scan300",
+      "title": "f01_prose_single_column, scanned at 300 dpi",
+      "source": {
+        "name": "synthetic-generator",
+        "url": "https://github.com/openconvert/openconvert",
+        "retrieved_date": "2026-09-23"
+      },
+      "license": {
+        "name": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "verified_by": "maintainer",
+        "verified_date": "2026-09-23"
+      },
+      "sha256": "e5cca8b816fd75329e13a73fd8f2cd5ee956673f70745e0efc7b6adb0b397896",
+      "file_size_bytes": 578595,
+      "pages": 2,
+      "category": "edge-case",
+      "producer_stratum": "ours(Typst)",
+      "producer_raw": "img2pdf",
+      "tagged": false,
+      "holdout": false,
+      "expected_problems": [
+        "image-only"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "generated-from-source-text",
+      "ground_truth_ref": "corpus/fixtures/scanned/f01__scan300.gt.txt",
+      "generator": "oc-eval scan-sim",
+      "defect_injection": [
+        "rasterized-300dpi",
+        "gaussian-noise",
+        "rotation",
+        "brightness-gradient",
+        "jpeg-artefacts"
+      ],
+      "source_path": "corpus/fixtures/scanned/f01__scan300.pdf"
+    },
+    {
+      "id": "f01__scan200",
+      "title": "f01_prose_single_column, scanned at 200 dpi",
+      "source": {
+        "name": "synthetic-generator",
+        "url": "https://github.com/openconvert/openconvert",
+        "retrieved_date": "2026-09-23"
+      },
+      "license": {
+        "name": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "verified_by": "maintainer",
+        "verified_date": "2026-09-23"
+      },
+      "sha256": "eaceb903ea0f7c2c022bb623663d259ec2126d6fef1203de7ccc8c8b09a5d370",
+      "file_size_bytes": 278545,
+      "pages": 2,
+      "category": "edge-case",
+      "producer_stratum": "ours(Typst)",
+      "producer_raw": "img2pdf",
+      "tagged": false,
+      "holdout": false,
+      "expected_problems": [
+        "image-only"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "en"
+        ]
+      },
+      "ground_truth_type": "generated-from-source-text",
+      "ground_truth_ref": "corpus/fixtures/scanned/f01__scan200.gt.txt",
+      "generator": "oc-eval scan-sim",
+      "defect_injection": [
+        "rasterized-200dpi",
+        "gaussian-noise",
+        "rotation",
+        "brightness-gradient",
+        "jpeg-artefacts"
+      ],
+      "source_path": "corpus/fixtures/scanned/f01__scan200.pdf"
+    },
+    {
+      "id": "f04__scan300",
+      "title": "f04_german_prose, scanned at 300 dpi",
+      "source": {
+        "name": "synthetic-generator",
+        "url": "https://github.com/openconvert/openconvert",
+        "retrieved_date": "2026-09-23"
+      },
+      "license": {
+        "name": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "verified_by": "maintainer",
+        "verified_date": "2026-09-23"
+      },
+      "sha256": "f80aae617397f2139da8a21cb48d4a1a21eb9af18f239f2fe5410b12febddf7d",
+      "file_size_bytes": 330475,
+      "pages": 1,
+      "category": "edge-case",
+      "producer_stratum": "ours(Typst)",
+      "producer_raw": "img2pdf",
+      "tagged": false,
+      "holdout": false,
+      "expected_problems": [
+        "image-only"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "de"
+        ]
+      },
+      "ground_truth_type": "generated-from-source-text",
+      "ground_truth_ref": "corpus/fixtures/scanned/f04__scan300.gt.txt",
+      "generator": "oc-eval scan-sim",
+      "defect_injection": [
+        "rasterized-300dpi",
+        "gaussian-noise",
+        "rotation",
+        "brightness-gradient",
+        "jpeg-artefacts"
+      ],
+      "source_path": "corpus/fixtures/scanned/f04__scan300.pdf"
+    },
+    {
+      "id": "f05__scan300",
+      "title": "f05_turkish_prose, scanned at 300 dpi",
+      "source": {
+        "name": "synthetic-generator",
+        "url": "https://github.com/openconvert/openconvert",
+        "retrieved_date": "2026-09-23"
+      },
+      "license": {
+        "name": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "verified_by": "maintainer",
+        "verified_date": "2026-09-23"
+      },
+      "sha256": "4ef5c671f142a9485e44e259164e0877d232f386d5664ae92b8255d1a9331b88",
+      "file_size_bytes": 322734,
+      "pages": 1,
+      "category": "edge-case",
+      "producer_stratum": "ours(Typst)",
+      "producer_raw": "img2pdf",
+      "tagged": false,
+      "holdout": false,
+      "expected_problems": [
+        "image-only"
+      ],
+      "expected_output_characteristics": {
+        "languages": [
+          "tr"
+        ]
+      },
+      "ground_truth_type": "generated-from-source-text",
+      "ground_truth_ref": "corpus/fixtures/scanned/f05__scan300.gt.txt",
+      "generator": "oc-eval scan-sim",
+      "defect_injection": [
+        "rasterized-300dpi",
+        "gaussian-noise",
+        "rotation",
+        "brightness-gradient",
+        "jpeg-artefacts"
+      ],
+      "source_path": "corpus/fixtures/scanned/f05__scan300.pdf"
     }
   ]
 }

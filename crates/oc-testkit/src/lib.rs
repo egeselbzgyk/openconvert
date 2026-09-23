@@ -3,5 +3,6 @@
 //! digest and a stub LLM server. Never a dependency of a shipped crate.
 
 pub mod assertions;
+pub mod fake_tesseract;
 pub mod handmade;
 pub mod mutate;
