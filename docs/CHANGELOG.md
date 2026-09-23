@@ -3,10 +3,10 @@
 One section per completed phase, listing new CLI flags, new IR fields, new warning codes and new
 `thresholds.toml` entries. Required by the Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3 item 8).
 
-## [1.0.0] — unreleased (draft)
+## [1.0.0]
 
 OpenConvert turns a PDF book into a reflowable EPUB 3.3 on your own computer. This is the first
-release.
+release, for **Windows and Linux**; macOS follows in a later 1.x release.
 
 ### What it does
 
@@ -27,15 +27,15 @@ release.
   ask four narrow questions per book — title and author, heading levels, front and back matter, verse
   or quotation — and every answer is checked before it is used. Nothing is sent off your computer unless
   you point it at a server elsewhere and consent to that host.
-- **A desktop app** for Windows, macOS and Linux: drop PDFs on the window, watch each book's progress,
+- **A desktop app** for Windows and Linux: drop PDFs on the window, watch each book's progress,
   read the report, fix the title, author or chapter list and rebuild, preview the result. In English,
   German and Turkish. Every conversion also runs from the command line (`openconvert convert`).
 
 ### Privacy
 
 - No telemetry and no crash reporting, anywhere.
-- A conversion never uses the network. The app connects only when you download a model or a pack
-  (only to the host its registry pins), when you check for updates (only to GitHub's release servers),
+- A conversion never uses the network. The app connects only when you download a model (only to the
+  host its registry pins), when you check for updates (only to GitHub's release servers),
   and — with AI assistance on — to the provider you chose.
 
 ### Security
@@ -74,10 +74,10 @@ claim with where it is tested (`docs/SECURITY_TESTING.md` has the full map):
 **Known gaps in this release, stated rather than hidden:**
 
 - **Windows has no memory cap** (the job object ends the converter's children with it, but does not
-  limit memory), and the Windows and macOS containment has not been verified on those systems.
+  limit memory), and the Windows containment has not been verified on Windows itself.
 - **No cap on the size of the EPUB written.** A book over 50 MiB is reported with a warning, not
   refused; `docs/SECURITY.md` §4's "max output size" has no value yet.
-- **No sandbox below Linux 5.13, and none on macOS or Windows.** On an older kernel, or with
+- **No sandbox below Linux 5.13, and none on Windows.** On an older kernel, or with
   `OC_LANDLOCK=off`, the conversion runs unconfined and the report says so.
 - **The desktop app's own children** — the converters it runs and its model server — are ended when
   the app quits or crashes, but not yet guaranteed to end if the app itself is killed outright.
@@ -89,12 +89,34 @@ claim with where it is tested (`docs/SECURITY_TESTING.md` has the full map):
 
 - Windows: the NSIS installer or the MSI. **They are not code-signed in this release**, so Microsoft
   Defender SmartScreen warns on first run ("More info" → "Run anyway"); `docs/INSTALL.md` explains why.
-- macOS: the `.dmg` for Apple silicon or Intel, signed with a Developer ID and notarized.
-- Linux: the AppImage, which updates itself when you ask it to; or the Flatpak on Flathub, which runs
-  without network access (so it cannot download an AI model) and is updated by Flathub.
+- Linux: the AppImage (about 113 MB: it carries its own WebKitGTK), which updates itself when you ask
+  it to. The Flatpak manifest for Flathub is ready; on Flathub it runs without network access (so it
+  cannot download an AI model) and is updated by Flathub.
+- macOS: not in this release. A signed and notarized app comes in a later 1.x release; until then
+  OpenConvert can be built from source on macOS, unsigned.
 - Every file's SHA-256 is listed at the end of these notes, and the release carries a CycloneDX 1.6
   SBOM listing every component, PDFium and llama.cpp included.
 - Updates are signed; the app installs one only after its signature has been verified.
+
+### Known limitations
+
+What 1.0 does not do yet, so that nobody has to find it out:
+
+- **Not every book converts cleanly yet.** On the project's real-world test corpus (104 documents),
+  79 convert with every character accounted for. 13 lose some text (2 869 characters between them),
+  11 do not finish within 90 seconds, and one stops at a conservation check. The conversion report
+  always says how much of the text reached the EPUB. This work continues after 1.0.
+- **No cap on the size of the EPUB written.** A book over 50 MiB gets a warning, not a refusal.
+- **No memory cap on Windows** (Linux caps the converter at 4 GiB by default).
+- **AI assistance is off by default and not yet evaluated.** No AI task has passed its accuracy
+  evaluation for any language, so switching AI on — in the app, or with `--ai` — asks the model
+  nothing; `--ai-all-tasks` runs the tasks unevaluated. The default model's promotion gates (G1–G9)
+  have not been run.
+- **No macOS build** — it comes in a later 1.x release.
+- **No validation pack.** The optional in-app EPUBCheck (with its own Java runtime) is not offered in
+  1.0 and comes in a later release; the built-in validator checks every EPUB, and `openconvert
+  validate --tier 2 --epubcheck-jar <PATH>` runs an EPUBCheck you installed yourself.
+- **The Windows installers are not code-signed** (above).
 
 ## Phase 0 — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
 
@@ -1697,3 +1719,29 @@ Appendix D does not pass (`PROGRESS.md`). Built on `phase/15-packaging-release`.
 - **Unverified here:** rows 15.1–15.4, 15.6, 15.13's cross-OS half, 15.14's container run, 15.19,
   15.20, the real-key half of 15.9, `flatpak-builder-lint`, the Windows and macOS update install paths.
 - PROVISIONAL decisions awaiting ratification are listed in `PROGRESS.md` › Blocked (Phase 15).
+
+## Release preparation — v1.0.0 (Windows + Linux)
+
+The maintainer's release decisions of 2026-09-23 (`docs/DECISIONS_LOG.md`), applied. Built on
+`release/v1.0.0-prep`.
+
+- **Version 1.0.0** everywhere the tree declares it: the workspace `Cargo.toml` (and every path
+  dependency's requirement), `tauri.conf.json`, the UI's `package.json`, the AppStream metainfo's
+  release. `bump-rules-check --tag` now also refuses a tag that `tauri.conf.json` does not carry
+  (`the_tag_is_the_version_both_manifests_declare`).
+- **Windows + Linux only** (D12 amendment): `release.yml` has no macOS build or reproducibility leg
+  and no Apple secret; rows 15.1–15.4 wait for macOS; `xtask::release::SHIPPED` names the shipped
+  OSes and row 15.13 compares exactly those (`the_1_0_release_ships_windows_and_linux_only`). The
+  signing dry run has no macOS leg. `packaging/macos/` is kept.
+- **The validation pack is deferred past v1.0** (D6 amendment): `packs.toml` names it in a new
+  `[[deferred]]` table with no pins; `oc_net::packs::DeferredPack`; the desktop refuses to install it
+  (`UiError::NotOffered`, kind `not_offered`), the Packs screen says "Arrives in a later version",
+  and `openconvert model pull validation` exits 2 with the new fatal code **`E_PACK_NOT_OFFERED`**.
+- **New threshold `release.max_linux_installer_bytes` = 120 000 000** (`binary`, maintainer
+  decision): the AppImage's budget (row 15.15) and the most an AppImage update may download.
+  `release.max_installer_bytes` (45 000 000) now covers the other installers only.
+- **The updater's public key** (key id `0C6C69CA122C11B0`), generated by the maintainer on their own
+  machine, replaces `TODO_UPDATER_PUBKEY` in `tauri.conf.json`
+  (`the_shipped_updater_key_is_the_maintainers_minisign_key`). `ci-lint --release-branch` is clean.
+- `README.md` rewritten for the public repository; `docs/INSTALL.md`, `docs/RELEASE_CHECKLIST.md`
+  and the 1.0.0 notes above say Windows + Linux, and list the known limitations.

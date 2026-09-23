@@ -39,6 +39,12 @@ Each decision states: Decision · Why · Alternatives considered · Why rejected
 
 ## D6. EPUB validation: **Tier 1 internal Rust validator (always on, measured against EPUBCheck's public test corpus) · Tier 2 EPUBCheck as a hard CI gate, and in-app via an optional "validation pack" (jlink'd minimal JRE + epubcheck.jar, ~40–50 MB, same download mechanism as the model) · Tier 3 Ace by DAISY in CI**
 
+> **Amendment, 2026-09-23 (maintainer).** The in-app validation pack is **deferred past v1.0**: 1.0
+> does not offer it. `packs.toml` names it as a `[[deferred]]` entry with no pins, the Packs screen
+> says it arrives in a later version, and the app and `openconvert` refuse to install it with that
+> reason. Tier 1 (always on) and Tier 2/3 in CI are unchanged. VD-f (the Java runtime's licence) is
+> deferred with it. See `docs/DECISIONS_LOG.md`, 2026-09-23.
+
 **Why.** EPUBCheck (BSD-3) is authoritative but Java. **[RT]** Bundling a JRE in the base install violates priorities 1–3, but refusing an *optional* 45 MB pack while offering a 1 GB model download was inconsistent — so the pack exists. Tier 1 covers OCF/OPF/nav structure, RSC-005/RSC-012/OPF-014/PKG-007 classes, plus book-specific checks: `noteref`↔`footnote` bijection, every `page-list` target resolves, non-empty `alt`, no scripts/remote resources, case-insensitive entry-name collisions, image-count parity with extraction. Its coverage is a CI-tracked number (per-message-ID parity on EPUBCheck's own corpus), not an assertion.
 **Alternatives.** `epubveri` (pure Rust, 98.8 % parity, pre-1.0, AGPL-3.0 → forces AGPL). Watch, don't adopt.
 
@@ -72,6 +78,13 @@ Two implementations in v1: `LocalSidecar` (server we own) and `OpenAiCompatible`
 ## D11. Testing: **`cargo nextest` + `insta` (canonical-JSON snapshots of small fixtures; structural digests for corpus files) + `proptest` (invariants) + `criterion` (per-stage budgets) + `cargo-fuzz` on *our* parsers (IR deserializer, job-spec, XHTML/OPF emitter round-trip; PDFium is fuzzed by OSS-Fuzz already) + `cargo-deny`; Vitest (UI); Playwright (CI DOM checks); pytest (eval harness)**
 
 ## D12. Packaging: **Tauri bundler → Windows NSIS + MSI (unsigned initially, Azure Artifact Signing — formerly "Trusted Signing" — when cadence is stable), macOS .dmg (Developer ID + notarization, all nested binaries signed), Linux AppImage (primary — the updater covers it) + Flatpak via Flathub (updates through Flathub) + best-effort .deb/.rpm; Tauri updater (Ed25519, static JSON on GitHub Releases). Base install ≈ 35–45 MB (shell + engine + libpdfium + llama-server); model, OCR pack, validation pack are post-install downloads (SHA-256 pinned)**
+
+> **Amendment, 2026-09-23 (maintainer).** **v1.0.0 ships for Windows and Linux only.** There is no
+> Apple Developer ID yet, so the macOS `.dmg` (Developer ID, notarization, every nested binary
+> signed) comes in a later 1.x release; the signing scripts stay in `packaging/macos/`. The **Linux
+> AppImage's installer budget is 120 MB** (it bundles WebKitGTK; measured 112.95 MB), a threshold of
+> its own; every other installer keeps the ≈ 35–45 MB base-install budget above. The validation pack
+> is not among the 1.0 downloads (D6 amendment). See `docs/DECISIONS_LOG.md`, 2026-09-23.
 
 ## D13. Application architecture
 
