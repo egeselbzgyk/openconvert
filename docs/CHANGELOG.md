@@ -1159,14 +1159,28 @@ None. `oc_ai::provider::LlmResponse` gained `cached_tokens` (read from `timings.
 
 ### Known gaps, carried forward
 
-- **This sandbox's egress policy refuses huggingface.co** (and refused github.com release downloads
-  during the phase). So `models.toml`'s pins are still `TODO_` (`model list`/`pull` on the bundled
-  registry exit 2 until they are filled). No live test ran against a real model, and no gate result
-  is recorded. Qwen3-1.7B stays the default.
+- **This sandbox's egress policy refused huggingface.co** during the phase (and github.com release
+  downloads). So `models.toml`'s pins were left `TODO_` (`model list`/`pull` on the bundled registry
+  exited 2 until the second follow-up below filled them). No live test ran against a real model
+  during the phase, and no gate result is recorded. Qwen3-1.7B stays the default.
 - **Follow-up after the merge:** `xtask/llama.lock`'s four `b10456` digests and sizes are filled.
   They were read from GitHub's releases API and then checked against downloads of all four assets.
   They stay provisional until a maintainer ratifies them. New test:
   `the_shipped_lock_pins_all_four_assets_by_sha256_and_size`.
+- **Second follow-up (`fix/phase-09-registry-pins`, 2026-09-23): `models.toml` is pinned.** All four
+  entries now carry a commit and a SHA-256, read from the Hugging Face API. So `model list` and
+  `model pull` work on the shipped registry, and the app's model manager offers every model. The
+  default is **`ggml-org/Qwen3-1.7B-GGUF` `Qwen3-1.7B-Q4_K_M.gguf`**, because the official repository
+  publishes no Q4_K_M (the maintainer's decision; D9 carries an amendment note). The 0.6B tier is the
+  official **Q8_0**: its id is now `qwen3-0.6b-q8_0` and its RAM estimate 2 GiB (provisional). The
+  download allowlist gains **`us.aws.cdn.hf.co`**, the Xet CDN host every pinned URL redirects to.
+  The default model was then pulled through `openconvert model pull` and verified against its pin.
+  Rows 9.15 and 9.16 and the Phase 10 live test pass against it on this machine's CPU. These are
+  not gate results.
+  New tests: `the_shipped_registry_loads_with_every_pin_filled`,
+  `every_shipped_id_names_the_quantisation_it_downloads`, `download_follows_a_redirect_to_the_xet_cdn`,
+  `model_list_works_on_the_shipped_registry`, `the_shipped_registry_offers_every_model`,
+  `test_emit_registry_leaves_the_shipped_pins_alone`.
 - **An engine killed outright** (`SIGKILL`, a segfault) can still orphan its server:
   `PR_SET_PDEATHSIG` and Windows job objects need `unsafe`, which `forbid(unsafe_code)` excludes.
   They are Phase 14's hardening.

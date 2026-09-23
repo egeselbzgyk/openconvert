@@ -5623,3 +5623,41 @@ five hosts above is refused by name without the host being asked.
 Evidence: `curl -D -` of the four resolve URLs, 2026-09-23. Whether a real transfer through that host
 succeeds and verifies is recorded in the next entry.
 Affects: D13.9, SECURITY §8 ("huggingface.co, its CDN"), `crates/oc-net/src/allowlist.rs`.
+
+## 2026-09-23 · The default model, downloaded and run: the pin verified, the live tests green · Phase 9 follow-up
+Context: the two entries above pinned `models.toml` from the API and allowed the Xet CDN host. The
+maintainer then added `us.aws.cdn.hf.co` to this sandbox's egress allowlist, and a ranged `GET` of the
+default's resolve URL followed the `302` and returned `206` with the `GGUF` magic.
+What was run, on this machine (Linux x86_64, 4 cores shared with another worker's build, 15 GB, no GPU):
+1. **`openconvert model pull qwen3-1.7b-q4_k_m --dir <scratch>`** used the engine built from this
+   branch, so it ran with the new allowlist, the compiled-in registry and `HttpFetch`. It exited 0 in
+   50 s. The downloader hashed the 1 282 439 264 bytes while they streamed, and they matched the pinned
+   `d2387ca2…c7b5`. `LICENSE` (Apache-2.0) and `NOTICE` (repository, revision, file, sha256) were
+   written beside the file. An independent `sha256sum` of the installed file gives the same digest.
+   `model list` then shows the default as installed. **The download verification that the entry "`models.toml`
+   pinned" left open is done for the default.** The 0.6B, 4B and Qwen3.5-2B files were not downloaded,
+   so their pins remain unverified by download.
+2. **Rows 9.15 and 9.16** (`cargo nextest run -p oc-testkit --features live-llm -E 'binary(live_llm)'
+   --test-threads 1`, `OC_LLAMA_SERVER` = the verified `b10456` build, `OC_LIVE_MODEL` = the pulled
+   file) both pass. `thinking_is_absent_in_200_generations` took 2 152 s: 200 grammar-constrained
+   generations, none with a `<think>` block or separated reasoning. `prefix_is_cached_on_second_call`
+   took 173 s: the second call found the shared prefix in the KV cache. These runs are not gate
+   results. The machine is not L, the CPU was shared, and no timing here stands for G4/G5.
+   `llama-server`'s RSS at `-c 8192 -np 1` was about 3.1 GB during the runs, above G6's 2.5 GB. That
+   figure comes from `ps` and is not a G6 measurement; G6 is machine L's to measure.
+3. **The Phase 10 live test** (`cargo nextest run -p openconvert --features live-llm --test ai_cli -E
+   'test(ai_against_a_live_model_conserves_every_book)'`) passes in 30 s. f03, f07 and f10 each exit 0,
+   with no `W_LLM_UNAVAILABLE`, calls within budget and I-7 holding. The same three conversions, re-run
+   by hand to read their reports, asked 1, 1 and 0 calls (6.0 s and 7.2 s of model time), and f03
+   stopped at the wall-clock limit (`W_LLM_TIME_EXHAUSTED`). The engine matched `--model-path` to the
+   registry entry by file name (`model_id = qwen3-1.7b-q4_k_m`).
+4. **`LLAMA_API_KEY` is enforced** (Phase 9 Blocked item 3). A server the engine started has no key in
+   its argv. It answers `/v1/chat/completions` and `/slots` with `401 Invalid API Key` when the key is
+   missing or wrong. `/health` and `/v1/models` stay open, by llama-server's design.
+The GGUF was deleted afterwards (the orchestrator's instruction; nothing in the repository refers to
+it).
+Still open: G1–G9 on machines L and M and `docs/MODEL_GATE.md`. G3/G7/G9 also lack their inputs. The
+provisional items of the two entries above also stay open.
+Evidence: the pull's stderr (`installed qwen3-1.7b-q4_k_m at …`), the `NOTICE`, `sha256sum`, and the
+nextest summaries (`2 tests run: 2 passed`; `1 test run: 1 passed`).
+Affects: PROGRESS.md (Phase 9 Blocked items 1–4, Appendix D), `docs/CHANGELOG.md`, `docs/RELEASE_CHECKLIST.md`.
