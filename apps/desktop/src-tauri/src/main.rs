@@ -28,6 +28,7 @@ use openconvert_desktop::engine::{
 };
 use openconvert_desktop::fs_scope::{partition_drop, AppDirs, CacheUsage};
 use openconvert_desktop::jobqueue::{JobQueue, JobView, QueueSink, Rebuild};
+use openconvert_desktop::llm::{self, LlmHost};
 use openconvert_desktop::preview::{self, PreviewIndex};
 use openconvert_desktop::settings::{self, Settings};
 use serde::Serialize;
@@ -41,6 +42,10 @@ struct Startup(Result<Hello, UiError>);
 
 /// The queue, once the app knows where its directories and its engine are.
 struct Queue(Mutex<Option<JobQueue<ProcessLauncher>>>);
+
+/// The app's own model server (`llm.rs`): started on the first job that wants AI assistance,
+/// stopped when idle and when the app exits.
+struct Llm(Mutex<Option<LlmHost>>);
 
 /// The user's settings and where they are kept.
 struct Prefs {
@@ -413,6 +418,7 @@ fn main() {
         .manage(Startup(startup))
         .manage(Queue(Mutex::new(None)))
         .manage(LastBundle(Mutex::new(None)))
+        .manage(Llm(Mutex::new(None)))
         .manage(Prefs {
             path: Mutex::new(None),
             current: Mutex::new(Settings::default()),
@@ -429,7 +435,15 @@ fn main() {
             // text of books kept on disk for nothing (SECURITY §10). A failure here costs a later
             // rebuild nothing: every save is keyed and checked before it is resumed from.
             let _ = dirs.clear_cache();
+            let _ = dirs.clear_run();
             app.manage(dirs.clone());
+            if let Ok(program) = llm::server_path() {
+                *app.state::<Llm>()
+                    .0
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner) =
+                    Some(LlmHost::new(program, dirs.run.clone()));
+            }
 
             if let Ok(engine) = engine {
                 let launcher =
@@ -441,14 +455,22 @@ fn main() {
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner) = Some(queue);
             }
-            // The supervisor's clock: notice exits, enforce the kill deadline, start the next job.
+            // The supervisor's clock: notice exits, enforce the kill deadline, start the next job,
+            // and stop the model server once no job has used it for `llm.idle_kill_secs`.
             let handle = app.handle().clone();
             std::thread::spawn(move || loop {
                 std::thread::sleep(tick);
+                let now = Instant::now();
                 let state = handle.state::<Queue>();
                 let mut guard = state.0.lock().unwrap_or_else(PoisonError::into_inner);
                 if let Some(queue) = guard.as_mut() {
-                    queue.tick(Instant::now());
+                    queue.tick(now);
+                }
+                drop(guard);
+                let llm = handle.state::<Llm>();
+                let mut guard = llm.0.lock().unwrap_or_else(PoisonError::into_inner);
+                if let Some(host) = guard.as_mut() {
+                    host.tick(now);
                 }
             });
             Ok(())
@@ -476,6 +498,16 @@ fn main() {
             export_diagnostics,
             show_bundle
         ])
-        .run(tauri::generate_context!())
-        .expect("the Tauri application starts");
+        .build(tauri::generate_context!())
+        .expect("the Tauri application starts")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Nothing the app started outlives it: the model server and its key go first.
+                let llm = app.state::<Llm>();
+                let mut guard = llm.0.lock().unwrap_or_else(PoisonError::into_inner);
+                if let Some(host) = guard.as_mut() {
+                    host.shutdown();
+                }
+            }
+        });
 }

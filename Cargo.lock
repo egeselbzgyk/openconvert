@@ -4016,10 +4016,13 @@ dependencies = [
 name = "openconvert-desktop"
 version = "0.1.0"
 dependencies = [
+ "oc-ai",
  "oc-core",
  "oc-model",
+ "oc-net",
  "oc-testkit",
  "quick-xml 0.42.0",
+ "secrecy",
  "serde",
  "serde_json",
  "tauri",

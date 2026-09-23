@@ -841,6 +841,20 @@ evidence = "PHASE 9 detail 3: how often an engine-owned llama-server's GET /heal
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[llm.load_timeout_secs]
+value = 120
+source = "provisional"
+evidence = "PHASE 9 detail 3 / PHASE 12 llm.rs: how long the desktop app waits, after starting its own llama-server, for GET /health to answer ok, which includes loading the model from disk. The default GGUF is ~1.1 GB; two minutes allows a slow disk several times over. Invented, not measured: no model can be fetched on the machine this was written on"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.health_probe_timeout_millis]
+value = 1000
+source = "provisional"
+evidence = "PHASE 9 detail 3: the timeout of one GET /health to a loopback llama-server while it loads. A loopback round trip is well under a millisecond; a probe that has not answered in a second is treated as not ready and asked again. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [llm.cache_reuse_min_chunk]
 value = 256
 source = "provisional"

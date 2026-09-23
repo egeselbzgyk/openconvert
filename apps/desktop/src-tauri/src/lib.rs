@@ -12,5 +12,6 @@ pub mod diagnostics;
 pub mod engine;
 pub mod fs_scope;
 pub mod jobqueue;
+pub mod llm;
 pub mod preview;
 pub mod settings;

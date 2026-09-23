@@ -32,7 +32,7 @@ env: { CARGO_TERM_COLOR: always, RUSTFLAGS: "-D warnings", INSTA_UPDATE: "no" }
 # resolves `externalBin` at build time. It is bought once, on Linux, in the `desktop` job below,
 # which also runs the crate's tests — the supervisor, the queue, the job-spec rules, the privacy
 # gate (12.13) and, with `engine-integration`, the real engine's cancel and stale-sidecar paths
-# (12.6, 12.17). The UI's own tests (Vitest, svelte-check, the lint, and the Playwright spec under
+# (12.6, 12.17) and the app-owned model server's lifecycle against `oc-stub-llama-server`. The UI's own tests (Vitest, svelte-check, the lint, and the Playwright spec under
 # the shipped CSP) are the `ui` job's. Phase 15 owns cross-platform packaging; when it arrives,
 # the `desktop` job is where the matrix goes.
 #
@@ -128,7 +128,8 @@ jobs:
       - run: npm ci --prefix apps/desktop/ui && npm --prefix apps/desktop/ui run build
       # `externalBin` resolves at build time, so the engine has to exist and be staged under
       # the target-triple name Tauri looks for before the shell will compile at all.
-      - run: cargo build -p openconvert --locked
+      # The stub llama-server the app's model-server tests start is an `oc-testkit` binary.
+      - run: cargo build -p openconvert -p oc-testkit --bins --locked
       - run: cargo run -p xtask -- stage-sidecars
       - run: cargo clippy -p openconvert-desktop --all-targets --all-features --locked -- -D warnings
       # The engine the integration tests drive binds PDFium at run time, from `vendor/pdfium`.

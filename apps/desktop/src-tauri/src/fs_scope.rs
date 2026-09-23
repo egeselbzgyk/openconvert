@@ -18,6 +18,9 @@ pub struct AppDirs {
     pub cache: PathBuf,
     /// The user's corrections, one `overrides.json` per book, named by its digest.
     pub overrides: PathBuf,
+    /// Secrets that live as long as the app runs: the key of the app's own model server
+    /// (`llm.rs`). Emptied at start, so nothing a crash left behind is reused.
+    pub run: PathBuf,
 }
 
 impl AppDirs {
@@ -27,8 +30,9 @@ impl AppDirs {
             jobs: data_dir.join("jobs"),
             cache: data_dir.join("cache"),
             overrides: data_dir.join("overrides"),
+            run: data_dir.join("run"),
         };
-        for dir in [&dirs.jobs, &dirs.cache, &dirs.overrides] {
+        for dir in [&dirs.jobs, &dirs.cache, &dirs.overrides, &dirs.run] {
             std::fs::create_dir_all(dir)?;
         }
         Ok(dirs)
@@ -44,6 +48,17 @@ impl AppDirs {
             Err(error) => return Err(error),
         }
         std::fs::create_dir_all(&self.cache)
+    }
+
+    /// Empty the run directory. The app does this at start: a key a crashed session left there is
+    /// for a server that no longer exists.
+    pub fn clear_run(&self) -> std::io::Result<()> {
+        match std::fs::remove_dir_all(&self.run) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+        std::fs::create_dir_all(&self.run)
     }
 
     /// What the cache holds: its size on disk, and how many books have a saved `structure` in it

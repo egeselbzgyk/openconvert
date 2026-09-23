@@ -269,7 +269,7 @@ packed by each document's previous run time; strip `\r` from Python-written chun
 writes CRLF, and every name carries it), and give the child `< /dev/null` or it swallows the list.
 Check `rc` and output sizes before believing a run: one "complete" run here had never executed.
 
-## Phase 12 — in progress (part A)
+## Phase 12 — in progress (part A done, part B1 in progress)
 
 Built on branch `phase/12-desktop-ui` (worktree `/home/user/wt/phase12`) while Phase 9 runs on its
 own branch. **Part A** is every Phase 12 item that does not need Phase 9 (model manager,
@@ -412,6 +412,24 @@ passed with `engine-integration`; UI Vitest 36 passed, svelte-check/lint/build c
 real Tauri window on WebKitGTK/WKWebView/WebView2 (IPC `postMessage` fallback under
 `connect-src 'none'`, drag and drop, the `ocpreview:` frame), `webkit-ui`, every CI job, macOS and
 Windows, the signing dry run (A12.7).
+
+### Part B1 — the items that need only Phase 9 (merged into this branch 2026-09-23, `3fcc934`)
+
+Build here with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` (env only): the disk is shared.
+The desktop crate's `engine-integration` tests now also need `cargo build -p openconvert -p
+oc-testkit --bins` (the stub llama-server).
+
+- [x] **P12.12** `llm.rs`, the app-owned `llama-server` (Phase 9's deferred file): `LlmHost` on
+      `OwnedServer` — free loopback port, per-run key in `LLAMA_API_KEY` and in `<data>/run/llm.key`
+      (0600) for the engine's `ai.api_key_file`, `/health` through `oc-net`, a lease per job, idle
+      stop after `llm.idle_kill_secs` from the supervisor clock, stop and key deletion at app exit
+      (`RunEvent::Exit`) and on panic/signal (`supervise`). Two new provisional thresholds
+      (`llm.load_timeout_secs`, `llm.health_probe_timeout_millis`; report snapshot now 188). Not
+      started by anything until the AI toggle (B2) (+ 5 tests, Linux, against `oc-stub-llama-server`)
+- [ ] **P12.13** process groups / job objects in `ProcessLauncher`
+- [ ] **P12.14** the model manager — row **12.12** `model_download_progress_streams_and_cancels`
+- [ ] **P12.15** packs through the same download mechanism
+- [ ] **P12.16** the Models and Packs screens and the first-run route
 
 ### Part B — what remains, after Phase 9 and Phase 11 merge
 

@@ -4071,3 +4071,38 @@ Evidence: `the_shipped_lock_pins_all_four_assets_by_sha256_and_size` (asserts fo
 lower-case SHA-256s and non-zero sizes, all accepted by `pinned`), and the `sha256sum` / `stat`
 output above.
 Affects: D8, D9, PHASE 9 detail 1, `xtask/llama.lock`, PROGRESS.md Blocked items 2 and 3.
+
+## 2026-09-23 · The app's own model server: one per app, a key file, idle by job · Phase 12
+Context: PHASE 9 detail 3 says "the desktop app supplies a long-lived, app-owned server so a 1 GB
+model loads once per batch, not once per book", and files `apps/desktop/src-tauri/src/llm.rs` under
+Phase 9, which deferred it to Phase 12. It does not say how the engine is given the server's key,
+what "idle" means for a server that jobs share, or what happens when another model is chosen.
+Decision:
+1. `LlmHost` starts the server with the engine's own code path, `oc_core::sidecar::server::
+   OwnedServer` — port from `oc_net::loopback::free_port` on `127.0.0.1`, a fresh CSPRNG key in
+   `LLAMA_API_KEY`, `-np 1`, registered with `supervise` from the moment it is spawned — and asks
+   `GET /health` through `oc-net` every `llm.health_poll_millis` for up to `llm.load_timeout_secs`
+   (new, provisional, 120 s; each probe `llm.health_probe_timeout_millis`, new, provisional, 1 s).
+2. The key reaches an engine as a **file**, `<app data>/run/llm.key`, created fresh with mode
+   `0600` on Unix — the job spec's `ai.api_key_file`, which D10 and the schema already name. Never
+   argv (visible in `ps`) and never the job spec (kept on disk with the job). The run directory is
+   emptied when the app starts and the key is deleted with the server.
+3. "In flight" for the app's server is **a job holding a lease**, not a single HTTP call: a job's
+   lease is `call_started` at acquire and `call_finished` at release, so `OwnedServer::kill_if_idle`
+   stops the server `llm.idle_kill_secs` after the last job ended, never during a job however long
+   its deterministic stages take. The app's supervisor clock calls it.
+4. A different model restarts the server, but only when no job holds it (`LlmError::Busy`
+   otherwise — unreachable with `desktop.max_concurrent_jobs = 1`).
+5. `-t` is the machine's core count (`available_parallelism`, one if it cannot say). With one
+   conversion at a time the engine's rayon pool and the server do not run their heavy parts at
+   once; ARCHITECTURE §8.3's "set from one place" is revisited with Phase 10's measurements.
+6. The server binary is `llama-server` beside the app's executable (Tauri `externalBin`, staged by
+   Phase 15). Nothing starts it until AI assistance can be turned on (part B2).
+Evidence: `the_app_server_listens_on_loopback_and_hands_its_key_over_a_private_file`,
+`the_app_server_is_shared_by_jobs_and_stopped_when_idle` (fails with the lease accounting removed),
+`another_model_restarts_the_server_only_when_no_job_holds_it`,
+`the_app_server_does_not_outlive_the_app`, `a_server_that_cannot_start_is_an_error` — all against
+`oc-stub-llama-server`, Linux. **Unverified here:** macOS, Windows, and a real server with a real
+model (no GGUF can be fetched).
+Affects: PHASE 9 detail 3, PHASE 12 Files, `thresholds.toml` (`llm.load_timeout_secs`,
+`llm.health_probe_timeout_millis`), `apps/desktop/src-tauri/src/{llm.rs,fs_scope.rs,main.rs}`.
