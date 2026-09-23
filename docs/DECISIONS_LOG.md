@@ -4020,3 +4020,26 @@ Decisions:
    (`<task>__a3__v1`): Phase 10 recorded more cassettes beside the seeds, and the loader assumed one.
 Evidence: `eval/tests/test_ai_evaluation.py` (rows 10.17, 10.18 and four more).
 Affects: PHASE 10 detail 7, D18, `thresholds.toml` (`ai_eval.*`), CI's eval job, `docs/AI_EVALUATION.md`.
+
+## 2026-09-23 · Consent lives in `oc-net`; off this machine means `https://` · Phase 11
+Context: PHASE 11 detail 4 and D10 — a non-loopback endpoint needs an explicit toggle that names the
+host; SECURITY §8 puts the host allowlist in `oc-net`, "not left to each provider implementation".
+Decisions:
+1. **`oc_net::consent::authorize(url, consent)` is the one check**, and `HttpTransport` runs it in
+   its constructor: `HttpTransport::new` reaches this machine only; `HttpTransport::with_consent`
+   reaches the one host a `ConsentRecord` names. A refusal happens before any socket exists, so "no
+   bytes sent" is a property of the type, not of each caller remembering.
+2. **Loopback** is `localhost` (exactly), 127/8, `::1`, and `::ffff:127.x` — what `std::net` calls
+   loopback. `localhost.` and `*.localhost` need consent: the resolver is not obliged to agree.
+3. **The URL is parsed narrowly**: user-info, `%`, `\`, `?`, `#`, whitespace and a second colon are
+   refused, never interpreted (`http://127.0.0.1@evil.example` is a request to `evil.example`). An
+   unparseable URL is never loopback.
+4. **PROVISIONAL — needs maintainer ratification: plain `http://` off this machine is refused even
+   with consent.** D10 and SECURITY §8 do not speak to the scheme. Consent says the named host may
+   read the books' text; over plain http everyone on the path can, and an API key rides in the
+   clear. The conservative reading refuses it (`NetError::PlaintextRemote`); a LAN server needs TLS
+   in front of it. Loosening this is a one-line change in `authorize`.
+5. **`ConsentScope` has one variant, `Run`**: the engine remembers nothing. The desktop app keeps a
+   user's choice per configuration (UI_UX §2.4) and writes it into each job spec it runs.
+Evidence: `crates/oc-net/tests/consent.rs` (row 11.6 and four more).
+Affects: D10, SECURITY §8, `oc_net::{consent, transport}`.

@@ -1,12 +1,14 @@
 #![forbid(unsafe_code)]
 //! The only crate permitted to open sockets (D13.9): model and pack downloads with a
-//! host allowlist and SHA-256 verification, plus the BYO endpoint transport.
+//! host allowlist and SHA-256 verification, plus the BYO endpoint transport, which reaches a host
+//! off this machine only with consent that names it (D10, [`consent`]).
 //!
 //! Nothing on the conversion path depends on this crate. `openconvert model pull` and the desktop
 //! app's model manager do, and a conversion only ever reads a model file that is already on disk
 //! (D9: "downloads never happen during a conversion").
 
 pub mod allowlist;
+pub mod consent;
 pub mod download;
 pub mod loopback;
 pub mod registry;
@@ -37,6 +39,20 @@ pub enum NetError {
     Transport(String),
     #[error("{0}")]
     Io(String),
+    /// A host that is not this machine, and no consent names it (D10). Raised before any socket
+    /// is opened.
+    #[error(
+        "`{host}` is not this computer: the text of the books you convert would be sent there, and \
+         nothing has given consent to that host"
+    )]
+    ConsentRequired { host: String },
+    /// Consent names the host, and the URL is plain `http://`: the text would cross the network in
+    /// the clear, readable by more than the host consented to.
+    #[error(
+        "`{host}` is not this computer and the URL is plain http://; a book's text is sent off this \
+         computer only over https://"
+    )]
+    PlaintextRemote { host: String },
     /// The downloader writes the licence text beside every model, and has none for this one.
     #[error("no licence text is bundled for `{0}`")]
     UnknownLicense(String),

@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 11
-CURRENT_ITEM: 11.1 — not started. Phase 10 is complete and merged (2026-09-23); its provisional
-              decisions are listed in the Blocked section. Phase 7.5 is still parked.
+CURRENT_ITEM: P11.2 — `oc-ai` provider adapters, `ProviderCaps`, `W_LLM_UNCONSTRAINED` (row 11.4).
+              Phase 11 is on `phase/11-byo-providers`; P11.1 is done. Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -173,11 +173,36 @@ What a fresh session needs:
 
 ## Current work item
 
-**Phase 11 — BYO providers.** Not started. What it builds on from Phase 10: `convert --ai` with
-`--llm-endpoint` (loopback only today — a non-loopback host is exit 2 until Phase 11's consent),
-`openconvert::ai_endpoint::open`, `oc_ai::session::Session`, and the external endpoint's model id
-(`--model-path`'s stem or `endpoint@<host>`), which a named provider should replace. Enabling any AI
-task for a language still needs the evaluation (Blocked 9).
+**Phase 11 — BYO providers**, on `phase/11-byo-providers` (worktree `/home/user/wt/phase10`).
+Next: **P11.2**.
+
+## Phase 11 — built on `phase/11-byo-providers`
+
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P11.1** `oc-net::consent`: `requires_consent`, `authorize`, `ConsentRecord`; `HttpTransport`
+      cannot be built to a host off this machine without consent naming it — row 11.6
+- [ ] **P11.2** `oc-ai::provider`: the adapter modules, `ProviderKind`, schema-in-prompt and
+      `W_LLM_UNCONSTRAINED` when a provider constrains nothing — row 11.4
+- [ ] **P11.3** `oc-ai::provider::ollama`: native `/api/chat`, `format`, `options.num_ctx`,
+      `keep_alive`, `think: false` — rows 11.2, 11.3
+- [ ] **P11.4** `oc-net::detect`: `Transport::get`, `detect_ollama`, the capability probe — row 11.1
+- [ ] **P11.5** the Phase-8 cassettes through every adapter — row 11.10
+- [ ] **P11.6** `openconvert`: provider resolution, `--llm-provider`/`--llm-model`/`--llm-allow-host`,
+      `E_CONSENT_REQUIRED` — rows 11.5, 11.8
+- [ ] **P11.7** consent in the report; a failing provider degrades — rows 11.7, 11.9
+- [ ] **P11.8** `openconvert provider detect|check|probe` (what Phase 12's settings page calls)
+- [ ] **P11.9** the Definition of Done, CHANGELOG, merge
+
+What a fresh session needs:
+
+- **Consent is enforced in `oc-net`** (`consent::authorize`): loopback (`localhost`, 127/8, `::1`,
+  `::ffff:127.x`) needs nothing; any other host needs a `ConsentRecord` naming it, and `https://`
+  (plain http off the machine is refused even with consent — PROVISIONAL, DECISIONS_LOG
+  2026-09-23). `HttpTransport::new` is loopback-only; `HttpTransport::with_consent` takes the record.
+  URLs with user-info, `%`, `\`, `?`, `#` or whitespace are refused, never interpreted.
+- Build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0`. **Disk is tight** (~5 GB free while
+  three worktrees build).
 
 ## Phase 10 — built on `phase/10-ai-decisions`, merged 2026-09-23
 
@@ -943,6 +968,11 @@ Phase 10's, each logged in `docs/DECISIONS_LOG.md` (2026-09-23):
 14. **Invented numbers**, each `provisional` with owner and `review_by`: the chunk overlap (20), the
     metadata size-category ratios and input cap, the deep-indent em, the centred-cluster ratio, the
     sidecar timeouts, and `ai_eval.{alpha, noninferiority_margin}`.
+
+Phase 11's, each logged in `docs/DECISIONS_LOG.md` (2026-09-23):
+
+15. **Plain `http://` to a host off this machine is refused even with consent** (`PlaintextRemote`):
+    D10 is silent on the scheme; consent to a host reading the text is not consent to the path.
 
 ## Phase 7 — Definition of Done
 
