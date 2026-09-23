@@ -89,6 +89,27 @@ LAST_UPDATED: 2026-09-23
 - [ ] **Phase 14** — Security hardening
 - [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
 
+## Phase 15 — on branch `phase/15-packaging-release` (part A: everything that does not need Phase 14)
+
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P15.1** carry-over: the engine sidecar is `openconvert-engine`, so `tauri-build` can never
+      overwrite `target/<profile>/openconvert` with a stale staged engine —
+      `no_sidecar_shares_a_name_with_a_workspace_binary`, `the_sidecar_the_app_runs_is_the_one_tauri_bundles`
+- [ ] **P15.2** bundle layout (detail 1): engine + `llama-server` as `externalBin`, `libpdfium`,
+      `models.toml`, `thresholds.toml` bundled; per-OS config files; `stage-sidecars` stages all of it
+- [ ] **P15.3** macOS: `entitlements.plist`, `sign_nested.sh`, `notarize.sh` — row 15.5 (15.1–15.4 are
+      release-job steps, unverified here)
+- [ ] **P15.4** Windows NSIS + MSI config, the release manifest and its hashes — row 15.6 (CI step), 15.20
+- [ ] **P15.5** Linux AppImage, headless smoke conversion, installer size — rows 15.7, 15.15
+- [ ] **P15.6** Flatpak manifest, updater compiled out there — row 15.8
+- [ ] **P15.7** updater: signed `latest.json`, verified before install — rows 15.9, 15.10
+- [ ] **P15.8** SBOM: `cargo cyclonedx` + `npm sbom`, merged by `xtask sbom` — rows 15.11, 15.12
+- [ ] **P15.9** reproducibility gate (`xtask repro`) — row 15.13 (Linux half here)
+- [ ] **P15.10** version bump rules (`xtask bump-rules-check`), `docs/VERSIONING.md` — rows 15.16, 15.17
+- [ ] **P15.11** release gates and `release.yml`: placeholders, no Python — rows 15.14, 15.18
+- [ ] **P15.12** `docs/RELEASE_CHECKLIST.md`, `docs/INSTALL.md`, the part-B hand-off
+
 ## Phase 13 — on branch `phase/13-ocr`
 
 Work items, in order, with the plan's test rows against each:

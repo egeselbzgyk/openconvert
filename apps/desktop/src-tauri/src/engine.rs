@@ -423,16 +423,24 @@ pub fn check_hello(stderr: &str, app_version: &str) -> Result<Hello, UiError> {
     })
 }
 
-/// Where the sidecar is: beside this executable, as Tauri's `externalBin` places it.
+/// The engine's file name inside the app: the `openconvert` binary, staged by
+/// `cargo run -p xtask -- stage-sidecars` under a name of its own (PHASE 15).
 ///
-/// In a workspace build that is `target/<profile>/openconvert`, beside
-/// `target/<profile>/openconvert-desktop`, which is why a plain `cargo build` of both runs.
+/// Not `openconvert`: `tauri-build` copies every `externalBin` into `target/<profile>/`, and a
+/// sidecar of the engine's own name replaced the engine cargo had built there with whichever
+/// build was last staged — so the workspace tests ran a stale engine and cargo, its fingerprint
+/// fresh, never noticed.
+pub const SIDECAR_NAME: &str = "openconvert-engine";
+
+/// Where the sidecar is: beside this executable, as Tauri's `externalBin` places it — in
+/// `Contents/MacOS`, in `usr/bin` of the AppImage, in the install directory on Windows, and in a
+/// workspace build in `target/<profile>/`, where `tauri-build` copies the staged engine.
 pub fn sidecar_path() -> Result<PathBuf, UiError> {
     let exe = std::env::current_exe()?;
     let dir = exe
         .parent()
         .ok_or_else(|| UiError::Io("the app's own directory is unknown".to_owned()))?;
-    Ok(dir.join(format!("openconvert{}", std::env::consts::EXE_SUFFIX)))
+    Ok(dir.join(format!("{SIDECAR_NAME}{}", std::env::consts::EXE_SUFFIX)))
 }
 
 #[cfg(test)]
@@ -447,6 +455,29 @@ mod tests {
             std::env::temp_dir().join(format!("oc-desktop-engine-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         AppDirs::under(&dir).expect("made")
+    }
+
+    /// The name the app looks for is the name Tauri bundles and copies (PHASE 15 carry-over): a
+    /// rename on one side only would leave the app running whatever file was there before.
+    #[test]
+    fn the_sidecar_the_app_runs_is_the_one_tauri_bundles() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).expect("json");
+        let bundled: Vec<&str> = config["bundle"]["externalBin"]
+            .as_array()
+            .expect("externalBin")
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect();
+        assert!(
+            bundled.contains(&format!("bin/{SIDECAR_NAME}").as_str()),
+            "{bundled:?}"
+        );
+        let path = sidecar_path().expect("a path");
+        assert!(path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.starts_with(SIDECAR_NAME)));
     }
 
     /// Records every launch, and launches nothing.

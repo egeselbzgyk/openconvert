@@ -4926,3 +4926,21 @@ Evidence: `the_network_log_says_it_is_not_recorded_until_there_is_an_audit_log`;
 log says this build records nothing yet, and lists what the audit log holds.
 Affects: `apps/desktop/src-tauri/src/{netlog,main}.rs`, `Settings.svelte`, `locales/*.json`,
 PHASE 14 detail 12 (fills the hook).
+
+## 2026-09-23 · The engine sidecar is `openconvert-engine`, not `openconvert` · Phase 15 (P15.1)
+Context: carry-over from Phase 12. `tauri-build` copies every `externalBin` into `target/<profile>/`
+without its triple, removing whatever file is there first. The sidecar was `bin/openconvert`, so
+building the desktop crate replaced `target/debug/openconvert` — the engine every workspace test runs
+— with whichever build was last staged, and cargo, whose fingerprint for the engine was still fresh,
+never put the new one back (seen here: `target/debug/openconvert` had one link, the staged copy,
+where cargo's own output has two). Re-running `stage-sidecars` was the only cure, and nothing said so.
+Decision: the engine is staged and bundled as `openconvert-engine` (`xtask::stage_sidecars::
+SIDECAR_NAME`, `openconvert_desktop::engine::SIDECAR_NAME`); the binary cargo builds, and the CLI a
+user runs, stays `openconvert`. `stage-sidecars` removes a legacy `bin/openconvert-<triple>`. No
+sidecar may share a name with any workspace binary, whatever the build order, and a test enforces it
+over every Tauri config file. **PROVISIONAL — needs maintainer ratification**: the plan says "the
+`openconvert` engine … as `externalBin`"; the file name inside the bundle is not settled anywhere, and
+this is the narrowest name that keeps the engine recognisable.
+Evidence: `no_sidecar_shares_a_name_with_a_workspace_binary` (RED on `bin/openconvert`),
+`the_sidecar_the_app_runs_is_the_one_tauri_bundles`.
+Affects: `apps/desktop/src-tauri/{tauri.conf.json,src/engine.rs}`, `xtask/src/stage_sidecars.rs`.

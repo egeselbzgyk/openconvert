@@ -15,8 +15,17 @@ use anyhow::{bail, Context, Result};
 /// Where Tauri looks for the sidecar, relative to `apps/desktop/src-tauri`.
 const SIDECAR_DIR: &str = "apps/desktop/src-tauri/bin";
 
-/// The engine binary's name, before the triple suffix Tauri requires.
+/// The engine binary cargo builds.
 const ENGINE_NAME: &str = "openconvert";
+
+/// The name the engine is staged under, before the triple suffix Tauri requires: the
+/// `externalBin` entry in `tauri.conf.json` and `openconvert_desktop::engine::SIDECAR_NAME`.
+///
+/// Deliberately not [`ENGINE_NAME`]. `tauri-build` copies every `externalBin` into
+/// `target/<profile>/` without its triple, and a sidecar called `openconvert` replaced the engine
+/// cargo had just built there with whatever was last staged (PHASE 15 carry-over; the test is
+/// `no_sidecar_shares_a_name_with_a_workspace_binary`).
+pub const SIDECAR_NAME: &str = "openconvert-engine";
 
 /// Records what was staged, so a mismatch report can say which build is on disk.
 const STAMP_NAME: &str = "STAGE_STAMP";
@@ -41,7 +50,14 @@ pub fn run(workspace_root: &Path, release: bool) -> Result<()> {
     let staged_dir = workspace_root.join(SIDECAR_DIR);
     std::fs::create_dir_all(&staged_dir)
         .with_context(|| format!("cannot create {}", staged_dir.display()))?;
-    let staged = staged_dir.join(format!("{ENGINE_NAME}-{triple}{extension}"));
+    // What an older checkout staged under the engine's own name. Left in place it is inert, but
+    // it is exactly the stale build this naming exists to keep away, so it goes.
+    let legacy = staged_dir.join(format!("{ENGINE_NAME}-{triple}{extension}"));
+    if legacy.is_file() {
+        std::fs::remove_file(&legacy)
+            .with_context(|| format!("cannot remove {}", legacy.display()))?;
+    }
+    let staged = staged_dir.join(format!("{SIDECAR_NAME}-{triple}{extension}"));
     std::fs::copy(&built, &staged)
         .with_context(|| format!("cannot copy {} to {}", built.display(), staged.display()))?;
 

@@ -37,7 +37,7 @@
       "appimage"
     ],
     "externalBin": [
-      "bin/openconvert"
+      "bin/openconvert-engine"
     ],
     "licenseFile": "../../../LICENSE",
     "icon": [
