@@ -92,7 +92,7 @@ items, in order, with the plan's test rows against each:
 - [x] **P14.2** `BoundedInflate` and our own filter chain; `lopdf` loads bounded — rows 14.2, 14.3
 - [x] **P14.3** the xref/ObjStm pre-walk: depth counter and visited set — rows 14.4, 14.5
 - [x] **P14.4** the page cap from the catalogue's `/Count`, before any page object — row 14.6 *(the CLI's exit 1 + report is P14.10)*
-- [ ] **P14.5** one abort path: `AbortCause`, `DeadlineGuard`, one cleanup — row 14.8
+- [x] **P14.5** one abort path: `AbortCause`, `DeadlineGuard`, one cleanup — row 14.8 *(wired into `convert` in P14.10)*
 - [ ] **P14.6** `--max-memory`: `RLIMIT_AS` / nested job object before the PDF opens — row 14.7
 - [ ] **P14.7** children never outlive a killed engine: PDEATHSIG trampoline, job object (Phases 9, 13)
 - [ ] **P14.8** Landlock: `ScopeSet`, self-restriction, recorded skip — rows 14.10–14.12
@@ -124,6 +124,11 @@ What a fresh session needs:
   → `CapViolation::Pages`. Lenient otherwise: a section that does not parse ends the walk silently
   (PDFium reconstructs). Its own parser nests at most `limits.max_object_nesting` (64, new,
   provisional). New thresholds change the report snapshot's "[N entries, redacted]" count.
+- Deadlines live **on `Cancel`**: `oc_core::deadline::DeadlineGuard::arm(stage, limit, &cancel)`
+  records a deadline that every `cancel.is_cancelled()` poll also checks, and past it the poll sets
+  the same flag with `AbortCause::Deadline(stage)` (first cause wins). `Scratch::clean_up` is the one
+  cleanup (paths are taken as they are removed, so a second call removes nothing). Clock injected
+  (`Cancel::with_clock`, `ManualClock`).
 
 ## Phase 13 — on branch `phase/13-ocr`
 

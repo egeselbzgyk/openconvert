@@ -6,13 +6,24 @@
 //! without a `select!` in the middle of a page. A load-relaxed read of an atomic is free
 //! enough to do between every page of a nine-hundred-page book.
 //!
-//! **One flag, later two causes.** Phase 14 gives per-stage deadlines the *same* flag rather
-//! than a mechanism of their own (`AbortCause::Deadline`), so that cancel and deadline share
-//! one abort path and one place where partial output is cleaned up. Nothing here needs to
-//! change for that; the cause is what gets added.
+//! **One flag, two causes.** Per-stage deadlines set the *same* flag rather than having a
+//! mechanism of their own ([`AbortCause::Deadline`], armed by `deadline::DeadlineGuard`), so
+//! cancel and deadline share one abort path and one place where partial output is cleaned up.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
+
+/// Why the work was asked to stop (PHASE 14 detail 6): one abort path, two causes.
+///
+/// A user's `{"t":"cancel"}` and a stage's deadline set the **same** flag; only the cause
+/// differs, and it decides the ending — a cancel exits 3, a deadline is a failed conversion that
+/// exits 1 with a report naming `stage_deadline_secs`. Everything between the flag and the ending
+/// (the polls, the unwinding, the one place scratch files are removed) is shared.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AbortCause {
+    Cancelled,
+    Deadline(&'static str),
+}
 
 /// A shared cancellation flag.
 ///
@@ -22,6 +33,11 @@ use std::sync::Arc;
 #[derive(Clone, Debug, Default)]
 pub struct Cancel {
     flag: Arc<AtomicBool>,
+    /// The first cause to set the flag. Later ones do not overwrite it: a deadline that fires
+    /// while a cancel is being honoured does not turn the user's cancel into a failure.
+    cause: Arc<OnceLock<AbortCause>>,
+    /// The stage deadline currently armed on this flag, if any (`deadline::DeadlineGuard`).
+    armed: Arc<crate::deadline::Armed>,
 }
 
 impl Cancel {
@@ -29,17 +45,54 @@ impl Cancel {
         Self::default()
     }
 
+    /// A flag whose deadlines read `clock` instead of the process's monotonic clock.
+    pub fn with_clock(clock: Arc<dyn crate::deadline::Clock>) -> Self {
+        Self {
+            armed: Arc::new(crate::deadline::Armed::new(clock)),
+            ..Self::default()
+        }
+    }
+
+    pub(crate) fn armed(&self) -> &crate::deadline::Armed {
+        &self.armed
+    }
+
     /// Ask for the work to stop. Idempotent, and callable from any thread.
     pub fn cancel(&self) {
+        self.abort(AbortCause::Cancelled);
+    }
+
+    /// Ask for the work to stop, saying why. The first cause is kept.
+    pub fn abort(&self, cause: AbortCause) {
+        let _ = self.cause.set(cause);
         // `Release` pairs with the `Acquire` below so that anything the cancelling thread did
         // first — writing a reason, closing a file — is visible to the thread that observes
         // the flag.
         self.flag.store(true, Ordering::Release);
     }
 
-    /// Whether cancellation has been asked for.
+    /// Whether cancellation has been asked for — or the armed stage deadline has passed, which
+    /// this poll turns into the same flag with [`AbortCause::Deadline`].
     pub fn is_cancelled(&self) -> bool {
-        self.flag.load(Ordering::Acquire)
+        if self.flag.load(Ordering::Acquire) {
+            return true;
+        }
+        match self.armed.expired() {
+            Some(stage) => {
+                self.abort(AbortCause::Deadline(stage));
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Why, once the flag is set.
+    pub fn cause(&self) -> Option<AbortCause> {
+        if self.flag.load(Ordering::Acquire) {
+            self.cause.get().copied()
+        } else {
+            None
+        }
     }
 }
 
