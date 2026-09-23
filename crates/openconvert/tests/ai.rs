@@ -38,3 +38,28 @@ fn no_ai_output_is_byte_identical_to_the_pre_phase_snapshot() {
         .collect();
     insta::assert_json_snapshot!("no_ai_epub_sha256", hashes);
 }
+
+/// Row 10.2. `f07` is a Typst book, and Typst writes an outline: the outline is ground truth for
+/// the book's structure, so the `book_structure` predicate abstains and no record of it exists —
+/// while the same book's ambiguous indented block *is* escalated and recorded, with AI off.
+#[test]
+fn no_escalation_when_outline_present() {
+    use oc_structure::escalate::{TASK_BOOK_STRUCTURE, TASK_VERSE_QUOTE};
+
+    let built = common::build("f07_verse_and_quote");
+    let tasks: Vec<&str> = built.escalations.iter().map(|record| record.task).collect();
+    assert!(
+        !tasks.contains(&TASK_BOOK_STRUCTURE),
+        "an outline exists, so book structure is never escalated: {tasks:?}"
+    );
+    assert!(
+        tasks.contains(&TASK_VERSE_QUOTE),
+        "the ambiguous block is recorded whether or not a model is asked: {tasks:?}"
+    );
+    // With AI off, nothing was asked: every decision is the deterministic path's own.
+    assert!(built
+        .document
+        .decisions
+        .iter()
+        .all(|decision| decision.llm.is_none() && decision.fallback.is_none()));
+}

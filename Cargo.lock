@@ -3679,6 +3679,7 @@ dependencies = [
 name = "oc-structure"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "insta",
  "oc-core",
  "oc-layout",

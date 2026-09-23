@@ -190,6 +190,10 @@ pub struct Report {
     /// Every `Decision` the pipeline made, with its `LlmTrace` where a model was consulted. Empty
     /// while `ai.enabled` is false, which is the v1 default.
     pub decisions: Vec<oc_model::decision::Decision>,
+    /// Every choice the deterministic evidence could not settle, with the predicate that fired and
+    /// the signals it read — whether or not a model was asked. The first books converted are the
+    /// calibration corpus, and this is what they contribute to it (PHASE 10 detail 1, RT A7.2).
+    pub escalations: Vec<oc_structure::escalate::EscalationRecord>,
     /// The provenance of every threshold, so a user can see which numbers were provisional at
     /// conversion time (D17).
     pub thresholds: Vec<ThresholdProvenance>,
@@ -312,6 +316,7 @@ pub fn report(conversion: &Conversion, input: ReportInput<'_>) -> Report {
         },
         warnings: document.warnings.clone(),
         decisions: document.decisions.clone(),
+        escalations: conversion.escalations.clone(),
         thresholds: PROVENANCE.iter().map(ThresholdProvenance::from).collect(),
     }
 }

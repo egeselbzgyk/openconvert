@@ -87,6 +87,9 @@ pub struct Conversion {
     pub producer_family: oc_pdf::producer::ProducerFamily,
     /// How many pages of each class the document has (D13.10), by the class's report name.
     pub page_classes: BTreeMap<String, u32>,
+    /// Every choice the deterministic evidence could not settle, with the evidence — written to
+    /// the report whether or not a model was asked (PHASE 10 detail 1).
+    pub escalations: Vec<oc_structure::escalate::EscalationRecord>,
 }
 
 /// Why a conversion failed.
@@ -165,6 +168,10 @@ pub fn convert(
     let structure = timings.stage("structure", || {
         structure_stage(&layout, &structure_input, &mut totals, t)
     })?;
+    // Every escalation is recorded whether or not a model is ever asked: the first books
+    // converted are the calibration corpus (PHASE 10 detail 1, RT A7.2).
+    let escalations =
+        oc_structure::escalate::Escalations::gather(&structure_input, &structure.output, t);
 
     let producer_family = oc_pdf::producer::producer_family(
         doc_info.producer.as_deref(),
@@ -284,6 +291,7 @@ pub fn convert(
         timings,
         producer_family,
         page_classes: class_histogram(&classes),
+        escalations: escalations.records(),
     })
 }
 

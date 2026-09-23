@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 10
-CURRENT_ITEM: P10.2 — `oc-structure::escalate` (rows 10.1, 10.2). Phase 10 is on branch
+CURRENT_ITEM: P10.3 — `oc-ai::task::metadata` (rows 10.3, 10.4). Phase 10 is on branch
               `phase/10-ai-decisions`; Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
@@ -169,8 +169,8 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P10.1** one definition of the verse band (`oc_core::escalation::line_band`), used by
       `oc-structure::quotes`; the pre-phase `--no-ai` EPUB hashes pinned — the open finding of
       2026-09-22, and the byte-identity artefact the rest of the phase is held to
-- [ ] **P10.2** `oc-structure::escalate`: the four predicates over the stage's evidence, the
-      `EscalationRecord` — rows 10.1, 10.2
+- [x] **P10.2** `oc-structure::escalate`: the four predicates over the stage's evidence, the
+      `EscalationRecord`, in `Conversion` and the report with AI off — rows 10.1, 10.2
 - [ ] **P10.3** `oc-ai::task::metadata`: the verbatim-substring check — rows 10.3, 10.4
 - [ ] **P10.4** `oc-ai::task::heading_roles`: pre-gate, held-out check, label ≠ deletion — rows 10.5–10.8
 - [ ] **P10.5** `oc-ai::task::book_structure`: boundaries, chunking with overlap — rows 10.9–10.11
@@ -191,6 +191,9 @@ What a fresh session needs:
 - **The tagged fixtures** are a separate invocation: `cargo run -p xtask -- fixtures` and
   `cargo run -p xtask -- fixtures --keep-structtree` (oc-pdf's `struct_tree_is_read_from_the_catalogue`
   needs the second).
+- **Escalation records** (`oc_structure::escalate`) are gathered after `structure` on every
+  conversion and land in `Conversion.escalations` and the report's `escalations`, AI on or off.
+  `report__report_f07.snap` gained its one record (the ambiguous block); the EPUB did not move.
 - Build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` (disk is shared with two other
   worktrees; the whole workspace is ~3.6 GB that way).
 
@@ -1341,3 +1344,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P9.8      oc-testkit: live tests behind live-llm; W_LLM_PREFIX_COLD; fetch-llama-server (9.15, 9.16 + 5)  9f223a0
 2026-09-23  P9.9      eval: model_gate.py, probes, fixtures, MODEL_GATE.md (9.17, 9.20 + 17)  b9c0ab4
 2026-09-23  PHASE 9   COMPLETE on phase/09-local-model - DoD checked; live model, gate runs, macOS/Windows and CI unverified here
+2026-09-23  P10.1     oc-structure: the verse band read through oc_core::escalation; --no-ai EPUB hashes pinned (+ 2)  33b00ce
