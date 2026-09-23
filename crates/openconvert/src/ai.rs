@@ -59,3 +59,25 @@ pub fn zone_edits(edit: &oc_ai::task::book_structure::ZoneEdit) -> oc_structure:
             .collect(),
     }
 }
+
+/// Task 4's labels, in `oc-structure`'s terms.
+pub fn indented_kinds(
+    edit: &oc_ai::task::verse_quote::KindEdit,
+) -> std::collections::BTreeMap<oc_model::ids::BlockId, oc_structure::quotes::IndentedKind> {
+    use oc_ai::prompt::v1::verse_quote::BlockKind;
+    use oc_structure::quotes::IndentedKind;
+    edit.kinds
+        .iter()
+        .map(|(block, kind)| {
+            (
+                *block,
+                match kind {
+                    BlockKind::Verse => IndentedKind::Verse,
+                    BlockKind::Blockquote => IndentedKind::BlockQuote,
+                    BlockKind::Preformatted => IndentedKind::Pre,
+                    BlockKind::Paragraph => IndentedKind::Paragraph,
+                },
+            )
+        })
+        .collect()
+}

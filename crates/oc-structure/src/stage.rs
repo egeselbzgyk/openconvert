@@ -340,11 +340,19 @@ pub struct StructureEdits {
     pub headings: crate::headings::levels::HeadingEdits,
     /// Task 3: each heading's zone, by its index among the flow's headings.
     pub zones: crate::book::ZoneEdits,
+    /// Task 4: what an ambiguous indented block is emitted as, by block. Read only for the blocks
+    /// `quotes` classified — a label for any other block has nothing to replace.
+    pub indented: std::collections::BTreeMap<BlockId, crate::quotes::IndentedKind>,
+    /// Task 1: the metadata, when a model's answer was admitted. Outside `C` (ARCHITECTURE §5.2).
+    pub metadata: Option<Metadata>,
 }
 
 impl StructureEdits {
     pub fn is_empty(&self) -> bool {
-        self.headings.is_empty() && self.zones.is_empty()
+        self.headings.is_empty()
+            && self.zones.is_empty()
+            && self.indented.is_empty()
+            && self.metadata.is_none()
     }
 }
 
@@ -429,6 +437,8 @@ pub fn structure_with(
     let (indented, escalations) = classify_indented(blocks, body_size, t);
     let images = drop_ornaments(&input.images, &input.image_hashes, input.page_count, t);
     let (metadata, meta_confidence) = metadata(&input.meta, blocks, body_size, t);
+    // The metadata task's answer, when one was admitted, is the book's metadata.
+    let metadata = edits.metadata.clone().unwrap_or(metadata);
 
     // Which blocks have had their text taken by something other than the flow, and — the
     // part a bare `BTreeSet<BlockId>` could not say — *which* structure undertook to emit
@@ -682,10 +692,18 @@ pub fn structure_with(
             // join — only something to record.
             para.drop_cap = true;
         }
+        // The verse-or-quote task's label, where one was admitted, replaces the default for a
+        // block `quotes` classified: the same block, emitted through the same arms below.
         let quoted = indented
             .iter()
             .find(|entry| entry.block == block.id)
-            .map(|entry| entry.resolved);
+            .map(|entry| {
+                edits
+                    .indented
+                    .get(&block.id)
+                    .copied()
+                    .unwrap_or(entry.resolved)
+            });
         para.confidence = Some(Confidence::deterministic(vec![Signal::new(
             "block_lines",
             block.lines.len() as f32,

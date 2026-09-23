@@ -28,6 +28,9 @@ use oc_ai::task::book_structure::{
 };
 use oc_ai::task::heading_roles::{self as roles, Demotion, HeadingRolesLimits, HoldoutProbe};
 use oc_ai::task::metadata::{apply_metadata, validate_metadata, MetadataLimits};
+use oc_ai::task::verse_quote::{
+    self as verse_task, AmbiguousBlock, BlockEvidence, VerseQuoteLimits,
+};
 use oc_ai::task::{InventoryFacts, PreGateFailure};
 use oc_core::thresholds::T;
 use oc_model::doc::{MetaSource, Metadata};
@@ -888,4 +891,168 @@ fn structure_output_tokens_bounded_on_1200_headings() {
         .map(|heading| format!(r#"{{"idx":{},"role":"chapter"}},"#, heading.idx).len())
         .sum();
     assert!(per_item > usize::try_from(cap).unwrap_or_default() * 10);
+}
+
+// ---------------------------------------------------------------------------
+// Task 4 — verse_quote
+// ---------------------------------------------------------------------------
+
+fn verse_limits() -> VerseQuoteLimits {
+    VerseQuoteLimits {
+        blocks_per_call: usize::try_from(T.llm.verse_quote_blocks_per_call).unwrap_or(1),
+        max_blocks: usize::try_from(T.llm.max_blocks_per_book).unwrap_or_default(),
+        verse_min_lines: u32::try_from(T.verse.min_lines).unwrap_or_default(),
+        verse_min_short_line_ratio: T.verse.llm_short_line_ratio_min as f32,
+    }
+}
+
+fn ambiguous(index: u32, text: &str, lines: u32, ratio: f32) -> AmbiguousBlock {
+    use oc_ai::prompt::v1::verse_quote::{BlockKind, BlockSummary, Indent};
+    let id = oc_model::ids::BlockId::derive(
+        index,
+        oc_model::geom::Rect {
+            x0: 40.0,
+            y0: 100.0,
+            x1: 300.0,
+            y1: 180.0,
+        },
+        text,
+    );
+    AmbiguousBlock {
+        summary: BlockSummary {
+            id,
+            text: text.to_owned(),
+            indent: Indent::Shallow,
+            lines,
+            avg_line_words: 6,
+            centered: false,
+            monospace: false,
+        },
+        evidence: BlockEvidence {
+            lines,
+            short_line_ratio: ratio,
+            monospace: false,
+            default: BlockKind::Blockquote,
+        },
+    }
+}
+
+/// Row 10.12. The model calls three blocks `verse` and one `preformatted`. The two-line block
+/// has not the lines of a stanza and is **downgraded to its default, blockquote**; the stanza of
+/// five short lines stays verse; the proportional-type block the model called code is downgraded
+/// too. The labels change a wrapper and a class, never a character.
+#[test]
+fn verse_requires_three_lines_and_short_line_ratio() {
+    use oc_ai::prompt::v1::verse_quote::BlockKind;
+
+    let blocks = vec![
+        ambiguous(0, "Then a short line,\nand the last.", 2, 0.7),
+        ambiguous(
+            1,
+            "Whose woods these are\nI think I know\nHis house is in\nthe village though\nHe will not see",
+            5,
+            0.7,
+        ),
+        ambiguous(2, "We came at last\nto the river,\nand it was high\nand brown", 4, 0.5),
+        ambiguous(3, "a proportional block\nthe model called code\nand the last line", 3, 0.5),
+    ];
+    let ids: Vec<_> = blocks.iter().map(|block| block.summary.id).collect();
+    let mut asker = Scripted::new(
+        "counter_evidence",
+        format!(
+            r#"{{"b":[{{"id":"{}","k":"verse"}},{{"id":"{}","k":"verse"}},{{"id":"{}","k":"verse"}},{{"id":"{}","k":"preformatted"}}]}}"#,
+            ids[0], ids[1], ids[2], ids[3]
+        ),
+    );
+    let batches = verse_task::run(&mut asker, &blocks, 1, &verse_limits(), max_tokens());
+    assert_eq!(batches.len(), 1);
+    let TaskResult::Admitted { answer: edit, .. } = &batches[0].result else {
+        panic!("the batch was refused: {:?}", batches[0].result);
+    };
+    assert_eq!(
+        edit.kinds.get(&ids[0]),
+        Some(&BlockKind::Blockquote),
+        "two lines"
+    );
+    assert_eq!(edit.kinds.get(&ids[1]), Some(&BlockKind::Verse), "a stanza");
+    assert_eq!(
+        edit.kinds.get(&ids[2]),
+        Some(&BlockKind::Blockquote),
+        "short lines at a ratio of 0.5 are not verse"
+    );
+    assert_eq!(
+        edit.kinds.get(&ids[3]),
+        Some(&BlockKind::Blockquote),
+        "not monospace"
+    );
+    assert_eq!(
+        edit.downgraded,
+        [ids[0], ids[2], ids[3]].into_iter().collect(),
+        "every downgrade is recorded"
+    );
+}
+
+/// Row 10.13. Thirty-one ambiguous blocks: thirty are sent, in three calls of exactly ten, and
+/// block 31 is never sent — it keeps the deterministic default.
+#[test]
+fn verse_block_budget_capped_at_30() {
+    /// Reads the block ids out of every question, and answers none.
+    struct Counting {
+        sent: Vec<String>,
+        calls: usize,
+    }
+    impl Asker for Counting {
+        fn ask(&mut self, request: &LlmRequest) -> Result<Asked, Unasked> {
+            self.calls += 1;
+            let payload: serde_json::Value = serde_json::from_str(
+                request
+                    .user
+                    .lines()
+                    .find(|line| line.starts_with('{'))
+                    .expect("the payload line"),
+            )
+            .expect("the payload is JSON");
+            let ids: Vec<String> = payload["blocks"]
+                .as_array()
+                .expect("blocks")
+                .iter()
+                .filter_map(|block| block["id"].as_str().map(str::to_owned))
+                .collect();
+            assert_eq!(ids.len(), 10, "exactly ten blocks per call (N-4)");
+            self.sent.extend(ids);
+            Err(Unasked::Unavailable(oc_ai::provider::LlmError::Protocol(
+                "counted, not answered".to_owned(),
+            )))
+        }
+    }
+
+    let blocks: Vec<AmbiguousBlock> = (0..31)
+        .map(|index| {
+            ambiguous(
+                index,
+                &format!("block {index}\nline two\nline three"),
+                3,
+                0.5,
+            )
+        })
+        .collect();
+    let limits = verse_limits();
+    assert_eq!(limits.max_blocks, 30);
+    let mut asker = Counting {
+        sent: Vec::new(),
+        calls: 0,
+    };
+    let batches = verse_task::run(&mut asker, &blocks, 3, &limits, max_tokens());
+
+    assert_eq!(asker.calls, 3, "thirty blocks cost three calls");
+    assert_eq!(batches.len(), 3);
+    assert_eq!(asker.sent.len(), 30);
+    let thirty_first = blocks[30].summary.id;
+    assert!(
+        !asker.sent.contains(&thirty_first.to_string()),
+        "block 31 was sent"
+    );
+    assert!(batches
+        .iter()
+        .all(|batch| !batch.blocks.contains(&thirty_first)));
 }

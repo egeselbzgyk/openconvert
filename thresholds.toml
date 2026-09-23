@@ -867,6 +867,13 @@ evidence = "RT C4 escalation predicate: short-line ratio in [0.35, 0.75]"
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[verse.llm_short_line_ratio_min]
+value = 0.6
+source = "provisional"
+evidence = "ARCHITECTURE 9.6, task 4: a model's `verse` stands only on a block with at least verse.min_lines lines and a short-line ratio above 0.6; below that the label is downgraded to the deterministic default. The design's number, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [verse.short_line_ratio_max]
 value = 0.75
 source = "provisional"
