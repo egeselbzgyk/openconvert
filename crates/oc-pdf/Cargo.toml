@@ -18,6 +18,8 @@ regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+# The grayscale raster OCR reads (PHASE 13 detail 3). Already `pdfium-render`'s `image_025` dependency.
+image.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
 

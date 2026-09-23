@@ -138,6 +138,18 @@ pub trait PdfDoc {
     /// Infallible: a document with no outline has an empty one, and an outline PDFium cannot
     /// walk is not a reason to refuse the book.
     fn outline(&self) -> Vec<oc_model::extract::OutlineEntry>;
+
+    /// A region of one page, rasterized in grayscale at `dpi`, for OCR (PHASE 13 detail 3).
+    ///
+    /// `region` is in normalised page space; the result says which rectangle its pixels really
+    /// span, snapped outward to whole pixels. The page's pixel count is checked against
+    /// `limits.max_image_pixels` before anything is rendered.
+    fn render_region(
+        &self,
+        index: u32,
+        region: oc_model::geom::Rect,
+        dpi: u32,
+    ) -> Result<crate::render::RenderedRegion, PdfError>;
 }
 
 /// The document-level metadata `inspect` reports.

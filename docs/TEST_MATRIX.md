@@ -560,3 +560,6 @@ back on.
 | 13.10 | `ocr_invoke::psm_follows_page_class` | `oc-testkit` | unit (argv spy, fake engine, Unix) | `test` | green |
 | 13.18a | `ocr_invoke::a_hung_call_is_killed_at_its_deadline` | `oc-testkit` | integration (a fake that sleeps, Unix) — the invocation half of 13.18 | `test` | green |
 | 13.19 | `ocr_invoke::ocr_child_dies_with_the_engine` | `oc-testkit` | integration (SIGTERM and panic; Linux here, macOS/Windows unverified) | `test` | green |
+| 13.23 | `render::render_region_is_the_page_at_the_asked_resolution` | `oc-pdf` | fixture (f03) | `test` | green |
+| 13.23a | `render::a_rotated_page_renders_in_normalised_space` | `oc-pdf` | fixture (h02) | `test` | green |
+| 13.23b | `render::pixel_windows_are_clipped_to_the_page` | `oc-pdf` | unit | `test` | green |
