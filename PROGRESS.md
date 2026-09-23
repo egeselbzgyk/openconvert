@@ -3,9 +3,9 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 10
-CURRENT_ITEM: P10.11 — the Definition of Done, CHANGELOG, merge. Phase 10 is on branch
-              `phase/10-ai-decisions`; Phase 7.5 is still parked.
+CURRENT_PHASE: 11
+CURRENT_ITEM: 11.1 — not started. Phase 10 is complete and merged (2026-09-23); its provisional
+              decisions are listed in the Blocked section. Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -61,7 +61,12 @@ LAST_UPDATED: 2026-09-23
       the registry pins, the live tests and every gate run are unverified and listed in the Blocked
       section. A follow-up (`fix/phase-09-llama-pins`) filled the llama.lock digests and checked
       them against downloads.)*
-- [ ] **Phase 10** — AI-assisted decisions (the four tasks)
+- [x] **Phase 10** — AI-assisted decisions (the four tasks)
+      *(all 22 named tests exist and pass, 10.17/10.18 as pytest functions; 40 Rust and 6 Python
+      tests added, plus one live test behind `live-llm`; built on `phase/10-ai-decisions` and merged
+      into `main` 2026-09-23. `--no-ai` output is byte-identical to the pre-phase snapshot. No model
+      is reachable here, so A10.4/A10.5 — McNemar and the false-repair rate — are unmeasured, the
+      language maps ship empty, and every provisional decision is in the Blocked section.)*
 - [ ] **Phase 11** — BYO providers
 - [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
 - [ ] **Phase 13** — OCR  *(VD-g must close)*
@@ -166,7 +171,15 @@ What a fresh session needs:
   a gate that did not run is never a pass (`test_a_gate_that_did_not_run_is_never_a_pass`). No run
   of Qwen3.5-2B exists; nothing promotes it.
 
-## Phase 10 — on branch `phase/10-ai-decisions`
+## Current work item
+
+**Phase 11 — BYO providers.** Not started. What it builds on from Phase 10: `convert --ai` with
+`--llm-endpoint` (loopback only today — a non-loopback host is exit 2 until Phase 11's consent),
+`openconvert::ai_endpoint::open`, `oc_ai::session::Session`, and the external endpoint's model id
+(`--model-path`'s stem or `endpoint@<host>`), which a named provider should replace. Enabling any AI
+task for a language still needs the evaluation (Blocked 9).
+
+## Phase 10 — built on `phase/10-ai-decisions`, merged 2026-09-23
 
 Work items, in order, with the plan's test rows against each:
 
@@ -183,7 +196,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P10.8** `openconvert`: the AI step in the pipeline — rows 10.14, 10.15, 10.20
 - [x] **P10.9** `convert --ai` and the endpoint flags; a missing sidecar degrades — rows 10.16, 10.19
 - [x] **P10.10** `eval/compare`: McNemar, false repair, gold sets, `docs/AI_EVALUATION.md` — rows 10.17, 10.18
-- [ ] **P10.11** the Definition of Done, CHANGELOG, merge
+- [x] **P10.11** the Definition of Done, CHANGELOG, merge
 
 What a fresh session needs:
 
@@ -227,6 +240,45 @@ What a fresh session needs:
   (`cargo run -p xtask -- fetch-llama-server`); a model still cannot be (huggingface.co refused).
 - Build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` (disk is shared with two other
   worktrees; the whole workspace is ~3.6 GB that way).
+
+### Phase 10 — Definition of Done
+
+`IMPLEMENTATION_PLAN.md` §0.3, row by row. Checked on this machine unless the row says otherwise.
+
+| Row | State |
+|---|---|
+| Every named test exists and passes | **Yes.** All 22 rows under their names: 10.1 in `oc-structure`, 10.3–10.13 and 10.21–10.22 in `oc-ai`, 10.2, 10.8, 10.14–10.16, 10.19, 10.20 in `openconvert`, 10.17/10.18 as pytest functions (`test_` prefix). Plus 24 Rust and 4 Python additions, and `ai_against_a_live_model_conserves_every_book` behind `--features live-llm` (fails loudly without a server and model — **unverified here**: no model can be fetched). |
+| `cargo nextest run --workspace` green | **Yes**, 635 tests (595 + 40). eval: 220 pytest tests (+ 6). |
+| Green on Linux/macOS/Windows CI | **Unverified here:** GitHub Actions is disabled. The cross-`cargo check` Phase 9 used no longer gets past `blake3`'s C build here (`ml64.exe` / Apple `cc` missing) — a toolchain limit of this box, not a change of this phase. |
+| clippy `-D warnings` clean | **Yes**, workspace, all targets, all features (including `live-llm`). |
+| `cargo fmt --check` clean | **Yes.** ruff, ruff format and mypy clean on `eval/`. |
+| `cargo deny check` clean | **Yes.** No new external crate; `openconvert → oc-ai` and `oc-structure → blake3` are workspace edges. |
+| `cargo xtask thresholds-lint` clean | **Yes.** 27 thresholds added, each with source, evidence, owner and `review_by`; string arrays are a new value type. |
+| Every Given/When/Then demonstrated | **A10.1, A10.3, A10.6 yes; A10.2 yes with an in-process model, live unverified; A10.4, A10.5 unverified here** (below). |
+| `docs/CHANGELOG.md` entry | **Yes.** |
+| No `TODO`/`FIXME` without an issue number | **Yes**, `xtask ci-lint` clean. |
+
+- **A10.1** — `ai_default_is_off` (the binary: no `llm` event, no `ai` report section, no model
+  trace; the escalations are still recorded) and `no_ai_output_is_byte_identical_to_the_pre_phase_snapshot`
+  (all ten fixtures' `--no-ai` EPUB hashes, pinned at `8f045a1` before any change).
+- **A10.2** — `a_book_with_no_outline_and_boilerplate_metadata` (≤ 8 calls, the model's title in
+  `dc:title` with `source = llm`), `wallclock_share_hard_stop` (injected clock),
+  `task_priority_order_on_budget_overflow`; every admitted edit passes S, the task validation, L
+  and V, and every escalation ends in a `Decision`. **Unverified here:** the same against a real
+  model (the live test).
+- **A10.3** — `ai_edits_are_conserving_end_to_end`: every fixture, as filed and with outline and
+  title removed, with a cooperative in-process model whose answers are applied (all four tasks are
+  applied somewhere across the twenty variants): I-7 holds on every one.
+- **A10.4 / A10.5 — unverified here.** No model, no corpus: `eval/data/ai_eval/outcomes.jsonl` is
+  empty and `docs/AI_EVALUATION.md` says no evaluation has run. The harness is tested
+  (`test_mcnemar_and_false_repair_reported_per_category`, `test_false_repair_rate_under_one_percent`),
+  and with no task enabled the gate passes vacuously and says so.
+- **A10.6** — `running_head_label_never_deletes_text`: 2 000 generated mappings, outlines removed
+  so the mappings act; mutation-checked (emptying a demoted block fails it). The edit type has no
+  removal variant.
+- **Regression artefacts:** 12 scripted cassettes recorded through the stub beside the four seeds;
+  the four gold sets (47 seed items). "One cassette per task per gold fixture" needs a model's
+  answers — **unverified here**.
 
 Phase 7.5 is **parked, not done**. Its section below is the resume point. The deterministic
 baseline Phase 10 will be compared against is the parked one: 79 of 104 corpus documents clean,
@@ -845,7 +897,7 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 
 STATUS stays IN_PROGRESS: each item below was decided in the most conservative way consistent with
 DECISIONS.md, logged in `docs/DECISIONS_LOG.md` (2026-09-23) as **PROVISIONAL — needs maintainer
-ratification**, and worked around. None of them blocks Phase 10's deterministic-side work.
+ratification**, and worked around. None of them blocks Phase 11's work.
 
 1. **Registry pins** — `models.toml` still has `TODO_` `revision`/`sha256` and `size_bytes = 0` for
    all four entries: huggingface.co is refused by this sandbox's egress policy. Fill them on a
@@ -871,6 +923,26 @@ ratification**, and worked around. None of them blocks Phase 10's deterministic-
    is being built concurrently.
 8. **G8's probes are generated, not native-speaker authored**, and their labels follow from their
    templates.
+
+Phase 10's, each logged in `docs/DECISIONS_LOG.md` (2026-09-23):
+
+9. **The language maps ship empty** (`[ai.task.<task>.languages] = []`): no task has passed an
+   evaluation, so `--ai` alone asks nothing, and `--ai-all-tasks` is the flag an unproven task stays
+   behind. Enabling a language needs a McNemar run on the real strata (A10.4/A10.5).
+10. **Book-structure boundaries are strictly increasing**, `front == parts[0]` included, although
+    the frozen v1 prompt makes that a legitimate answer for a book whose body opens with a part.
+    Ratify `≤`, or write a v2 prompt.
+11. **What a heading mapping may change:** size-rank levels only; `body`/`epigraph` demote,
+    `other`/`caption`/`running_head` change nothing; a mapping that demotes every heading is
+    refused; no silhouette check (none is computed); run-in candidates do not ride along (no slot in
+    the v1 payload); fewer than 8 held-out lines → no call; no size-rank heading → no call
+    (`pregate.headings`).
+12. **A non-loopback `--llm-endpoint` is exit 2** until Phase 11 brings consent (D10).
+13. **The wall-clock stop raises `W_LLM_TIME_EXHAUSTED`**, not detail 6's `W_LLM_BUDGET_EXHAUSTED`,
+    whose template speaks of calls.
+14. **Invented numbers**, each `provisional` with owner and `review_by`: the chunk overlap (20), the
+    metadata size-category ratios and input cap, the deep-indent em, the centred-cluster ratio, the
+    sidecar timeouts, and `ai_eval.{alpha, noninferiority_margin}`.
 
 ## Phase 7 — Definition of Done
 
@@ -1390,3 +1462,6 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P10.7     oc-ai: plan (language gate, degradation order) and Session (10.21, 10.22 + 3)  56cc540
 2026-09-23  P10.8     openconvert: the AI step, applied through structure, gated, recorded (10.14, 10.15, 10.20 + 3)  ffb529d
 2026-09-23  P10.9     openconvert: convert --ai, endpoint flags, missing model degrades (10.16, 10.19 + 3)  1a506e2
+2026-09-23  P10.10    eval: McNemar and false repair per task/category/language, the gate (10.17, 10.18 + 4)  203533e
+2026-09-23  P10.11    openconvert: live convert --ai behind live-llm; CHANGELOG; the DoD  7659dae
+2026-09-23  PHASE 10  COMPLETE on phase/10-ai-decisions - DoD checked; A10.4/A10.5, live model, macOS/Windows and CI unverified here

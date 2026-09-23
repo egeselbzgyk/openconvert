@@ -1082,3 +1082,84 @@ None. `oc_ai::provider::LlmResponse` gained `cached_tokens` (read from `timings.
 - G3's reference tokenizations, G7's paired answers and G9's own conversion are inputs this
   phase could not produce. Those gates report `not_run`.
 - **The Phase 9 CI steps are unverified until CI runs.**
+
+## Phase 10 — AI-assisted decisions (the four tasks)
+
+The four once-per-book tasks — metadata, heading roles, book structure, verse or quote — are wired
+into the pipeline behind their escalation predicates, the four gates, the call budget and the
+wall-clock share. **`ai.enabled` stays `false`, and the deterministic path is unchanged byte for
+byte**: every fixture's `--no-ai` EPUB hash was pinned before the first change and has not moved.
+No model is reachable here, so every live measurement is unverified here and the language maps ship
+empty: `--ai` alone asks nothing until an evaluation enables a task. Built on
+`phase/10-ai-decisions`.
+
+### New CLI flags (`convert`)
+
+- **`--ai`** — opt in to the AI step. **`--no-ai`** is no longer a no-op: it wins over `--ai`.
+- **`--ai-all-tasks`** — run every escalated task for every language, including those the
+  evaluation has not enabled (`[ai.task.<task>.languages]`); the flag PHASE 10 detail 7 keeps an
+  unproven task behind. Records `all_tasks: true` in the report.
+- **`--llm-endpoint <URL>`** (loopback only until Phase 11 — any other host is exit 2),
+  **`--llm-api-key-file <PATH>`**, **`--model-path <PATH>`**. Without `--ai` each is exit 2.
+- New env var: **`OC_LLAMA_SERVER`** — the `llama-server` an engine-owned sidecar runs; else one
+  beside the engine binary.
+- A model that cannot be reached (no server, no model, no answer) converts deterministically, exit 0,
+  with the banner warning `W_LLM_UNAVAILABLE`.
+- NDJSON: one **`llm{call_id, purpose, cached, tokens_in, tokens_out, ms}`** event per call.
+
+### Report
+
+- New: **`escalations`** — every escalated choice with its predicate, signals and evidence hash,
+  written with AI on or off (the calibration corpus, RT A7.2).
+- New: **`ai`** (`model_id`, `all_tasks`, `calls`, `cached_calls`, `llm_ms`), absent with AI off;
+  `engine.prompt_version` is set when the step ran. Every escalated choice ends in a `Decision`
+  whose `fallback` says how: a gate code (`S.*`, `L.*`, `V.*`), `language.gate`, `budget.calls`,
+  `budget.time`, `llm.unavailable`, `pregate.inventory`, `pregate.holdout`, `pregate.headings` or
+  `counter_evidence`.
+
+### New warning codes (en, de, tr)
+
+- **`W_LLM_TIME_EXHAUSTED`** `{task, share}` — the wall-clock share's hard stop.
+- **`W_LLM_UNAVAILABLE`** `{reason}` — AI asked for, no model reached.
+
+### New `thresholds.toml` entries
+
+- Array values are now allowed (strings): **`ai.task.{metadata,heading_roles,book_structure,
+  verse_quote}.languages`**, all `[]`.
+- `metadata.llm_title_max_chars`, `metadata.llm_size_{large,medium,small}_ratio`,
+  `metadata.llm_max_input_chars`; `inventory.holdout_{min,max}_probes`,
+  `inventory.chapter_cluster_{min,max}_count`; `llm.book_structure_chunk_{headings,overlap}`,
+  `llm.verse_quote_max_words`, `llm.verse_quote_deep_indent_em`,
+  `llm.heading_roles_centered_ratio_min`, `llm.{load_timeout_secs, call_timeout_secs,
+  health_probe_timeout_millis, sidecar_context_tokens}`; `verse.llm_short_line_ratio_min`;
+  `ai_eval.{alpha, noninferiority_margin, false_repair_max, exact_below}`. 27 in all.
+
+### Crates
+
+- **`oc-core`**: `escalation::line_band`, the one definition of the verse band; the build script
+  emits string arrays.
+- **`oc-structure`**: `escalate` (the four predicates over the stage's evidence,
+  `EscalationRecord`); `stage::structure_with(StructureEdits)` — an admitted answer is applied by
+  running the stage again; `book::book_structure_with(ZoneEdits)`;
+  `headings::levels::apply_heading_edits`. The open finding of 2026-09-22 is closed: `quotes`
+  reads the band through `oc_core::escalation`.
+- **`oc-ai`**: `task::{metadata, heading_roles, book_structure, verse_quote}` (validations, edits,
+  runners), `session` (`Asker`, `Session`, `Clock`), `plan` (language gate, degradation order);
+  seven `GateFailure` variants for task validations.
+- **`openconvert`**: `ai` (the step), `ai_endpoint` (loopback endpoint or owned sidecar),
+  `data_dir` (model store and answer cache), `convert::{convert_with_ai, convert_prepared, prepare}`;
+  a `live-llm` feature for the live end-to-end test.
+- **`eval`**: `oc_eval.compare` — McNemar (χ², exact below 25), false-repair rate per task,
+  category and language, the gate, `--render|--check|--gate`; four seed gold sets;
+  `docs/AI_EVALUATION.md` (rendered).
+- **CI:** the eval job runs `oc_eval.compare --check` and `--gate`; the nightly live job runs the
+  live `convert --ai` test.
+
+### Known gaps, carried forward
+
+- **No model, no evaluation:** McNemar non-inferiority (A10.4) and the ≤ 1 % false-repair rate
+  (A10.5) are unmeasured, `eval/data/ai_eval/outcomes.jsonl` is empty, and no task is enabled for
+  any language. Cassettes are scripted answers recorded through the stub, not a model's.
+- The gold sets are 47 seed items from the Typst fixtures (`ours(typst)`); an evaluation needs 200
+  per task from the real strata (D18).
+- Provisional decisions awaiting ratification are listed in `PROGRESS.md` → Blocked.
