@@ -3903,3 +3903,34 @@ New thresholds: `llm.book_structure_chunk_headings` (200, the design's) and
 Evidence: rows 10.9–10.11, `agreeing_chunks_stitch_and_ungranted_chunks_are_not_asked`,
 `zone_labels_place_the_headings_they_cover`.
 Affects: ARCHITECTURE §9.6 task 3, PIPELINE §9, `oc-ai::task::book_structure`, `oc-structure::book`.
+
+## 2026-09-23 · The language gate ships empty; an unproven task runs only under `--ai-all-tasks` · Phase 10
+Context: PHASE 10 detail 7 — a task ships "enabled-by-opt-in" only when it is non-inferior to the
+deterministic path with a false-repair rate ≤ 1 % in every category, per language, and "otherwise
+it stays behind a flag"; the gating map lives in `thresholds.toml` as `[ai.task.<task>.languages]`.
+No evaluation can run here: no model is reachable (huggingface.co refused).
+Decisions, each **PROVISIONAL — needs maintainer ratification**:
+1. **All four maps ship empty.** No task has passed, so none is enabled for any language: `--ai`
+   alone asks nothing, and every escalation it would have sent is recorded with
+   `fallback = "language.gate"`. The alternative — enabling all three languages unmeasured — would
+   make the opt-in an unmeasured one, which detail 7 rules out.
+2. **The flag is `--ai-all-tasks`**: with `--ai`, it sets the language gate aside and runs every
+   escalated task for every language. It is how the evaluation's deterministic+LLM arm runs, and
+   how a maintainer experiments; the report records that it was set. It is not in §2.1's flag list,
+   which predates detail 7's "behind a flag".
+3. **`thresholds.toml` gains array values**: a closed set of names is a decision with provenance
+   like any number, so `oc-core`'s build script emits a string array as `&'static [&'static str]`.
+   Everything else still has to be a float, an integer or a boolean.
+4. **The wall-clock hard stop raises `W_LLM_TIME_EXHAUSTED`**, not `W_LLM_BUDGET_EXHAUSTED` as
+   detail 6 writes: that template says "all {calls} of its model calls", and a warning is a factual
+   claim (R10 §6.20). Both are "budget exhausted"; the report says which budget.
+5. **The degradation order drops, after "chunks beyond the first" and `heading_roles`, the first
+   book-structure chunk** — the order D13.6 gives ends there, and metadata is never dropped for
+   another task. With no call left at all, nothing is asked, metadata included, and the budget
+   says so.
+6. **The session stops at the first unreachable provider** (`llm.unavailable`): a dead endpoint is
+   asked once per book, not eight times, and the book is deterministic from there with
+   `W_LLM_UNAVAILABLE` (RT D20).
+Evidence: `crates/oc-ai/tests/plan.rs` (rows 10.21, 10.22 and three session tests).
+Affects: PHASE 10 details 5–7, IMPLEMENTATION_PLAN §2.1, `thresholds.toml`, `oc-core` build script,
+`oc-ai::{plan, session}`.

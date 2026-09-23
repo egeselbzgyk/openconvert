@@ -713,6 +713,34 @@ evidence = "D17 / RT A7: v1 ships ai.enabled = false"
 owner = "maintainer"
 review_by = "2099-01-01"
 
+[ai.task.metadata.languages]
+value = []
+source = "provisional"
+evidence = "PHASE 10 detail 7, task 1: the languages (dc:language primary subtags) this task runs for under --ai - the ones where it was non-inferior to the deterministic path with a false-repair rate at most 1 % in every assertion category (McNemar, docs/AI_EVALUATION.md). No evaluation has run: no model was reachable where Phase 10 was built. So no language is enabled, and the task runs only under --ai-all-tasks, the flag detail 7 keeps an unproven task behind"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ai.task.heading_roles.languages]
+value = []
+source = "provisional"
+evidence = "PHASE 10 detail 7, task 2: the languages (dc:language primary subtags) this task runs for under --ai - the ones where it was non-inferior to the deterministic path with a false-repair rate at most 1 % in every assertion category (McNemar, docs/AI_EVALUATION.md). No evaluation has run: no model was reachable where Phase 10 was built. So no language is enabled, and the task runs only under --ai-all-tasks, the flag detail 7 keeps an unproven task behind"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ai.task.book_structure.languages]
+value = []
+source = "provisional"
+evidence = "PHASE 10 detail 7, task 3: the languages (dc:language primary subtags) this task runs for under --ai - the ones where it was non-inferior to the deterministic path with a false-repair rate at most 1 % in every assertion category (McNemar, docs/AI_EVALUATION.md). No evaluation has run: no model was reachable where Phase 10 was built. So no language is enabled, and the task runs only under --ai-all-tasks, the flag detail 7 keeps an unproven task behind"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ai.task.verse_quote.languages]
+value = []
+source = "provisional"
+evidence = "PHASE 10 detail 7, task 4: the languages (dc:language primary subtags) this task runs for under --ai - the ones where it was non-inferior to the deterministic path with a false-repair rate at most 1 % in every assertion category (McNemar, docs/AI_EVALUATION.md). No evaluation has run: no model was reachable where Phase 10 was built. So no language is enabled, and the task runs only under --ai-all-tasks, the flag detail 7 keeps an unproven task behind"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [llm.max_calls_per_book]
 value = 8
 source = "provisional"
