@@ -8738,11 +8738,14 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "jsonschema",
  "lopdf",
+ "minisign",
  "oc-core",
  "oc-epub",
  "oc-model",
+ "oc-net",
  "oc-pdf",
  "oc-testkit",
  "oc-validate",

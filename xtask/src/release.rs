@@ -9,6 +9,10 @@
 //! release notes <manifest.json>...                     the release body's SHA-256 section
 //! release verify-published --body <file> --assets <dir> every asset's hash is in the body
 //! release size-check --os <os> --bundle-dir <dir>       installers within the D12 budget
+//! release hash-dir --dir <dir>                         a SHA-256 section for every file there
+//! release latest-json --dir <dir> --version <v> --notes <file> --pub-date <rfc3339>
+//!                     --base-url <url> --out <file>    Tauri's static updater manifest
+//! release verify-latest --latest <file> --assets <dir> every payload against the updater key
 //! ```
 
 use std::collections::BTreeMap;
@@ -243,6 +247,119 @@ pub fn installer_budget() -> u64 {
     u64::try_from(oc_core::thresholds::T.release.max_installer_bytes).unwrap_or_default()
 }
 
+/// Every file directly in `dir`, hashed, as `(name, sha256)` in name order.
+pub fn hash_dir(dir: &Path) -> Result<Vec<(String, String)>> {
+    let mut out = Vec::new();
+    for path in sorted_files(dir) {
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .context("an asset name")?
+            .to_owned();
+        out.push((name, sha256_file(&path)?));
+    }
+    Ok(out)
+}
+
+/// The `latest.json` platform keys an updater payload serves — Tauri's `<os>-<arch>` and the
+/// installer-specific `<os>-<arch>-<installer>` — from its file name, or `None` for a file that is
+/// not an update payload. The macOS archive's name must carry its architecture (the release job
+/// renames `OpenConvert.app.tar.gz` to `OpenConvert_<version>_<arch>.app.tar.gz`).
+pub fn platform_keys_for(name: &str) -> Option<Vec<String>> {
+    let arch = if name.contains("aarch64") || name.contains("arm64") {
+        "aarch64"
+    } else if name.contains("x86_64") || name.contains("amd64") || name.contains("x64") {
+        "x86_64"
+    } else {
+        return None;
+    };
+    let (os, installer) = if name.ends_with(".AppImage") {
+        ("linux", "appimage")
+    } else if name.ends_with("-setup.exe") {
+        ("windows", "nsis")
+    } else if name.ends_with(".app.tar.gz") {
+        ("darwin", "app")
+    } else {
+        return None;
+    };
+    Some(vec![
+        format!("{os}-{arch}"),
+        format!("{os}-{arch}-{installer}"),
+    ])
+}
+
+/// Tauri's static `latest.json` for `version`, from the payloads and `.sig` files in `dir`: each
+/// payload's URL under `base_url` and its signature (the `.sig` file's content, as Tauri writes it).
+pub fn latest_json(
+    dir: &Path,
+    version: &str,
+    notes: &str,
+    pub_date: &str,
+    base_url: &str,
+) -> Result<serde_json::Value> {
+    let mut platforms = serde_json::Map::new();
+    for path in sorted_files(dir) {
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        let Some(keys) = platform_keys_for(name) else {
+            continue;
+        };
+        let sig = dir.join(format!("{name}.sig"));
+        let signature = std::fs::read_to_string(&sig)
+            .with_context(|| format!("{name} has no signature beside it ({})", sig.display()))?;
+        for key in keys {
+            let entry = serde_json::json!({
+                "signature": signature.trim(),
+                "url": format!("{}/{name}", base_url.trim_end_matches('/')),
+            });
+            if platforms.insert(key.clone(), entry).is_some() {
+                bail!("two update payloads for {key}");
+            }
+        }
+    }
+    if platforms.is_empty() {
+        bail!("no update payloads in {}", dir.display());
+    }
+    Ok(serde_json::json!({
+        "version": version.trim_start_matches('v'),
+        "notes": notes,
+        "pub_date": pub_date,
+        "platforms": platforms,
+    }))
+}
+
+/// Every payload `latest.json` names, found by its file name in `dir`, verified with the updater's
+/// own verifier against `pubkey` (row 15.9 on the published release, with the release key).
+pub fn verify_latest(latest: &serde_json::Value, dir: &Path, pubkey: &str) -> Result<usize> {
+    let platforms = latest["platforms"]
+        .as_object()
+        .context("latest.json has no platforms")?;
+    for (key, entry) in platforms {
+        let url = entry["url"].as_str().context("an url")?;
+        let name = url.rsplit('/').next().unwrap_or_default();
+        let bytes = std::fs::read(dir.join(name))
+            .with_context(|| format!("{key}: {name} is not among the assets"))?;
+        let signature = entry["signature"].as_str().context("a signature")?;
+        oc_net::update::verify(&bytes, signature, pubkey)
+            .map_err(|e| anyhow::anyhow!("{key}: {name}: {e}"))?;
+    }
+    Ok(platforms.len())
+}
+
+/// The updater's public key as `tauri.conf.json` carries it.
+pub fn configured_pubkey(workspace_root: &Path) -> Result<String> {
+    let path = workspace_root.join("apps/desktop/src-tauri/tauri.conf.json");
+    let config: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(&path)
+            .with_context(|| format!("cannot read {}", path.display()))?,
+    )?;
+    config["plugins"]["updater"]["pubkey"]
+        .as_str()
+        .map(str::to_owned)
+        .context("tauri.conf.json has no plugins.updater.pubkey")
+}
+
 fn flag(args: &[String], name: &str) -> Result<String> {
     args.iter()
         .position(|a| a == name)
@@ -251,8 +368,45 @@ fn flag(args: &[String], name: &str) -> Result<String> {
         .with_context(|| format!("{name} <value> is required"))
 }
 
-pub fn run(args: &[String]) -> Result<()> {
+pub fn run(workspace_root: &Path, args: &[String]) -> Result<()> {
     match args.first().map(String::as_str) {
+        Some("hash-dir") => {
+            let dir = PathBuf::from(flag(args, "--dir")?);
+            let mut out = String::from("## SHA-256\n\n```\n");
+            for (name, sha) in hash_dir(&dir)? {
+                out.push_str(&format!("{sha}  {name}\n"));
+            }
+            out.push_str("```\n");
+            print!("{out}");
+            Ok(())
+        }
+        Some("latest-json") => {
+            let notes_path = flag(args, "--notes")?;
+            let notes = std::fs::read_to_string(&notes_path)
+                .with_context(|| format!("cannot read {notes_path}"))?;
+            let latest = latest_json(
+                Path::new(&flag(args, "--dir")?),
+                &flag(args, "--version")?,
+                notes.trim(),
+                &flag(args, "--pub-date")?,
+                &flag(args, "--base-url")?,
+            )?;
+            let out = PathBuf::from(flag(args, "--out")?);
+            std::fs::write(&out, serde_json::to_string_pretty(&latest)? + "\n")
+                .with_context(|| format!("cannot write {}", out.display()))?;
+            Ok(())
+        }
+        Some("verify-latest") => {
+            let latest_path = flag(args, "--latest")?;
+            let latest: serde_json::Value = serde_json::from_str(
+                &std::fs::read_to_string(&latest_path)
+                    .with_context(|| format!("cannot read {latest_path}"))?,
+            )?;
+            let pubkey = configured_pubkey(workspace_root)?;
+            let verified = verify_latest(&latest, Path::new(&flag(args, "--assets")?), &pubkey)?;
+            println!("latest.json: {verified} platform entries verify against the updater key");
+            Ok(())
+        }
         Some("manifest") => {
             let os = Os::parse(&flag(args, "--os")?)?;
             let release = collect(Path::new(&flag(args, "--bundle-dir")?), os)?;

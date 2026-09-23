@@ -5143,3 +5143,30 @@ comments, docs and tests do not; a bump passes; a version going back fails),
 `prompt_and_job_spec_changes_follow_their_rules`, `the_committed_baseline_describes_this_tree`.
 Affects: `xtask/src/versions.rs`, `docs/releases/baseline.toml`, `docs/VERSIONING.md`,
 `.github/workflows/ci.yml` (lint job).
+
+## 2026-09-23 · The release workflow, and the tag gate that fails today on purpose · Phase 15 (P15.11)
+Context: rows 15.1–15.4, 15.6, 15.7, 15.9, 15.11–15.15, 15.18, 15.20 are CI gates of a release job
+this machine cannot run (no Actions, no macOS/Windows, no certificates).
+Decision: `.github/workflows/release.yml`, on a `v*.*.*` tag, as a **draft** release: `gates` (the tag
+gate, thresholds, `bump-rules-check --tag`, the release unit tests) → `build` per OS (Linux AppImage in
+a Debian container; macOS aarch64 and x86_64 bundled unsigned by Tauri, then `sign_nested.sh`,
+notarize + staple the app, the updater archive packed and `tauri signer`-signed with an architecture
+in its name, the dmg made, signed, notarized and stapled; Windows NSIS + MSI, unsigned) with the
+row-named checks → `repro` on three OSes → `repro-compare` → `sbom` → `flatpak-lint`
+(`flatpak-builder-lint`) → `publish` (release notes from `docs/CHANGELOG.md`'s `## [x.y.z]`
+section, `latest.json` assembled by `xtask release latest-json` and verified against the key in
+`tauri.conf.json` with the updater's own verifier, the body ending in every asset's SHA-256, then
+every asset downloaded back and checked against the body). Every step that checks a plan row is named
+`row 15.N <test_name>`; a test asserts that list is complete. The jobs that decide what ships, build
+the engine or publish run in Debian containers that assert no Python first (row 15.14; a test checks
+every such job, and caught `repro-compare` missing its assertion). The tag gate now covers every file
+a release ships placeholders in — `models.toml`, `packs.toml`, `thresholds.toml` and
+`tauri.conf.json` (the updater key) — and lapsed thresholds. **Run here, it fails, correctly, with 15
+findings**: 8 `TODO_` in `models.toml` (the model pins: huggingface.co is refused from this machine),
+6 in `packs.toml` (the validation pack is not built, VD-f), 1 in `tauri.conf.json` (the updater key
+is the maintainer's to generate). Those are release blockers, listed in PROGRESS; nothing was
+filled in to make the gate pass. Everything in `release.yml` beyond the unit tests is **unverified
+here**.
+Evidence: `no_todo_placeholders_on_a_release_tag`, `release_job_needs_no_python`,
+`every_release_gate_row_is_a_named_release_step`, `the_release_latest_json_is_what_the_updater_verifies`.
+Affects: `.github/workflows/release.yml`, `xtask/src/{ci_lint,release}.rs`, `xtask/tests/release.rs`.

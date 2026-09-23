@@ -40,6 +40,16 @@ const REGISTRY: &str = "crates/oc-core/src/warnings/codes.rs";
 /// Phase 9 fills, not a note someone forgot to file, and it has this rule of its own.
 const MODEL_PLACEHOLDER: &str = "TODO_";
 
+/// Every file a release ships whose placeholders must all be filled before a tag (PHASE 15 row
+/// 15.18): the model and pack registries, the thresholds, and the app configuration that carries
+/// the updater's public key.
+pub const RELEASE_PLACEHOLDER_FILES: [&str; 4] = [
+    "models.toml",
+    "packs.toml",
+    "thresholds.toml",
+    "apps/desktop/src-tauri/tauri.conf.json",
+];
+
 /// The two files that *define and test* these rules, and therefore have to contain the very
 /// patterns they ban.
 ///
@@ -76,22 +86,63 @@ pub fn run(workspace_root: &Path, release_branch: bool) -> Result<()> {
     check_warning_registry(workspace_root, &mut findings)?;
 
     if release_branch {
-        let models = workspace_root.join("models.toml");
-        let text = std::fs::read_to_string(&models)
-            .with_context(|| format!("cannot read {}", models.display()))?;
+        let today = crate::thresholds_lint::today_for_test();
+        findings.extend(release_findings(workspace_root, &today)?);
+    }
+
+    report(workspace_root, findings)
+}
+
+/// On a release tag (row 15.18): no `TODO_` placeholder in any file of
+/// [`RELEASE_PLACEHOLDER_FILES`], and no threshold whose provenance has lapsed on `today`.
+fn release_findings(workspace_root: &Path, today: &str) -> Result<Vec<Finding>> {
+    let mut findings = Vec::new();
+    for file in RELEASE_PLACEHOLDER_FILES {
+        let path = workspace_root.join(file);
+        let text = std::fs::read_to_string(&path)
+            .with_context(|| format!("cannot read {}", path.display()))?;
         for (number, line) in text.lines().enumerate() {
             if line.contains(MODEL_PLACEHOLDER) {
                 findings.push(Finding {
-                    path: models.clone(),
+                    path: path.clone(),
                     line: number + 1,
-                    rule: "models.toml still has a TODO_ placeholder on a release branch",
+                    rule: "a TODO_ placeholder is still here on a release branch",
                     text: line.trim().to_owned(),
                 });
             }
         }
     }
+    let thresholds = workspace_root.join("thresholds.toml");
+    let text = std::fs::read_to_string(&thresholds)
+        .with_context(|| format!("cannot read {}", thresholds.display()))?;
+    for finding in oc_core::thresholds::lint(&text, today)
+        .with_context(|| format!("{} is not valid TOML", thresholds.display()))?
+    {
+        findings.push(Finding {
+            path: thresholds.clone(),
+            line: 0,
+            rule: "a threshold's provenance has lapsed (D17) on a release branch",
+            text: format!("{} — {}", finding.key, finding.problem),
+        });
+    }
+    Ok(findings)
+}
 
-    report(workspace_root, findings)
+/// [`release_findings`] as `path:line: text` lines, for a test to assert on. `today` is
+/// `YYYY-MM-DD`.
+pub fn release_placeholders(workspace_root: &Path, today: &str) -> Result<Vec<String>> {
+    Ok(release_findings(workspace_root, today)?
+        .into_iter()
+        .map(|f| {
+            let path = f.path.strip_prefix(workspace_root).unwrap_or(&f.path);
+            format!(
+                "{}:{}: {}",
+                path.display().to_string().replace('\\', "/"),
+                f.line,
+                f.text
+            )
+        })
+        .collect())
 }
 
 fn check_line(path: &Path, line_number: usize, line: &str, findings: &mut Vec<Finding>) {

@@ -1353,3 +1353,283 @@ fn the_committed_baseline_describes_this_tree() {
     assert_eq!(declared.ir_version, oc_model::IR_VERSION);
     assert_eq!(declared.protocol, oc_core::events::PROTOCOL_VERSION);
 }
+
+/// Row 15.18: on a release tag, no `TODO_` in `models.toml`, `packs.toml`, `thresholds.toml` or the
+/// app's configuration (the updater key), and no threshold whose `review_by` has passed. Checked on
+/// a scratch tree built to fail each way, and clean once everything is filled.
+///
+/// The repository itself fails this gate today, correctly: the model pins could not be fetched
+/// (huggingface.co is refused here), the validation pack is unbuilt, and the updater keypair is the
+/// maintainer's to generate. `cargo run -p xtask -- ci-lint --release-branch` lists them; PROGRESS.md
+/// carries them as release blockers.
+#[test]
+fn no_todo_placeholders_on_a_release_tag() {
+    use xtask::ci_lint::{release_placeholders, RELEASE_PLACEHOLDER_FILES};
+
+    let scratch = std::env::temp_dir().join(format!("oc-release-tag-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&scratch);
+    let write = |path: &str, text: &str| {
+        let path = scratch.join(path);
+        std::fs::create_dir_all(path.parent().expect("a parent")).expect("dir");
+        std::fs::write(path, text).expect("write");
+    };
+    let threshold = |review_by: &str| {
+        format!(
+            "[demo.entry]\nvalue = 1\nsource = \"provisional\"\nevidence = \"x\"\nowner = \
+             \"maintainer\"\nreview_by = \"{review_by}\"\n"
+        )
+    };
+    write("models.toml", "sha256 = \"ab\"\n");
+    write("packs.toml", "schema_version = 1\n");
+    write("thresholds.toml", &threshold("2027-06-30"));
+    write(
+        "apps/desktop/src-tauri/tauri.conf.json",
+        "{\"pubkey\": \"RWS\"}\n",
+    );
+    assert_eq!(
+        release_placeholders(&scratch, "2026-09-23").expect("readable"),
+        Vec::<String>::new(),
+        "a filled tree is releasable"
+    );
+
+    write("models.toml", "sha256 = \"TODO_SHA256\"\n");
+    write("packs.toml", "license = \"TODO_LICENSE\"\n");
+    write(
+        "thresholds.toml",
+        &(threshold("2026-01-01") + "note = \"TODO_X\"\n"),
+    );
+    write(
+        "apps/desktop/src-tauri/tauri.conf.json",
+        "{\"pubkey\": \"TODO_UPDATER_PUBKEY\"}\n",
+    );
+    let findings = release_placeholders(&scratch, "2026-09-23").expect("readable");
+    for file in RELEASE_PLACEHOLDER_FILES {
+        assert!(
+            findings.iter().any(|f| f.starts_with(&format!("{file}:"))),
+            "{file} is checked: {findings:#?}"
+        );
+    }
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.starts_with("thresholds.toml:0: demo.entry")),
+        "an expired review_by is a finding: {findings:#?}"
+    );
+    let _ = std::fs::remove_dir_all(scratch);
+}
+
+/// The release job's `latest.json` is what the app's updater reads and verifies (rows 15.9/15.10
+/// through the release tooling): built from the payloads and the `.sig` files `tauri signer`
+/// writes, parsed by `oc_net::update`, every entry verifying against the key — and a flipped byte
+/// in one payload failing `verify-latest`.
+#[test]
+fn the_release_latest_json_is_what_the_updater_verifies() {
+    use base64::Engine as _;
+    use xtask::release::{latest_json, verify_latest};
+
+    let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("a keypair");
+    let pubkey = base64::engine::general_purpose::STANDARD
+        .encode(pair.pk.to_box().expect("a key box").to_string());
+    let dir = std::env::temp_dir().join(format!("oc-latest-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("dir");
+    let payloads = [
+        "OpenConvert_1.0.0_amd64.AppImage",
+        "OpenConvert_1.0.0_x64-setup.exe",
+        "OpenConvert_1.0.0_aarch64.app.tar.gz",
+        "OpenConvert_1.0.0_x86_64.app.tar.gz",
+    ];
+    for (i, name) in payloads.iter().enumerate() {
+        let bytes = vec![u8::try_from(i).expect("small"); 512];
+        std::fs::write(dir.join(name), &bytes).expect("payload");
+        let signature = minisign::sign(
+            Some(&pair.pk),
+            &pair.sk,
+            std::io::Cursor::new(&bytes),
+            Some(&format!("file:{name}")),
+            Some("signature from tauri secret key"),
+        )
+        .expect("signed")
+        .to_string();
+        std::fs::write(
+            dir.join(format!("{name}.sig")),
+            base64::engine::general_purpose::STANDARD.encode(signature),
+        )
+        .expect("sig");
+    }
+    std::fs::write(
+        dir.join("OpenConvert_1.0.0_x64_en-US.msi"),
+        b"not an update",
+    )
+    .expect("msi");
+
+    let latest = latest_json(
+        &dir,
+        "v1.0.0",
+        "Notes.",
+        "2026-09-23T00:00:00Z",
+        "https://github.com/openconvert/openconvert/releases/download/v1.0.0",
+    )
+    .expect("a manifest");
+    let manifest: oc_net::update::UpdateManifest =
+        serde_json::from_value(latest.clone()).expect("the updater reads it");
+    assert_eq!(manifest.version, "1.0.0");
+    let keys: Vec<&str> = manifest.platforms.keys().map(String::as_str).collect();
+    assert_eq!(
+        keys,
+        [
+            "darwin-aarch64",
+            "darwin-aarch64-app",
+            "darwin-x86_64",
+            "darwin-x86_64-app",
+            "linux-x86_64",
+            "linux-x86_64-appimage",
+            "windows-x86_64",
+            "windows-x86_64-nsis",
+        ]
+    );
+    assert_eq!(verify_latest(&latest, &dir, &pubkey).expect("verifies"), 8);
+
+    let mut tampered = std::fs::read(dir.join(payloads[1])).expect("read");
+    tampered[100] ^= 0x01;
+    std::fs::write(dir.join(payloads[1]), tampered).expect("write");
+    let error = verify_latest(&latest, &dir, &pubkey).expect_err("tampered");
+    assert!(format!("{error:#}").contains("windows-x86_64"), "{error:#}");
+    assert!(
+        verify_latest(&latest, &dir, "TODO_UPDATER_PUBKEY").is_err(),
+        "the placeholder key verifies nothing"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+fn release_workflow() -> serde_yaml::Value {
+    yaml(&workspace_root().join(".github/workflows/release.yml"))
+}
+
+/// Every step of every job, as (job, step) pairs.
+fn workflow_steps(workflow: &serde_yaml::Value) -> Vec<(String, serde_yaml::Value)> {
+    let mut out = Vec::new();
+    for (job, body) in workflow["jobs"].as_mapping().expect("jobs") {
+        let job = job.as_str().expect("a job name").to_owned();
+        for step in body["steps"].as_sequence().into_iter().flatten() {
+            out.push((job.clone(), step.clone()));
+        }
+    }
+    out
+}
+
+/// Row 15.14 (D1): the release needs no Python. No step of `release.yml` sets up, installs or runs
+/// Python, `pip`, `uv` or the `eval/` harness; and every job that runs in a container — the gates,
+/// the Linux build, the Linux reproducibility leg, the SBOM, the comparison and the publication — is
+/// a Debian image without Python that asserts so before anything else. (That the job then succeeds
+/// is the release run's to show — unverified here.)
+#[test]
+fn release_job_needs_no_python() {
+    let workflow = release_workflow();
+    let assertion = "command -v python3 || command -v python";
+    for (job, step) in workflow_steps(&workflow) {
+        let uses = step["uses"].as_str().unwrap_or_default();
+        assert!(
+            !uses.contains("setup-python") && !uses.contains("setup-uv"),
+            "{job}: {uses}"
+        );
+        // The assertion line itself names Python, to say it is absent.
+        let run: String = step["run"]
+            .as_str()
+            .unwrap_or_default()
+            .lines()
+            .filter(|line| !line.contains(assertion))
+            .collect::<Vec<_>>()
+            .join("\n");
+        for word in ["python", "pip ", "pip3", "uv ", "uv sync", "eval/", ".venv"] {
+            assert!(
+                !run.to_lowercase().contains(word),
+                "{job} runs {word:?}: {run}"
+            );
+        }
+    }
+
+    let jobs = workflow["jobs"].as_mapping().expect("jobs");
+    let mut containers = 0;
+    for (name, body) in jobs {
+        let name = name.as_str().expect("a name");
+        // A matrix job names its container per leg (`${{ matrix.container }}`).
+        let container = body["strategy"]["matrix"]["include"]
+            .as_sequence()
+            .and_then(|legs| legs.iter().find_map(|l| l["container"].as_str()))
+            .or_else(|| body["container"].as_str())
+            .map(str::to_owned);
+        let Some(container) = container else {
+            continue;
+        };
+        containers += 1;
+        assert!(
+            container.contains("bookworm"),
+            "{name} runs on {container}, not a Debian image this project knows has no Python"
+        );
+        let steps = body["steps"].as_sequence().expect("steps");
+        let asserts_first = steps
+            .iter()
+            .take(1)
+            .any(|s| s["run"].as_str().is_some_and(|r| r.contains(assertion)));
+        assert!(
+            asserts_first,
+            "{name}'s first step asserts there is no Python"
+        );
+    }
+    assert!(
+        containers >= 6,
+        "gates, build (Linux), repro (Linux), repro-compare, sbom, publish"
+    );
+}
+
+/// Every CI-gate row of the plan's table is a step of the release workflow, named with its row
+/// number and test name, so a red release reads as the rule it broke; and the release is signed
+/// and checked with the tools this phase built.
+#[test]
+fn every_release_gate_row_is_a_named_release_step() {
+    let workflow = release_workflow();
+    let names: Vec<String> = workflow_steps(&workflow)
+        .iter()
+        .filter_map(|(_, s)| s["name"].as_str().map(str::to_owned))
+        .collect();
+    for row in [
+        "row 15.1 every_nested_macho_is_signed_with_one_team_id",
+        "row 15.2 codesign_verify_deep_strict_passes",
+        "row 15.3 spctl_assess_accepts_the_bundle",
+        "row 15.4 notarization_ticket_is_stapled",
+        "row 15.6 windows_installers_are_produced_and_hashed",
+        "row 15.7 appimage_launches_and_converts_headless",
+        "row 15.9",
+        "rows 15.11 sbom_is_valid_cyclonedx_1_6, 15.12 sbom_lists_every_vendored_native",
+        "row 15.13 reproducible_no_ai_output_across_os",
+        "row 15.14 release_job_needs_no_python",
+        "row 15.15 installer_size_within_budget",
+        "rows 15.16/15.17 bump rules",
+        "row 15.18 no_todo_placeholders_on_a_release_tag",
+        "row 15.20 release_artifacts_all_have_published_hashes",
+    ] {
+        assert!(
+            names.iter().any(|n| n.starts_with(row)),
+            "no release step named {row:?}"
+        );
+    }
+    let text = read(&workspace_root().join(".github/workflows/release.yml"));
+    for tool in [
+        "packaging/macos/sign_nested.sh",
+        "packaging/macos/notarize.sh",
+        "xtask --locked -- sbom",
+        "xtask --locked -- repro hash",
+        "release latest-json",
+        "release verify-latest",
+        "bump-rules-check --tag",
+        "ci-lint --release-branch",
+        "flatpak-builder-lint",
+        "--draft",
+    ] {
+        assert!(text.contains(tool), "release.yml does not use {tool}");
+    }
+    // Windows is unsigned in v1 and the release says so (D12), rather than half-signing it.
+    assert!(!text.contains("signtool"));
+    assert!(text.contains("not code-signed"));
+}

@@ -34,6 +34,8 @@ oc-pdf = { path = "../crates/oc-pdf", version = "0.1.0" }
 # shelling out to the binary or building a second driver — the DOM checks assert things about the
 # markup a user gets, so they have to be given exactly that markup (D13.1).
 openconvert = { path = "../crates/openconvert", version = "0.1.0" }
+# `release verify-latest` checks the published `latest.json` with the updater's own verifier.
+oc-net = { path = "../crates/oc-net", version = "0.1.0" }
 anyhow.workspace = true
 thiserror.workspace = true
 serde.workspace = true
@@ -62,3 +64,6 @@ quick-xml.workspace = true
 # ...and the Flatpak manifest and the release workflow (rows 15.8, 15.14). Already in the tree
 # through `typst`; deprecated upstream but complete for reading YAML, and never shipped.
 serde_yaml = "0.9"
+# ...and sign a test `latest.json` with a keypair made in the test (never a committed key).
+minisign.workspace = true
+base64.workspace = true

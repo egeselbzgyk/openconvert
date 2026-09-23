@@ -143,7 +143,12 @@ Work items, in order, with the plan's test rows against each:
       job — rows 15.16 `ir_version_bump_is_enforced`, 15.17 `protocol_bump_is_enforced` (rehearsals on
       a copy of the tree), plus `prompt_and_job_spec_changes_follow_their_rules`,
       `the_committed_baseline_describes_this_tree`
-- [ ] **P15.11** release gates and `release.yml`: placeholders, no Python — rows 15.14, 15.18
+- [x] **P15.11** `.github/workflows/release.yml` (draft release; every CI-gate row a step named
+      `row 15.N <test>`); the tag gate over `models.toml`, `packs.toml`, `thresholds.toml`,
+      `tauri.conf.json` — row 15.18 `no_todo_placeholders_on_a_release_tag` (**the real tree fails it
+      today with 15 findings, correctly**: release blockers), row 15.14 `release_job_needs_no_python`
+      (YAML; the container run is unverified here), `every_release_gate_row_is_a_named_release_step`,
+      `xtask release {latest-json,verify-latest,hash-dir}` — `the_release_latest_json_is_what_the_updater_verifies`
 - [ ] **P15.12** `docs/RELEASE_CHECKLIST.md`, `docs/INSTALL.md`, the part-B hand-off
 
 ## Phase 13 — on branch `phase/13-ocr`

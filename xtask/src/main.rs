@@ -58,6 +58,10 @@ tasks:
                       notes <manifest>...              the release body's SHA-256 section
                       verify-published --body <file> --assets <dir>
                       size-check --os <os> --bundle-dir <dir>
+                      hash-dir --dir <dir>
+                      latest-json --dir <dir> --version <v> --notes <file> --pub-date <date>
+                                  --base-url <url> --out <file>
+                      verify-latest --latest <file> --assets <dir>
 ";
 
 fn main() -> Result<()> {
@@ -99,7 +103,7 @@ fn main() -> Result<()> {
         }
         Some("release") => {
             let args: Vec<String> = std::env::args().skip(2).collect();
-            release::run(&args)
+            release::run(&root, &args)
         }
         Some("stage-sidecars") => {
             let release = std::env::args().any(|a| a == "--release");
