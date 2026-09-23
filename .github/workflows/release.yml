@@ -39,7 +39,9 @@ jobs:
       - name: "row 15.14 release_job_needs_no_python: this image has no Python"
         run: |
           if command -v python3 || command -v python; then echo "::error::Python is on the release image"; exit 1; fi
-      - run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+      # `file` for sign_nested_signs_every_macho_inside_out: packaging/macos/sign_nested.sh finds the
+      # Mach-O files to sign with it, and the slim image has none (v1.0.0's first tag run, 2026-09-23).
+      - run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates file
       - uses: actions/checkout@v4
         with: { ref: "${{ env.TAG }}" }
       # Row 15.18: no TODO_ in models.toml, packs.toml, thresholds.toml or the updater key, and no
