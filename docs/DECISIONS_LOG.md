@@ -3731,3 +3731,49 @@ Evidence: `an_unfilled_digest_is_refused_before_anything_is_fetched`,
 `prefix_cold_is_warned_after_the_first_call`, `cached_prompt_tokens_are_read_from_the_reply`,
 `test_the_live_llm_job_runs_the_live_tests_against_a_fetched_server_and_model`.
 Affects: D8, D9, PHASE 9 details 1 and 4, `.github/workflows/nightly.yml`.
+
+## 2026-09-23 · The nine-gate harness, and what it cannot yet decide · Phase 9
+Context: PHASE 9 detail 9 and D9 specify `eval/model_gate.py`: G1–G9 on reference machines L and M
+against the pinned llama.cpp build, results as JSON under `eval/results/model_gate/`, and
+`docs/MODEL_GATE.md` generated from them. Row 9.17 asks that the script print a full pass/fail
+table and exit non-zero on any failure. Row 9.20 asks that `models.toml`'s default change only with
+nine green gates.
+Decision:
+1. `eval/model_gate.py` is a thin entry point over `oc_eval.model_gate` (`gates`, `server`,
+   `results`, `mcnemar`, `probes`, `fixtures`, `registry`, `cli`). **A gate whose inputs are missing
+   reports `not_run` and names the missing input, and `not_run` is never a pass.** The verdict is
+   `pass` only when all nine pass. Mutation: counting `not_run` as a pass turns
+   `test_a_gate_that_did_not_run_is_never_a_pass` red.
+2. **G8's probes are generated, not authored by a native speaker**: 100 German and 100 Turkish
+   lines from reviewable template pools with a fixed seed, labelled with the `heading_roles` enum
+   (a test holds the probe enum equal to the grammar's `role` rule), 100 distinct lines per
+   language, at least 11 per role. Each label follows from the template that made the line.
+   Quotations are ones whose attribution is well established, or proverbs labelled as such.
+3. **G2–G5 ask 20 prompt fixtures**: the renderer's own four (read from the committed cassettes)
+   and sixteen composed in the same templates and compact JSON. G2's semantic assertions are the
+   task-level ones (metadata copied verbatim, every cluster and holdout id answered once, book
+   structure indices in range and increasing, verse ids bijective). G4 and G5 sum each call's own
+   wall clock.
+4. **PROVISIONAL — needs maintainer ratification:** G3's tokenizer half needs reference
+   tokenizations of the 20 fixtures from the model's official tokenizer at the pinned revision,
+   which could not be fetched here. `reference_tokens` is `null`, so G3 reports `not_run`. G7 needs
+   Phase 10's paired answers (`--g7-pairs`). G9 needs a GGUF we converted and quantised ourselves
+   (`--g9-sha256`). G4's share needs the reference book's `--no-ai` wall clock on the same machine
+   (`--deterministic-seconds`). G7's level and non-inferiority margin are new provisional
+   thresholds (`model_gate.g7_alpha` 0.05, `model_gate.g7_noninferiority_margin` 0.02), because D9
+   names McNemar and gives neither.
+5. McNemar is computed exactly (`math.comb`), and the one normal quantile comes from
+   `statistics.NormalDist`. There is no scipy import, in line with `oc_eval.metrics.assertions`,
+   and no untyped dependency for mypy.
+6. `--emit-registry` resolves each repository's commit, asserts the file is in that commit's tree
+   (V1 §1(g)), streams the file through SHA-256 and writes the pins only if our hash and size agree
+   with the hub's LFS record. Nothing is written on any refusal. It is tested against a fake hub
+   only: huggingface.co is refused by this sandbox's egress policy.
+7. Row 9.20 is `test_default_stays_qwen3_1_7b_until_gate_passes` in `eval/tests/test_model_gate.py`,
+   with `registry.default_problems` as the rule: the default must be a `tier = "default"` entry, and
+   anything other than Qwen3-1.7B needs its latest run passing on both L and M.
+**No gate result is recorded.** This box is neither L nor M and has no server or model, and a result
+file from it would be a claim about a machine D9 does not recognise. `docs/MODEL_GATE.md` says so,
+and Qwen3-1.7B stays the default. Nothing promotes Qwen3.5-2B.
+Evidence: `eval/tests/test_model_gate.py` (19 tests), `docs/MODEL_GATE.md`.
+Affects: D9, RT C3, PHASE 9 rows 9.17, 9.20, detail 9, `thresholds.toml` (`model_gate.*`).

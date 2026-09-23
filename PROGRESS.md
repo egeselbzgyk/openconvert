@@ -4,8 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 9
-CURRENT_ITEM: P9.9 — `eval/model_gate.py`, the default-model gate, `docs/MODEL_GATE.md`
-              (rows 9.17, 9.20).
+CURRENT_ITEM: P9.10 — the Definition of Done, CHANGELOG, merge.
               Built on branch `phase/09-local-model`.
 LAST_UPDATED: 2026-09-23
 
@@ -75,7 +74,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P9.6** the owned server's lifecycle — rows 9.8–9.11, 9.13
 - [x] **P9.7** `openconvert model pull|list|remove` — row 9.18
 - [x] **P9.8** live tests behind `live-llm`, `W_LLM_PREFIX_COLD` — rows 9.15, 9.16
-- [ ] **P9.9** `eval/model_gate.py`, the default-model gate, `docs/MODEL_GATE.md` — rows 9.17, 9.20
+- [x] **P9.9** `eval/model_gate.py`, the default-model gate, `docs/MODEL_GATE.md` — rows 9.17, 9.20
 - [ ] **P9.10** the Definition of Done, CHANGELOG, merge
 
 What a fresh session needs:
@@ -114,6 +113,10 @@ What a fresh session needs:
   `OC_LLAMA_SERVER`, `OC_LIVE_MODEL`), run by the nightly `live-llm-cassette-refresh` job after
   `xtask fetch-llama-server` and `model pull`. `xtask/llama.lock` pins `b10456` with `TODO_`
   digests, so that job fails until they are filled (Blocked).
+- **The promotion gate** is `eval/model_gate.py` → `oc_eval.model_gate`. Probes and prompt
+  fixtures are generated (`python -m oc_eval.model_gate.{probes,fixtures} --write`) and held equal to
+  the committed files. `docs/MODEL_GATE.md` is rendered (`--render-table`), and no run is recorded:
+  G3's reference tokens, G7's pairs and G9's conversion are all missing inputs (`not_run`).
 - **Disk is shared with a parallel worker** (`/home/user/wt/phase12`, ~11 GB). Build with
   `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` (env only, no repo change); prune stale duplicates in `target/debug/deps` when free space drops under
   ~5 GB (keep the newest artefact per crate name).
