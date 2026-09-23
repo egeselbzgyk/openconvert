@@ -254,16 +254,47 @@ fn stage_natives(workspace_root: &Path, staged_dir: &Path, triple: &str) -> Resu
         &pdfium_dir.join("LICENSE"),
         &licenses.join("pdfium.LICENSE.txt"),
     )?;
-    copy(
-        &release_dir.join("LICENSE"),
-        &licenses.join("llama.cpp.LICENSE.txt"),
-    )?;
+    let llama_license = llama_license(workspace_root, &release_dir)?;
+    copy(&llama_license, &licenses.join("llama.cpp.LICENSE.txt"))?;
 
     Ok(Natives {
         llama_tag: lock.tag,
         pdfium_build: vendor_pdfium::pinned_build()?,
         libraries,
     })
+}
+
+/// llama.cpp's MIT licence, as committed from the pinned release's Linux archive. The Windows
+/// archive carries no licence file (`llama-b10456-bin-win-cpu-x64.zip`, v1.0.0's first release
+/// run), and MIT requires the notice in every binary distribution, so it is bundled from here.
+pub const LLAMA_LICENSE_COPY: &str = "licenses/llama.cpp.LICENSE.txt";
+
+/// The llama.cpp licence text to bundle: the archive's own `LICENSE` where the archive carries one,
+/// otherwise the committed [`LLAMA_LICENSE_COPY`].
+///
+/// Where both exist they must be the same text (line endings aside). A pin that moves to a release
+/// whose licence changed then fails here, on the platforms whose archive has it, instead of
+/// shipping a stale copy on the one whose archive does not.
+pub fn llama_license(workspace_root: &Path, release_dir: &Path) -> Result<PathBuf> {
+    let committed = workspace_root.join(LLAMA_LICENSE_COPY);
+    let read = |path: &Path| -> Result<String> {
+        let text = std::fs::read_to_string(path)
+            .with_context(|| format!("cannot read {}", path.display()))?;
+        Ok(text.replace("\r\n", "\n"))
+    };
+    let expected = read(&committed)?;
+    let in_archive = release_dir.join("LICENSE");
+    if !in_archive.is_file() {
+        return Ok(committed);
+    }
+    if read(&in_archive)? != expected {
+        bail!(
+            "{} differs from {LLAMA_LICENSE_COPY}: the pinned llama.cpp release changed its \
+             licence text; copy the archive's LICENSE over {LLAMA_LICENSE_COPY} and review it",
+            in_archive.display()
+        );
+    }
+    Ok(in_archive)
 }
 
 fn copy(from: &Path, to: &Path) -> Result<()> {
@@ -294,7 +325,8 @@ mod tests {
     use super::*;
 
     /// The llama.cpp `b10456` release for Linux x64, macOS arm64 and Windows x64, as listed from
-    /// the archives `xtask/llama.lock` pins (2026-09-23), less the tools' executables.
+    /// the archives `xtask/llama.lock` pins (2026-09-23), less the tools' executables. The
+    /// Windows archive has no `LICENSE` (listed again 2026-09-23, after the first release run).
     const LINUX: &[&str] = &[
         "LICENSE",
         "ggml-rpc-server",
@@ -419,6 +451,75 @@ mod tests {
                 "mtmd.dll",
             ]
         );
+    }
+
+    fn workspace_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("xtask sits in the workspace")
+            .to_path_buf()
+    }
+
+    /// A llama.cpp release directory holding `files`, each with `content` (a `LICENSE` gets the
+    /// text given for it).
+    fn release_dir(name: &str, files: &[&str], license: Option<&str>) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("oc-llama-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("scratch directory");
+        for file in files {
+            let content = match (*file, license) {
+                ("LICENSE", Some(text)) => text.to_owned(),
+                _ => String::new(),
+            };
+            std::fs::write(dir.join(file), content).expect("write");
+        }
+        dir
+    }
+
+    #[test]
+    fn the_committed_llama_licence_is_the_mit_text() {
+        let text = std::fs::read_to_string(workspace_root().join(LLAMA_LICENSE_COPY))
+            .expect("the committed llama.cpp licence");
+        assert!(text.starts_with("MIT License\n"), "{text}");
+        assert!(
+            text.contains("Copyright (c) 2023-2026 The ggml authors"),
+            "{text}"
+        );
+        assert!(text.contains("The above copyright notice and this permission notice shall be"));
+    }
+
+    /// v1.0.0's first release run: the Windows archive has no `LICENSE`, and staging failed.
+    #[test]
+    fn the_llama_licence_is_staged_from_the_committed_copy_when_the_archive_has_none() {
+        assert!(!WINDOWS.contains(&"LICENSE"));
+        let dir = release_dir("windows", WINDOWS, None);
+        let chosen = llama_license(&workspace_root(), &dir).expect("a licence");
+        assert_eq!(chosen, workspace_root().join(LLAMA_LICENSE_COPY));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_llama_licence_is_staged_from_the_archive_when_it_carries_one() {
+        let committed = std::fs::read_to_string(workspace_root().join(LLAMA_LICENSE_COPY))
+            .expect("the committed llama.cpp licence");
+        // Line endings aside, the archive's text is the committed one.
+        let crlf = committed.replace('\n', "\r\n");
+        let dir = release_dir("linux", LINUX, Some(&crlf));
+        let chosen = llama_license(&workspace_root(), &dir).expect("a licence");
+        assert_eq!(chosen, dir.join("LICENSE"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_pin_whose_licence_text_changed_fails_staging() {
+        let dir = release_dir(
+            "changed",
+            MACOS,
+            Some("MIT License\n\nCopyright (c) 2027\n"),
+        );
+        let error = llama_license(&workspace_root(), &dir).expect_err("a stale committed copy");
+        assert!(error.to_string().contains(LLAMA_LICENSE_COPY), "{error}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
