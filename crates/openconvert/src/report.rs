@@ -194,9 +194,23 @@ pub struct Report {
     /// the signals it read — whether or not a model was asked. The first books converted are the
     /// calibration corpus, and this is what they contribute to it (PHASE 10 detail 1, RT A7.2).
     pub escalations: Vec<oc_structure::escalate::EscalationRecord>,
+    /// What the AI step did, when it ran: absent with AI off, the v1 default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai: Option<AiReport>,
     /// The provenance of every threshold, so a user can see which numbers were provisional at
     /// conversion time (D17).
     pub thresholds: Vec<ThresholdProvenance>,
+}
+
+/// The AI step, as the report prints it: which model, how many calls, how much of the time.
+#[derive(Clone, Debug, Serialize)]
+pub struct AiReport {
+    pub model_id: String,
+    /// `--ai-all-tasks`: the language gate was set aside.
+    pub all_tasks: bool,
+    pub calls: usize,
+    pub cached_calls: usize,
+    pub llm_ms: u64,
 }
 
 /// One threshold's provenance, as the report prints it.
@@ -260,7 +274,10 @@ pub fn report(conversion: &Conversion, input: ReportInput<'_>) -> Report {
             version: env!("CARGO_PKG_VERSION"),
             ir_version: document.ir_version,
             pdfium_version: input.pdfium_version.to_owned(),
-            prompt_version: None,
+            prompt_version: conversion
+                .ai
+                .as_ref()
+                .map(|_| oc_ai::prompt::PROMPT_VERSION.to_string()),
         },
         input: Input {
             sha256: document.source_sha256.clone(),
@@ -317,6 +334,13 @@ pub fn report(conversion: &Conversion, input: ReportInput<'_>) -> Report {
         warnings: document.warnings.clone(),
         decisions: document.decisions.clone(),
         escalations: conversion.escalations.clone(),
+        ai: conversion.ai.as_ref().map(|outcome| AiReport {
+            model_id: outcome.model_id.clone(),
+            all_tasks: outcome.all_tasks,
+            calls: outcome.calls.len(),
+            cached_calls: outcome.calls.iter().filter(|call| call.cached).count(),
+            llm_ms: outcome.llm_ms,
+        }),
         thresholds: PROVENANCE.iter().map(ThresholdProvenance::from).collect(),
     }
 }

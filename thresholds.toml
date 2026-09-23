@@ -839,6 +839,55 @@ evidence = "PHASE 10 detail 4: chunks overlap and must agree on the overlap. The
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[metadata.llm_size_large_ratio]
+value = 1.6
+source = "provisional"
+evidence = "PHASE 10 detail 2: pages 1-3 reach the metadata call with a size tag per line, never a number (D13.6). A line set at this multiple of the body size or more is [LARGE]. Invented; a title page's title is typically 2-3x body"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[metadata.llm_size_medium_ratio]
+value = 1.15
+source = "provisional"
+evidence = "PHASE 10 detail 2: a line at this multiple of body size or more, and under the [LARGE] ratio, is [MEDIUM]. Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[metadata.llm_size_small_ratio]
+value = 0.9
+source = "provisional"
+evidence = "PHASE 10 detail 2: a line under this multiple of body size is [SMALL]. Matches footnote.font_size_ratio_max's neighbourhood (R2 B.6: small print is 0.75-0.85 of body). Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[metadata.llm_max_input_chars]
+value = 1600
+source = "provisional"
+evidence = "PHASE 10 detail 2 / ARCHITECTURE 9.6: the metadata call's input is ~200-400 tokens. At roughly four characters a token, pages 1-3 are cut at 1600 characters, at a line boundary. Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.verse_quote_max_words]
+value = 60
+source = "provisional"
+evidence = "ARCHITECTURE 9.6, task 4: each block is sent as its verbatim text up to ~60 words, line breaks kept. The design's number"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.verse_quote_deep_indent_em]
+value = 3.0
+source = "provisional"
+evidence = "ARCHITECTURE 9.6, task 4: a block's indent reaches the model as shallow or deep, never as a number (D13.6). Deep is at least this many body ems. Invented: quote.indent_min_em (1.0) is the least indent that makes a block a candidate, and a stanza is commonly set three to four ems in"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.heading_roles_centered_ratio_min]
+value = 0.5
+source = "provisional"
+evidence = "ARCHITECTURE 9.6, task 2: a cluster reaches the model as centered when at least this share of its runs is centred. Invented: a majority"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [inventory.max_clusters]
 value = 24
 source = "provisional"

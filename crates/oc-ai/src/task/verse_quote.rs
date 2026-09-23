@@ -24,6 +24,9 @@ use oc_model::ids::BlockId;
 use crate::prompt::v1::verse_quote::{BlockKind, BlockSummary, VerseQuoteAnswer, VerseQuoteInput};
 use crate::session::{Asker, TaskResult};
 
+/// The `Decision.fallback` of a block whose label its counter-evidence overrode.
+pub const COUNTER_EVIDENCE: &str = "counter_evidence";
+
 /// The numbers the task reads, from `thresholds.toml`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VerseQuoteLimits {

@@ -58,6 +58,15 @@ pub fn inventory_pre_gate(
     Ok(())
 }
 
+/// Refuse the call when no heading has a size-rank level: the edit touches only those
+/// (`oc-structure::headings::levels::apply_heading_edits`), so an answer could change nothing.
+pub fn headings_pre_gate(heading_clusters: &BTreeSet<u32>) -> Result<(), PreGateFailure> {
+    if heading_clusters.is_empty() {
+        return Err(PreGateFailure::NothingToLabel);
+    }
+    Ok(())
+}
+
 /// Refuse the call when too few held-out lines could be sampled to check the mapping against
 /// itself.
 pub fn probe_pre_gate(
@@ -246,8 +255,9 @@ pub fn run(
 ) -> crate::session::TaskResult<RoleEdit> {
     use crate::session::TaskResult;
 
-    if let Err(refusal) =
-        inventory_pre_gate(facts, limits).and_then(|()| probe_pre_gate(probes, limits))
+    if let Err(refusal) = inventory_pre_gate(facts, limits)
+        .and_then(|()| headings_pre_gate(heading_clusters))
+        .and_then(|()| probe_pre_gate(probes, limits))
     {
         return TaskResult::Refused(refusal);
     }

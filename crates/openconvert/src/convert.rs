@@ -90,6 +90,8 @@ pub struct Conversion {
     /// Every choice the deterministic evidence could not settle, with the evidence — written to
     /// the report whether or not a model was asked (PHASE 10 detail 1).
     pub escalations: Vec<oc_structure::escalate::EscalationRecord>,
+    /// What the AI step did, when it ran. `None` with AI off — the v1 default.
+    pub ai: Option<crate::ai::AiOutcome>,
 }
 
 /// Why a conversion failed.
@@ -118,6 +120,32 @@ pub fn convert(
     options: &ConvertOptions,
     t: &Thresholds,
 ) -> Result<Conversion, ConvertError> {
+    convert_with_ai(pdf, source_sha256, options, None, t)
+}
+
+/// Convert one open document, asking a model where the escalations say to when `ai` is given
+/// (PHASE 10). `None` is the v1 default, `ai.enabled = false`, and is exactly [`convert`].
+pub fn convert_with_ai(
+    pdf: &dyn PdfDoc,
+    source_sha256: &str,
+    options: &ConvertOptions,
+    ai: Option<&crate::ai::AiContext<'_>>,
+    t: &Thresholds,
+) -> Result<Conversion, ConvertError> {
+    let prepared = prepare(pdf, source_sha256, options, t)?;
+    convert_prepared(pdf, source_sha256, options, prepared, ai, t)
+}
+
+/// Everything from `structure` on, from what [`prepare`] produced — the seam a test uses to
+/// change a book's evidence (its outline, its declared title) before `structure` reads it.
+pub fn convert_prepared(
+    pdf: &dyn PdfDoc,
+    source_sha256: &str,
+    options: &ConvertOptions,
+    prepared: Prepared,
+    ai: Option<&crate::ai::AiContext<'_>>,
+    t: &Thresholds,
+) -> Result<Conversion, ConvertError> {
     let Prepared {
         mut timings,
         mut totals,
@@ -128,16 +156,42 @@ pub fn convert(
         language,
         doc_info,
         structure_input,
-    } = prepare(pdf, source_sha256, options, t)?;
+    } = prepared;
     let extracted_images = u32::try_from(images.len()).unwrap_or(u32::MAX);
 
-    let structure = timings.stage("structure", || {
+    let mut structure = timings.stage("structure", || {
         structure_stage(&layout, &structure_input, &mut totals, t)
     })?;
     // Every escalation is recorded whether or not a model is ever asked: the first books
     // converted are the calibration corpus (PHASE 10 detail 1, RT A7.2).
     let escalations =
         oc_structure::escalate::Escalations::gather(&structure_input, &structure.output, t);
+
+    // The AI step, when asked for: the admitted edits are applied by running `structure` again
+    // with them, and that run is checked under the conservation law like the first.
+    let ai = match ai {
+        Some(context) => {
+            let deterministic = structure.output;
+            let (_, outcome) = timings.stage("ai", || {
+                Ok::<_, ConvertError>(crate::ai::run(
+                    context,
+                    &structure_input,
+                    deterministic,
+                    &escalations,
+                    t,
+                ))
+            })?;
+            structure = crate::pipeline::structure_stage_with(
+                &layout,
+                &structure_input,
+                &outcome.edits,
+                &mut totals,
+                t,
+            )?;
+            Some(outcome)
+        }
+        None => None,
+    };
 
     finish(
         pdf,
@@ -156,6 +210,7 @@ pub fn convert(
             doc_info,
             structure,
             escalations,
+            ai,
         },
     )
 }
@@ -254,6 +309,7 @@ struct Finishing {
     doc_info: oc_pdf::inspect::DocMetadata,
     structure: crate::pipeline::StructureStage,
     escalations: oc_structure::escalate::Escalations,
+    ai: Option<crate::ai::AiOutcome>,
 }
 
 /// `document`, `epub`, `validate` and `repair`, from a settled `structure`.
@@ -276,6 +332,7 @@ fn finish(
         doc_info,
         structure,
         escalations,
+        ai,
     } = finishing;
 
     let producer_family = oc_pdf::producer::producer_family(
@@ -373,6 +430,12 @@ fn finish(
     for check in loop_result.checks {
         settled.ledger.push_stage(&LedgerDelta::default(), check);
     }
+    // What the AI step decided and warned about: every escalated choice it settled, refused or
+    // never asked, and the reasons — recorded on the document, which is what the report reads.
+    if let Some(outcome) = &ai {
+        settled.decisions.extend(outcome.decisions.iter().cloned());
+        settled.warnings.extend(outcome.warnings.iter().cloned());
+    }
     settled
         .warnings
         .extend(loop_result.structural.warnings.iter().cloned());
@@ -397,6 +460,7 @@ fn finish(
         producer_family,
         page_classes: class_histogram(&classes),
         escalations: escalations.records(),
+        ai,
     })
 }
 

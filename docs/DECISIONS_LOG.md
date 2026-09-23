@@ -3934,3 +3934,35 @@ Decisions, each **PROVISIONAL — needs maintainer ratification**:
 Evidence: `crates/oc-ai/tests/plan.rs` (rows 10.21, 10.22 and three session tests).
 Affects: PHASE 10 details 5–7, IMPLEMENTATION_PLAN §2.1, `thresholds.toml`, `oc-core` build script,
 `oc-ai::{plan, session}`.
+
+## 2026-09-23 · The AI step: where it runs, how an edit reaches the book, what is recorded · Phase 10
+Context: PHASE 10's file list puts the step in `crates/oc-core/src/stages/ai.rs`. `oc-core` sits
+below every stage crate (they read `T` from it) and cannot depend on `oc-structure`, and it may not
+reach `oc-ai` either without `oc-structure` reaching it through `oc-core` (ARCHITECTURE §3.1:
+`oc-structure` must not depend on `oc-ai`). The stage driver has lived in `openconvert` since
+Phase 5 (2026-09-20, "the benchmarks live in `openconvert`").
+Decisions:
+1. **The step is `openconvert::ai`**, and `openconvert` gains the `oc-ai` edge — a workspace crate
+   with no network dependency, already reached through `oc-net`. `oc-core` gains nothing: the
+   escalation predicates were already there (Phase 8), and the stage set is unchanged — the step
+   runs inside `structure`'s slot and is timed as `ai` only when it runs.
+2. **An admitted answer is applied by re-running `structure`** with every edit admitted so far
+   plus the new one (`structure_with`), and gates L and V compare that run with the previous one.
+   The final run is checked under the conservation law exactly as the deterministic one is. Nothing
+   patches output; a model's label reaches the book through the code the rule's label took.
+3. **Order:** metadata, heading roles, verse or quote, then book structure over the heading list
+   the earlier edits left. Book structure's `Decision` names the `document` stage (PIPELINE §0.4),
+   although its zones are applied by `oc_structure::book`, where the section tree is built.
+4. **PROVISIONAL — needs maintainer ratification: heading roles is not asked when no heading has a
+   size-rank level** (`pregate.headings`). The edit touches only size-rank levels (2026-09-23,
+   task 2), so an answer could change nothing: gate D, "if deterministic evidence is sufficient,
+   the model is never consulted". The predicate in `oc_core::escalation` is unchanged; this is a
+   pre-gate, like the inventory's.
+5. **A verse label its counter-evidence overrode** is recorded with the model's trace and
+   `fallback = "counter_evidence"`: the model was asked and the rule's answer stood.
+6. **The report** gains `ai` (model id, `--ai-all-tasks`, calls, cached calls, LLM milliseconds),
+   omitted with AI off, and `engine.prompt_version` is set when the step ran.
+Evidence: `crates/openconvert/tests/ai_pipeline.rs` — rows 10.14, 10.15, 10.20, A10.2, and 10.2
+with AI on. With a cooperative in-process model all four tasks are applied somewhere across the
+twenty fixture variants and I-7 holds on every one.
+Affects: PHASE 10 file list, ARCHITECTURE §3.1 (`openconvert → oc-ai`), PIPELINE §0.4, the report.

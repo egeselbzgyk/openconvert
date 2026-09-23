@@ -55,6 +55,9 @@ pub enum PreGateFailure {
     /// Fewer held-out lines than `inventory.holdout_min_probes` could be sampled, so the mapping
     /// could not be checked against itself — and an unchecked mapping is not asked for.
     TooFewProbes { probes: usize, min: usize },
+    /// No heading's level came from size rank — the outline, the contents page or numbering
+    /// placed every one — so no mapping could change anything, and gate D says do not ask.
+    NothingToLabel,
 }
 
 /// The warning the style inventory's refusal carries, shared with `oc-structure`.
@@ -68,6 +71,7 @@ impl PreGateFailure {
                 "pregate.inventory"
             }
             PreGateFailure::TooFewProbes { .. } => "pregate.holdout",
+            PreGateFailure::NothingToLabel => "pregate.headings",
         }
     }
 
@@ -82,7 +86,7 @@ impl PreGateFailure {
                     .with_arg("clusters", facts.clusters.to_string())
                     .with_arg("body_char_share", format!("{:.3}", facts.body_char_share)),
             ),
-            PreGateFailure::TooFewProbes { .. } => None,
+            PreGateFailure::TooFewProbes { .. } | PreGateFailure::NothingToLabel => None,
         }
     }
 }
