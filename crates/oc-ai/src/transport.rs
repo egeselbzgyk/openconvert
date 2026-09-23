@@ -30,6 +30,23 @@ pub trait Transport: Send + Sync {
 /// What a transport with nothing at a path answers.
 const NOT_FOUND: u16 = 404;
 
+/// A boxed transport is a transport: the engine picks one at run time — a loopback server, a host
+/// the user consented to — and hands the adapter whichever it got.
+impl<T: Transport + ?Sized> Transport for Box<T> {
+    fn post_json(
+        &self,
+        path: &str,
+        body: &str,
+        timeout: Duration,
+    ) -> Result<String, TransportError> {
+        (**self).post_json(path, body, timeout)
+    }
+
+    fn get(&self, path: &str, timeout: Duration) -> Result<String, TransportError> {
+        (**self).get(path, timeout)
+    }
+}
+
 /// Why no reply came back. None of these is an answer, and none is a gate failure: the question
 /// was never answered at all.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]

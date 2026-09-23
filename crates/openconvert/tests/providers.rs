@@ -1,0 +1,522 @@
+//! PHASE 11 in the engine: which provider `convert --ai` opens, what it needs consent for, and what
+//! it never lets out. The library tests reach endpoints through an in-process [`Connector`], so a
+//! host off this machine can be exercised without a network; the binary tests use a model server on
+//! `127.0.0.1`.
+
+mod common;
+
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+use std::process::Command;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use common::endpoint::{Endpoint, LLAMA_PROPS};
+use oc_ai::provider::{Constraint, ProviderKind, ThinkingControl};
+use oc_ai::transport::{Transport, TransportError};
+use oc_core::exit::ExitCode;
+use oc_core::thresholds::T;
+use oc_net::consent::ConsentRecord;
+use oc_net::NetError;
+use openconvert::ai_endpoint::{open_with, AiArgs, Connector, OpenError, E_CONSENT_REQUIRED};
+use secrecy::SecretString;
+
+const REGISTRY: &str = include_str!("../../../models.toml");
+
+fn binary() -> PathBuf {
+    PathBuf::from(env!("CARGO_BIN_EXE_openconvert"))
+}
+
+/// A scratch directory of its own per test, removed when dropped.
+struct Scratch(PathBuf);
+
+impl Scratch {
+    fn new(name: &str) -> Self {
+        let path = std::env::temp_dir().join(format!("oc-providers-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path).expect("a scratch directory");
+        Self(path)
+    }
+
+    fn join(&self, name: &str) -> PathBuf {
+        self.0.join(name)
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// What a connection was asked for.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Connected {
+    base: String,
+    keyed: bool,
+    consent: Option<String>,
+}
+
+/// An in-process network: every base URL answers GETs from one route table, and every connection
+/// is recorded — which is how "no bytes were sent" is a count of zero, not an absence of evidence.
+#[derive(Clone, Default)]
+struct Fake {
+    routes: Arc<BTreeMap<String, String>>,
+    connected: Arc<Mutex<Vec<Connected>>>,
+    asked: Arc<Mutex<Vec<String>>>,
+}
+
+impl Fake {
+    fn serving(routes: &[(&str, &str)]) -> Self {
+        Self {
+            routes: Arc::new(
+                routes
+                    .iter()
+                    .map(|(path, body)| ((*path).to_owned(), (*body).to_owned()))
+                    .collect(),
+            ),
+            ..Self::default()
+        }
+    }
+
+    fn connected(&self) -> Vec<Connected> {
+        self.connected.lock().expect("not poisoned").clone()
+    }
+}
+
+impl Transport for Fake {
+    fn post_json(&self, path: &str, _: &str, _: Duration) -> Result<String, TransportError> {
+        self.asked
+            .lock()
+            .expect("not poisoned")
+            .push(format!("POST {path}"));
+        Err(TransportError::Status { status: 500 })
+    }
+
+    fn get(&self, path: &str, _: Duration) -> Result<String, TransportError> {
+        self.asked
+            .lock()
+            .expect("not poisoned")
+            .push(format!("GET {path}"));
+        self.routes
+            .get(path)
+            .cloned()
+            .ok_or(TransportError::Status { status: 404 })
+    }
+}
+
+impl Connector for Fake {
+    fn connect(
+        &self,
+        base: &str,
+        api_key: Option<SecretString>,
+        consent: Option<&ConsentRecord>,
+    ) -> Result<Box<dyn Transport>, NetError> {
+        oc_net::consent::authorize(base, consent)?;
+        self.connected
+            .lock()
+            .expect("not poisoned")
+            .push(Connected {
+                base: base.to_owned(),
+                keyed: api_key.is_some(),
+                consent: consent.map(|consent| consent.host.clone()),
+            });
+        Ok(Box::new(self.clone()))
+    }
+}
+
+fn args(endpoint: &str) -> AiArgs {
+    AiArgs {
+        endpoint: Some(endpoint.to_owned()),
+        ..AiArgs::default()
+    }
+}
+
+const TAGS: &str = r#"{"models":[{"name":"qwen3:1.7b"},{"name":"llama3.2:3b"}]}"#;
+
+/// Row 11.5 and A11.2. A host that is not this machine, with no consent: exit 2, a `fatal` with
+/// `E_CONSENT_REQUIRED` that names the host — and nothing was connected to, so no byte was sent.
+/// Consent for some other host is no consent for this one.
+#[test]
+fn non_loopback_requires_consent() {
+    let network = Fake::serving(&[("/props", LLAMA_PROPS)]);
+    for allow in [None, Some("elsewhere.example.org")] {
+        let refused = open_with(
+            &AiArgs {
+                allow_host: allow.map(str::to_owned),
+                ..args("https://example.com/v1")
+            },
+            REGISTRY,
+            &T,
+            &network,
+        )
+        .err()
+        .expect("refused");
+        assert_eq!(
+            refused,
+            OpenError::ConsentRequired {
+                host: "example.com".to_owned()
+            }
+        );
+        assert_eq!(refused.exit_code(), ExitCode::Usage);
+        let (code, message) = refused.fatal().expect("a fatal event");
+        assert_eq!(code, E_CONSENT_REQUIRED);
+        assert!(message.contains("example.com"), "{message}");
+        assert!(
+            message.contains("--llm-allow-host example.com"),
+            "says how: {message}"
+        );
+    }
+    assert!(network.connected().is_empty(), "no connection was made");
+
+    // The binary: exit 2, the fatal event on the NDJSON channel, no book and no report.
+    let scratch = Scratch::new("consent");
+    let output = Command::new(binary())
+        .arg("convert")
+        .arg(common::fixture("f01_prose_single_column"))
+        .arg("-o")
+        .arg(scratch.join("remote.epub"))
+        .args([
+            "--ai",
+            "--llm-endpoint",
+            "https://example.com/v1",
+            "--progress",
+            "json",
+        ])
+        .env("XDG_DATA_HOME", scratch.join("data"))
+        .output()
+        .expect("the binary runs");
+    assert_eq!(output.status.code(), Some(2));
+    let fatal = String::from_utf8_lossy(&output.stderr)
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .find(|event| event["t"] == "fatal")
+        .expect("a fatal event");
+    assert_eq!(fatal["code"], E_CONSENT_REQUIRED);
+    assert!(fatal["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("example.com")));
+    assert!(!scratch.join("remote.epub").exists());
+    assert!(!scratch.join("remote.epub.report.json").exists());
+}
+
+/// Consent naming the host opens it — the connection carries the consent, and the record says
+/// which host and when — and plain http off the machine is refused even with it.
+#[test]
+fn consent_naming_the_host_opens_it() {
+    let network = Fake::serving(&[("/props", LLAMA_PROPS)]);
+    let opened = open_with(
+        &AiArgs {
+            allow_host: Some("Books.Example.org".to_owned()),
+            model: Some("qwen3-8b".to_owned()),
+            ..args("https://books.example.org/v1")
+        },
+        REGISTRY,
+        &T,
+        &network,
+    )
+    .expect("consent was given");
+    let consent = opened.consent.as_ref().expect("the consent is recorded");
+    assert_eq!(consent.host, "books.example.org");
+    assert_eq!(
+        network.connected(),
+        [Connected {
+            base: "https://books.example.org".to_owned(),
+            keyed: false,
+            consent: Some("books.example.org".to_owned()),
+        }]
+    );
+
+    let plain = open_with(
+        &AiArgs {
+            allow_host: Some("10.0.0.2".to_owned()),
+            ..args("http://10.0.0.2:8080")
+        },
+        REGISTRY,
+        &T,
+        &network,
+    )
+    .err()
+    .expect("refused");
+    assert_eq!(plain.exit_code(), ExitCode::Usage);
+    assert!(
+        plain
+            .fatal()
+            .is_some_and(|(_, message)| message.contains("https")),
+        "{plain:?}"
+    );
+
+    // Loopback needs none, and records none, whatever the command line says.
+    let local = open_with(
+        &AiArgs {
+            allow_host: Some("127.0.0.1".to_owned()),
+            ..args("http://127.0.0.1:8080")
+        },
+        REGISTRY,
+        &T,
+        &network,
+    )
+    .expect("loopback");
+    assert!(local.consent.is_none());
+}
+
+/// The probe decides the adapter when the command line does not: `llama-server` is the sidecar
+/// adapter (GBNF), Ollama is Ollama, anything else is a custom endpoint that constrains nothing.
+#[test]
+fn the_probe_decides_the_adapter() {
+    let llama = open_with(
+        &args("http://127.0.0.1:8080"),
+        REGISTRY,
+        &T,
+        &Fake::serving(&[("/props", LLAMA_PROPS)]),
+    )
+    .expect("opened");
+    assert_eq!(llama.kind, ProviderKind::LocalSidecar);
+    assert_eq!(llama.provider.capabilities().constraint, Constraint::Gbnf);
+    assert_eq!(
+        llama.provider.thinking_control(),
+        ThinkingControl::ChatTemplateKwargs
+    );
+    assert_eq!(llama.provider.id(), "endpoint@127.0.0.1");
+
+    let ollama = open_with(
+        &AiArgs {
+            model: Some("qwen3:1.7b".to_owned()),
+            ..args("http://localhost:11434")
+        },
+        REGISTRY,
+        &T,
+        &Fake::serving(&[("/api/tags", TAGS)]),
+    )
+    .expect("opened");
+    assert_eq!(ollama.kind, ProviderKind::Ollama);
+    assert_eq!(ollama.provider.id(), "qwen3:1.7b");
+    assert_eq!(
+        ollama.provider.thinking_control(),
+        ThinkingControl::OllamaThink
+    );
+
+    let studio = open_with(
+        &args("http://127.0.0.1:1234/v1"),
+        REGISTRY,
+        &T,
+        &Fake::serving(&[("/v1/models", r#"{"data":[{"id":"qwen3-8b-instruct"}]}"#)]),
+    )
+    .expect("opened");
+    assert_eq!(studio.kind, ProviderKind::OpenAiCompatible);
+    assert_eq!(studio.provider.capabilities().constraint, Constraint::None);
+    assert_eq!(
+        studio.provider.id(),
+        "qwen3-8b-instruct",
+        "the one it lists"
+    );
+    assert_eq!(
+        studio.provider.thinking_control(),
+        ThinkingControl::NoThinkSuffix
+    );
+}
+
+/// `--llm-provider ollama` with no endpoint is Ollama on `localhost:11434`; which model is asked is
+/// never guessed: the one named, or the only one there is.
+#[test]
+fn ollama_is_found_on_localhost_and_its_model_is_never_guessed() {
+    let ollama = || AiArgs {
+        provider: Some(ProviderKind::Ollama),
+        ..AiArgs::default()
+    };
+    let network = Fake::serving(&[("/api/tags", TAGS)]);
+    let opened = open_with(
+        &AiArgs {
+            model: Some("llama3.2:3b".to_owned()),
+            ..ollama()
+        },
+        REGISTRY,
+        &T,
+        &network,
+    )
+    .expect("opened");
+    assert_eq!(opened.kind, ProviderKind::Ollama);
+    assert_eq!(network.connected()[0].base, "http://localhost:11434");
+    assert!(opened.consent.is_none(), "loopback: no consent");
+
+    for (model, reason) in [
+        (
+            None,
+            "Ollama serves more than one model; name one with --llm-model",
+        ),
+        (Some("mistral:7b"), "the model is not one Ollama serves"),
+    ] {
+        let unavailable = open_with(
+            &AiArgs {
+                model: model.map(str::to_owned),
+                ..ollama()
+            },
+            REGISTRY,
+            &T,
+            &network,
+        )
+        .err()
+        .expect("not opened");
+        assert_eq!(unavailable, OpenError::Unavailable(reason));
+        assert_eq!(unavailable.exit_code(), ExitCode::Ok, "never a failure");
+    }
+
+    let one = Fake::serving(&[("/api/tags", r#"{"models":[{"name":"qwen3:1.7b"}]}"#)]);
+    let opened = open_with(&ollama(), REGISTRY, &T, &one).expect("the only model");
+    assert_eq!(opened.provider.id(), "qwen3:1.7b");
+
+    let nothing = Fake::serving(&[]);
+    assert_eq!(
+        open_with(&ollama(), REGISTRY, &T, &nothing).err(),
+        Some(OpenError::Unavailable(
+            "the endpoint did not answer the capability probe"
+        ))
+    );
+}
+
+/// Row 11.8. The key is read from a file, sent to the endpoint as a bearer token and nowhere else:
+/// it is in no NDJSON event, no report field, no line on either channel, nothing the engine wrote,
+/// and no argv — the endpoint is someone else's, so no process is started, and the command line has
+/// no flag that would take the key inline. (The engine-owned sidecar's key goes in its environment,
+/// never its argv: PHASE 9 rows 9.12 and 9.14.)
+#[test]
+fn api_key_is_never_logged_or_echoed() {
+    const KEY: &str = "sk-oc-phase11-9f3a7c21d4e8b6";
+    let endpoint = Endpoint::start(&[
+        ("GET", "/props", 200, LLAMA_PROPS),
+        ("POST", "/v1/chat/completions", 500, r#"{"error":"boom"}"#),
+    ]);
+    let scratch = Scratch::new("key");
+    let key_file = scratch.join("llm.key");
+    std::fs::write(&key_file, format!("{KEY}\n")).expect("the key file");
+
+    let output = Command::new(binary())
+        .arg("convert")
+        .arg(common::fixture("f07_verse_and_quote"))
+        .arg("-o")
+        .arg(scratch.join("book.epub"))
+        .args(["--modified", "2026-01-01T00:00:00Z", "--lang", "en"])
+        .args(["--progress", "json", "--ai", "--ai-all-tasks"])
+        .args(["--llm-endpoint", &endpoint.url(), "--llm-api-key-file"])
+        .arg(&key_file)
+        .env("XDG_DATA_HOME", scratch.join("data"))
+        .env("RUST_LOG", "trace")
+        .env("RUST_BACKTRACE", "1")
+        .output()
+        .expect("the binary runs");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // It was used: every request carried it, as a bearer token.
+    let received = endpoint.received();
+    assert!(
+        received.iter().any(|request| request.method == "POST"),
+        "a question was sent"
+    );
+    for request in &received {
+        assert!(
+            request
+                .headers
+                .iter()
+                .any(|header| header.eq_ignore_ascii_case(&format!("authorization: Bearer {KEY}"))),
+            "{} {} without the key",
+            request.method,
+            request.path
+        );
+        assert!(!request.path.contains(KEY) && !request.body.contains(KEY));
+    }
+
+    // And it is nowhere else.
+    let report = std::fs::read_to_string(scratch.join("book.epub.report.json")).expect("report");
+    for (what, text) in [
+        (
+            "stdout",
+            String::from_utf8_lossy(&output.stdout).into_owned(),
+        ),
+        (
+            "stderr",
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        ),
+        ("the report", report),
+    ] {
+        assert!(!text.contains(KEY), "the key is in {what}");
+    }
+    // Nor in anything the engine wrote: the book, and the answer cache in the data directory.
+    let mut written = vec![scratch.join("book.epub")];
+    written.extend(files_under(&scratch.join("data")));
+    for path in written {
+        let bytes = std::fs::read(&path).expect("readable");
+        assert!(
+            !bytes
+                .windows(KEY.len())
+                .any(|window| window == KEY.as_bytes()),
+            "the key is in {}",
+            path.display()
+        );
+    }
+
+    // No inline key: the flag does not exist, and refusing it does not echo what followed it.
+    for flag in ["--llm-api-key", "--api-key"] {
+        let inline = Command::new(binary())
+            .arg("convert")
+            .arg(common::fixture("f01_prose_single_column"))
+            .args(["--ai", flag, KEY])
+            .output()
+            .expect("the binary runs");
+        assert_eq!(inline.status.code(), Some(2), "{flag}");
+        assert!(
+            !String::from_utf8_lossy(&inline.stderr).contains(KEY),
+            "{flag}"
+        );
+        assert!(
+            !String::from_utf8_lossy(&inline.stdout).contains(KEY),
+            "{flag}"
+        );
+    }
+}
+
+/// Every file under `root`, however deep.
+fn files_under(root: &std::path::Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(directory) = stack.pop() {
+        for entry in std::fs::read_dir(&directory)
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    files
+}
+
+/// The provider flags mean nothing without `--ai`, and an unknown provider is refused by name.
+#[test]
+fn provider_flags_need_ai_and_a_known_provider() {
+    for extra in [
+        &["--llm-allow-host", "example.com"][..],
+        &["--llm-model", "qwen3:1.7b"],
+        &["--llm-provider", "ollama"],
+        &["--ai", "--llm-provider", "openai"],
+        &["--ai", "--llm-provider", "openai-compatible"],
+    ] {
+        let output = Command::new(binary())
+            .arg("convert")
+            .arg(common::fixture("f01_prose_single_column"))
+            .args(["-o", "/nonexistent/never-written.epub"])
+            .args(extra)
+            .output()
+            .expect("the binary runs");
+        assert_eq!(output.status.code(), Some(2), "{extra:?}");
+    }
+}

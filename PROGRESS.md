@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 11
-CURRENT_ITEM: P11.6 — `openconvert`: provider resolution, consent flag, `E_CONSENT_REQUIRED`
-              (rows 11.5, 11.8). Phase 11 is on `phase/11-byo-providers`; P11.1–P11.5 are done. Phase 7.5 is still parked.
+CURRENT_ITEM: P11.7 — consent in the report; a failing provider degrades (rows 11.7, 11.9).
+              Phase 11 is on `phase/11-byo-providers`; P11.1–P11.6 are done. Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -174,7 +174,7 @@ What a fresh session needs:
 ## Current work item
 
 **Phase 11 — BYO providers**, on `phase/11-byo-providers` (worktree `/home/user/wt/phase10`).
-Next: **P11.6**.
+Next: **P11.7**.
 
 ## Phase 11 — built on `phase/11-byo-providers`
 
@@ -188,7 +188,7 @@ Work items, in order, with the plan's test rows against each:
       `keep_alive`, `think: false` — rows 11.2, 11.3
 - [x] **P11.4** `oc-net::detect`: `Transport::get`, `detect_ollama`, the capability probe — row 11.1
 - [x] **P11.5** the Phase-8 cassettes through every adapter — row 11.10
-- [ ] **P11.6** `openconvert`: provider resolution, `--llm-provider`/`--llm-model`/`--llm-allow-host`,
+- [x] **P11.6** `openconvert`: provider resolution, `--llm-provider`/`--llm-model`/`--llm-allow-host`,
       `E_CONSENT_REQUIRED` — rows 11.5, 11.8
 - [ ] **P11.7** consent in the report; a failing provider degrades — rows 11.7, 11.9
 - [ ] **P11.8** `openconvert provider detect|check|probe` (what Phase 12's settings page calls)
@@ -215,6 +215,12 @@ What a fresh session needs:
 - **Row 11.10** (`oc-ai/tests/contract.rs`) asks every committed cassette through five adapter
   configurations over `tests/common/cassette_server.rs` and compares with `Replay`: re-recording
   cassettes needs no per-adapter work.
+- **`convert --ai` flags**: `--llm-provider builtin|ollama|openai-compatible`, `--llm-model`,
+  `--llm-allow-host <HOST>` (the consent; must equal the endpoint's host). No consent → exit 2,
+  `fatal{E_CONSENT_REQUIRED}` naming the host, zero connections. `ai_endpoint::open_with` takes a
+  `Connector` (tests use an in-process one); `Opened { provider, server, kind, consent }`. The
+  probe picks the adapter; a model is never guessed. `openconvert/tests/common/endpoint.rs` is a
+  loopback model server for binary tests.
 - Build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0`. **Disk is tight** (~5 GB free while
   three worktrees build).
 
@@ -976,7 +982,9 @@ Phase 10's, each logged in `docs/DECISIONS_LOG.md` (2026-09-23):
     refused; no silhouette check (none is computed); run-in candidates do not ride along (no slot in
     the v1 payload); fewer than 8 held-out lines → no call; no size-rank heading → no call
     (`pregate.headings`).
-12. **A non-loopback `--llm-endpoint` is exit 2** until Phase 11 brings consent (D10).
+12. ~~**A non-loopback `--llm-endpoint` is exit 2** until Phase 11 brings consent (D10).~~
+    **Closed by Phase 11:** it is still exit 2 without consent, now `E_CONSENT_REQUIRED`; with
+    `--llm-allow-host <HOST>` naming it (and `https://`) it is used, and the report records it.
 13. **The wall-clock stop raises `W_LLM_TIME_EXHAUSTED`**, not detail 6's `W_LLM_BUDGET_EXHAUSTED`,
     whose template speaks of calls.
 14. **Invented numbers**, each `provisional` with owner and `review_by`: the chunk overlap (20), the
@@ -992,6 +1000,8 @@ Phase 11's, each logged in `docs/DECISIONS_LOG.md` (2026-09-23):
     thresholds: `llm.ollama_{num_ctx, template_overhead_tokens, keep_alive_secs}`.
 17. **A generic OpenAI-compatible server is probed as constraining nothing** (schema in the prompt,
     `W_LLM_UNCONSTRAINED`): a `GET` cannot show that `response_format` is honoured.
+18. **Consent at the command line is `--llm-allow-host <HOST>`**, naming the endpoint's host; the
+    job spec's `non_loopback_consent: true` is consent to its own endpoint's host.
 
 ## Phase 7 — Definition of Done
 
@@ -1518,3 +1528,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P11.2     oc-ai: provider adapters; an unconstrained provider warns (11.4 + 3)  ad6cea3
 2026-09-23  P11.3     oc-ai: Ollama through /api/chat, num_ctx always set, format schema (11.2, 11.3 + 1)  e50805a
 2026-09-23  P11.4     oc-net: detect Ollama on localhost:11434; probe what an endpoint is (11.1 + 3)  e7f7945
+2026-09-23  P11.5     oc-ai: the cassette contract through every adapter (11.10)  933dd2b

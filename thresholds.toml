@@ -825,6 +825,13 @@ evidence = "PHASE 10: the context an engine-owned server is started with for a -
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[llm.provider_probe_timeout_millis]
+value = 5000
+source = "provisional"
+evidence = "PHASE 11 detail 5: how long each GET of the capability probe (/props, /api/tags, /v1/models) and of `openconvert provider detect` may take. A server that has not answered by then is treated as absent and the book converts without it (W_LLM_UNAVAILABLE). Longer than llm.health_probe_timeout_millis because the endpoint may be across a network. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [llm.ollama_num_ctx]
 value = 8192
 source = "provisional"

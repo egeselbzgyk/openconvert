@@ -6,6 +6,8 @@
 
 #![allow(dead_code)]
 
+pub mod endpoint;
+
 use oc_core::thresholds::T;
 use oc_epub::EpubOptions;
 use oc_model::document::PresetName;

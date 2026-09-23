@@ -175,6 +175,8 @@ usage:
                                   [--modified <YYYY-MM-DDThh:mm:ssZ>] [--report <PATH.json>]
                                   [--locale en|de|tr]
                                   [--ai [--ai-all-tasks] [--llm-endpoint <URL>]
+                                        [--llm-provider builtin|ollama|openai-compatible]
+                                        [--llm-model <NAME>] [--llm-allow-host <HOST>]
                                         [--llm-api-key-file <PATH>] [--model-path <PATH>]]
                                   [--no-ai]
   openconvert validate <INPUT.epub> [--tier 1|2] [--json] [--epubcheck-jar <PATH>]
@@ -202,6 +204,17 @@ usage:
   --modified <STAMP>   force dcterms:modified, for byte-identical output
   --report <PATH>      where report.json goes; default <output>.report.json
   --locale <TAG>       en|de|tr; which language the warnings are printed in (default en)
+  --ai                 ask a model the four once-per-book questions; never fails a conversion
+  --llm-endpoint <URL> a server you run: llama-server, Ollama, LM Studio, any OpenAI-compatible
+                       one; the engine asks it what it is before asking it anything else
+  --llm-provider <P>   builtin (start the bundled server), ollama (localhost:11434 unless
+                       --llm-endpoint says otherwise), openai-compatible
+  --llm-model <NAME>   the model as the server names it; needed when it serves more than one
+  --llm-allow-host <HOST>
+                       consent to sending the book's text to HOST, which must be the endpoint's
+                       own host; an endpoint off this computer is refused without it (https only)
+  --llm-api-key-file <PATH>
+                       a file holding the endpoint's key; there is no flag for the key itself
   --tier <1|2>         1 = the internal validator (default), 2 = plus EPUBCheck
   --registry <PATH>    a models.toml to use instead of the one built into the engine
   --dir <PATH>         the model store; default the per-OS data directory
@@ -378,6 +391,24 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
                 ));
                 ai_only.get_or_insert("--model-path");
             }
+            "--llm-provider" => {
+                let value = args
+                    .next()
+                    .ok_or(CliError::MissingValue("--llm-provider"))?;
+                ai_args.provider = Some(parse_provider(&value)?);
+                ai_only.get_or_insert("--llm-provider");
+            }
+            "--llm-model" => {
+                ai_args.model = Some(args.next().ok_or(CliError::MissingValue("--llm-model"))?);
+                ai_only.get_or_insert("--llm-model");
+            }
+            "--llm-allow-host" => {
+                ai_args.allow_host = Some(
+                    args.next()
+                        .ok_or(CliError::MissingValue("--llm-allow-host"))?,
+                );
+                ai_only.get_or_insert("--llm-allow-host");
+            }
             "--help" | "-h" => return Ok(Command::Print(USAGE.to_owned())),
             other if other.starts_with('-') => {
                 return Err(CliError::UnknownOption(other.to_owned()))
@@ -519,6 +550,20 @@ fn parse_preset(value: &str) -> Result<oc_model::document::PresetName, CliError>
         "scanned" => Ok(PresetName::Scanned),
         _ => Err(CliError::BadValue {
             what: "--preset value",
+            value: value.to_owned(),
+        }),
+    }
+}
+
+/// A provider by the name a user knows it by (UI_UX §2.4): the built-in server is `builtin`.
+fn parse_provider(value: &str) -> Result<oc_ai::provider::ProviderKind, CliError> {
+    use oc_ai::provider::ProviderKind;
+    match value {
+        "builtin" => Ok(ProviderKind::LocalSidecar),
+        "ollama" => Ok(ProviderKind::Ollama),
+        "openai-compatible" => Ok(ProviderKind::OpenAiCompatible),
+        _ => Err(CliError::BadValue {
+            what: "--llm-provider value",
             value: value.to_owned(),
         }),
     }

@@ -74,18 +74,22 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
         },
     };
 
-    // `--ai`: open the model, or learn why not. Only an endpoint off this machine is refused;
-    // anything else that stops a model answering converts the book without one, and says so.
+    // `--ai`: open the model, or learn why not. An endpoint off this machine without consent, and
+    // an endpoint the engine will not interpret, are refused before anything is sent; anything else
+    // that stops a model answering converts the book without one, and says so.
     let (opened, unavailable) = match &args.ai {
         None => (None, None),
         Some(ai) => match ai_endpoint::open(ai, BUNDLED_REGISTRY, &T) {
             Ok(opened) => (Some(opened), None),
-            Err(OpenError::Refused(message)) => {
-                events.fatal(E_USAGE, &message);
-                eprintln!("error: {message}");
-                return ExitCode::Usage;
-            }
             Err(OpenError::Unavailable(reason)) => (None, Some(reason)),
+            Err(refused) => {
+                let (code, message) = refused
+                    .fatal()
+                    .unwrap_or((E_USAGE, "the model could not be opened".to_owned()));
+                events.fatal(code, &message);
+                eprintln!("error: {message}");
+                return refused.exit_code();
+            }
         },
     };
     let cache = oc_ai::cache::FileCache::new(openconvert::data_dir::llm_cache());

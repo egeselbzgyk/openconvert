@@ -4120,3 +4120,36 @@ Decisions:
    `https://host/v1` — how most servers document their base URL — and `https://host` both work.
 Evidence: `crates/oc-net/tests/detect.rs` (row 11.1 and three more).
 Affects: PHASE 11 details 2 and 5, D10, `oc_ai::transport`, `oc_net::detect`.
+
+## 2026-09-23 · `convert --ai` opens a provider: flags, consent, probe, model · Phase 11
+Context: PHASE 11 details 3–5; §2.1 lists `--llm-endpoint` and `--llm-api-key-file` and nothing that
+names a provider, a model, or a consent. The job spec (§2.2) has `endpoint`, `api_key_file`,
+`model_path`, `model_id`, `non_loopback_consent: bool` — and no provider kind.
+Decisions:
+1. **Three flags, all AI-only** (refused without `--ai`, like the others):
+   `--llm-provider builtin|ollama|openai-compatible` (`builtin` is `ProviderKind::LocalSidecar`, the
+   name UI_UX §2.4 gives it), `--llm-model <NAME>` (the job spec's `model_id`), and
+   **`--llm-allow-host <HOST>` — the consent, and it names the host** (D10's "toggle that names the
+   host"). It must equal the endpoint's host, case-insensitively; consent to another host is none.
+   PROVISIONAL — needs maintainer ratification: the flag's name and that it takes the host rather
+   than a bare boolean. The job spec's boolean reads as consent to its own endpoint's host
+   (`AiArgs::consenting_to_the_endpoint`), the desktop dialog having named the host to the user.
+2. **`E_CONSENT_REQUIRED`**, exit 2, a `fatal` whose message names the host, says nothing was sent,
+   and names the flag. The check runs before the key file is read and before any connection: the
+   test counts connections and finds none. Other refusals stay `E_USAGE`.
+3. **The probe picks the adapter** unless `--llm-provider` does: `llama-server` → `LocalSidecar`
+   (so the desktop app's own server, reached through the job spec's endpoint, gets GBNF and
+   `chat_template_kwargs` exactly as in Phase 10), Ollama → `Ollama`, anything else →
+   `OpenAiCompatible` with `ProviderCaps::neither`. A failed probe is `W_LLM_UNAVAILABLE` ("the
+   endpoint did not answer the capability probe"), exit 0. `llm.provider_probe_timeout_millis =
+   5000`, provisional. `--llm-provider ollama` without an endpoint is `http://localhost:11434`.
+4. **A model is never guessed**: `--llm-model`, else the only model the server lists; several, or
+   none, is `W_LLM_UNAVAILABLE` saying to name one. Ollama's `name:latest` answers to `name`. A
+   `llama-server` endpoint keeps Phase 10's id (`--llm-model`, else `--model-path`'s stem, else
+   `endpoint@<host>`); for the engine-owned sidecar `--llm-model` picks the registry entry.
+5. **`ai_endpoint::open_with(args, registry, t, &dyn Connector)`** reaches endpoints through a
+   connector — `Network` (`HttpTransport`) in the engine, an in-process double in tests — so a
+   host off this machine is testable without a network. The report records the consent (P11.7).
+Evidence: `crates/openconvert/tests/providers.rs` (rows 11.5, 11.8 and four more),
+`ai_endpoint::the_job_specs_consent_names_the_endpoints_own_host`.
+Affects: IMPLEMENTATION_PLAN §2.1/§2.2, D10, `openconvert::{ai_endpoint, cli, cmd_convert}`, Phase 12.
