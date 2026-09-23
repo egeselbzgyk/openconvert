@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 10
-CURRENT_ITEM: 10.1 — not started. Phase 9 is complete and merged (2026-09-23); its provisional
-              decisions are listed in the Blocked section. Phase 7.5 is still parked.
+CURRENT_ITEM: P10.2 — `oc-structure::escalate` (rows 10.1, 10.2). Phase 10 is on branch
+              `phase/10-ai-decisions`; Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -162,15 +162,37 @@ What a fresh session needs:
   a gate that did not run is never a pass (`test_a_gate_that_did_not_run_is_never_a_pass`). No run
   of Qwen3.5-2B exists; nothing promotes it.
 
-## Current work item
+## Phase 10 — on branch `phase/10-ai-decisions`
 
-**Phase 10 — AI-assisted decisions (the four tasks).** Not started. What it builds on from Phase 9:
-`oc_core::sidecar` (an `OwnedServer` or an external endpoint via `LlmEndpoint::choose`),
-`oc_net::transport::HttpTransport`, `oc_ai::prefix::check` for `W_LLM_PREFIX_COLD`, and
-`OwnedServer::kill_if_idle`, whose calling loop is Phase 10's. The `convert` flags `--ai`,
-`--llm-endpoint`, `--llm-api-key-file` and `--model-path` arrive with Phase 10 as well. Before any
-live measurement, the Blocked items have to be filled on a machine that can reach huggingface.co
-and github.com.
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P10.1** one definition of the verse band (`oc_core::escalation::line_band`), used by
+      `oc-structure::quotes`; the pre-phase `--no-ai` EPUB hashes pinned — the open finding of
+      2026-09-22, and the byte-identity artefact the rest of the phase is held to
+- [ ] **P10.2** `oc-structure::escalate`: the four predicates over the stage's evidence, the
+      `EscalationRecord` — rows 10.1, 10.2
+- [ ] **P10.3** `oc-ai::task::metadata`: the verbatim-substring check — rows 10.3, 10.4
+- [ ] **P10.4** `oc-ai::task::heading_roles`: pre-gate, held-out check, label ≠ deletion — rows 10.5–10.8
+- [ ] **P10.5** `oc-ai::task::book_structure`: boundaries, chunking with overlap — rows 10.9–10.11
+- [ ] **P10.6** `oc-ai::task::verse_quote`: counter-evidence, the 30-block cap — rows 10.12, 10.13
+- [ ] **P10.7** the plan: degradation order, language gate, wall-clock meter — rows 10.21, 10.22
+- [ ] **P10.8** `openconvert`: the AI step in the pipeline — rows 10.14, 10.15, 10.20
+- [ ] **P10.9** `convert --ai` and the endpoint flags; a missing sidecar degrades — rows 10.16, 10.19
+- [ ] **P10.10** `eval/compare`: McNemar, false repair, gold sets, `docs/AI_EVALUATION.md` — rows 10.17, 10.18
+- [ ] **P10.11** the Definition of Done, CHANGELOG, merge
+
+What a fresh session needs:
+
+- **No model is reachable here** (huggingface.co and GitHub release downloads: 403 on CONNECT). Every
+  live measurement is unverified here; tests use cassettes recorded through the stub and synthetic
+  data. `ai.enabled = false` stays the default.
+- **`--no-ai` output is pinned**: `crates/openconvert/tests/snapshots/ai__no_ai_epub_sha256.snap`
+  was written at `8f045a1` (Phase 9's merge), before any Phase 10 change. It must not move.
+- **The tagged fixtures** are a separate invocation: `cargo run -p xtask -- fixtures` and
+  `cargo run -p xtask -- fixtures --keep-structtree` (oc-pdf's `struct_tree_is_read_from_the_catalogue`
+  needs the second).
+- Build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0` (disk is shared with two other
+  worktrees; the whole workspace is ~3.6 GB that way).
 
 Phase 7.5 is **parked, not done**. Its section below is the resume point. The deterministic
 baseline Phase 10 will be compared against is the parked one: 79 of 104 corpus documents clean,

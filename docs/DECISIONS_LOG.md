@@ -3791,3 +3791,18 @@ manager exists. Phase 12 wires it, with the engine receiving the app's server th
 `--llm-endpoint` and `--llm-api-key-file`. Those two `convert` flags arrive with Phase 10's use of
 a model, not before, because a flag that does nothing is worse than no flag.
 Affects: PHASE 9 detail 3, Phase 10 (CLI flags), Phase 12 (`apps/desktop/src-tauri/src/llm.rs`).
+
+## 2026-09-23 · The verse band has one definition, and the classifier reads it · Phase 10
+Context: the open finding of 2026-09-22 — `oc-structure::quotes::classify_indented` compared the
+`f32` short-line ratio widened to `f64` against the band's bounds, so a block exactly on
+`verse.short_line_ratio_min` (7 short lines of 20) was a block quotation to the classifier and an
+escalation to `oc_core::escalation::verse_quote`.
+Decision: the band's edges are defined once, `oc_core::escalation::line_band` (`Full`, `Between`,
+`Short`, compared in `f32`), and `verse_quote` is written over it. The classifier asks
+`verse_quote` whether a block is ambiguous and `line_band` which side of the band a settled block is
+on; it passes `blocks_remaining: u32::MAX`, because the block budget is the AI step's to spend and
+not a property of a block. Behaviour is unchanged everywhere except on the lower bound itself.
+Evidence: `quotes::tests::a_block_exactly_on_the_lower_bound_is_ambiguous_not_a_quotation` fails on
+the widening (`left: BlockQuote, right: Ambiguous`) and passes on the fix; the ten fixtures'
+`--no-ai` EPUB hashes, pinned before the change in `ai__no_ai_epub_sha256.snap`, did not move.
+Affects: `oc-core::escalation`, `oc-structure::quotes` (the finding is closed).
