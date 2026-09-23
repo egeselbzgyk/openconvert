@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 11
-CURRENT_ITEM: P11.8 — `openconvert provider detect|check|probe` (Phase 12's settings page).
-              Phase 11 is on `phase/11-byo-providers`; P11.1–P11.7 are done. Phase 7.5 is still parked.
+CURRENT_ITEM: P11.9 — Phase 11's Definition of Done, CHANGELOG, merge.
+              Phase 11 is on `phase/11-byo-providers`; P11.1–P11.8 are done. Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -174,7 +174,7 @@ What a fresh session needs:
 ## Current work item
 
 **Phase 11 — BYO providers**, on `phase/11-byo-providers` (worktree `/home/user/wt/phase10`).
-Next: **P11.8**.
+Next: **P11.9**.
 
 ## Phase 11 — built on `phase/11-byo-providers`
 
@@ -191,7 +191,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P11.6** `openconvert`: provider resolution, `--llm-provider`/`--llm-model`/`--llm-allow-host`,
       `E_CONSENT_REQUIRED` — rows 11.5, 11.8
 - [x] **P11.7** consent in the report; a failing provider degrades — rows 11.7, 11.9
-- [ ] **P11.8** `openconvert provider detect|check|probe` (what Phase 12's settings page calls)
+- [x] **P11.8** `openconvert provider detect|check|probe` (what Phase 12's settings page calls)
 - [ ] **P11.9** the Definition of Done, CHANGELOG, merge
 
 What a fresh session needs:
@@ -1533,3 +1533,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P11.4     oc-net: detect Ollama on localhost:11434; probe what an endpoint is (11.1 + 3)  e7f7945
 2026-09-23  P11.5     oc-ai: the cassette contract through every adapter (11.10)  933dd2b
 2026-09-23  P11.6     openconvert: providers by probe, consent by name, E_CONSENT_REQUIRED (11.5, 11.8 + 5)  525fc0e
+2026-09-23  P11.7     openconvert: the report records consent; a failing provider degrades (11.7, 11.9)  4d1bd4a

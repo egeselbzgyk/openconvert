@@ -704,3 +704,134 @@ fn provider_failure_degrades_to_deterministic() {
         assert_eq!(banner["args"]["reason"], *reason, "{name}");
     }
 }
+
+/// `openconvert provider …` as JSON on stdout: what the desktop's Provider settings read.
+fn provider_cmd(args: &[&str]) -> (Option<i32>, serde_json::Value, String) {
+    let output = Command::new(binary())
+        .arg("provider")
+        .args(args)
+        .args(["--json", "--progress", "json"])
+        .output()
+        .expect("the binary runs");
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let json = serde_json::from_str(&stdout).unwrap_or(serde_json::Value::Null);
+    (
+        output.status.code(),
+        json,
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+    )
+}
+
+/// `provider detect`: Ollama on `localhost:11434`, or nothing — never an error, whichever this
+/// machine has.
+#[test]
+fn provider_detect_reports_ollama_or_nothing() {
+    let (code, json, stderr) = provider_cmd(&["detect"]);
+    assert_eq!(code, Some(0), "{stderr}");
+    match &json["ollama"] {
+        serde_json::Value::Null => {}
+        found => {
+            assert_eq!(found["url"], "http://localhost:11434");
+            assert!(found["models"].is_array());
+        }
+    }
+    assert!(json.get("ollama").is_some(), "{json}");
+}
+
+/// `provider check <URL>`: whether consent is needed, before anything is sent — nothing is.
+#[test]
+fn provider_check_says_whether_consent_is_needed() {
+    for (url, host, requires_consent, usable) in [
+        ("http://localhost:11434", "localhost", false, true),
+        ("http://[::1]:8080/v1", "::1", false, true),
+        ("https://llm.example.org/v1", "llm.example.org", true, true),
+        ("http://192.168.1.20:11434", "192.168.1.20", true, false),
+    ] {
+        let (code, json, stderr) = provider_cmd(&["check", url]);
+        assert_eq!(code, Some(0), "{url}: {stderr}");
+        assert_eq!(json["host"], host, "{url}");
+        assert_eq!(json["requires_consent"], requires_consent, "{url}");
+        assert_eq!(json["usable"], usable, "{url}");
+        assert_eq!(json["loopback"], !requires_consent, "{url}");
+        if !usable {
+            assert!(json["reason"]
+                .as_str()
+                .is_some_and(|reason| reason.contains("https")));
+        }
+    }
+    let (code, _, stderr) = provider_cmd(&["check", "http://user@localhost"]);
+    assert_eq!(code, Some(2), "not a URL the engine will use: {stderr}");
+}
+
+/// `provider probe <URL>`: what `convert --ai` would open there — the adapter, what it can
+/// constrain, the model — under the same consent rule; an endpoint that does not answer is exit 1
+/// with the reason.
+#[test]
+fn provider_probe_answers_what_convert_would_open() {
+    let ollama = Endpoint::start(&[(
+        "GET",
+        "/api/tags",
+        200,
+        r#"{"models":[{"name":"qwen3:1.7b"},{"name":"llama3.2:3b"}]}"#,
+    )]);
+    let (code, json, stderr) = provider_cmd(&["probe", &ollama.url(), "--llm-model", "qwen3:1.7b"]);
+    assert_eq!(code, Some(0), "{stderr}");
+    assert_eq!(json["available"], true);
+    assert_eq!(json["provider"], "ollama");
+    assert_eq!(json["constraint"], "json_schema");
+    assert_eq!(json["model"], "qwen3:1.7b");
+    assert_eq!(
+        json["models"],
+        serde_json::json!(["qwen3:1.7b", "llama3.2:3b"])
+    );
+    assert!(json["consent"].is_null());
+    assert!(
+        ollama
+            .received()
+            .iter()
+            .all(|request| request.method == "GET"),
+        "a probe asks, it never sends a question"
+    );
+
+    let (code, json, _) = provider_cmd(&["probe", &ollama.url()]);
+    assert_eq!(code, Some(1), "two models and none named");
+    assert_eq!(json["available"], false);
+    assert_eq!(
+        json["reason"],
+        "Ollama serves more than one model; name one with --llm-model"
+    );
+
+    let llama = Endpoint::start(&[("GET", "/props", 200, LLAMA_PROPS)]);
+    let (code, json, _) = provider_cmd(&["probe", &llama.url()]);
+    assert_eq!(code, Some(0));
+    assert_eq!(json["provider"], "local_sidecar");
+    assert_eq!(json["constraint"], "gbnf");
+
+    let (code, json, stderr) = provider_cmd(&["probe", "https://llm.example.org/v1"]);
+    assert_eq!(code, Some(2), "{json}");
+    let fatal = stderr
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .find(|event| event["t"] == "fatal")
+        .expect("a fatal event");
+    assert_eq!(fatal["code"], E_CONSENT_REQUIRED);
+
+    let silent = Endpoint::start(&[]);
+    let (code, json, _) = provider_cmd(&["probe", &silent.url()]);
+    assert_eq!(code, Some(1));
+    assert_eq!(
+        json["reason"],
+        "the endpoint did not answer the capability probe"
+    );
+
+    for wrong in [
+        &["detect", "http://localhost:11434"][..],
+        &["check"],
+        &["probe"],
+        &["detect", "--llm-model", "x"],
+        &["frobnicate"],
+    ] {
+        let (code, _, _) = provider_cmd(wrong);
+        assert_eq!(code, Some(2), "{wrong:?}");
+    }
+}

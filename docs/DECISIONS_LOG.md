@@ -4173,3 +4173,27 @@ Decisions:
    for byte, exit 0 — for the `llama-server`, Ollama and generic adapters alike.
 Evidence: `crates/openconvert/tests/providers.rs` (rows 11.7, 11.9).
 Affects: PIPELINE §13 (report), D10, `openconvert::report` (`ReportInput.{provider, consent}`).
+
+## 2026-09-23 · `openconvert provider`: what the settings page reads · Phase 11
+Context: PHASE 11's files name `crates/openconvert/src/cmd_provider.rs` and a Provider settings
+page "wired in Phase 12" (UI_UX §2.4: Built-in / Ollama (detected) / Custom endpoint with the
+consent dialog naming the host). §2.1 has no `provider` subcommand. The desktop app runs the engine
+as a subprocess, so what the settings page needs has to be a command.
+Decisions:
+1. **`provider detect [--json]`** — `{"ollama": null}` or `{"ollama": {"url", "models"}}` from
+   `GET http://localhost:11434/api/tags`; always exit 0. Loopback only: no consent.
+2. **`provider check <URL> [--json]`** — `{url, host, loopback, requires_consent, usable, reason}`;
+   sends nothing. `usable` is false only for plain http off the machine (`reason` says https). A URL
+   the engine will not interpret is exit 2. This is how a UI decides to show the consent dialog.
+3. **`provider probe <URL> [--llm-provider] [--llm-model] [--llm-allow-host] [--llm-api-key-file]
+   [--json]`** — `convert --ai`'s own opening (`ai_endpoint::open`), so the two cannot disagree:
+   `{available: true, url, host, provider, constraint, thinking, model, models, consent}` exit 0;
+   `{available: false, url, reason}` exit 1; no consent → exit 2, `fatal{E_CONSENT_REQUIRED}`.
+   It sends `GET`s only — no question, no document text.
+4. **No network-log event is added** to the NDJSON schema (§2.3 is closed): the audit log of every
+   outbound connection is PHASE 14 detail 12 (`oc-net/src/audit.rs`). What Phase 11 gives it: every
+   connection `convert --ai` and `provider probe` make goes through `ai_endpoint::Connector`, and
+   the report's `consent` says when text left the machine.
+Evidence: `crates/openconvert/tests/providers.rs` (`provider_detect_reports_ollama_or_nothing`,
+`provider_check_says_whether_consent_is_needed`, `provider_probe_answers_what_convert_would_open`).
+Affects: IMPLEMENTATION_PLAN §2.1, UI_UX §2.4, Phase 12 (`routes/settings/providers.svelte`), Phase 14.

@@ -88,6 +88,9 @@ pub struct Opened {
     pub kind: ProviderKind,
     /// The consent the endpoint needed, when it was off this machine: the report prints it.
     pub consent: Option<ConsentRecord>,
+    /// The models the endpoint listed when it was probed (none for `llama-server`, which serves
+    /// the one it loaded, and for a server the engine started).
+    pub models: Vec<String>,
 }
 
 /// Why no provider was opened.
@@ -225,6 +228,10 @@ fn open_endpoint(
     let probe_timeout = millis(t.llm.provider_probe_timeout_millis);
     let server = detect::probe(transport.as_ref(), probe_timeout)
         .map_err(|_| OpenError::Unavailable("the endpoint did not answer the capability probe"))?;
+    let listed = match &server {
+        Server::LlamaServer => Vec::new(),
+        Server::Ollama { models } | Server::OpenAiCompatible { models } => models.clone(),
+    };
     let kind = args.provider.unwrap_or(match &server {
         Server::LlamaServer => ProviderKind::LocalSidecar,
         Server::Ollama { .. } => ProviderKind::Ollama,
@@ -243,8 +250,8 @@ fn open_endpoint(
             Box::new(local_sidecar(transport, model_id, temperature, timeout))
         }
         ProviderKind::Ollama => {
-            let models = match server {
-                Server::Ollama { models } => models,
+            let models = match &server {
+                Server::Ollama { models } => models.clone(),
                 _ => detect::detect_ollama(transport.as_ref(), probe_timeout)
                     .map(|info| info.models)
                     .unwrap_or_default(),
@@ -265,11 +272,9 @@ fn open_endpoint(
             ))
         }
         ProviderKind::OpenAiCompatible => {
-            let (caps, listed) = match &server {
-                Server::LlamaServer => (ProviderCaps::grammar(), Vec::new()),
-                Server::Ollama { models } | Server::OpenAiCompatible { models } => {
-                    (ProviderCaps::neither(), models.clone())
-                }
+            let caps = match &server {
+                Server::LlamaServer => ProviderCaps::grammar(),
+                Server::Ollama { .. } | Server::OpenAiCompatible { .. } => ProviderCaps::neither(),
             };
             let model = match (&args.model, listed.as_slice()) {
                 (Some(model), _) => model.clone(),
@@ -300,6 +305,7 @@ fn open_endpoint(
         server: None,
         kind,
         consent: granted,
+        models: listed,
     })
 }
 
@@ -420,6 +426,7 @@ fn spawn_sidecar(args: &AiArgs, registry_text: &str, t: &Thresholds) -> Result<O
         server: Some(server),
         kind: ProviderKind::LocalSidecar,
         consent: None,
+        models: Vec::new(),
     })
 }
 
