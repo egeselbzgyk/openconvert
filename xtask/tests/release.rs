@@ -503,7 +503,20 @@ fn a_release_body_missing_one_hash_is_refused() {
 fn the_installer_budget_counts_installers_only() {
     use xtask::release::{collect, installer_budget, over_budget, Os};
 
-    assert_eq!(installer_budget(), 45_000_000, "D12's upper estimate");
+    assert_eq!(
+        installer_budget(Os::Windows),
+        45_000_000,
+        "D12's upper estimate"
+    );
+    assert_eq!(
+        installer_budget(Os::Macos),
+        45_000_000,
+        "D12's upper estimate"
+    );
+    // The AppImage carries WebKitGTK: 112 953 848 bytes measured after Phase 14, and a budget of
+    // its own (maintainer decision 2026-09-23).
+    assert_eq!(installer_budget(Os::Linux), 120_000_000);
+    assert!(112_953_848 <= installer_budget(Os::Linux));
     let bundle = fake_bundle(
         "macos",
         &[
@@ -556,7 +569,7 @@ fn installer_size_within_budget() {
     use xtask::release::{collect, installer_budget, over_budget, Os};
 
     let release = collect(&required_env("OC_BUNDLE_DIR"), Os::host()).expect("installers");
-    let budget = installer_budget();
+    let budget = installer_budget(Os::host());
     for file in release.files.iter().filter(|f| f.kind.is_installer()) {
         println!("{} bytes  {}  (budget {budget})", file.bytes, file.name);
     }
