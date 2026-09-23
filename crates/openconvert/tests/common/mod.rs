@@ -6,6 +6,7 @@
 
 #![allow(dead_code)]
 
+pub mod endpoint;
 pub mod ocr;
 
 use oc_core::thresholds::T;

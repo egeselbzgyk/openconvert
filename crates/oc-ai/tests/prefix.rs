@@ -6,8 +6,8 @@ mod common;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use oc_ai::openai::{ClientConfig, OpenAiCompatible};
 use oc_ai::prefix::{check, W_LLM_PREFIX_COLD};
+use oc_ai::provider::openai_compatible::{ClientConfig, OpenAiCompatible};
 use oc_ai::provider::{Constraint, LlmProvider, LlmResponse, Purpose, ThinkingControl};
 use oc_ai::transport::{Transport, TransportError};
 

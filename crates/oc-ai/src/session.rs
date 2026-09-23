@@ -178,7 +178,8 @@ impl<'a> Session<'a> {
         self.stopped.as_ref()
     }
 
-    /// Every warning the session raised, each once: budget, time, a cold prefix.
+    /// Every warning the session raised, each once: budget, time, a cold prefix, an unconstrained
+    /// provider.
     pub fn warnings(&self) -> &[Warning] {
         &self.warnings
     }
@@ -249,6 +250,17 @@ impl Asker for Session<'_> {
                         return Err(stop);
                     }
                 };
+                // An answer nothing constrained: gate S will refuse more of them, and the report
+                // says why (PHASE 11 detail 1).
+                if self.provider.capabilities().constraint == crate::provider::Constraint::None {
+                    self.warn_once(
+                        Warning::new(
+                            crate::provider::W_LLM_UNCONSTRAINED,
+                            oc_model::doc::Severity::Warn,
+                        )
+                        .with_arg("model", model_id.clone()),
+                    );
+                }
                 if let Some(cache) = self.cache {
                     // An answer the cache could not keep is still an answer; the next run pays for
                     // it again. A thinking block is never filed: gate S refuses it anyway.

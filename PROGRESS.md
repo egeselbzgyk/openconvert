@@ -3,9 +3,10 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 11
-CURRENT_ITEM: 11.1 — not started. Phase 10 is complete and merged (2026-09-23); its provisional
-              decisions are listed in the Blocked section. Phase 7.5 is still parked.
+CURRENT_PHASE: 12
+CURRENT_ITEM: Phase 12 — Desktop UI (being built on `phase/12-desktop-ui`). Phase 11 is complete
+              and merged (2026-09-23); what Phase 12 must wire from it is in the Phase 11 section.
+              Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -67,7 +68,13 @@ LAST_UPDATED: 2026-09-23
       into `main` 2026-09-23. `--no-ai` output is byte-identical to the pre-phase snapshot. No model
       is reachable here, so A10.4/A10.5 — McNemar and the false-repair rate — are unmeasured, the
       language maps ship empty, and every provisional decision is in the Blocked section.)*
-- [ ] **Phase 11** — BYO providers
+- [x] **Phase 11** — BYO providers
+      *(all 10 named tests exist and pass, plus 18 additions and one live test behind `live-llm`;
+      built on `phase/11-byo-providers` and merged into `main` 2026-09-23. Consent that names the
+      host, enforced in `oc-net`; Ollama through `/api/chat` with `num_ctx` always set; the
+      cassette contract through every adapter; `openconvert provider detect|check|probe`. No real
+      provider is reachable here: a live Ollama and a remote endpoint are unverified, and the
+      provisional decisions are in the Blocked section.)*
 - [ ] **Phase 12** — Desktop UI  *(includes the early signing/notarization dry run)*
 - [x] **Phase 13** — OCR  *(VD-g closed. All 22 named tests green, plus 27 additions (21 Rust, 6 Python); built on
       `phase/13-ocr` and merged into `main` 2026-09-23. Tesseract 5.3.4 was on this machine, so the
@@ -231,11 +238,131 @@ What a fresh session needs:
 
 ## Current work item
 
-**Phase 11 — BYO providers.** Not started. What it builds on from Phase 10: `convert --ai` with
-`--llm-endpoint` (loopback only today — a non-loopback host is exit 2 until Phase 11's consent),
-`openconvert::ai_endpoint::open`, `oc_ai::session::Session`, and the external endpoint's model id
-(`--model-path`'s stem or `endpoint@<host>`), which a named provider should replace. Enabling any AI
-task for a language still needs the evaluation (Blocked 9).
+**Phase 12 — Desktop UI**, built concurrently on `phase/12-desktop-ui`. Phase 11 is merged; the
+list of what Phase 12 must wire from it is at the end of the Phase 11 section below.
+
+## Phase 11 — built on `phase/11-byo-providers`, merged 2026-09-23
+
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P11.1** `oc-net::consent`: `requires_consent`, `authorize`, `ConsentRecord`; `HttpTransport`
+      cannot be built to a host off this machine without consent naming it — row 11.6
+- [x] **P11.2** `oc-ai::provider`: the adapter modules, `ProviderKind`, schema-in-prompt and
+      `W_LLM_UNCONSTRAINED` when a provider constrains nothing — row 11.4
+- [x] **P11.3** `oc-ai::provider::ollama`: native `/api/chat`, `format`, `options.num_ctx`,
+      `keep_alive`, `think: false` — rows 11.2, 11.3
+- [x] **P11.4** `oc-net::detect`: `Transport::get`, `detect_ollama`, the capability probe — row 11.1
+- [x] **P11.5** the Phase-8 cassettes through every adapter — row 11.10
+- [x] **P11.6** `openconvert`: provider resolution, `--llm-provider`/`--llm-model`/`--llm-allow-host`,
+      `E_CONSENT_REQUIRED` — rows 11.5, 11.8
+- [x] **P11.7** consent in the report; a failing provider degrades — rows 11.7, 11.9
+- [x] **P11.8** `openconvert provider detect|check|probe` (what Phase 12's settings page calls)
+- [x] **P11.9** the Definition of Done, CHANGELOG, merge; A11.1 live behind `live-llm`
+
+What a fresh session needs:
+
+- **Consent is enforced in `oc-net`** (`consent::authorize`): loopback (`localhost`, 127/8, `::1`,
+  `::ffff:127.x`) needs nothing; any other host needs a `ConsentRecord` naming it, and `https://`
+  (plain http off the machine is refused even with consent — PROVISIONAL, DECISIONS_LOG
+  2026-09-23). `HttpTransport::new` is loopback-only; `HttpTransport::with_consent` takes the record.
+  URLs with user-info, `%`, `\`, `?`, `#` or whitespace are refused, never interpreted.
+- **The adapters are `oc_ai::provider::{local_sidecar, openai_compatible, ollama}`** (`oc_ai::openai`
+  is gone — moved to `provider::openai_compatible`). `custom_endpoint` takes probed `ProviderCaps`;
+  with `ProviderCaps::neither()` the task's `schema.json` is appended to the user message and the
+  `Session` raises `W_LLM_UNCONSTRAINED` once. `ProviderKind` names the adapter.
+- **Ollama is `/api/chat`, not `/v1`** (PROVISIONAL, DECISIONS_LOG 2026-09-23): Ollama's `/v1`
+  layer drops `num_ctx`/`format`/`keep_alive`/`think`. Every request sets `options.num_ctx` ≥
+  `llm.ollama_num_ctx` and ≥ prompt bytes + overhead + `max_tokens`, `truncate: false`,
+  `shift: false`. `tests/common/cassette_server.rs` answers both wire formats from the cassettes.
+- **`oc_net::detect`**: `detect_ollama` (`GET /api/tags`), `probe` (`/props` → llama-server,
+  `/api/tags` → Ollama, `/v1/models` → generic, which is `ProviderCaps::neither` — PROVISIONAL),
+  `api_root` strips a trailing `/v1`. `Transport::get` exists (default 404).
+- **Row 11.10** (`oc-ai/tests/contract.rs`) asks every committed cassette through five adapter
+  configurations over `tests/common/cassette_server.rs` and compares with `Replay`: re-recording
+  cassettes needs no per-adapter work.
+- **`convert --ai` flags**: `--llm-provider builtin|ollama|openai-compatible`, `--llm-model`,
+  `--llm-allow-host <HOST>` (the consent; must equal the endpoint's host). No consent → exit 2,
+  `fatal{E_CONSENT_REQUIRED}` naming the host, zero connections. `ai_endpoint::open_with` takes a
+  `Connector` (tests use an in-process one); `Opened { provider, server, kind, consent }`. The
+  probe picks the adapter; a model is never guessed. `openconvert/tests/common/endpoint.rs` is a
+  loopback model server for binary tests.
+- **The report**: top-level `consent {host, granted_at, scope}` only when a remote endpoint was
+  opened under consent; `ai.provider` names the adapter. `ReportInput` gained `provider` and
+  `consent`. `report__report_f07.snap` moved only in its threshold count (205 → 209).
+- Build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0`. **Disk is tight** (~5 GB free while
+  three worktrees build).
+
+### Phase 11 — Definition of Done
+
+`IMPLEMENTATION_PLAN.md` §0.3, row by row. Checked on this machine unless the row says otherwise.
+
+| Row | State |
+|---|---|
+| Every named test exists and passes | **Yes.** All 10 rows under their names: 11.1 and 11.6 in `oc-net` (`tests/detect.rs`, `tests/consent.rs`); 11.2, 11.3 (`tests/ollama.rs`), 11.4 (`tests/providers.rs`) and 11.10 (`tests/contract.rs`) in `oc-ai`; 11.5, 11.7, 11.8, 11.9 in `openconvert` (`tests/providers.rs`). Plus 18 additions, and `ai_against_a_live_ollama_converts_every_book` behind `--features live-llm` (fails loudly without `OC_LIVE_OLLAMA_MODEL` — **unverified here**: Ollama is not installed and no model can be fetched). |
+| `cargo nextest run --workspace` green | **Yes**, 663 tests on the branch (635 + 28); **700** after merging Phase 13's `main`. |
+| Green on Linux/macOS/Windows CI | **Unverified here:** GitHub Actions is disabled; no macOS or Windows machine. |
+| clippy `-D warnings` clean | **Yes**, workspace, all targets, all features (including `live-llm`). |
+| `cargo fmt --check` clean | **Yes.** |
+| `cargo deny check` clean | **Yes.** No new external crate: `oc-net → time` and `openconvert → secrecy` are existing workspace dependencies. |
+| `cargo xtask thresholds-lint` clean | **Yes.** 4 thresholds added (`llm.ollama_{num_ctx, template_overhead_tokens, keep_alive_secs}`, `llm.provider_probe_timeout_millis`), each provisional with owner and `review_by`. |
+| Every Given/When/Then demonstrated | **A11.2, A11.3, A11.4 yes; A11.1 yes against a stub Ollama, live unverified here** (below). |
+| `docs/CHANGELOG.md` entry | **Yes.** |
+| No `TODO`/`FIXME` without an issue number | **Yes**, `xtask ci-lint` clean. |
+
+- **A11.1** — `ollama_detected_on_default_port` (detection on `localhost:11434`),
+  `ollama_num_ctx_is_always_overridden` (every body sets `options.num_ctx` ≥ prompt bytes +
+  overhead + `max_tokens`, `truncate`/`shift` false), `ollama_uses_format_schema` (the task's
+  schema in `format`, the cassette's answer back), `ollama_is_found_on_localhost_and_its_model_is_never_guessed`
+  and `the_probe_decides_the_adapter`. **Unverified here:** the same against a real Ollama — the
+  live test and the nightly `live-ollama` job exist and have not run.
+- **A11.2** — `non_loopback_requires_consent`: `https://example.com/v1` without consent (and with
+  consent for another host) is exit 2, `fatal{E_CONSENT_REQUIRED}` naming `example.com`, no book,
+  no report — and the in-process connector records **zero connections**. The check also lives in
+  `HttpTransport`'s constructors (`a_host_off_this_machine_needs_consent_that_names_it`).
+- **A11.3** — `same_cassettes_pass_on_all_providers`: every committed cassette through the sidecar
+  adapter, a JSON-schema endpoint, an unconstrained one, a Qwen one with `/no_think`, and Ollama;
+  each answer equals `Replay`'s, and the seed canaries pass gate S identically.
+- **A11.4** — `provider_failure_degrades_to_deterministic` (the binary): a 500 on every question
+  through the `llama-server`, Ollama and generic adapters, and an endpoint that answers nothing —
+  each book is the `--no-ai` book byte for byte, exit 0, `W_LLM_UNAVAILABLE` with the reason.
+- **Regression artefacts:** `tests/common/cassette_server.rs` (both wire formats from the committed
+  cassettes); the report snapshot moved only in its threshold count (205 → 209).
+
+### What Phase 12 must wire from Phase 11
+
+Phase 11 did not touch `apps/desktop` (`routes/settings/providers.svelte` is Phase 12's).
+
+- **The engine is the only thing that connects.** The webview needs no network for providers:
+  keep `connect-src 'none'`.
+- **Provider radio (UI_UX §2.4)** — *Built-in*: the job spec's `ai.endpoint` is the app-owned
+  `llama-server` URL, with `ai.api_key_file` and `ai.model_id`; the engine's probe recognises
+  `llama-server` and uses GBNF + `chat_template_kwargs`. *Ollama*: `openconvert provider detect
+  --json` → `{"ollama": {"url": "http://localhost:11434", "models": [...]}}` or `{"ollama": null}`
+  (the "Detected on this computer" tag and the model list); the job spec's endpoint is that URL and
+  `model_id` the chosen model. *Custom endpoint*: base URL (with or without `/v1`), model name,
+  API key file.
+- **Consent dialog (strings `consent.title/body/allow`)** — `openconvert provider check <URL>
+  --json` → `{url, host, loopback, requires_consent, usable, reason}`, sending nothing. Show the
+  dialog naming `host` when `requires_consent`; `usable: false` means plain http off the machine,
+  and `reason` says https is required. On *Allow*, write `ai.non_loopback_consent: true`: the engine
+  reads it as consent to that endpoint's own host (`AiArgs::consenting_to_the_endpoint`); the CLI
+  equivalent is `--llm-allow-host <host>`. The engine remembers nothing (`scope: "run"`): the app
+  keeps the user's choice per configuration and writes it into every job.
+- **Optional "Test connection"** — `openconvert provider probe <URL> [--llm-model M]
+  [--llm-allow-host H] [--llm-api-key-file P] --json` → `{available, provider, constraint,
+  thinking, model, models, consent}` (exit 0), `{available: false, reason}` (exit 1), or exit 2
+  `fatal{E_CONSENT_REQUIRED}`.
+- **Job spec → engine**: `endpoint` → `--llm-endpoint`, `api_key_file` → `--llm-api-key-file`,
+  `model_path` → `--model-path`, `model_id` → `--llm-model`, `non_loopback_consent` →
+  `--llm-allow-host <endpoint host>`. Job-spec v1 has no provider-kind field; the engine probes.
+  (The engine's `--job` reader does not exist yet.)
+- **Events and warnings**: `fatal{code: "E_CONSENT_REQUIRED"}` (exit 2) — show the consent dialog
+  again, never a generic error. `W_LLM_UNAVAILABLE {reason}` and the new `W_LLM_UNCONSTRAINED
+  {model}` have en/de/tr templates. No new NDJSON event type.
+- **Report page**: top-level `consent {host, granted_at, scope}` ("text from this book was sent to
+  {host} at {granted_at}"), and `ai.provider`.
+- **Network log (Settings › Network log)**: no event feeds it yet — it is PHASE 14 detail 12
+  (`oc-net/src/audit.rs`, `<data_dir>/network-audit.log`).
 
 ## Phase 10 — built on `phase/10-ai-decisions`, merged 2026-09-23
 
@@ -995,12 +1122,26 @@ Phase 10's, each logged in `docs/DECISIONS_LOG.md` (2026-09-23):
     refused; no silhouette check (none is computed); run-in candidates do not ride along (no slot in
     the v1 payload); fewer than 8 held-out lines → no call; no size-rank heading → no call
     (`pregate.headings`).
-12. **A non-loopback `--llm-endpoint` is exit 2** until Phase 11 brings consent (D10).
+12. ~~**A non-loopback `--llm-endpoint` is exit 2** until Phase 11 brings consent (D10).~~
+    **Closed by Phase 11:** it is still exit 2 without consent, now `E_CONSENT_REQUIRED`; with
+    `--llm-allow-host <HOST>` naming it (and `https://`) it is used, and the report records it.
 13. **The wall-clock stop raises `W_LLM_TIME_EXHAUSTED`**, not detail 6's `W_LLM_BUDGET_EXHAUSTED`,
     whose template speaks of calls.
 14. **Invented numbers**, each `provisional` with owner and `review_by`: the chunk overlap (20), the
     metadata size-category ratios and input cap, the deep-indent em, the centred-cluster ratio, the
     sidecar timeouts, and `ai_eval.{alpha, noninferiority_margin}`.
+
+Phase 11's, each logged in `docs/DECISIONS_LOG.md` (2026-09-23):
+
+15. **Plain `http://` to a host off this machine is refused even with consent** (`PlaintextRemote`):
+    D10 is silent on the scheme; consent to a host reading the text is not consent to the path.
+16. **Ollama speaks `/api/chat`**, although PHASE 11 detail 1 says every provider speaks `/v1`:
+    Ollama's `/v1` layer silently drops the `num_ctx` and `format` D10 requires. Three invented
+    thresholds: `llm.ollama_{num_ctx, template_overhead_tokens, keep_alive_secs}`.
+17. **A generic OpenAI-compatible server is probed as constraining nothing** (schema in the prompt,
+    `W_LLM_UNCONSTRAINED`): a `GET` cannot show that `response_format` is honoured.
+18. **Consent at the command line is `--llm-allow-host <HOST>`**, naming the endpoint's host; the
+    job spec's `non_loopback_consent: true` is consent to its own endpoint's host.
 
 ### Blocked — Phase 13 (each PROVISIONAL, logged in `docs/DECISIONS_LOG.md` 2026-09-23)
 
@@ -1533,3 +1674,13 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P10.10    eval: McNemar and false repair per task/category/language, the gate (10.17, 10.18 + 4)  203533e
 2026-09-23  P10.11    openconvert: live convert --ai behind live-llm; CHANGELOG; the DoD  7659dae
 2026-09-23  PHASE 10  COMPLETE on phase/10-ai-decisions - DoD checked; A10.4/A10.5, live model, macOS/Windows and CI unverified here
+2026-09-23  P11.1     oc-net: consent names the host; HttpTransport refuses any other (11.6 + 4)  a1515b6
+2026-09-23  P11.2     oc-ai: provider adapters; an unconstrained provider warns (11.4 + 3)  ad6cea3
+2026-09-23  P11.3     oc-ai: Ollama through /api/chat, num_ctx always set, format schema (11.2, 11.3 + 1)  e50805a
+2026-09-23  P11.4     oc-net: detect Ollama on localhost:11434; probe what an endpoint is (11.1 + 3)  e7f7945
+2026-09-23  P11.5     oc-ai: the cassette contract through every adapter (11.10)  933dd2b
+2026-09-23  P11.6     openconvert: providers by probe, consent by name, E_CONSENT_REQUIRED (11.5, 11.8 + 5)  525fc0e
+2026-09-23  P11.7     openconvert: the report records consent; a failing provider degrades (11.7, 11.9)  4d1bd4a
+2026-09-23  P11.8     openconvert: provider detect, check and probe (+ 3)  4450002
+2026-09-23  P11.9     openconvert: A11.1 live behind live-llm; CHANGELOG; the DoD  b8184e1
+2026-09-23  PHASE 11  COMPLETE on phase/11-byo-providers - DoD checked; live Ollama/remote endpoint, macOS/Windows and CI unverified here

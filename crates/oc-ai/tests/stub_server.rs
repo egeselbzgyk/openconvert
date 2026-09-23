@@ -14,8 +14,8 @@ use std::time::Duration;
 
 use oc_ai::gates::fallback::{settle, Choice};
 use oc_ai::gates::schema::gate_response;
-use oc_ai::openai::{ClientConfig, OpenAiCompatible};
 use oc_ai::prompt::v1::heading_roles::HeadingRolesAnswer;
+use oc_ai::provider::openai_compatible::{ClientConfig, OpenAiCompatible};
 use oc_ai::provider::{trace, Constraint, LlmError, LlmProvider, ThinkingControl};
 use oc_ai::transport::{Transport, TransportError};
 use oc_core::thresholds::T;

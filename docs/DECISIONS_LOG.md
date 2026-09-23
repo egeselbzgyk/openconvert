@@ -4186,3 +4186,180 @@ nothing. Adding 6–10 Internet Archive volumes with hOCR-derived ground truth i
 per item, TEST_CORPUS §2).
 Evidence: `ocr_tesseract` (feature `tesseract`), `ocr_scanned`, `test_metrics`/`test_run` additions.
 Affects: PHASE 13 detail 12, TEST_CORPUS §6.3/§6.4, `thresholds.toml` (`ocr.line_size_snap_ratio`).
+
+## 2026-09-23 · Consent lives in `oc-net`; off this machine means `https://` · Phase 11
+Context: PHASE 11 detail 4 and D10 — a non-loopback endpoint needs an explicit toggle that names the
+host; SECURITY §8 puts the host allowlist in `oc-net`, "not left to each provider implementation".
+Decisions:
+1. **`oc_net::consent::authorize(url, consent)` is the one check**, and `HttpTransport` runs it in
+   its constructor: `HttpTransport::new` reaches this machine only; `HttpTransport::with_consent`
+   reaches the one host a `ConsentRecord` names. A refusal happens before any socket exists, so "no
+   bytes sent" is a property of the type, not of each caller remembering.
+2. **Loopback** is `localhost` (exactly), 127/8, `::1`, and `::ffff:127.x` — what `std::net` calls
+   loopback. `localhost.` and `*.localhost` need consent: the resolver is not obliged to agree.
+3. **The URL is parsed narrowly**: user-info, `%`, `\`, `?`, `#`, whitespace and a second colon are
+   refused, never interpreted (`http://127.0.0.1@evil.example` is a request to `evil.example`). An
+   unparseable URL is never loopback.
+4. **PROVISIONAL — needs maintainer ratification: plain `http://` off this machine is refused even
+   with consent.** D10 and SECURITY §8 do not speak to the scheme. Consent says the named host may
+   read the books' text; over plain http everyone on the path can, and an API key rides in the
+   clear. The conservative reading refuses it (`NetError::PlaintextRemote`); a LAN server needs TLS
+   in front of it. Loosening this is a one-line change in `authorize`.
+5. **`ConsentScope` has one variant, `Run`**: the engine remembers nothing. The desktop app keeps a
+   user's choice per configuration (UI_UX §2.4) and writes it into each job spec it runs.
+Evidence: `crates/oc-net/tests/consent.rs` (row 11.6 and four more).
+Affects: D10, SECURITY §8, `oc_net::{consent, transport}`.
+
+## 2026-09-23 · The adapters, and a provider that constrains nothing · Phase 11
+Context: PHASE 11's files put the adapters under `oc-ai/src/provider/`; detail 1 says an endpoint
+with neither GBNF nor JSON Schema degrades to "a schema-in-prompt plus a strict Gate S" and records
+`W_LLM_UNCONSTRAINED`.
+Decisions:
+1. **`oc_ai::openai` moved to `oc_ai::provider::openai_compatible`** (the one client, unchanged), and
+   `provider.rs` became `provider/mod.rs`. `local_sidecar(…)` is that client with GBNF and
+   `chat_template_kwargs`; `custom_endpoint(…)` is it with the probed `ProviderCaps` and D10's
+   generic thinking lever — `/no_think` when the model id contains `qwen` (case-insensitive), nothing
+   otherwise. `ProviderKind { LocalSidecar, OpenAiCompatible, Ollama }` names the adapter, not who
+   owns the server: a user's own `llama-server` the probe recognises is a `LocalSidecar`.
+2. **Schema-in-prompt is the task's own `schema.json`, appended after a blank line to the user
+   message**, with no words around it. The shared system prefix already says "answer only with JSON
+   that matches the grammar you were given", and ratified R-7 keeps prompt text out of Rust: a
+   sentence introducing the schema would be prompt text in code, or a new artifact under the frozen
+   v1. The cache key does not change (it hashes `request.user`, the question), which is right: the
+   question is the same, and gate S judges whatever comes back.
+3. **`W_LLM_UNCONSTRAINED` is raised by the `Session`, once per book, on the first answer an
+   unconstrained provider gives** — not at open, because a book that asks nothing was not affected.
+   Argument: `model`. Gate S is not relaxed in any way.
+Evidence: `crates/oc-ai/tests/providers.rs` (row 11.4 and three more).
+Affects: PHASE 11 detail 1, D10, `oc_ai::{provider, session}`, the warning registry.
+
+## 2026-09-23 · Ollama speaks `/api/chat`, not `/v1/chat/completions` · Phase 11
+Context: PHASE 11 detail 1 says every provider speaks OpenAI-compatible `/v1/chat/completions`;
+detail 2 and D10 say Ollama's answer is constrained through its `format` field with the full JSON
+Schema and its `num_ctx` is explicitly overridden, because the 2 048-token default truncates.
+Read on 2026-09-23: Ollama's OpenAI-compatibility request type (`openai/openai.go`,
+`ChatCompletionRequest`) has no `options`, `num_ctx`, `format`, `keep_alive` or `think` field, and Go's
+JSON decoder drops unknown fields silently; `server/routes.go` truncates native chat messages that
+exceed `NumCtx`. The two details cannot both hold.
+Decisions:
+1. **PROVISIONAL — needs maintainer ratification: D10 wins over detail 1.** `oc_ai::provider::ollama`
+   posts to `/api/chat` — the same two messages, greedy decoding and answer as every adapter — with
+   `stream: false`, `format` (the task's `schema.json`), `options {temperature, num_ctx,
+   num_predict}`, `keep_alive`, `think: false`, `truncate: false` and `shift: false` (`api/types.go`
+   `ChatRequest` has both: an Ollama that knows them errors instead of truncating the prompt or
+   shifting it out of the context). A `num_ctx` sent to `/v1` would be ignored, and the failure it
+   exists to prevent — a silently cut prompt answered well-formed and wrong — would be back.
+2. **`num_ctx = max(llm.ollama_num_ctx, prompt bytes + llm.ollama_template_overhead_tokens +
+   max_tokens)`.** Bytes bound tokens from above for byte-level tokenizers, so the context is never
+   short; a book whose prompts fit asks for one context throughout, so Ollama does not reload the
+   model between calls. Thresholds, all provisional: `llm.ollama_num_ctx = 8192`,
+   `llm.ollama_template_overhead_tokens = 64`, `llm.ollama_keep_alive_secs = 600`.
+3. **The reply** is read from `message.content`, `message.thinking` (kept as `reasoning`, which gate
+   S refuses), `done_reason`, `prompt_eval_count`, `prompt_eval_cached_count`, `eval_count`.
+4. **The provider's id is the model as Ollama names it** (`qwen3:1.7b`): the cache key carries it.
+Evidence: `crates/oc-ai/tests/ollama.rs` (rows 11.2, 11.3 and one more).
+Affects: PHASE 11 details 1–2, D10, `oc_ai::provider::ollama`, `thresholds.toml` (`llm.ollama_*`).
+
+## 2026-09-23 · Detection and the capability probe · Phase 11
+Context: PHASE 11 details 2 and 5 — Ollama auto-detected on `localhost:11434`; a health and
+capability probe once per session, cached, degrading on failure; "version drift … is handled by the
+capability probe rather than by version sniffing". The desktop's job spec carries an endpoint and a
+model and no provider kind (§2.2), so the engine has to learn the kind from the endpoint itself.
+Decisions:
+1. **`Transport` gains `get`** (default: 404, for the chat-only test doubles); `HttpTransport`
+   implements it with its existing GET.
+2. **`oc_net::detect::detect_ollama`** asks `GET /api/tags` and returns the model names; a reply that
+   is not a model list is "not detected", never an error. `ollama_transport()` is the default
+   `http://localhost:11434`, which is loopback and needs no consent.
+3. **`oc_net::detect::probe`** asks, in order and stopping at the first answer: `GET /props` — an
+   object with `default_generation_settings` is `llama-server` (it serves `/api/tags` too, so it is
+   asked first); `GET /api/tags` — Ollama; `GET /v1/models` — any other OpenAI-compatible server.
+   Nothing answering is the probe's error, which the caller turns into `W_LLM_UNAVAILABLE`.
+4. **PROVISIONAL — needs maintainer ratification: an OpenAI-compatible server that is neither
+   `llama-server` nor Ollama is probed as constraining nothing** (`ProviderCaps::neither`, schema in
+   the prompt, `W_LLM_UNCONSTRAINED`). LM Studio and vLLM document `response_format: json_schema`,
+   but a `GET` cannot show that a server honours it rather than ignoring it — only a generation
+   could — and claiming a constraint that silently is not applied would suppress the warning that
+   tells the user why more answers fail gate S. Sending `response_format` blind also risks a 400
+   from a server that rejects the field, which would disable AI for that server entirely.
+5. **A base URL is reduced to its root** (`api_root`: no trailing `/`, no trailing `/v1`), so
+   `https://host/v1` — how most servers document their base URL — and `https://host` both work.
+Evidence: `crates/oc-net/tests/detect.rs` (row 11.1 and three more).
+Affects: PHASE 11 details 2 and 5, D10, `oc_ai::transport`, `oc_net::detect`.
+
+## 2026-09-23 · `convert --ai` opens a provider: flags, consent, probe, model · Phase 11
+Context: PHASE 11 details 3–5; §2.1 lists `--llm-endpoint` and `--llm-api-key-file` and nothing that
+names a provider, a model, or a consent. The job spec (§2.2) has `endpoint`, `api_key_file`,
+`model_path`, `model_id`, `non_loopback_consent: bool` — and no provider kind.
+Decisions:
+1. **Three flags, all AI-only** (refused without `--ai`, like the others):
+   `--llm-provider builtin|ollama|openai-compatible` (`builtin` is `ProviderKind::LocalSidecar`, the
+   name UI_UX §2.4 gives it), `--llm-model <NAME>` (the job spec's `model_id`), and
+   **`--llm-allow-host <HOST>` — the consent, and it names the host** (D10's "toggle that names the
+   host"). It must equal the endpoint's host, case-insensitively; consent to another host is none.
+   PROVISIONAL — needs maintainer ratification: the flag's name and that it takes the host rather
+   than a bare boolean. The job spec's boolean reads as consent to its own endpoint's host
+   (`AiArgs::consenting_to_the_endpoint`), the desktop dialog having named the host to the user.
+2. **`E_CONSENT_REQUIRED`**, exit 2, a `fatal` whose message names the host, says nothing was sent,
+   and names the flag. The check runs before the key file is read and before any connection: the
+   test counts connections and finds none. Other refusals stay `E_USAGE`.
+3. **The probe picks the adapter** unless `--llm-provider` does: `llama-server` → `LocalSidecar`
+   (so the desktop app's own server, reached through the job spec's endpoint, gets GBNF and
+   `chat_template_kwargs` exactly as in Phase 10), Ollama → `Ollama`, anything else →
+   `OpenAiCompatible` with `ProviderCaps::neither`. A failed probe is `W_LLM_UNAVAILABLE` ("the
+   endpoint did not answer the capability probe"), exit 0. `llm.provider_probe_timeout_millis =
+   5000`, provisional. `--llm-provider ollama` without an endpoint is `http://localhost:11434`.
+4. **A model is never guessed**: `--llm-model`, else the only model the server lists; several, or
+   none, is `W_LLM_UNAVAILABLE` saying to name one. Ollama's `name:latest` answers to `name`. A
+   `llama-server` endpoint keeps Phase 10's id (`--llm-model`, else `--model-path`'s stem, else
+   `endpoint@<host>`); for the engine-owned sidecar `--llm-model` picks the registry entry.
+5. **`ai_endpoint::open_with(args, registry, t, &dyn Connector)`** reaches endpoints through a
+   connector — `Network` (`HttpTransport`) in the engine, an in-process double in tests — so a
+   host off this machine is testable without a network. The report records the consent (P11.7).
+Evidence: `crates/openconvert/tests/providers.rs` (rows 11.5, 11.8 and four more),
+`ai_endpoint::the_job_specs_consent_names_the_endpoints_own_host`.
+Affects: IMPLEMENTATION_PLAN §2.1/§2.2, D10, `openconvert::{ai_endpoint, cli, cmd_convert}`, Phase 12.
+
+## 2026-09-23 · What the report says about a provider · Phase 11
+Context: PHASE 11 detail 4 — "the granted consent, the host, and the timestamp are recorded in the
+conversion report"; detail 5 and A11.4 — a failing provider is a deterministic book, exit 0, and a
+recorded warning.
+Decisions:
+1. **A top-level `consent: {host, granted_at, scope}`**, present only when an endpoint off this
+   machine was opened under consent (`granted_at` RFC 3339 UTC to the second, `scope: "run"`). Not
+   inside `ai`: it is a fact about the run's privacy, not about the model's work, and a reader
+   looking for "did text leave?" should not have to know where AI details live.
+2. **`ai.provider`** names the adapter (`local_sidecar`, `ollama`, `openai_compatible`).
+3. **A consent whose endpoint then failed its probe is not recorded**: nothing was opened, and the
+   probe's `GET`s carry no document text. A consent whose endpoint was opened is recorded even if
+   every question then failed — the question itself carried the text.
+4. **Failure is the Phase 10 path, unchanged**: a probe that nothing answers is `W_LLM_UNAVAILABLE`
+   ("the endpoint did not answer the capability probe"); a 500 on a question stops the session and
+   is `W_LLM_UNAVAILABLE` ("the endpoint refused the request"); the book is the `--no-ai` book byte
+   for byte, exit 0 — for the `llama-server`, Ollama and generic adapters alike.
+Evidence: `crates/openconvert/tests/providers.rs` (rows 11.7, 11.9).
+Affects: PIPELINE §13 (report), D10, `openconvert::report` (`ReportInput.{provider, consent}`).
+
+## 2026-09-23 · `openconvert provider`: what the settings page reads · Phase 11
+Context: PHASE 11's files name `crates/openconvert/src/cmd_provider.rs` and a Provider settings
+page "wired in Phase 12" (UI_UX §2.4: Built-in / Ollama (detected) / Custom endpoint with the
+consent dialog naming the host). §2.1 has no `provider` subcommand. The desktop app runs the engine
+as a subprocess, so what the settings page needs has to be a command.
+Decisions:
+1. **`provider detect [--json]`** — `{"ollama": null}` or `{"ollama": {"url", "models"}}` from
+   `GET http://localhost:11434/api/tags`; always exit 0. Loopback only: no consent.
+2. **`provider check <URL> [--json]`** — `{url, host, loopback, requires_consent, usable, reason}`;
+   sends nothing. `usable` is false only for plain http off the machine (`reason` says https). A URL
+   the engine will not interpret is exit 2. This is how a UI decides to show the consent dialog.
+3. **`provider probe <URL> [--llm-provider] [--llm-model] [--llm-allow-host] [--llm-api-key-file]
+   [--json]`** — `convert --ai`'s own opening (`ai_endpoint::open`), so the two cannot disagree:
+   `{available: true, url, host, provider, constraint, thinking, model, models, consent}` exit 0;
+   `{available: false, url, reason}` exit 1; no consent → exit 2, `fatal{E_CONSENT_REQUIRED}`.
+   It sends `GET`s only — no question, no document text.
+4. **No network-log event is added** to the NDJSON schema (§2.3 is closed): the audit log of every
+   outbound connection is PHASE 14 detail 12 (`oc-net/src/audit.rs`). What Phase 11 gives it: every
+   connection `convert --ai` and `provider probe` make goes through `ai_endpoint::Connector`, and
+   the report's `consent` says when text left the machine.
+Evidence: `crates/openconvert/tests/providers.rs` (`provider_detect_reports_ollama_or_nothing`,
+`provider_check_says_whether_consent_is_needed`, `provider_probe_answers_what_convert_would_open`).
+Affects: IMPLEMENTATION_PLAN §2.1, UI_UX §2.4, Phase 12 (`routes/settings/providers.svelte`), Phase 14.

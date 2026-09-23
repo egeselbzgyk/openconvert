@@ -1243,3 +1243,82 @@ an install hint. Synthetic-scan CER here: mean 0.0007 against a 0.03 gate.
   unverified here (no machine, no CI runner).
 - Two PROVISIONAL decisions await ratification: `BrokenText` pages are not OCR'd; re-OCR's
   `OcrLayerDuplicate` removal is not budget-charged.
+
+## Phase 11 — BYO providers
+
+`convert --ai` can now use a server the user already runs — Ollama, LM Studio, vLLM, their own
+`llama-server` — through the same `LlmProvider` trait, and a server on another machine only with
+consent that names its host. **`ai.enabled` stays `false`, and `--no-ai` output is unchanged byte for
+byte** (the Phase-10 pinned hashes still hold). No real provider is reachable from where this was
+built: every adapter is proven against local stub servers and the committed cassettes, and a run
+against a real Ollama or a real remote endpoint is unverified here. Built on
+`phase/11-byo-providers`.
+
+### New CLI flags (`convert`, each only with `--ai`)
+
+- **`--llm-provider builtin|ollama|openai-compatible`** — the adapter, when the capability probe
+  should not decide. `ollama` without `--llm-endpoint` is Ollama on `http://localhost:11434`.
+- **`--llm-model <NAME>`** — the model as the endpoint names it (the job spec's `model_id`); for
+  the engine-owned sidecar, a registry id. Never guessed: without it, the only model the endpoint
+  lists is used, and several are `W_LLM_UNAVAILABLE`.
+- **`--llm-allow-host <HOST>`** — consent to sending the book's text to that host, which must be the
+  endpoint's own. `--llm-endpoint` off this machine without it is **exit 2,
+  `fatal{E_CONSENT_REQUIRED}`** naming the host, before the key file is read or anything is sent;
+  plain `http://` off this machine is refused even with it (https only).
+- `--llm-endpoint` may be written with or without a trailing `/v1`.
+
+### New subcommand: `openconvert provider`
+
+- **`provider detect [--json]`** — Ollama on `localhost:11434` and the models it serves, or `null`.
+- **`provider check <URL> [--json]`** — `host`, `loopback`, `requires_consent`, `usable`, `reason`;
+  sends nothing.
+- **`provider probe <URL> [--llm-provider] [--llm-model] [--llm-allow-host] [--llm-api-key-file]
+  [--json]`** — what `convert --ai` would open there (adapter, constraint, thinking lever, model,
+  listed models, consent); exit 0 available, 1 not, 2 refused.
+
+### Report
+
+- New: top-level **`consent {host, granted_at, scope}`**, present only when an endpoint off this
+  machine was opened under consent.
+- New: **`ai.provider`** — `local_sidecar`, `ollama` or `openai_compatible`.
+
+### New warning codes (en, de, tr)
+
+- **`W_LLM_UNCONSTRAINED`** `{model}` — the provider constrains neither by grammar nor by schema;
+  the schema went in the prompt and gate S carried the whole burden.
+
+### New `thresholds.toml` entries
+
+- `llm.ollama_num_ctx` (8192), `llm.ollama_template_overhead_tokens` (64),
+  `llm.ollama_keep_alive_secs` (600), `llm.provider_probe_timeout_millis` (5000). All provisional.
+
+### Crates
+
+- **`oc-net`**: `consent` (`requires_consent`, `authorize`, `ConsentRecord`, `ConsentScope`) —
+  `HttpTransport::new` reaches this machine only, `HttpTransport::with_consent` the one host a
+  record names; `detect` (`detect_ollama`, the capability `probe`, `api_root`). `NetError` gains
+  `ConsentRequired` and `PlaintextRemote`.
+- **`oc-ai`**: `provider/` — `local_sidecar`, `openai_compatible` (the old `oc_ai::openai`, plus
+  `custom_endpoint` and schema-in-prompt), `ollama` (native `/api/chat`: `format`,
+  `options.num_ctx` never below the prompt, `keep_alive`, `think: false`, `truncate: false`,
+  `shift: false`); `ProviderKind`; `ProviderCaps::{grammar, json_schema, neither}`;
+  `Transport::get` (default 404) and `Transport for Box<T>`. The `Session` raises
+  `W_LLM_UNCONSTRAINED`.
+- **`openconvert`**: `ai_endpoint::{open_with, Connector, Network}` — consent, key, probe, adapter,
+  in that order; `Opened { kind, consent, models }`; `OpenError::{ConsentRequired, exit_code,
+  fatal}`; `AiArgs::consenting_to_the_endpoint` (the job spec's `non_loopback_consent`);
+  `cmd_provider`.
+- **CI:** a nightly `live-ollama` job (installs Ollama, pulls `qwen3:1.7b`, runs the live A11.1
+  test behind `live-llm`).
+
+### Known gaps, carried forward
+
+- **No real provider here:** A11.1 against a live Ollama, and any remote endpoint, are unverified;
+  the live test fails loudly without `OC_LIVE_OLLAMA_MODEL`.
+- **Ollama speaks `/api/chat`**, not `/v1/chat/completions` as PHASE 11 detail 1 says: Ollama's
+  `/v1` layer silently drops `num_ctx` and `format`, which D10 requires. PROVISIONAL.
+- A generic OpenAI-compatible server is treated as constraining nothing (a `GET` cannot show that
+  it honours `response_format`); plain http off the machine is refused. Both PROVISIONAL.
+- No network-log event: the audit log of every outbound connection is Phase 14 detail 12.
+- The desktop Provider settings page (`routes/settings/providers.svelte`) is Phase 12's to wire,
+  over `openconvert provider …` and the job spec's `ai` fields.

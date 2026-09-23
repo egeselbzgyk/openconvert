@@ -23,6 +23,8 @@ fn report_schema_is_valid_and_snapshotted() {
             producer_family: built.producer_family,
             pages: u32::try_from(built.document.page_breaks.len()).unwrap_or(u32::MAX),
             page_classes: built.page_classes.clone(),
+            provider: None,
+            consent: None,
         },
     );
 
@@ -95,6 +97,8 @@ fn repair_cap_writes_epub_and_marks_invalid() {
             producer_family: conversion.producer_family,
             pages: 1,
             page_classes: BTreeMap::new(),
+            provider: None,
+            consent: None,
         },
     );
 
@@ -128,6 +132,8 @@ fn the_report_carries_every_part_the_plan_names() {
             producer_family: built.producer_family,
             pages: 2,
             page_classes: built.page_classes.clone(),
+            provider: None,
+            consent: None,
         },
     );
 

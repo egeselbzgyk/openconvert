@@ -25,6 +25,7 @@ pub enum Command {
     DumpStage(DumpStageArgs),
     DiffStage(DiffStageArgs),
     Model(ModelArgs),
+    Provider(ProviderArgs),
     /// `--help` or `--version`: print and exit successfully.
     Print(String),
 }
@@ -147,6 +148,29 @@ pub struct ModelArgs {
     pub progress: Progress,
 }
 
+/// What `provider` is asked to do (PHASE 11).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProviderAction {
+    /// Is Ollama on `localhost:11434`, and what does it serve?
+    Detect,
+    /// Does this URL need consent, and would the engine use it? Nothing is sent.
+    Check,
+    /// What would `convert --ai` open at this URL? Asks the endpoint what it is; sends no question.
+    Probe,
+}
+
+/// `provider detect | check <URL> | probe <URL>`: what the desktop's Provider settings read
+/// (UI_UX §2.4).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProviderArgs {
+    pub action: ProviderAction,
+    /// For `probe`: the URL is `ai.endpoint`, and the other fields are the `convert --ai` flags
+    /// of the same names, read the same way.
+    pub ai: AiArgs,
+    pub json: bool,
+    pub progress: Progress,
+}
+
 /// Why a command line was rejected. Every one of these is exit code 2 (§2.4).
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum CliError {
@@ -174,6 +198,8 @@ pub enum CliError {
     ModelArgs,
     #[error("`{0}` only means something with `--ai`")]
     NeedsAi(&'static str),
+    #[error("provider needs detect, check <URL>, or probe <URL> [--llm-provider …] [--llm-model …] [--llm-allow-host …] [--llm-api-key-file …]")]
+    ProviderArgs,
 }
 
 pub const USAGE: &str = "\
@@ -185,6 +211,8 @@ usage:
                                   [--modified <YYYY-MM-DDThh:mm:ssZ>] [--report <PATH.json>]
                                   [--locale en|de|tr]
                                   [--ai [--ai-all-tasks] [--llm-endpoint <URL>]
+                                        [--llm-provider builtin|ollama|openai-compatible]
+                                        [--llm-model <NAME>] [--llm-allow-host <HOST>]
                                         [--llm-api-key-file <PATH>] [--model-path <PATH>]]
                                   [--no-ai]
                                   [--ocr auto|never|always] [--ocr-path <PATH>]
@@ -199,6 +227,10 @@ usage:
   openconvert model pull <ID> [--registry <PATH>] [--dir <PATH>] [--progress none|json]
   openconvert model list [--json] [--registry <PATH>] [--dir <PATH>]
   openconvert model remove <ID> [--dir <PATH>]
+  openconvert provider detect [--json]
+  openconvert provider check <URL> [--json]
+  openconvert provider probe <URL> [--llm-provider <P>] [--llm-model <NAME>]
+                                  [--llm-allow-host <HOST>] [--llm-api-key-file <PATH>] [--json]
   openconvert --version
   openconvert --help
 
@@ -219,6 +251,17 @@ usage:
   --ocr-path <PATH>    the tesseract binary to use instead of searching for one
   --ocr-lang <SPEC>    Tesseract language data, e.g. deu or deu+eng (default: the book's language)
   --re-ocr <MODE>      never|auto|always; replace an OCR sandwich's own text layer (default never)
+  --ai                 ask a model the four once-per-book questions; never fails a conversion
+  --llm-endpoint <URL> a server you run: llama-server, Ollama, LM Studio, any OpenAI-compatible
+                       one; the engine asks it what it is before asking it anything else
+  --llm-provider <P>   builtin (start the bundled server), ollama (localhost:11434 unless
+                       --llm-endpoint says otherwise), openai-compatible
+  --llm-model <NAME>   the model as the server names it; needed when it serves more than one
+  --llm-allow-host <HOST>
+                       consent to sending the book's text to HOST, which must be the endpoint's
+                       own host; an endpoint off this computer is refused without it (https only)
+  --llm-api-key-file <PATH>
+                       a file holding the endpoint's key; there is no flag for the key itself
   --tier <1|2>         1 = the internal validator (default), 2 = plus EPUBCheck
   --registry <PATH>    a models.toml to use instead of the one built into the engine
   --dir <PATH>         the model store; default the per-OS data directory
@@ -251,6 +294,7 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, CliErro
         "dump-stage" => return parse_dump_stage(args),
         "diff-stage" => return parse_diff_stage(args),
         "model" => return parse_model(args),
+        "provider" => return parse_provider_command(args),
         other => return Err(CliError::UnknownSubcommand(other.to_owned())),
     }
 
@@ -427,6 +471,24 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
                 ));
                 ai_only.get_or_insert("--model-path");
             }
+            "--llm-provider" => {
+                let value = args
+                    .next()
+                    .ok_or(CliError::MissingValue("--llm-provider"))?;
+                ai_args.provider = Some(parse_provider(&value)?);
+                ai_only.get_or_insert("--llm-provider");
+            }
+            "--llm-model" => {
+                ai_args.model = Some(args.next().ok_or(CliError::MissingValue("--llm-model"))?);
+                ai_only.get_or_insert("--llm-model");
+            }
+            "--llm-allow-host" => {
+                ai_args.allow_host = Some(
+                    args.next()
+                        .ok_or(CliError::MissingValue("--llm-allow-host"))?,
+                );
+                ai_only.get_or_insert("--llm-allow-host");
+            }
             "--help" | "-h" => return Ok(Command::Print(USAGE.to_owned())),
             other if other.starts_with('-') => {
                 return Err(CliError::UnknownOption(other.to_owned()))
@@ -556,6 +618,76 @@ fn parse_model<I: Iterator<Item = String>>(mut args: I) -> Result<Command, CliEr
     }))
 }
 
+/// Parse `provider detect | check <URL> | probe <URL>`, having already consumed the subcommand.
+fn parse_provider_command<I: Iterator<Item = String>>(mut args: I) -> Result<Command, CliError> {
+    let mut positional = Vec::new();
+    let mut ai = AiArgs::default();
+    let mut json = false;
+    let mut progress = Progress::None;
+    // Whether a flag only `probe` reads was given.
+    let mut probe_only = false;
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--json" => json = true,
+            "--progress" => {
+                let value = args.next().ok_or(CliError::MissingValue("--progress"))?;
+                progress = parse_progress(&value)?;
+            }
+            "--llm-provider" => {
+                let value = args
+                    .next()
+                    .ok_or(CliError::MissingValue("--llm-provider"))?;
+                ai.provider = Some(parse_provider(&value)?);
+                probe_only = true;
+            }
+            "--llm-model" => {
+                ai.model = Some(args.next().ok_or(CliError::MissingValue("--llm-model"))?);
+                probe_only = true;
+            }
+            "--llm-allow-host" => {
+                ai.allow_host = Some(
+                    args.next()
+                        .ok_or(CliError::MissingValue("--llm-allow-host"))?,
+                );
+                probe_only = true;
+            }
+            "--llm-api-key-file" => {
+                ai.api_key_file = Some(PathBuf::from(
+                    args.next()
+                        .ok_or(CliError::MissingValue("--llm-api-key-file"))?,
+                ));
+                probe_only = true;
+            }
+            "--help" | "-h" => return Ok(Command::Print(USAGE.to_owned())),
+            other if other.starts_with('-') => {
+                return Err(CliError::UnknownOption(other.to_owned()))
+            }
+            other => positional.push(other.to_owned()),
+        }
+    }
+    let mut positional = positional.into_iter();
+    let action = match positional.next().as_deref() {
+        Some("detect") => ProviderAction::Detect,
+        Some("check") => ProviderAction::Check,
+        Some("probe") => ProviderAction::Probe,
+        _ => return Err(CliError::ProviderArgs),
+    };
+    ai.endpoint = positional.next();
+    let wants_url = action != ProviderAction::Detect;
+    if positional.next().is_some()
+        || ai.endpoint.is_some() != wants_url
+        || (probe_only && action != ProviderAction::Probe)
+    {
+        return Err(CliError::ProviderArgs);
+    }
+    Ok(Command::Provider(ProviderArgs {
+        action,
+        ai,
+        json,
+        progress,
+    }))
+}
+
 /// A document preset by name (D13.11).
 fn parse_preset(value: &str) -> Result<oc_model::document::PresetName, CliError> {
     use oc_model::document::PresetName;
@@ -568,6 +700,20 @@ fn parse_preset(value: &str) -> Result<oc_model::document::PresetName, CliError>
         "scanned" => Ok(PresetName::Scanned),
         _ => Err(CliError::BadValue {
             what: "--preset value",
+            value: value.to_owned(),
+        }),
+    }
+}
+
+/// A provider by the name a user knows it by (UI_UX §2.4): the built-in server is `builtin`.
+fn parse_provider(value: &str) -> Result<oc_ai::provider::ProviderKind, CliError> {
+    use oc_ai::provider::ProviderKind;
+    match value {
+        "builtin" => Ok(ProviderKind::LocalSidecar),
+        "ollama" => Ok(ProviderKind::Ollama),
+        "openai-compatible" => Ok(ProviderKind::OpenAiCompatible),
+        _ => Err(CliError::BadValue {
+            what: "--llm-provider value",
             value: value.to_owned(),
         }),
     }

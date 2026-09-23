@@ -15,7 +15,6 @@ pub mod cassette;
 pub mod digest;
 pub mod gates;
 pub mod gbnf;
-pub mod openai;
 pub mod plan;
 pub mod prefix;
 pub mod prompt;

@@ -3651,6 +3651,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "thiserror 2.0.20",
+ "time",
  "toml 0.9.12+spec-1.1.0",
  "ureq",
 ]
@@ -3787,6 +3788,7 @@ dependencies = [
  "oc-text",
  "oc-validate",
  "proptest",
+ "secrecy",
  "serde",
  "serde_json",
  "sha2 0.10.9",

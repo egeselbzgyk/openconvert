@@ -24,6 +24,7 @@ W_LLM_BUDGET_EXHAUSTED = "The book had used all {calls} of its model calls, so {
 W_LLM_PREFIX_COLD = "Model call {call} ({task}) did not find the shared prompt already loaded, so it took longer than planned; the time the model may use was checked again."
 W_LLM_TIME_EXHAUSTED = "The model had taken {share} of the conversion's time, the most it may take, so {task} and everything after it was decided without the model, by the converter's own rules."
 W_LLM_UNAVAILABLE = "AI assistance was asked for, but no model could be reached ({reason}). The book was converted by the converter's own rules alone."
+W_LLM_UNCONSTRAINED = "The model {model} could not be held to the shape of an answer, so its answers were checked more strictly afterwards. More of its answers may have been set aside for the converter's own rules."
 W_LOW_RETENTION = "{retention} of the source text reached the book, below the {floor} this converter flags at. Removed running heads and page numbers are counted here and are not losses."
 W_NOTE_UNMATCHED = "{markers} footnote markers and {notes} footnote bodies were found, of which {matched} could be paired. The unpaired ones were left inline where they were printed."
 W_NO_TEXT_EXTRACTED = "No text could be extracted from this document. Its pages are carried as images so that nothing is lost, but the book is not searchable or reflowable."

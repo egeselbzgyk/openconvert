@@ -171,6 +171,7 @@ fn ai_default_is_off() {
 
     let report = report(&scratch.join("default.report.json"));
     assert!(report.get("ai").is_none(), "no ai section with AI off");
+    assert!(report.get("consent").is_none(), "nothing left the machine");
     assert!(report["engine"]["prompt_version"].is_null());
     assert!(report["decisions"]
         .as_array()
@@ -185,8 +186,8 @@ fn ai_default_is_off() {
     );
 }
 
-/// An endpoint that is not this machine is a usage error: nothing is converted and nothing is
-/// sent (D10; Phase 11 adds the consent that could allow it).
+/// An endpoint that is not this machine, with no consent naming it, is a usage error: nothing is
+/// converted and nothing is sent (D10; `--llm-allow-host` is the consent, PHASE 11 row 11.5).
 #[test]
 fn an_endpoint_off_this_machine_is_refused() {
     let scratch = Scratch::new("remote");
