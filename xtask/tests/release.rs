@@ -385,3 +385,197 @@ fn sign_nested_signs_every_macho_inside_out() {
     }
     let _ = std::fs::remove_dir_all(&scratch);
 }
+
+/// A bundle directory laid out the way the Tauri bundler writes one, with `files` in it.
+fn fake_bundle(name: &str, files: &[(&str, &[u8])]) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("oc-bundle-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    for (path, bytes) in files {
+        let path = dir.join(path);
+        std::fs::create_dir_all(path.parent().expect("a parent")).expect("dirs");
+        std::fs::write(path, bytes).expect("write");
+    }
+    dir
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::Digest;
+    format!("{:x}", sha2::Sha256::digest(bytes))
+}
+
+/// The logic under row 15.6: every installer D12 promises for an OS must be in the bundle, and each
+/// one — and each updater signature beside it — gets its SHA-256 in the manifest.
+#[test]
+fn release_manifest_requires_every_declared_installer() {
+    use xtask::release::{collect, Installer, Os};
+
+    let only_nsis = fake_bundle(
+        "nsis-only",
+        &[("nsis/OpenConvert_1.0.0_x64-setup.exe", b"nsis")],
+    );
+    let error = collect(&only_nsis, Os::Windows).expect_err("no MSI");
+    assert!(format!("{error:#}").contains("Msi"), "{error:#}");
+
+    let both = fake_bundle(
+        "windows",
+        &[
+            ("nsis/OpenConvert_1.0.0_x64-setup.exe", b"nsis"),
+            ("nsis/OpenConvert_1.0.0_x64-setup.exe.sig", b"sig"),
+            ("msi/OpenConvert_1.0.0_x64_en-US.msi", b"msi"),
+            ("msi/unrelated.log", b"not an artefact"),
+        ],
+    );
+    let release = collect(&both, Os::Windows).expect("both installers");
+    let listed: Vec<(&str, Installer, &str)> = release
+        .files
+        .iter()
+        .map(|f| (f.name.as_str(), f.kind, f.sha256.as_str()))
+        .collect();
+    assert_eq!(
+        listed,
+        [
+            (
+                "OpenConvert_1.0.0_x64-setup.exe",
+                Installer::Nsis,
+                sha256_hex(b"nsis").as_str()
+            ),
+            (
+                "OpenConvert_1.0.0_x64-setup.exe.sig",
+                Installer::Signature,
+                sha256_hex(b"sig").as_str()
+            ),
+            (
+                "OpenConvert_1.0.0_x64_en-US.msi",
+                Installer::Msi,
+                sha256_hex(b"msi").as_str()
+            ),
+        ]
+    );
+    let notes = xtask::release::hashes_section(&[release]);
+    assert!(notes.contains(&format!(
+        "{}  OpenConvert_1.0.0_x64_en-US.msi",
+        sha256_hex(b"msi")
+    )));
+    let _ = std::fs::remove_dir_all(only_nsis);
+    let _ = std::fs::remove_dir_all(both);
+}
+
+/// The logic under row 15.20: an asset is published only when its own SHA-256 sits next to its
+/// own name in the release body; a hash of another file, or a name alone, does not count.
+#[test]
+fn a_release_body_missing_one_hash_is_refused() {
+    use xtask::release::unpublished;
+
+    let assets = vec![
+        (
+            "OpenConvert_1.0.0_amd64.AppImage".to_owned(),
+            sha256_hex(b"a"),
+        ),
+        ("OpenConvert_1.0.0_aarch64.dmg".to_owned(), sha256_hex(b"b")),
+        ("sbom.cdx.json".to_owned(), sha256_hex(b"c")),
+    ];
+    let body = format!(
+        "## SHA-256\n\n```\n{}  OpenConvert_1.0.0_amd64.AppImage\n{}  OpenConvert_1.0.0_aarch64.dmg\n\
+         {}  sbom.cdx.json\n```\n",
+        sha256_hex(b"a"),
+        sha256_hex(b"b"),
+        sha256_hex(b"c")
+    );
+    assert!(unpublished(&body, &assets).is_empty());
+
+    let wrong_hash = body.replace(&sha256_hex(b"b"), &sha256_hex(b"x"));
+    assert_eq!(
+        unpublished(&wrong_hash, &assets),
+        ["OpenConvert_1.0.0_aarch64.dmg"]
+    );
+    let name_only = body.replace(
+        &format!("{}  sbom.cdx.json", sha256_hex(b"c")),
+        "sbom.cdx.json",
+    );
+    assert_eq!(unpublished(&name_only, &assets), ["sbom.cdx.json"]);
+}
+
+/// The logic under row 15.15: the budget is per installer, from `thresholds.toml`, and the macOS
+/// updater archive and every signature are not installers.
+#[test]
+fn the_installer_budget_counts_installers_only() {
+    use xtask::release::{collect, installer_budget, over_budget, Os};
+
+    assert_eq!(installer_budget(), 45_000_000, "D12's upper estimate");
+    let bundle = fake_bundle(
+        "macos",
+        &[
+            ("dmg/OpenConvert_1.0.0_aarch64.dmg", &[0u8; 40]),
+            ("macos/OpenConvert.app.tar.gz", &[0u8; 90]),
+            ("macos/OpenConvert.app.tar.gz.sig", &[0u8; 90]),
+        ],
+    );
+    let release = collect(&bundle, Os::Macos).expect("a dmg");
+    assert!(over_budget(&release, 50).is_empty(), "only the dmg counts");
+    assert_eq!(
+        over_budget(&release, 30),
+        [("OpenConvert_1.0.0_aarch64.dmg".to_owned(), 40)]
+    );
+    let _ = std::fs::remove_dir_all(bundle);
+}
+
+/// `OC_BUNDLE_DIR` and friends for the `release-artifacts` gates: set by `release.yml`, and a
+/// failure rather than a pass when unset, because a gate that passes on nothing is not a gate.
+#[cfg(feature = "release-artifacts")]
+fn required_env(name: &str) -> PathBuf {
+    PathBuf::from(std::env::var_os(name).unwrap_or_else(|| {
+        panic!("{name} is not set; the release-artifacts gates need the release job's outputs")
+    }))
+}
+
+/// Row 15.6, on the Windows release job: NSIS `.exe` and `.msi` both produced, both hashed.
+#[cfg(all(feature = "release-artifacts", windows))]
+#[test]
+fn windows_installers_are_produced_and_hashed() {
+    use xtask::release::{collect, hashes_section, Installer, Os};
+
+    let release = collect(&required_env("OC_BUNDLE_DIR"), Os::Windows).expect("both installers");
+    for kind in [Installer::Nsis, Installer::Msi] {
+        let file = release
+            .files
+            .iter()
+            .find(|f| f.kind == kind)
+            .unwrap_or_else(|| panic!("no {kind:?}"));
+        assert_eq!(file.sha256.len(), 64);
+        assert!(hashes_section(std::slice::from_ref(&release))
+            .contains(&format!("{}  {}", file.sha256, file.name)));
+    }
+}
+
+/// Row 15.15 on whichever OS the release job runs it: every installer ≤ the D12 budget.
+#[cfg(feature = "release-artifacts")]
+#[test]
+fn installer_size_within_budget() {
+    use xtask::release::{collect, installer_budget, over_budget, Os};
+
+    let release = collect(&required_env("OC_BUNDLE_DIR"), Os::host()).expect("installers");
+    let budget = installer_budget();
+    for file in release.files.iter().filter(|f| f.kind.is_installer()) {
+        println!("{} bytes  {}  (budget {budget})", file.bytes, file.name);
+    }
+    assert_eq!(over_budget(&release, budget), [], "over the D12 budget");
+}
+
+/// Row 15.20 on the published release: `OC_RELEASE_BODY` is the release notes as published,
+/// `OC_RELEASE_ASSETS` a directory holding every asset downloaded back from the release.
+#[cfg(feature = "release-artifacts")]
+#[test]
+fn release_artifacts_all_have_published_hashes() {
+    use xtask::release::{sha256_file, unpublished};
+
+    let body = read(&required_env("OC_RELEASE_BODY"));
+    let dir = required_env("OC_RELEASE_ASSETS");
+    let mut assets = Vec::new();
+    for entry in std::fs::read_dir(&dir).expect("the assets directory") {
+        let path = entry.expect("an entry").path();
+        let name = path.file_name().and_then(|n| n.to_str()).expect("a name");
+        assets.push((name.to_owned(), sha256_file(&path).expect("hashed")));
+    }
+    assert!(!assets.is_empty(), "no assets were downloaded");
+    assert_eq!(unpublished(&body, &assets), Vec::<String>::new());
+}

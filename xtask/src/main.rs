@@ -4,8 +4,8 @@
 
 use xtask::{
     ci_lint, dom_fixtures, epubcheck_parity, fetch_epubcheck, fetch_epubcheck_corpus,
-    fetch_llama_server, fixtures, handmade_fixtures, mutations, stage_sidecars, thresholds_lint,
-    vendor_pdfium,
+    fetch_llama_server, fixtures, handmade_fixtures, mutations, release, stage_sidecars,
+    thresholds_lint, vendor_pdfium,
 };
 
 use std::path::{Path, PathBuf};
@@ -42,6 +42,11 @@ tasks:
                     PDFium and the server's libraries in native/, the natives' licences,
                     and a build stamp (needs vendor-pdfium and fetch-llama-server first)
                       --release           stage the release build instead of debug
+  release           the release artefacts and their gates (PHASE 15):
+                      manifest --os <os> --bundle-dir <dir> --out <file>
+                      notes <manifest>...              the release body's SHA-256 section
+                      verify-published --body <file> --assets <dir>
+                      size-check --os <os> --bundle-dir <dir>
 ";
 
 fn main() -> Result<()> {
@@ -69,6 +74,10 @@ fn main() -> Result<()> {
         }
         Some("thresholds-lint") => thresholds_lint::run(&root),
         Some("dom-fixtures") => dom_fixtures::run(&root),
+        Some("release") => {
+            let args: Vec<String> = std::env::args().skip(2).collect();
+            release::run(&args)
+        }
         Some("stage-sidecars") => {
             let release = std::env::args().any(|a| a == "--release");
             stage_sidecars::run(&root, release)

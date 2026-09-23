@@ -246,6 +246,14 @@ evidence = "docs/design/handoff/docs/motion.md 'Copy -> Copied ... reverts after
 owner = "maintainer"
 review_by = "2028-01-01"
 
+# ---------- release (PHASE 15) ----------
+[release.max_installer_bytes]             # every installer a release ships (AppImage, dmg, NSIS, MSI), each
+value = 45000000
+source = "provisional"
+evidence = "D12: base install ~35-45 MB (shell + engine + libpdfium + llama-server); A15.6 is anchored on that estimate, read as decimal megabytes, the stricter reading; the Linux AppImage is measured by row 15.15"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 # ---------- word/line/layout (R2 §B.3, §D.3) ----------
 [words.nn_manhattan_threshold]
 value = 0.20

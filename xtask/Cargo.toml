@@ -16,6 +16,13 @@ path = "src/lib.rs"
 name = "xtask"
 path = "src/main.rs"
 
+[features]
+# The release job's gates over real artefacts (PHASE 15 rows 15.6, 15.7, 15.15, 15.20). They read
+# the bundle directory from `OC_BUNDLE_DIR` (and the published release from `OC_RELEASE_BODY` and
+# `OC_RELEASE_ASSETS`); with the feature on and a variable unset, they fail. Gated rather than
+# skipped (IMPLEMENTATION_PLAN §0.2): `release.yml` turns it on after bundling.
+release-artifacts = []
+
 [dependencies]
 oc-core = { path = "../crates/oc-core", version = "0.1.0" }
 oc-testkit = { path = "../crates/oc-testkit", version = "0.1.0" }

@@ -104,7 +104,13 @@ Work items, in order, with the plan's test rows against each:
       `entitlements_do_not_disable_library_validation`, plus `sign_nested_signs_every_macho_inside_out`
       (the script run on Linux with a recording `codesign`); rows 15.1–15.4 are `release.yml` steps on
       macOS — **unverified here**
-- [ ] **P15.4** Windows NSIS + MSI config, the release manifest and its hashes — row 15.6 (CI step), 15.20
+- [x] **P15.4** Windows NSIS + MSI (`tauri.windows.conf.json`, per-user NSIS in EN/DE/TR) and
+      `xtask release {manifest,notes,verify-published,size-check}`; `[release.max_installer_bytes]`
+      in `thresholds.toml` (45 000 000, provisional, D12) — logic tests
+      `release_manifest_requires_every_declared_installer`, `a_release_body_missing_one_hash_is_refused`,
+      `the_installer_budget_counts_installers_only`; the gates themselves (15.6 on Windows, 15.15,
+      15.20) are `release-artifacts`-feature tests the release job runs — **unverified here** except
+      15.15 on Linux (P15.5)
 - [ ] **P15.5** Linux AppImage, headless smoke conversion, installer size — rows 15.7, 15.15
 - [ ] **P15.6** Flatpak manifest, updater compiled out there — row 15.8
 - [ ] **P15.7** updater: signed `latest.json`, verified before install — rows 15.9, 15.10
