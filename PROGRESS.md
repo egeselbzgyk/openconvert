@@ -74,7 +74,7 @@ Work items, in order, with the plan's test rows against each:
 
 - [x] **P13.1** `[ocr.*]` thresholds and the TSV parser (`oc_core::ocr::tsv`) — rows 13.5–13.8
 - [x] **P13.2** language selection and the `W_OCR_*` warning codes — row 13.9
-- [ ] **P13.3** system-Tesseract discovery, VD-g — rows 13.1–13.4, A13.7
+- [x] **P13.3** system-Tesseract discovery, VD-g — rows 13.1–13.4, A13.7 *(VD-g closed, DECISIONS_LOG 2026-09-23)*
 - [ ] **P13.4** invocation: fixed argv, deadline, process ownership, the fake engine — rows 13.10, 13.18, 13.19
 - [ ] **P13.5** `oc-pdf` rasterization (`render_region`)
 - [ ] **P13.6** merge, the `ingest` declaration, region-scoped I-6, retention — rows 13.13, 13.15
@@ -87,6 +87,13 @@ What a fresh session needs:
 - Tesseract 5.3.4 with `eng`, `deu`, `tur`, `osd` is installed here at `/usr/bin/tesseract`. Tests that
   need it are behind the `openconvert` feature `tesseract`; nothing else may depend on it being
   present, so the shared test helpers convert with OCR off.
+- Process-level tests (discovery, argv, deadline, teardown) use `oc_testkit::fake_tesseract`, a POSIX
+  shell script, and live in `crates/oc-testkit/tests/` (not `oc-core/tests` as the plan's file list
+  says): `oc-core` cannot dev-depend on `oc-testkit` without putting `oc-net` into the graph
+  `oc_core_has_no_net_dependency` walks. They are `#[cfg(unix)]`; Windows is unverified here.
+- VD-g is closed: UB-Mannheim installs to `%ProgramFiles%\Tesseract-OCR` (all users) or
+  `%LOCALAPPDATA%\Programs\Tesseract-OCR` (one user), does not touch `PATH`, ships 5.5.3, and prints
+  `tesseract v5.5.3.20260724` — the parser reads that form.
 
 ## Phase 9 — on branch `phase/09-local-model`
 

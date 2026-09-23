@@ -551,3 +551,9 @@ back on.
 | 13.7 | `ocr_tsv::tsv_drops_non_word_and_negative_conf_rows` | `oc-core` | unit | `test` | green |
 | 13.8 | `ocr_tsv::pixel_boxes_map_into_normalized_page_space` | `oc-core` | property (2 000 cases) | `test` | green |
 | 13.9 | `ocr_lang::language_selection_maps_and_falls_back` | `oc-core` | unit (table) | `test` | green |
+| 13.1 | `ocr_discovery::discovery_finds_tesseract_on_path` | `oc-testkit` | unit (temp `PATH`, fake engine, Unix) | `test` | green |
+| 13.2 | `ocr_discovery::discovery_falls_back_to_well_known_dirs` | `oc-testkit` | unit (fake engine, Unix) | `test` | green |
+| 13.3 | `ocr_discovery::discovery_rejects_version_below_5` | `oc-testkit` | unit (fake engine, Unix) — also A13.7's discovery half | `test` | green |
+| 13.4 | `ocr_discovery::discovery_rejects_writable_binary` | `oc-testkit` | unit (Unix) | `test` | green |
+| 13.3a | `discover::tests::every_platforms_version_banner_parses` | `oc-core` | unit — VD-g's banner forms | `test` | green |
+| 13.3b | `discover::tests::the_well_known_lists_are_the_documented_ones` | `oc-core` | unit — VD-g's paths | `test` | green |

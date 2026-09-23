@@ -10,6 +10,7 @@
 //! measurably degrades OCR text across fourteen models and eight languages, German among them
 //! (D16, R10 §6.14), and nothing in this module has a path to one.
 
+pub mod discover;
 pub mod lang;
 pub mod tsv;
 
@@ -63,6 +64,35 @@ impl Os {
             Os::Windows
         } else {
             Os::Linux
+        }
+    }
+}
+
+/// Tesseract's page segmentation mode, by the number its `--psm` takes.
+///
+/// Chosen by page class, never by guesswork (detail 6): a whole page gets automatic segmentation
+/// with orientation and script detection, which is where Tesseract's own Leptonica deskew lives; a
+/// region the PDF's geometry already established as one block is read as one uniform block.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Psm {
+    /// `--psm 1`: automatic page segmentation with OSD.
+    AutoOsd,
+    /// `--psm 4`: a single column of text of variable sizes.
+    SingleColumn,
+    /// `--psm 6`: a single uniform block of text.
+    SingleBlock,
+    /// `--psm 11`: sparse text, in no particular order.
+    SparseText,
+}
+
+impl Psm {
+    /// The value of `--psm`. Tesseract's own numbering, not a tunable.
+    pub fn number(self) -> u8 {
+        match self {
+            Psm::AutoOsd => 1,
+            Psm::SingleColumn => 4,
+            Psm::SingleBlock => 6,
+            Psm::SparseText => 11,
         }
     }
 }

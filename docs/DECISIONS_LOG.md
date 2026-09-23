@@ -3828,3 +3828,41 @@ Evidence: `the_shipped_lock_pins_all_four_assets_by_sha256_and_size` (asserts fo
 lower-case SHA-256s and non-zero sizes, all accepted by `pinned`), and the `sha256sum` / `stat`
 output above.
 Affects: D8, D9, PHASE 9 detail 1, `xtask/llama.lock`, PROGRESS.md Blocked items 2 and 3.
+
+## 2026-09-23 · VD-g closed: the UB-Mannheim installer's paths and version string · Phase 13
+Context: VD-g (Phase 0 verification-debt table; TECHNOLOGY_EVALUATION §10 / V2 §7) blocks Phase 13's
+system-Tesseract discovery: the Windows probe has to look where the UB-Mannheim installer actually
+puts `tesseract.exe`, for the version it actually delivers.
+Decision: the Windows well-known list is exactly the plan's two entries, in this order —
+`%ProgramFiles%\Tesseract-OCR\tesseract.exe` (label `program-files`), then
+`%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe` (label `local-app-data`) — and the version
+parser accepts the UB-Mannheim banner form `tesseract v5.x.y.YYYYMMDD` alongside `tesseract 5.x.y`.
+Evidence, each read 2026-09-23:
+1. **Install path.** The installer script, `nsis/tesseract.nsi` on the `main` branch of
+   `github.com/UB-Mannheim/tesseract`: `!define PRODUCT_NAME "Tesseract-OCR"`,
+   `!define MULTIUSER_INSTALLMODE_INSTDIR ${PRODUCT_NAME}`, `!define MULTIUSER_USE_PROGRAMFILES64`,
+   `!include MultiUser.nsh`, installed files under `$INSTDIR` with `tessdata\` beside the binary.
+   NSIS's own `Contrib/MultiUser/MultiUser.nsh` (`github.com/NSIS-Dev/nsis`, `master`) sets the
+   all-users `$INSTDIR` to `$PROGRAMFILES64\${MULTIUSER_INSTALLMODE_INSTDIR}` and the current-user
+   one to `GetKnownFolderPath {5CD7AEE2-2219-4A67-B85D-6C9CE15660CB}` (FOLDERID_UserProgramFiles,
+   i.e. `%LOCALAPPDATA%\Programs`) + `\Tesseract-OCR`. So the two install modes land exactly where
+   the plan's list looks. The installer writes `HKLM\…\Tesseract-OCR` `Path`/`InstallDir` registry
+   values and **does not modify `PATH`** (no `EnvVarUpdate` or equivalent in the script), which is
+   why on Windows the well-known list, not `PATH`, is the usual way it is found. Reading the
+   registry value would find a custom install directory; it needs a Windows API binding and is
+   left out of v1 (a custom directory is reachable with `--ocr-path`).
+2. **Version.** The UB-Mannheim wiki (`github.com/UB-Mannheim/tesseract/wiki`) lists the latest
+   installer as `tesseract-ocr-w64-setup-5.5.3.20260724.exe`, 64-bit only — Tesseract 5.5.3, well
+   above the ≥ 5 floor. Its builds print their version with a `v` and the build date: tesseract
+   issue #4034 quotes `tesseract v5.3.0.20221214` / `leptonica-1.78.0` from one. A parser written
+   against Linux's `tesseract 5.3.4` alone would have refused every Windows install as unreadable;
+   `every_platforms_version_banner_parses` holds both forms.
+3. **Language data.** English is a mandatory installer section and every other language is an
+   optional one (`SectionIn RO` for English, `/o` for the rest, each downloaded during install), so
+   a Windows user who did not tick German or Turkish has `eng` only. That is the case
+   `W_OCR_LANG_MISSING` exists for, and its Windows hint names the installer's option.
+Not verifiable here: that a real UB-Mannheim install on a Windows machine is found by the probe.
+There is no Windows machine and no CI runner; the list is asserted as data
+(`the_well_known_lists_are_the_documented_ones`) and the Windows row of A13.1/A13.2 is unverified
+here.
+Affects: IMPLEMENTATION_PLAN Phase 0 VD-g (closed), PHASE 13 detail 1, `oc_core::ocr::discover`.
