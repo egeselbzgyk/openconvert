@@ -5223,3 +5223,16 @@ Evidence: `the_rust_notices_are_up_to_date` (RED before the file existed),
 Affects: `xtask/src/notices.rs`, `licenses/third-party-rust.txt`, `NOTICE`,
 `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/ui/THIRD-PARTY-NOTICES.txt`,
 `packaging/linux/flatpak/io.openconvert.OpenConvert.yml`.
+
+## 2026-09-23 · The 1.0.0 release notes: a draft with a hole the release job will not publish · Phase 15 (part B, P15.15)
+Context: the release job reads its notes from `docs/CHANGELOG.md`; the security claims belong to
+Phase 14, which is not merged.
+Decision: `docs/CHANGELOG.md` opens with `## [1.0.0] — unreleased (draft)` — what 1.0 does, privacy,
+installing and verifying (Windows unsigned, stated) — and a Security section that holds only the
+placeholder `TODO_PHASE14_SECURITY_CLAIMS` with instructions: one line per property, each naming the
+test or job that proves it. The extraction moved from `sed` in `release.yml` into `xtask release
+changelog`, which refuses a missing, empty or `TODO_`-carrying section, so the draft cannot be
+published as it stands.
+Evidence: `release_notes_come_from_the_changelog_and_refuse_a_placeholder`; run on the real file it
+refuses, naming the placeholder line.
+Affects: `docs/CHANGELOG.md`, `xtask/src/release.rs`, `.github/workflows/release.yml`.

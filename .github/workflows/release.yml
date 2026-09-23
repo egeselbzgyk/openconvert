@@ -310,8 +310,9 @@ jobs:
         with: { name: sbom, path: assets }
       - name: the updater manifest (latest.json)
         run: |
-          sed -n "/^## \[${TAG#v}\]/,/^## /p" docs/CHANGELOG.md | sed '1d;$d' > notes.md
-          if [ ! -s notes.md ]; then echo "::error::docs/CHANGELOG.md has no '## [${TAG#v}]' section"; exit 1; fi
+          # The `## [X.Y.Z]` section of docs/CHANGELOG.md; refused when missing, empty, or still
+          # carrying a TODO_ placeholder (the 1.0.0 draft's, for Phase 14's security claims).
+          cargo run -p xtask --locked -- release changelog --version "$TAG" --out notes.md
           cargo run -p xtask --locked -- release latest-json --dir assets --version "$TAG" --notes notes.md \
             --pub-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --base-url "https://github.com/${GH_REPO}/releases/download/${TAG}" --out assets/latest.json

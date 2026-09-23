@@ -164,8 +164,10 @@ Work items, in order, with the plan's test rows against each:
       1.0 MB, every shipped target, no dev-deps), the root `NOTICE`, both bundled as resources (and in
       the Flatpak) — `the_rust_notices_are_up_to_date`, `every_shipped_crate_and_only_those_has_a_licence_text`.
       After any dependency change: `cargo run -p xtask -- notices` and commit the file
-- [ ] **P15.15** `docs/CHANGELOG.md` `## [1.0.0]` draft with a marked placeholder for Phase 14's
-      security claims, which the release job refuses while it is there
+- [x] **P15.15** `docs/CHANGELOG.md` `## [1.0.0] — unreleased (draft)`: what 1.0 does, privacy,
+      installing and verifying, and a **Security** section that is only the placeholder
+      `TODO_PHASE14_SECURITY_CLAIMS`; `xtask release changelog` (used by `release.yml`) refuses a
+      missing, empty or placeholder-carrying section — `release_notes_come_from_the_changelog_and_refuse_a_placeholder`
 - [ ] **P15.16** row 15.19's scripted half: `packaging/smoke/fresh-install.{sh,ps1}`
 
 **Part A gates (2026-09-23, branch head before the hand-off commit):** `cargo fmt --check` clean;
@@ -210,7 +212,8 @@ clean. The `release-artifacts` gates that could run here: 15.7 + layout green, 1
    shipped crates' licence files (e.g. an `xtask notices` over `cargo metadata`, or cargo-about if its
    licence passes `deny.tools.toml`) into `bin/licenses/` so they ride in every bundle; also the root
    `NOTICE` LICENSE_AND_DEPENDENCIES §5 names (PdfPig credit) does not exist yet.
-7. **Release notes' security claims**: write the `## [1.0.0]` section of `docs/CHANGELOG.md` (the release
+7. **Release notes' security claims** — the `## [1.0.0]` draft exists (P15.15); replace its
+   `TODO_PHASE14_SECURITY_CLAIMS` paragraph: write the `## [1.0.0]` section of `docs/CHANGELOG.md` (the release
    job refuses an empty one) with the security properties Phase 14 actually delivered, each claim
    pointing at the test/CI job that proves it; plus the Windows-unsigned disclosure.
 8. **The checklist**: tick `docs/RELEASE_CHECKLIST.md` items that can be ticked on this machine and

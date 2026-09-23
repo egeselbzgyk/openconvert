@@ -9,6 +9,7 @@
 //! release notes <manifest.json>...                     the release body's SHA-256 section
 //! release verify-published --body <file> --assets <dir> every asset's hash is in the body
 //! release size-check --os <os> --bundle-dir <dir>       installers within the D12 budget
+//! release changelog --version <tag> --out <file>      the release notes, from docs/CHANGELOG.md
 //! release hash-dir --dir <dir>                         a SHA-256 section for every file there
 //! release latest-json --dir <dir> --version <v> --notes <file> --pub-date <rfc3339>
 //!                     --base-url <url> --out <file>    Tauri's static updater manifest
@@ -247,6 +248,30 @@ pub fn installer_budget() -> u64 {
     u64::try_from(oc_core::thresholds::T.release.max_installer_bytes).unwrap_or_default()
 }
 
+/// The release notes for `tag`: the body of `docs/CHANGELOG.md`'s `## [X.Y.Z]` section, up to the
+/// next `## ` heading, trimmed. Refused when there is no such section, when it is empty, and when it
+/// still holds a `TODO_` placeholder (the 1.0.0 draft's, for Phase 14's security claims).
+pub fn release_notes(changelog: &str, tag: &str) -> Result<String> {
+    let version = tag.trim_start_matches('v');
+    let heading = format!("## [{version}]");
+    let mut lines = changelog.lines();
+    if !lines.any(|line| line.starts_with(&heading)) {
+        bail!("docs/CHANGELOG.md has no `{heading}` section");
+    }
+    let body: Vec<&str> = lines.take_while(|line| !line.starts_with("## ")).collect();
+    let notes = body.join("\n").trim().to_owned();
+    if notes.is_empty() {
+        bail!("docs/CHANGELOG.md's `{heading}` section is empty");
+    }
+    if let Some(line) = notes.lines().find(|line| line.contains("TODO_")) {
+        bail!(
+            "docs/CHANGELOG.md's `{heading}` section still has a TODO_ placeholder: {}",
+            line.trim()
+        );
+    }
+    Ok(notes)
+}
+
 /// Every file directly in `dir`, hashed, as `(name, sha256)` in name order.
 pub fn hash_dir(dir: &Path) -> Result<Vec<(String, String)>> {
     let mut out = Vec::new();
@@ -378,6 +403,17 @@ pub fn run(workspace_root: &Path, args: &[String]) -> Result<()> {
             }
             out.push_str("```\n");
             print!("{out}");
+            Ok(())
+        }
+        Some("changelog") => {
+            let tag = flag(args, "--version")?;
+            let path = workspace_root.join("docs/CHANGELOG.md");
+            let changelog = std::fs::read_to_string(&path)
+                .with_context(|| format!("cannot read {}", path.display()))?;
+            let notes = release_notes(&changelog, &tag)?;
+            let out = PathBuf::from(flag(args, "--out")?);
+            std::fs::write(&out, notes + "\n")
+                .with_context(|| format!("cannot write {}", out.display()))?;
             Ok(())
         }
         Some("latest-json") => {

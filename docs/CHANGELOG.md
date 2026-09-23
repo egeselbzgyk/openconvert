@@ -3,6 +3,61 @@
 One section per completed phase, listing new CLI flags, new IR fields, new warning codes and new
 `thresholds.toml` entries. Required by the Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3 item 8).
 
+## [1.0.0] — unreleased (draft)
+
+OpenConvert turns a PDF book into a reflowable EPUB 3.3 on your own computer. This is the first
+release.
+
+### What it does
+
+- **Converts born-digital PDFs** into EPUB 3.3 that reflows on any reader: paragraphs rejoined across
+  lines and pages, running headers, footers and page numbers removed, headings and chapters recovered
+  (one file per chapter, a table of contents and a page list that point at them), footnotes linked both
+  ways, verse, quotations, lists, tables and figures kept as what they are, and images re-encoded
+  within sensible limits.
+- **Accounts for every character.** Each stage of the conversion must keep or explain every character
+  of the book's text; the report says what was removed and why (running headers, soft hyphens, …) and
+  how much of the text made it into the EPUB.
+- **Checks what it writes.** Every EPUB is validated as it is made, and anything the checks find is
+  repaired before the file is saved; the report says so when that happens.
+- **Reads scanned pages** with the Tesseract OCR engine when your system has it installed (English,
+  German and Turkish tested), and scanned regions of otherwise digital pages too.
+- **Optional AI assistance, off by default.** With a small local model you choose to download (Qwen3
+  1.7B by default, about 1.1 GB), or Ollama, or an OpenAI-compatible server you run, the converter can
+  ask four narrow questions per book — title and author, heading levels, front and back matter, verse
+  or quotation — and every answer is checked before it is used. Nothing is sent off your computer unless
+  you point it at a server elsewhere and consent to that host.
+- **A desktop app** for Windows, macOS and Linux: drop PDFs on the window, watch each book's progress,
+  read the report, fix the title, author or chapter list and rebuild, preview the result. In English,
+  German and Turkish. Every conversion also runs from the command line (`openconvert convert`).
+
+### Privacy
+
+- No telemetry and no crash reporting, anywhere.
+- A conversion never uses the network. The app connects only when you download a model or a pack
+  (only to the host its registry pins), when you check for updates (only to GitHub's release servers),
+  and — with AI assistance on — to the provider you chose.
+
+### Security
+
+<!-- Phase 14 fills this in; the release job refuses these notes while the placeholder below is here. -->
+
+TODO_PHASE14_SECURITY_CLAIMS — replace this paragraph with the security properties Phase 14 delivered,
+one line each, each naming the test or CI job that proves it (for example: the resource caps enforced
+before the operation they bound; Landlock on Linux; the engine's process isolation; the fuzzed
+parsers; the network audit log). Keep the wording to what is proven.
+
+### Installing and verifying
+
+- Windows: the NSIS installer or the MSI. **They are not code-signed in this release**, so Microsoft
+  Defender SmartScreen warns on first run ("More info" → "Run anyway"); `docs/INSTALL.md` explains why.
+- macOS: the `.dmg` for Apple silicon or Intel, signed with a Developer ID and notarized.
+- Linux: the AppImage, which updates itself when you ask it to; or the Flatpak on Flathub, which runs
+  without network access (so it cannot download an AI model) and is updated by Flathub.
+- Every file's SHA-256 is listed at the end of these notes, and the release carries a CycloneDX 1.6
+  SBOM listing every component, PDFium and llama.cpp included.
+- Updates are signed; the app installs one only after its signature has been verified.
+
 ## Phase 0 — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
 
 *(in progress)*

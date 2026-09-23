@@ -61,6 +61,7 @@ tasks:
                       notes <manifest>...              the release body's SHA-256 section
                       verify-published --body <file> --assets <dir>
                       size-check --os <os> --bundle-dir <dir>
+                      changelog --version <tag> --out <file>
                       hash-dir --dir <dir>
                       latest-json --dir <dir> --version <v> --notes <file> --pub-date <date>
                                   --base-url <url> --out <file>

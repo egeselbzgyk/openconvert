@@ -1628,6 +1628,7 @@ fn every_release_gate_row_is_a_named_release_step() {
         "xtask --locked -- sbom",
         "xtask --locked -- repro hash",
         "release latest-json",
+        "release changelog",
         "release verify-latest",
         "bump-rules-check --tag",
         "ci-lint --release-branch",
@@ -1705,4 +1706,46 @@ fn every_shipped_crate_and_only_those_has_a_licence_text() {
     );
     assert_eq!(chosen_license("MPL-2.0"), Some("MPL-2.0"));
     assert_eq!(chosen_license("Unlicense"), None);
+}
+
+/// PHASE 15 part B: the release notes are the `## [X.Y.Z]` section of `docs/CHANGELOG.md`, read by
+/// `xtask release changelog`, which refuses a missing or empty section and one that still carries a
+/// `TODO_` placeholder — the 1.0.0 draft has one for Phase 14's security claims, so the release job
+/// cannot publish the draft as it stands.
+#[test]
+fn release_notes_come_from_the_changelog_and_refuse_a_placeholder() {
+    use xtask::release::release_notes;
+
+    let changelog = "# Changelog\n\nIntro.\n\n## [1.1.0] — 2027-01-01\n\nNewer.\n\n\
+                     ## [1.0.0] — unreleased\n\nOpenConvert 1.0.\n\n### Security\n\nTODO_PHASE14: claims.\n\n\
+                     ## Phase 0 — Repo\n\nHistory.\n";
+    let error = release_notes(changelog, "v1.0.0").expect_err("a placeholder is left");
+    assert!(format!("{error:#}").contains("TODO_"), "{error:#}");
+    assert_eq!(
+        release_notes(changelog, "1.1.0").expect("a section"),
+        "Newer."
+    );
+    let filled = changelog.replace("TODO_PHASE14: claims.", "Landlock on Linux 5.13 and later.");
+    let notes = release_notes(&filled, "v1.0.0").expect("filled");
+    assert!(
+        notes.starts_with("OpenConvert 1.0.")
+            && notes.ends_with("Landlock on Linux 5.13 and later.")
+    );
+    assert!(
+        !notes.contains("History"),
+        "the section ends at the next ## heading"
+    );
+    assert!(release_notes(changelog, "2.0.0").is_err(), "no section");
+    assert!(
+        release_notes("## [3.0.0]\n\n## Phase 0\n", "3.0.0").is_err(),
+        "an empty section"
+    );
+
+    // The committed changelog has the 1.0.0 draft; until Phase 14's claims replace the placeholder,
+    // it is not releasable.
+    let committed = read(&workspace_root().join("docs/CHANGELOG.md"));
+    assert!(
+        committed.contains("\n## [1.0.0]"),
+        "the 1.0.0 draft is in docs/CHANGELOG.md"
+    );
 }
