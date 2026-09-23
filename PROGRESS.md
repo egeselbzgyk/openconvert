@@ -778,6 +778,15 @@ Part B2 work items:
       one-argument spawn carries AI end to end (a loopback `llama-server` double: the probe goes to
       the spec's endpoint with the spec's key; the report names the adapter and model) (+ 3 unit,
       2 integration tests)
+- [x] **P12.18** the AI switch and the app's own server per job: Settings › AI assistance is live
+      (off by default; on with the built-in provider and no model → the default model's download);
+      a job takes the AI settings of its enqueue (`ai::JobAi`); built-in jobs wait `preparing` while
+      a thread leases `LlmHost` for the installed default model (`AppModelServer`), their spec names
+      the lease, and the lease is released when they end; fail-open banner with the app's reason or
+      the engine's `W_LLM_UNAVAILABLE`; "AI-assisted decisions: N" with AI on; the switch says that no
+      task is enabled in this build (`UiConfig.aiTasksEnabled`); key file and consent are Rust-only
+      settings. PROVISIONAL: built-in serves the default model only (no tier fallback). (+ 9 Rust
+      incl. 1 engine-integration against the real engine and the stub server, + 4 Vitest)
 
 1. **The AI toggle** (Settings › AI assistance and the first-run route's "installed" step): it is
    drawn disabled, saying the converter has no AI support in this build. Enabling it needs Phase

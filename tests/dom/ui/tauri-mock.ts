@@ -39,6 +39,10 @@ export function installTauriMock(fixture: MockFixture): void {
     maxPages: null,
     maxMemoryBytes: null,
     firstrunDismissed: false,
+    aiEnabled: false,
+    provider: "builtin",
+    ollamaModel: null,
+    custom: { endpoint: "", model: "", apiKeyFile: null, consent: null },
   };
   const calls: string[] = [];
   const violations: string[] = [];
@@ -54,6 +58,7 @@ export function installTauriMock(fixture: MockFixture): void {
     renamed: false,
     unlocked: false,
     rebuild: false,
+    ai: null,
     ...job.state,
   });
   const emit = (event: string, payload: unknown) => {
@@ -125,7 +130,7 @@ export function installTauriMock(fixture: MockFixture): void {
     settings_get: () => settings,
     settings_set: (args) => {
       settings = args.next;
-      return null;
+      return settings;
     },
     queue_rows: () => jobs.map(view),
     pick_pdfs: () => fixture.picked,

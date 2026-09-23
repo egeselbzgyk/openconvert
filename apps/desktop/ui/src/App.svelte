@@ -214,6 +214,12 @@
     await tick();
     document.querySelector<HTMLElement>(`.oc-queue > li[data-job="${again}"]`)?.focus();
   }
+  /** Keep the settings; the Rust side's answer is what was saved (it keeps the key file and the
+      consent, which only it sets). */
+  async function save(next: UserSettings) {
+    settings = next;
+    settings = await backend.saveSettings(next);
+  }
   async function retry(row: Row) {
     await backend.enqueue([row.input]);
     await remove(row.id);
@@ -315,10 +321,7 @@
         setup
         section="models"
         onback={() => (route = { name: "queue" })}
-        onsave={(next) => {
-          settings = next;
-          void backend.saveSettings(next);
-        }}
+        onsave={(next) => void save(next)}
       />
       <AppHeader title={t("settings.title")} back={{ label: t("queue.title"), onclick: () => (route = { name: "queue" }) }} />
     {:else if settings !== null && config !== null}
@@ -329,13 +332,11 @@
         {models}
         {packs}
         bind:section={settingsSection}
+        onsetup={() => (route = { name: "firstrun" })}
         onreport={() => void exportBundle(null, { name: "settings" })}
         cacheUsage={() => backend.cacheUsage()}
         onclearcache={() => backend.clearCache()}
-        onsave={(next) => {
-          settings = next;
-          void backend.saveSettings(next);
-        }}
+        onsave={(next) => void save(next)}
       />
       <AppHeader title={t("settings.title")} back={{ label: t("queue.title"), onclick: () => (route = { name: "queue" }) }} />
     {/if}

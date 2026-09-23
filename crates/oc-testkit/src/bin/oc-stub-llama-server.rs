@@ -1,9 +1,10 @@
 //! A stand-in for `llama-server`, for the sidecar lifecycle tests (PHASE 9 rows 9.8–9.13).
 //!
 //! It takes the real server's command line, binds exactly the `--host` and `--port` it is given,
-//! reads its key from `LLAMA_API_KEY` as the real one does, and answers the two endpoints the engine
-//! uses the way the real one does: `GET /health` without a key, `POST /v1/chat/completions` only
-//! with `Authorization: Bearer <key>`. It never loads a model, so the lifecycle tests run on every
+//! reads its key from `LLAMA_API_KEY` as the real one does, and answers the endpoints the engine
+//! uses the way the real one does: `GET /health` without a key; `GET /props` — what the engine's
+//! capability probe recognises a `llama-server` by — and `POST /v1/chat/completions` only with
+//! `Authorization: Bearer <key>`. It never loads a model, so the lifecycle tests run on every
 //! platform in milliseconds; everything that needs a real model is behind `live-llm`.
 //!
 //! `OC_STUB_LOADING_MS` makes `/health` answer 503 for that long after start, as the real server
@@ -16,6 +17,8 @@ use std::time::{Duration, Instant};
 const COMPLETION: &str = r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"{}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":2,"total_tokens":14,"prompt_tokens_details":{"cached_tokens":0}},"timings":{"cache_n":0,"prompt_n":12}}"#;
 const UNAUTHORISED: &str =
     r#"{"error":{"code":401,"message":"Invalid API Key","type":"authentication_error"}}"#;
+/// The one key of `/props` the capability probe looks for (`oc_net::detect`).
+const PROPS: &str = r#"{"default_generation_settings":{"n_ctx":8192},"total_slots":1}"#;
 const LOADING: &str =
     r#"{"error":{"code":503,"message":"Loading model","type":"unavailable_error"}}"#;
 
@@ -76,6 +79,8 @@ fn serve(stream: TcpStream, key: Option<&str>, loading: bool) {
     let (status, reply) = match (method, path) {
         ("GET", "/health") if loading => (503, LOADING),
         ("GET", "/health") => (200, r#"{"status":"ok"}"#),
+        ("GET", "/props") if !authorised => (401, UNAUTHORISED),
+        ("GET", "/props") => (200, PROPS),
         ("POST", "/v1/chat/completions") if !authorised => (401, UNAUTHORISED),
         ("POST", "/v1/chat/completions") => (200, COMPLETION),
         _ => (404, r#"{"error":{"code":404,"message":"File Not Found"}}"#),

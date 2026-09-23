@@ -12,7 +12,7 @@
 
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
 
 use oc_core::jobspec::{JobSpec, LimitsSpec};
@@ -20,6 +20,7 @@ use oc_core::thresholds::T;
 use oc_model::document::PresetName;
 use serde::Serialize;
 
+use crate::ai::{AiUnavailable, AiView, JobAi, ModelServer, ServerLease};
 use crate::engine::{Engine, Launch, Running, UiError};
 use crate::fs_scope::{default_output_for, free_output_path_among};
 
@@ -32,6 +33,8 @@ pub enum JobState {
     Queued {
         position: usize,
     },
+    /// Its turn has come and it waits for the app's model server to load (AI assistance, built-in).
+    Preparing,
     Running,
     /// Cancel was sent; waiting for `done{cancelled}`, killed at `ipc.kill_after_secs`.
     Cancelling,
@@ -61,6 +64,9 @@ pub struct JobView {
     /// This run applies the user's corrections to a book the queue already converted ("Fix and
     /// rebuild"): it replaces that output, and resumes after `structure` when it can (A12.4b).
     pub rebuild: bool,
+    /// AI assistance for this job: the provider, and why it could not be used when it could not.
+    /// `None` with AI off.
+    pub ai: Option<AiView>,
     #[serde(flatten)]
     pub state: JobState,
 }
@@ -87,6 +93,12 @@ struct Job {
     unlocked: bool,
     /// Set by [`JobQueue::rebuild`]: the corrections to apply.
     rebuild: Option<Rebuild>,
+    /// AI assistance as the settings were when it was queued.
+    ai: JobAi,
+    /// It asked for AI assistance and converts without it, for this reason.
+    ai_unavailable: Option<AiUnavailable>,
+    /// It holds a lease on the app's model server, to be released when it ends.
+    leased: bool,
     phase: Phase,
 }
 
@@ -101,6 +113,12 @@ pub struct Rebuild {
 
 enum Phase {
     Queued,
+    /// Waiting for the app's model server: the lease arrives on `lease` from the thread that
+    /// started it. `cancelled` once Cancel was pressed meanwhile: the job then ends without starting.
+    Preparing {
+        lease: mpsc::Receiver<Result<ServerLease, AiUnavailable>>,
+        cancelled: bool,
+    },
     Running(Box<dyn Running>),
     Cancelling {
         running: Box<dyn Running>,
@@ -120,6 +138,9 @@ pub struct JobQueue<L: Launch> {
     next: u64,
     /// Every event line each job's engine wrote, for its diagnostic bundle.
     logs: Arc<std::sync::Mutex<std::collections::BTreeMap<String, Vec<String>>>>,
+    /// The app's own model server, for jobs with built-in AI assistance. `None`: this build has
+    /// none, and such a job converts without AI.
+    server: Option<Arc<dyn ModelServer>>,
 }
 
 impl<L: Launch> JobQueue<L> {
@@ -136,7 +157,14 @@ impl<L: Launch> JobQueue<L> {
             jobs: VecDeque::new(),
             next: 0,
             logs: Arc::default(),
+            server: None,
         }
+    }
+
+    /// Lease `server` to the jobs that want built-in AI assistance.
+    pub fn with_model_server(mut self, server: Arc<dyn ModelServer>) -> Self {
+        self.server = Some(server);
+        self
     }
 
     /// Add one job per PDF, in order, and start what may start. Returns the new ids.
@@ -154,6 +182,17 @@ impl<L: Launch> JobQueue<L> {
         preset: PresetName,
         limits: Option<LimitsSpec>,
     ) -> Vec<String> {
+        self.enqueue_as(pdfs, preset, limits, &JobAi::Off)
+    }
+
+    /// [`JobQueue::enqueue_with`], with AI assistance as the settings say ([`JobAi::plan`]).
+    pub fn enqueue_as(
+        &mut self,
+        pdfs: &[PathBuf],
+        preset: PresetName,
+        limits: Option<LimitsSpec>,
+        ai: &JobAi,
+    ) -> Vec<String> {
         let mut ids = Vec::with_capacity(pdfs.len());
         for input in pdfs {
             self.next += 1;
@@ -170,6 +209,9 @@ impl<L: Launch> JobQueue<L> {
                 password: None,
                 unlocked: false,
                 rebuild: None,
+                ai: ai.clone(),
+                ai_unavailable: None,
+                leased: false,
                 phase: Phase::Queued,
             });
             ids.push(id);
@@ -207,6 +249,9 @@ impl<L: Launch> JobQueue<L> {
             unlocked: true,
             // A locked book being rebuilt keeps its corrections through the unlock.
             rebuild: old.rebuild,
+            ai: old.ai,
+            ai_unavailable: None,
+            leased: false,
             phase: Phase::Queued,
         });
         self.pump();
@@ -241,6 +286,9 @@ impl<L: Launch> JobQueue<L> {
             password: None,
             unlocked: false,
             rebuild: Some(rebuild),
+            ai: old.ai,
+            ai_unavailable: None,
+            leased: false,
             phase: Phase::Queued,
         });
         self.pump();
@@ -266,6 +314,11 @@ impl<L: Launch> JobQueue<L> {
         let phase = std::mem::replace(&mut job.phase, Phase::Done(JobState::Running));
         job.phase = match phase {
             Phase::Queued => Phase::Done(JobState::CancelledBeforeStart),
+            // The server keeps loading; the job ends when its lease arrives, without starting.
+            Phase::Preparing { lease, .. } => Phase::Preparing {
+                lease,
+                cancelled: true,
+            },
             Phase::Running(mut running) => {
                 running.cancel()?;
                 Phase::Cancelling {
@@ -291,7 +344,7 @@ impl<L: Launch> JobQueue<L> {
             .ok_or_else(|| UiError::UnknownJob(id.to_owned()))?;
         if matches!(
             self.jobs[index].phase,
-            Phase::Running(_) | Phase::Cancelling { .. }
+            Phase::Preparing { .. } | Phase::Running(_) | Phase::Cancelling { .. }
         ) {
             return Err(UiError::Io(format!("{id} is running; cancel it first")));
         }
@@ -300,12 +353,40 @@ impl<L: Launch> JobQueue<L> {
         Ok(())
     }
 
-    /// Notice exits, enforce the kill deadline, and start what may start.
+    /// Notice exits, enforce the kill deadline, start the jobs whose model server is ready, and start
+    /// what may start.
     pub fn tick(&mut self, now: Instant) {
         let mut changed = false;
-        for job in &mut self.jobs {
-            let phase = std::mem::replace(&mut job.phase, Phase::Done(JobState::Running));
-            job.phase = match phase {
+        for index in 0..self.jobs.len() {
+            let phase =
+                std::mem::replace(&mut self.jobs[index].phase, Phase::Done(JobState::Running));
+            let next = match phase {
+                Phase::Preparing { lease, cancelled } => match lease.try_recv() {
+                    Err(mpsc::TryRecvError::Empty) => Phase::Preparing { lease, cancelled },
+                    arrived => {
+                        changed = true;
+                        let arrived = arrived.unwrap_or(Err(AiUnavailable::ServerFailed));
+                        if cancelled {
+                            if arrived.is_ok() {
+                                self.release_server();
+                            }
+                            Phase::Done(JobState::CancelledBeforeStart)
+                        } else {
+                            let job = &mut self.jobs[index];
+                            let ai = match arrived {
+                                Ok(lease) => {
+                                    job.leased = true;
+                                    Some(lease.spec())
+                                }
+                                Err(why) => {
+                                    job.ai_unavailable = Some(why);
+                                    None
+                                }
+                            };
+                            self.launch(index, ai)
+                        }
+                    }
+                },
                 Phase::Running(mut running) => match running.try_wait() {
                     Ok(Some(code)) => {
                         changed = true;
@@ -342,61 +423,123 @@ impl<L: Launch> JobQueue<L> {
                 },
                 other => other,
             };
+            let ended = matches!(next, Phase::Done(_));
+            self.jobs[index].phase = next;
+            if ended && self.jobs[index].leased {
+                self.jobs[index].leased = false;
+                self.release_server();
+            }
         }
         if self.pump() || changed {
             self.announce_all();
         }
     }
 
-    /// Start waiting jobs while fewer than `max_concurrent` run. Returns whether any started.
+    fn release_server(&self) {
+        if let Some(server) = &self.server {
+            server.release();
+        }
+    }
+
+    /// Start waiting jobs while fewer than `max_concurrent` are under way. Returns whether any
+    /// started — or began waiting for the model server, which counts as under way.
     fn pump(&mut self) -> bool {
         let mut started = false;
         loop {
             let active = self
                 .jobs
                 .iter()
-                .filter(|job| matches!(job.phase, Phase::Running(_) | Phase::Cancelling { .. }))
+                .filter(|job| {
+                    matches!(
+                        job.phase,
+                        Phase::Preparing { .. } | Phase::Running(_) | Phase::Cancelling { .. }
+                    )
+                })
                 .count();
             if active >= self.max_concurrent {
                 return started;
             }
-            let Some(job) = self
+            let Some(index) = self
                 .jobs
-                .iter_mut()
-                .find(|job| matches!(job.phase, Phase::Queued))
+                .iter()
+                .position(|job| matches!(job.phase, Phase::Queued))
             else {
                 return started;
             };
-            let mut spec = JobSpec::new(job.input.clone(), job.output.clone());
-            spec.job_id = Some(job.id.clone());
-            spec.preset = Some(job.preset);
-            spec.limits = job.limits;
-            if let Some(rebuild) = &job.rebuild {
-                // The rebuild replaces the book this queue wrote, the one the user corrected.
-                spec.output.overwrite = true;
-                spec.input.sha256 = Some(rebuild.sha256.clone());
-                spec.overrides_path = Some(rebuild.overrides.clone());
-            }
-            let sink = Arc::clone(&self.sink);
-            let logs = Arc::clone(&self.logs);
-            let id = job.id.clone();
-            let on_line = Box::new(move |line: String| {
-                logs.lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .entry(id.clone())
-                    .or_default()
-                    .push(line.clone());
-                sink.line(&id, line);
-            });
-            let password = job.password.take();
-            job.phase = match self
-                .engine
-                .start(&job.id, &spec, password.as_deref(), on_line)
-            {
-                Ok(running) => Phase::Running(running),
-                Err(error) => Phase::Done(JobState::FailedToStart { error }),
-            };
             started = true;
+            let phase = match self.jobs[index].ai.clone() {
+                JobAi::Off => self.launch(index, None),
+                JobAi::Endpoint { spec, .. } => self.launch(index, Some(spec)),
+                JobAi::Unusable { .. } => self.launch(index, None),
+                // D10: nothing is sent to a host nobody consented to, so nothing is started; the
+                // UI opens the consent dialog again.
+                JobAi::ConsentRequired { host } => Phase::Done(JobState::FailedToStart {
+                    error: UiError::ConsentRequired { host },
+                }),
+                JobAi::Builtin => match &self.server {
+                    // The model loads off the queue's lock: a gigabyte can take a while, and the
+                    // queue must keep answering Cancel meanwhile.
+                    Some(server) => {
+                        let server = Arc::clone(server);
+                        let (send, lease) = mpsc::channel();
+                        std::thread::spawn(move || {
+                            let _ = send.send(server.acquire());
+                        });
+                        Phase::Preparing {
+                            lease,
+                            cancelled: false,
+                        }
+                    }
+                    None => {
+                        self.jobs[index].ai_unavailable = Some(AiUnavailable::NoServer);
+                        self.launch(index, None)
+                    }
+                },
+            };
+            self.jobs[index].phase = phase;
+        }
+    }
+
+    /// Write job `index`'s spec, with `ai` as its `ai` object, and start its engine.
+    fn launch(&mut self, index: usize, ai: Option<oc_core::jobspec::AiSpec>) -> Phase {
+        let job = &mut self.jobs[index];
+        let mut spec = JobSpec::new(job.input.clone(), job.output.clone());
+        spec.job_id = Some(job.id.clone());
+        spec.preset = Some(job.preset);
+        spec.limits = job.limits;
+        spec.ai = ai;
+        if let Some(rebuild) = &job.rebuild {
+            // The rebuild replaces the book this queue wrote, the one the user corrected.
+            spec.output.overwrite = true;
+            spec.input.sha256 = Some(rebuild.sha256.clone());
+            spec.overrides_path = Some(rebuild.overrides.clone());
+        }
+        let sink = Arc::clone(&self.sink);
+        let logs = Arc::clone(&self.logs);
+        let id = job.id.clone();
+        let on_line = Box::new(move |line: String| {
+            logs.lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .entry(id.clone())
+                .or_default()
+                .push(line.clone());
+            sink.line(&id, line);
+        });
+        let password = job.password.take();
+        match self
+            .engine
+            .start(&job.id, &spec, password.as_deref(), on_line)
+        {
+            Ok(running) => Phase::Running(running),
+            Err(error) => {
+                if job.leased {
+                    job.leased = false;
+                    if let Some(server) = &self.server {
+                        server.release();
+                    }
+                }
+                Phase::Done(JobState::FailedToStart { error })
+            }
         }
     }
 
@@ -428,7 +571,12 @@ impl<L: Launch> JobQueue<L> {
         let mut position = self
             .jobs
             .iter()
-            .filter(|job| matches!(job.phase, Phase::Running(_) | Phase::Cancelling { .. }))
+            .filter(|job| {
+                matches!(
+                    job.phase,
+                    Phase::Preparing { .. } | Phase::Running(_) | Phase::Cancelling { .. }
+                )
+            })
             .count();
         self.jobs
             .iter()
@@ -438,6 +586,12 @@ impl<L: Launch> JobQueue<L> {
                         position += 1;
                         JobState::Queued { position }
                     }
+                    Phase::Preparing {
+                        cancelled: false, ..
+                    } => JobState::Preparing,
+                    Phase::Preparing {
+                        cancelled: true, ..
+                    } => JobState::Cancelling,
                     Phase::Running(_) => JobState::Running,
                     Phase::Cancelling { .. } => JobState::Cancelling,
                     Phase::Done(state) => state.clone(),
@@ -449,6 +603,7 @@ impl<L: Launch> JobQueue<L> {
                     renamed: job.renamed,
                     unlocked: job.unlocked,
                     rebuild: job.rebuild.is_some(),
+                    ai: job.ai.view(job.ai_unavailable),
                     state,
                 }
             })
@@ -730,5 +885,204 @@ mod tests {
         assert_eq!(views[0].output, PathBuf::from("/x/Book.epub"));
         assert_eq!(views[1].output, PathBuf::from("/x/Book (2).epub"));
         assert!(views[1].renamed);
+    }
+
+    /// The app's model server, scripted: each acquire answers `answer`, after `gate` opens when
+    /// there is one.
+    struct FakeServer {
+        answer: Result<ServerLease, AiUnavailable>,
+        gate: Mutex<Option<mpsc::Receiver<()>>>,
+        acquired: std::sync::atomic::AtomicUsize,
+        released: std::sync::atomic::AtomicUsize,
+    }
+
+    impl FakeServer {
+        fn answering(answer: Result<ServerLease, AiUnavailable>) -> Arc<Self> {
+            Arc::new(Self {
+                answer,
+                gate: Mutex::new(None),
+                acquired: Default::default(),
+                released: Default::default(),
+            })
+        }
+        fn released(&self) -> usize {
+            self.released.load(std::sync::atomic::Ordering::SeqCst)
+        }
+    }
+
+    impl ModelServer for FakeServer {
+        fn acquire(&self) -> Result<ServerLease, AiUnavailable> {
+            let gate = self.gate.lock().expect("not poisoned").take();
+            if let Some(gate) = gate {
+                let _ = gate.recv();
+            }
+            self.acquired
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.answer.clone()
+        }
+        fn release(&self) {
+            self.released
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    fn lease() -> ServerLease {
+        ServerLease {
+            endpoint: "http://127.0.0.1:40123".to_owned(),
+            api_key_file: PathBuf::from("/data/run/llm.key"),
+            model_id: "qwen3-1.7b".to_owned(),
+        }
+    }
+
+    /// Tick until the first job has left `Preparing`, as the app's supervisor clock would.
+    fn until_prepared(queue: &mut JobQueue<FakeLauncher>) {
+        until(queue, |state| *state != JobState::Preparing);
+    }
+
+    fn until(queue: &mut JobQueue<FakeLauncher>, done: impl Fn(&JobState) -> bool) {
+        for _ in 0..500 {
+            queue.tick(Instant::now());
+            if done(&queue.views()[0].state) {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        panic!("the lease never arrived");
+    }
+
+    fn spec_of(launcher: &FakeLauncher, launch: usize) -> serde_json::Value {
+        let script = launcher.0.lock().expect("not poisoned");
+        serde_json::from_str(&std::fs::read_to_string(&script.launched[launch]).expect("on disk"))
+            .expect("JSON")
+    }
+
+    /// Built-in AI: the job waits for the app's server, its spec names that server — endpoint, the
+    /// run's key file, the model — and the lease is released when the job ends, so the server's
+    /// idle clock can start (D8, PHASE 9 detail 3).
+    #[test]
+    fn built_in_ai_leases_the_app_server_for_the_job_and_releases_it_at_the_end() {
+        let (queue, launcher) = queue("ai-lease");
+        let server = FakeServer::answering(Ok(lease()));
+        let mut queue = queue.with_model_server(server.clone());
+        queue.enqueue_as(
+            &[PathBuf::from("/b/a.pdf"), PathBuf::from("/b/b.pdf")],
+            PresetName::Auto,
+            None,
+            &JobAi::Builtin,
+        );
+        assert_eq!(queue.views()[1].state, JobState::Queued { position: 2 });
+        until_prepared(&mut queue);
+        assert_eq!(queue.views()[0].state, JobState::Running);
+        assert_eq!(
+            queue.views()[0].ai,
+            Some(AiView {
+                provider: crate::settings::Provider::Builtin,
+                unavailable: None
+            })
+        );
+        let spec = spec_of(&launcher, 0);
+        assert_eq!(spec["ai"]["enabled"], true);
+        assert_eq!(spec["ai"]["endpoint"], "http://127.0.0.1:40123");
+        assert_eq!(spec["ai"]["api_key_file"], "/data/run/llm.key");
+        assert_eq!(spec["ai"]["model_id"], "qwen3-1.7b");
+        assert_eq!(server.released(), 0, "held while the job runs");
+
+        launcher.0.lock().expect("not poisoned").exited[0] = Some(Some(0));
+        queue.tick(Instant::now());
+        assert_eq!(server.released(), 1, "released when the job ends");
+    }
+
+    /// UI_UX §4's fail-open: no model installed (or no server, or one that did not come up) — the
+    /// book converts without AI, and the row says why.
+    #[test]
+    fn built_in_ai_without_a_model_converts_without_ai_and_says_why() {
+        let (queue, launcher) = queue("ai-nomodel");
+        let mut queue = queue.with_model_server(FakeServer::answering(Err(AiUnavailable::NoModel)));
+        queue.enqueue_as(
+            &[PathBuf::from("/b/a.pdf")],
+            PresetName::Auto,
+            None,
+            &JobAi::Builtin,
+        );
+        until_prepared(&mut queue);
+        assert_eq!(queue.views()[0].state, JobState::Running);
+        assert_eq!(
+            queue.views()[0].ai.as_ref().and_then(|ai| ai.unavailable),
+            Some(AiUnavailable::NoModel)
+        );
+        assert!(spec_of(&launcher, 0).get("ai").is_none(), "no ai object");
+
+        let (mut queue, launcher) = queue_named("ai-noserver");
+        queue.enqueue_as(
+            &[PathBuf::from("/b/a.pdf")],
+            PresetName::Auto,
+            None,
+            &JobAi::Builtin,
+        );
+        assert_eq!(queue.views()[0].state, JobState::Running);
+        assert_eq!(
+            queue.views()[0].ai.as_ref().and_then(|ai| ai.unavailable),
+            Some(AiUnavailable::NoServer),
+            "a build without the server says so"
+        );
+        assert!(spec_of(&launcher, 0).get("ai").is_none());
+    }
+
+    /// Cancel while the model loads: the job never starts, and the server it was waiting for is
+    /// released as soon as it is up.
+    #[test]
+    fn a_job_cancelled_while_the_model_loads_never_starts() {
+        let (queue, launcher) = queue("ai-cancel");
+        let server = FakeServer::answering(Ok(lease()));
+        let (open, gate) = mpsc::channel();
+        *server.gate.lock().expect("not poisoned") = Some(gate);
+        let mut queue = queue.with_model_server(server.clone());
+        let ids = queue.enqueue_as(
+            &[PathBuf::from("/b/a.pdf")],
+            PresetName::Auto,
+            None,
+            &JobAi::Builtin,
+        );
+        assert_eq!(queue.views()[0].state, JobState::Preparing);
+        assert!(
+            queue.remove(&ids[0]).is_err(),
+            "a preparing row cannot vanish"
+        );
+        queue.cancel(&ids[0], Instant::now()).expect("known");
+        assert_eq!(queue.views()[0].state, JobState::Cancelling);
+
+        open.send(()).expect("the gate opens");
+        until(&mut queue, |state| *state != JobState::Cancelling);
+        assert_eq!(queue.views()[0].state, JobState::CancelledBeforeStart);
+        assert!(launcher.0.lock().expect("not poisoned").launched.is_empty());
+        assert_eq!(server.released(), 1);
+    }
+
+    /// D10: a host nobody consented to is never sent anything — the job does not start, and says
+    /// which host needs consent.
+    #[test]
+    fn a_host_nobody_consented_to_never_starts() {
+        let (mut queue, launcher) = queue("ai-consent");
+        queue.enqueue_as(
+            &[PathBuf::from("/b/a.pdf")],
+            PresetName::Auto,
+            None,
+            &JobAi::ConsentRequired {
+                host: "llm.example.org".to_owned(),
+            },
+        );
+        assert_eq!(
+            queue.views()[0].state,
+            JobState::FailedToStart {
+                error: UiError::ConsentRequired {
+                    host: "llm.example.org".to_owned()
+                }
+            }
+        );
+        assert!(launcher.0.lock().expect("not poisoned").launched.is_empty());
+    }
+
+    fn queue_named(name: &str) -> (JobQueue<FakeLauncher>, FakeLauncher) {
+        queue(name)
     }
 }

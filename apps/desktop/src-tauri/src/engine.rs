@@ -74,6 +74,13 @@ pub enum UiError {
     /// Deleting, or downloading again, a model that is downloading.
     #[error("{0} is downloading")]
     ModelBusy(String),
+    /// AI assistance would send document text to `host`, which is not this computer, and no
+    /// consent names it (D10). Nothing was started; the UI asks again.
+    #[error("sending document text to {host} needs your consent")]
+    ConsentRequired { host: String },
+    /// The engine could not be asked something outside a conversion (`openconvert provider …`).
+    #[error("the converter could not answer: {0}")]
+    Provider(String),
 }
 
 impl From<std::io::Error> for UiError {

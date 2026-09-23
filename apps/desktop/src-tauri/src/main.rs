@@ -21,6 +21,7 @@ use std::time::{Duration, Instant};
 
 use oc_core::sidecar::readiness::ModelReadiness;
 use oc_core::thresholds::T;
+use openconvert_desktop::ai::JobAi;
 use openconvert_desktop::config::UiConfig;
 use openconvert_desktop::corrections::{self, Patch};
 use openconvert_desktop::diagnostics::{self, Bundle};
@@ -29,7 +30,7 @@ use openconvert_desktop::engine::{
 };
 use openconvert_desktop::fs_scope::{partition_drop, AppDirs, CacheUsage};
 use openconvert_desktop::jobqueue::{JobQueue, JobView, QueueSink, Rebuild};
-use openconvert_desktop::llm::{self, LlmHost};
+use openconvert_desktop::llm::{self, AppModelServer, LlmHost};
 use openconvert_desktop::models::{self, LicenseView, ModelManager, ModelsView, Row, RowSink};
 use openconvert_desktop::packs::{self, PackManager, PackReadiness, PacksView};
 use openconvert_desktop::preview::{self, PreviewIndex};
@@ -47,9 +48,10 @@ struct Startup(Result<Hello, UiError>);
 /// The queue, once the app knows where its directories and its engine are.
 struct Queue(Mutex<Option<JobQueue<ProcessLauncher>>>);
 
-/// The app's own model server (`llm.rs`): started on the first job that wants AI assistance,
-/// stopped when idle and when the app exits.
-struct Llm(Mutex<Option<LlmHost>>);
+/// The app's own model server (`llm.rs`): started on the first job that wants built-in AI
+/// assistance, stopped when idle and when the app exits. Shared with the queue's
+/// [`AppModelServer`], which leases it to jobs.
+struct Llm(Arc<Mutex<Option<LlmHost>>>);
 
 /// The user's settings and where they are kept.
 struct Prefs {
@@ -197,8 +199,11 @@ fn enqueue(
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .clone();
+    // AI assistance as the settings say at the moment of the drop: a job keeps what it was queued
+    // with, whatever changes before its turn.
+    let ai = JobAi::plan(&chosen);
     let jobs = with_queue(&queue, |queue| {
-        Ok(queue.enqueue_with(&drop.pdfs, chosen.preset, chosen.limits()))
+        Ok(queue.enqueue_as(&drop.pdfs, chosen.preset, chosen.limits(), &ai))
     })?;
     Ok(Enqueued {
         jobs,
@@ -466,8 +471,21 @@ fn settings_get(prefs: tauri::State<'_, Prefs>) -> Settings {
         .clone()
 }
 
+/// Save the settings the webview sends — all but the key file and the consent, which only the Rust
+/// side sets (`Settings::merged_from_webview`). Returns what was saved.
 #[tauri::command]
-fn settings_set(next: Settings, prefs: tauri::State<'_, Prefs>) -> Result<(), UiError> {
+fn settings_set(next: Settings, prefs: tauri::State<'_, Prefs>) -> Result<Settings, UiError> {
+    let current = prefs
+        .current
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    let next = current.merged_from_webview(next);
+    store_settings(&prefs, next)
+}
+
+/// Keep `next` as the settings, on disk and in memory.
+fn store_settings(prefs: &Prefs, next: Settings) -> Result<Settings, UiError> {
     if let Some(path) = prefs
         .path
         .lock()
@@ -476,8 +494,8 @@ fn settings_set(next: Settings, prefs: tauri::State<'_, Prefs>) -> Result<(), Ui
     {
         settings::save(path, &next)?;
     }
-    *prefs.current.lock().unwrap_or_else(PoisonError::into_inner) = next;
-    Ok(())
+    *prefs.current.lock().unwrap_or_else(PoisonError::into_inner) = next.clone();
+    Ok(next)
 }
 
 /// "Quit" on the blocking startup screen.
@@ -517,7 +535,7 @@ fn main() {
         .manage(Startup(startup))
         .manage(Queue(Mutex::new(None)))
         .manage(LastBundle(Mutex::new(None)))
-        .manage(Llm(Mutex::new(None)))
+        .manage(Llm(Arc::new(Mutex::new(None))))
         .manage(Prefs {
             path: Mutex::new(None),
             current: Mutex::new(Settings::default()),
@@ -527,13 +545,14 @@ fn main() {
             let config_dir = app.path().app_config_dir()?;
             let settings_file = settings::settings_path(&config_dir);
             // One store for the app and `openconvert model`, so a model is fetched once.
-            app.manage(Models(ModelManager::new(
+            let model_manager = ModelManager::new(
                 models::bundled_registry(),
                 oc_net::store::ModelStore::new(oc_net::store::default_root()),
                 models::http_fetch(),
                 Some(models::accepted_path(&config_dir)),
                 Arc::new(WebviewModels(app.handle().clone())),
-            )));
+            );
+            app.manage(Models(model_manager.clone()));
             app.manage(Packs(PackManager::new(
                 packs::bundled_registry(),
                 oc_net::store::ModelStore::new(oc_net::store::default_packs_root()),
@@ -552,19 +571,23 @@ fn main() {
             let _ = dirs.clear_cache();
             let _ = dirs.clear_run();
             app.manage(dirs.clone());
+            // Only a build that ships `llama-server` beside the app has a server to start; without
+            // one, built-in AI assistance converts without AI and says so.
+            let host = Arc::clone(&app.state::<Llm>().0);
             if let Ok(program) = llm::server_path() {
-                *app.state::<Llm>()
-                    .0
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner) =
-                    Some(LlmHost::new(program, dirs.run.clone()));
+                if program.is_file() {
+                    *host.lock().unwrap_or_else(PoisonError::into_inner) =
+                        Some(LlmHost::new(program, dirs.run.clone()));
+                }
             }
+            let model_server = Arc::new(AppModelServer::new(host, model_manager));
 
             if let Ok(engine) = engine {
                 let launcher =
                     ProcessLauncher::new(engine, dirs.jobs.clone()).with_cache(dirs.cache.clone());
                 let sink = Arc::new(WebviewSink(app.handle().clone()));
-                let queue = JobQueue::new(Engine::new(dirs.jobs, launcher), sink);
+                let queue = JobQueue::new(Engine::new(dirs.jobs, launcher), sink)
+                    .with_model_server(model_server);
                 *app.state::<Queue>()
                     .0
                     .lock()
@@ -582,10 +605,18 @@ fn main() {
                     queue.tick(now);
                 }
                 drop(guard);
+                // Only tried: a job's lease holds the lock while a model loads, and the clock must
+                // not stop for it.
                 let llm = handle.state::<Llm>();
-                let mut guard = llm.0.lock().unwrap_or_else(PoisonError::into_inner);
-                if let Some(host) = guard.as_mut() {
-                    host.tick(now);
+                let guard = match llm.0.try_lock() {
+                    Ok(guard) => Some(guard),
+                    Err(std::sync::TryLockError::Poisoned(poisoned)) => Some(poisoned.into_inner()),
+                    Err(std::sync::TryLockError::WouldBlock) => None,
+                };
+                if let Some(mut guard) = guard {
+                    if let Some(host) = guard.as_mut() {
+                        host.tick(now);
+                    }
                 }
             });
             Ok(())
@@ -632,10 +663,20 @@ fn main() {
                 // Nothing the app started outlives it: every engine's tree, then the model server
                 // and its key.
                 tree::end_all();
-                let llm = app.state::<Llm>();
-                let mut guard = llm.0.lock().unwrap_or_else(PoisonError::into_inner);
-                if let Some(host) = guard.as_mut() {
-                    host.shutdown();
+                let llm = Arc::clone(&app.state::<Llm>().0);
+                let stopped = match llm.try_lock() {
+                    Ok(mut guard) => {
+                        if let Some(host) = guard.as_mut() {
+                            host.shutdown();
+                        }
+                        true
+                    }
+                    Err(_) => false,
+                };
+                if !stopped {
+                    // A model is still loading for a job: end the server the way the panic hook
+                    // would. Its key file goes with the run directory at the next start.
+                    oc_core::sidecar::supervise::kill_all();
                 }
             }
         });

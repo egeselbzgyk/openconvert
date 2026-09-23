@@ -21,6 +21,10 @@ pub struct UiConfig {
     pub max_memory_bytes: u64,
     /// `std::env::consts::OS`, for the one OS-specific thing the UI says: how to install Tesseract.
     pub os: String,
+    /// How many of the four AI tasks this build enables for at least one language
+    /// (`ai.task.<task>.languages`, PHASE 10 detail 7). Zero means turning AI assistance on changes
+    /// no book, and Settings says so rather than let the switch promise what it does not do.
+    pub ai_tasks_enabled: u64,
 }
 
 /// Seconds as milliseconds, saturating; a negative threshold is a malformed file, not a runtime
@@ -46,6 +50,15 @@ impl UiConfig {
             max_pages: u64::try_from(T.limits.max_pages).unwrap_or_default(),
             max_memory_bytes: u64::try_from(T.limits.max_memory_bytes).unwrap_or_default(),
             os: std::env::consts::OS.to_owned(),
+            ai_tasks_enabled: [
+                T.ai.task.metadata.languages,
+                T.ai.task.heading_roles.languages,
+                T.ai.task.book_structure.languages,
+                T.ai.task.verse_quote.languages,
+            ]
+            .iter()
+            .filter(|languages| !languages.is_empty())
+            .count() as u64,
         }
     }
 }
@@ -71,5 +84,18 @@ mod tests {
             "camelCase for the webview: {json}"
         );
         assert!(json["supervisorTickMs"].is_u64());
+        let enabled = [
+            T.ai.task.metadata.languages.is_empty(),
+            T.ai.task.heading_roles.languages.is_empty(),
+            T.ai.task.book_structure.languages.is_empty(),
+            T.ai.task.verse_quote.languages.is_empty(),
+        ]
+        .iter()
+        .filter(|empty| !**empty)
+        .count();
+        assert_eq!(
+            json["aiTasksEnabled"], enabled,
+            "from the four language maps"
+        );
     }
 }

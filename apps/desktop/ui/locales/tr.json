@@ -243,7 +243,6 @@
  "settings.ai.cardBody": "Dönüştürme onsuz da eksiksizdir. Açık olduğunda, bu bilgisayardaki küçük bir model kitap başına bir kez verilen dört kararda yardım eder: kitabın üst verileri, belirsiz başlık düzeyleri, kitap yapısı (ön kısmın ve bölümlerin nerede başladığı) ve şiirle alıntıları düzyazıdan ayırmak.",
  "settings.ai.cardNote": "Her sonuç kaç karar verdiğini gösterir; rapor her birini, kuralların tek başına seçeceği şeyin yanında listeler.",
  "settings.ai.label": "Yapay zekâ desteği",
- "settings.ai.unavailable": "Kapalı. Açmak için dönüştürücüde yapay zekâ desteği gerekir; bu sürümde henüz yok.",
  "toggle.on": "Açık",
  "toggle.off": "Kapalı",
  "settings.models.hint": "Her model lisansını gösterir ve ilk indirmeden önce onu kabul edersiniz. Satırlar tam olarak model yöneticisinin bildirdiğini gösterir.",
@@ -385,5 +384,18 @@
  "models.error.models_unavailable": "Uygulamanın bu sürümüyle hiçbir model indirilemez.",
  "models.error.unknown_model": "Uygulamanın bu sürümü bunu tanımıyor.",
  "models.error.io": "Bu işe yaramadı. Yeniden deneyin.",
- "packs.contents.validation": "Yerleşik denetimden sonra tam EPUBCheck'i çalıştırır"
+ "packs.contents.validation": "Yerleşik denetimden sonra tam EPUBCheck'i çalıştırır",
+ "settings.ai.off": "Kapalı. Açtığınızda, yüklü model yoksa model indirme ekranı açılır.",
+ "settings.ai.on": "Açık: kuralların tek başına karar veremediği yerde {provider} sorulur.",
+ "settings.ai.noTasks": "Bu sürümde henüz hiçbir karar herhangi bir dil için değerlendirmeden geçmedi; bu yüzden kitaplar bu ayar kapalıymış gibi dönüştürülür. Her rapor yine de nelerin sorulacağını listeler.",
+ "provider.name.builtin": "yüklü model",
+ "provider.name.ollama": "Ollama",
+ "provider.name.custom": "özel uç noktanız",
+ "queue.startingAi": "Yapay zekâ desteği başlatılıyor",
+ "queue.startingAiDetail": "model yükleniyor",
+ "ai.why.no_model": "Yüklü model yok.",
+ "ai.why.no_server": "Bu sürüm model sunucusunu içermiyor.",
+ "ai.why.server_failed": "Model sunucusu başlamadı.",
+ "ai.why.no_endpoint": "Özel uç nokta bir web adresi değil.",
+ "ai.why.plain_http": "Özel uç nokta bu bilgisayarda değil ve https kullanmıyor."
 }

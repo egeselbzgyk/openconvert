@@ -85,6 +85,28 @@ export interface Report {
   repair: { status: string; iterations: number };
   warnings: ReportWarning[];
   decisions: Decision[];
+  /** What the AI step did, when it ran (PHASE 10); absent with AI off. */
+  ai?: AiReport | null;
+  /** When text was sent to a host off this computer, the consent that named it (PHASE 11). */
+  consent?: ConsentReport | null;
+}
+
+/** The report's `ai` section. */
+export interface AiReport {
+  /** `local_sidecar`, `ollama` or `openai_compatible`. */
+  provider?: string;
+  model_id: string;
+  all_tasks: boolean;
+  calls: number;
+  cached_calls: number;
+  llm_ms: number;
+}
+
+/** The report's `consent`: text from this book was sent to `host` at `granted_at`. */
+export interface ConsentReport {
+  host: string;
+  granted_at: string;
+  scope: string;
 }
 
 /** The three verdicts D6/D13.7 produce (UI_UX §2.3). */
@@ -115,7 +137,8 @@ export function notesLinked(report: Report): { linked: number; of: number } {
 /** How many decisions a model made — shown only when AI was on for the job (UI_UX §2.3). */
 export function llmDecisions(report: Report): number | null {
   const count = report.decisions.filter((decision) => decision.method === "llm").length;
-  return report.engine.prompt_version === null && count === 0 ? null : count;
+  const aiRan = (report.ai ?? null) !== null || report.engine.prompt_version !== null;
+  return !aiRan && count === 0 ? null : count;
 }
 
 /** The report's step timings, in the user-facing steps (UI_UX §5 "Timing per stage"). */

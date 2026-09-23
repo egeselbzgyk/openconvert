@@ -243,7 +243,6 @@
  "settings.ai.cardBody": "Die Konvertierung ist auch ohne sie vollständig. Ist sie eingeschaltet, hilft ein kleines Modell auf diesem Computer bei vier Entscheidungen, die einmal pro Buch fallen: den Metadaten des Buchs, uneindeutigen Überschriftenebenen, der Buchstruktur (wo Titelei und Kapitel beginnen) und der Unterscheidung von Versen und Zitaten gegenüber Prosa.",
  "settings.ai.cardNote": "Jedes Ergebnis zeigt, wie viele Entscheidungen sie getroffen hat, und der Bericht nennt jede neben dem, was die Regeln allein gewählt hätten.",
  "settings.ai.label": "KI-Unterstützung",
- "settings.ai.unavailable": "Aus. Zum Einschalten braucht der Konverter KI-Unterstützung, die diese Version noch nicht hat.",
  "toggle.on": "Ein",
  "toggle.off": "Aus",
  "settings.models.hint": "Jedes Modell zeigt seine Lizenz, und Sie akzeptieren sie vor dem ersten Download. Die Zeilen zeigen genau, was die Modellverwaltung meldet.",
@@ -385,5 +384,18 @@
  "models.error.models_unavailable": "Mit dieser Version der App lässt sich kein Modell herunterladen.",
  "models.error.unknown_model": "Diese Version der App kennt es nicht.",
  "models.error.io": "Das hat nicht geklappt. Versuchen Sie es erneut.",
- "packs.contents.validation": "Führt nach der eingebauten Prüfung das vollständige EPUBCheck aus"
+ "packs.contents.validation": "Führt nach der eingebauten Prüfung das vollständige EPUBCheck aus",
+ "settings.ai.off": "Aus. Beim Einschalten öffnet sich der Modell-Download, falls kein Modell installiert ist.",
+ "settings.ai.on": "An: {provider} wird gefragt, wo die Regeln allein nicht entscheiden können.",
+ "settings.ai.noTasks": "In dieser Version hat noch keine Entscheidung ihre Auswertung für eine Sprache bestanden; Bücher werden daher so umgewandelt, als wäre dies aus. Jeder Bericht listet trotzdem auf, was gefragt worden wäre.",
+ "provider.name.builtin": "das installierte Modell",
+ "provider.name.ollama": "Ollama",
+ "provider.name.custom": "Ihr eigener Endpunkt",
+ "queue.startingAi": "KI-Unterstützung wird gestartet",
+ "queue.startingAiDetail": "das Modell wird geladen",
+ "ai.why.no_model": "Es ist kein Modell installiert.",
+ "ai.why.no_server": "Diese Version enthält den Modellserver nicht.",
+ "ai.why.server_failed": "Der Modellserver ist nicht gestartet.",
+ "ai.why.no_endpoint": "Der eigene Endpunkt ist keine Webadresse.",
+ "ai.why.plain_http": "Der eigene Endpunkt liegt nicht auf diesem Computer und verwendet kein https."
 }

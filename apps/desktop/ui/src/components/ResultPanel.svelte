@@ -4,7 +4,7 @@
   // done next. A rendering of report.json; nothing summarised on the way.
   import { applied, refusedCorrections } from "../lib/corrections";
   import { pluralCount } from "../lib/labels";
-  import type { Row } from "../lib/jobstate";
+  import { aiUnavailable, type Row } from "../lib/jobstate";
   import { i18n, t, tn, tw } from "../lib/locale.svelte";
   import { llmDecisions, type Report } from "../lib/report";
   import Icon from "./Icon.svelte";
@@ -54,6 +54,8 @@
   const folder = (path: string) => path.slice(0, Math.max(path.length - base(path).length - 1, 0));
   const original = $derived(base(row.input).replace(/\.pdf$/i, ".epub"));
   const decisions = $derived(llmDecisions(report));
+  /** AI assistance was asked for and did not help this run (UI_UX §4): said, never hidden. */
+  const noAi = $derived(aiUnavailable(row));
   const counts = $derived(
     [
       pluralCount("count.pages", report.input.pages),
@@ -73,6 +75,10 @@
   <button class="oc-btn oc-btn--primary" onclick={onopen}>{t("result.open")}</button>
   <button class="oc-btn" onclick={onshow}>{t("result.show")}</button>
 </div>
+{#if noAi !== null}
+  <!-- Non-modal (UI_UX §4): the book converted deterministically either way. -->
+  <div class="oc-banner oc-banner--warn" role="status"><Icon name="alert" size="md" /><span class="oc-banner__text">{t("banner.aiUnavailable")}{#if noAi !== "engine"}{" "}{t(`ai.why.${noAi}`)}{/if}</span></div>
+{/if}
 {#if changes !== null}
   <div class="oc-banner oc-banner--info" role="status"><Icon name="info" size="md" /><span class="oc-banner__text">{t("result.applied", { changes })}</span></div>
 {/if}
@@ -87,7 +93,8 @@
 {/if}
 <div class="oc-summary">
   <span class="oc-summary__counts">{counts}</span>
-  <span>{t("result.deterministic")}{#if decisions !== null} · {t("result.aiDecisions", { n: decisions })}{/if}</span>
+  <!-- "Deterministic processing" when AI was off; the count only when it was on (UI_UX §2.3). -->
+  <span>{decisions === null ? t("result.deterministic") : t("result.aiDecisions", { n: decisions })}</span>
 </div>
 <ValidationLine {report} {onpage} />
 <QualityFacts {report} />

@@ -30,6 +30,8 @@ export interface UiConfig {
   os: string;
   maxPages: number;
   maxMemoryBytes: number;
+  /** How many of the four AI tasks this build enables for any language (`ai.task.*.languages`). */
+  aiTasksEnabled: number;
 }
 
 /** The Rust side's error: a kind the UI words, and a detail it never shows as the message. */
@@ -40,6 +42,23 @@ export interface UiError {
 
 export type Preset = "auto" | "novel" | "academic" | "textbook" | "poetry" | "scanned";
 
+/** Settings › Provider (UI_UX §2.4). */
+export type Provider = "builtin" | "ollama" | "custom";
+
+/** The user allowed document text to be sent to `host` (D10). Set by the Rust side only. */
+export interface Consent {
+  host: string;
+  grantedAt: string;
+}
+
+/** A custom endpoint. The key file and the consent are set by the Rust side only. */
+export interface CustomEndpoint {
+  endpoint: string;
+  model: string;
+  apiKeyFile: string | null;
+  consent: Consent | null;
+}
+
 /** The user's settings, kept by the Rust side (`src-tauri/src/settings.rs`). */
 export interface Settings {
   language: "en" | "de" | "tr" | null;
@@ -47,6 +66,11 @@ export interface Settings {
   maxPages: number | null;
   maxMemoryBytes: number | null;
   firstrunDismissed: boolean;
+  /** AI assistance: off by default (D17). */
+  aiEnabled: boolean;
+  provider: Provider;
+  ollamaModel: string | null;
+  custom: CustomEndpoint;
 }
 
 /** The book's navigation, read from its nav document (`src-tauri/src/preview.rs`). */
@@ -167,7 +191,8 @@ export interface Backend {
   enqueue(paths: string[]): Promise<Enqueued>;
   pickPdfs(): Promise<string[]>;
   settings(): Promise<Settings>;
-  saveSettings(next: Settings): Promise<void>;
+  /** Save; the answer is what was kept (the key file and consent stay the Rust side's). */
+  saveSettings(next: Settings): Promise<Settings>;
   report(job: string): Promise<Report>;
   openOutput(job: string): Promise<void>;
   showOutput(job: string): Promise<void>;
@@ -241,7 +266,7 @@ export function tauriBackend(): Backend {
     enqueue: (paths) => invoke<Enqueued>("enqueue", { paths }),
     pickPdfs: () => invoke<string[]>("pick_pdfs"),
     settings: () => invoke<Settings>("settings_get"),
-    saveSettings: (next) => invoke<void>("settings_set", { next }),
+    saveSettings: (next) => invoke<Settings>("settings_set", { next }),
     report: (job) => invoke<Report>("read_report", { job }),
     openOutput: (job) => invoke<void>("open_output", { job }),
     showOutput: (job) => invoke<void>("show_output", { job }),

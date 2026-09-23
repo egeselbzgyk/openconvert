@@ -243,7 +243,6 @@
  "settings.ai.cardBody": "Conversion is complete without it. When it's on, a small model on this computer helps with four once-per-book decisions: the book's metadata, ambiguous heading levels, book structure (where front matter and chapters begin), and telling verse and quotations apart from prose.",
  "settings.ai.cardNote": "Each result shows how many decisions it made, and the report lists each one next to what the rules alone would have chosen.",
  "settings.ai.label": "AI assistance",
- "settings.ai.unavailable": "Off. Turning it on needs AI support in the converter, which this build does not have yet.",
  "toggle.on": "On",
  "toggle.off": "Off",
  "settings.models.hint": "Every model shows its license, and you accept it before its first download. Rows show exactly what the model manager reports.",
@@ -385,5 +384,18 @@
  "models.error.models_unavailable": "No model can be downloaded with this build of the app.",
  "models.error.unknown_model": "This build of the app does not know it.",
  "models.error.io": "That did not work. Try again.",
- "packs.contents.validation": "Runs the full EPUBCheck after the built-in check"
+ "packs.contents.validation": "Runs the full EPUBCheck after the built-in check",
+ "settings.ai.off": "Off. Turning it on opens the model download if no model is installed.",
+ "settings.ai.on": "On: {provider} is asked where the rules alone cannot decide.",
+ "settings.ai.noTasks": "In this build no decision has passed its evaluation for any language yet, so books convert as they would with this off. Each report still lists what would have been asked.",
+ "provider.name.builtin": "the installed model",
+ "provider.name.ollama": "Ollama",
+ "provider.name.custom": "your custom endpoint",
+ "queue.startingAi": "Starting AI assistance",
+ "queue.startingAiDetail": "loading the model",
+ "ai.why.no_model": "No model is installed.",
+ "ai.why.no_server": "This build does not include the model server.",
+ "ai.why.server_failed": "The model server did not start.",
+ "ai.why.no_endpoint": "The custom endpoint is not a web address.",
+ "ai.why.plain_http": "The custom endpoint is not on this computer and does not use https."
 }

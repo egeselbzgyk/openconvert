@@ -42,6 +42,7 @@ const FIXTURE: MockFixture = {
     os: "linux",
     maxPages: 3000,
     maxMemoryBytes: 4294967296,
+    aiTasksEnabled: 0,
   },
   lines: LINES,
   report: REPORT,

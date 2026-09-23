@@ -72,11 +72,38 @@ describe("settings route", () => {
     expect(backend.saved.maxPages, "an invalid entry is not saved").toBe(5000);
   });
 
-  it("what this build cannot do is disabled and says so; the notices open in a dialog", async () => {
+  // PHASE 12 part B2: the switch is live — off by default (D17), saved at once, and with the
+  // built-in provider and no model installed it opens the default model's download.
+  it("the AI switch is off by default, is saved, and opens the model download when no model is installed", async () => {
+    const backend = await openSettings();
+    const ai = () => document.querySelector<HTMLButtonElement>('[role="switch"]');
+    expect(ai()?.disabled).toBe(false);
+    expect(ai()?.getAttribute("aria-checked")).toBe("false");
+    expect(document.querySelector(".oc-setting__help")?.textContent).toContain("opens the model download");
+    // No task has passed its evaluation in this build (`aiTasksEnabled: 0`): the page says the switch
+    // changes no book, rather than promise it.
+    expect(document.querySelector(".oc-settings__body")?.textContent).toContain("no decision has passed its evaluation");
+
+    ai()?.click();
+    await settle();
+    flushSync();
+    expect(backend.saved.aiEnabled).toBe(true);
+    expect(document.querySelector(".oc-settings__title")?.textContent, "the default model's download").toBe("Set up AI assistance");
+
+    // Installed: turning it on stays on the page and says who is asked.
+    backend.models = { unavailable: null, rows: backend.models.rows.map((row) => ({ ...row, installed: row.is_default })) };
+    backend.saved = { ...backend.saved, aiEnabled: false };
+    unmount(app!);
+    await openSettings(backend);
+    ai()?.click();
+    await settle();
+    flushSync();
+    expect(ai()?.getAttribute("aria-checked")).toBe("true");
+    expect(document.querySelector(".oc-setting__help")?.textContent).toBe("On: the installed model is asked where the rules alone cannot decide.");
+  });
+
+  it("the card names all four tasks; the notices open in a dialog", async () => {
     await openSettings();
-    const ai = document.querySelector<HTMLButtonElement>('[role="switch"]');
-    expect(ai?.disabled).toBe(true);
-    expect(ai?.getAttribute("aria-checked")).toBe("false");
     expect(document.querySelector(".oc-card")?.textContent, "all four tasks are named").toContain("metadata");
 
     nav("About & updates")?.click();

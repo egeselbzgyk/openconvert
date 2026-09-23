@@ -125,6 +125,7 @@
       case "queued":
         return t("queue.queued", { pos: row.position ?? 0 });
       case "running":
+        if (row.preparing) return t("queue.startingAi");
         if (row.stalled) return t("queue.notResponding");
         return row.current === null ? t("queue.converting") : stepLabel(row.current);
       case "cancelling":
@@ -190,6 +191,8 @@
           <b>{t("action.fixRebuild")}</b><span>· {row.current === null ? t("queue.converting") : stepLabel(row.current)}{#if fromCache}, {t("queue.rebuilding")}{/if}</span>
         {:else if row.phase === "running" && row.progress !== null && row.progress.step === row.current}
           <b>{status}</b><span class="oc-num">{countText(row.progress)}</span>
+        {:else if row.phase === "running" && row.preparing}
+          <Spinner stopped={false} /><b>{status}</b><span>· {t("queue.startingAiDetail")}</span>
         {:else if row.phase === "running"}
           <Spinner stopped={row.stalled} /><b>{status}</b><span>· {stepOf(row)} · {t("queue.stillWorking")}</span>
         {:else if row.phase === "cancelled"}

@@ -18,11 +18,12 @@
 //!   panic or a signal, through `oc_core::sidecar::supervise`, which owns the child from the moment
 //!   it is spawned. Its key file goes with it.
 //!
-//! Turning AI assistance on — and so the first [`LlmHost::acquire`] — is Phase 10's engine side and
-//! Phase 12's toggle; until then nothing calls it and no server is ever started.
+//! Nothing starts it but a job: with AI assistance on and the built-in provider chosen, the queue
+//! leases it through [`AppModelServer`] when the job's turn comes, and releases it when the job ends.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use oc_core::sidecar::llama::ServerSpec;
@@ -231,6 +232,51 @@ fn write_private(path: &Path, text: &str) -> std::io::Result<()> {
 
 fn secs(value: i64) -> Duration {
     Duration::from_secs(u64::try_from(value).unwrap_or_default())
+}
+
+/// The app's server as the queue leases it: the installed default model, on the one [`LlmHost`].
+///
+/// The host is shared with the supervisor's clock (idle stop) and the app's exit (shutdown), which
+/// is why it sits behind a lock of its own. A lease can hold that lock while a model loads; the
+/// clock only ever *tries* it.
+pub struct AppModelServer {
+    host: Arc<Mutex<Option<LlmHost>>>,
+    models: crate::models::ModelManager,
+}
+
+impl AppModelServer {
+    /// `host` is `None` when this build has no `llama-server` beside the app.
+    pub fn new(host: Arc<Mutex<Option<LlmHost>>>, models: crate::models::ModelManager) -> Self {
+        Self { host, models }
+    }
+}
+
+impl crate::ai::ModelServer for AppModelServer {
+    fn acquire(&self) -> Result<crate::ai::ServerLease, crate::ai::AiUnavailable> {
+        use crate::ai::AiUnavailable;
+        let (entry, model) = self
+            .models
+            .installed_default()
+            .ok_or(AiUnavailable::NoModel)?;
+        let spec = spec_for(&entry, model);
+        let mut guard = self.host.lock().unwrap_or_else(PoisonError::into_inner);
+        let host = guard.as_mut().ok_or(AiUnavailable::NoServer)?;
+        let lease = host
+            .acquire(&spec, Instant::now())
+            .map_err(|_| AiUnavailable::ServerFailed)?;
+        Ok(crate::ai::ServerLease {
+            endpoint: lease.endpoint,
+            api_key_file: lease.api_key_file,
+            model_id: entry.id.0,
+        })
+    }
+
+    fn release(&self) {
+        let mut guard = self.host.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(host) = guard.as_mut() {
+            host.release(Instant::now());
+        }
+    }
 }
 
 /// Where the bundled server is: beside this executable, as Tauri's `externalBin` places it.

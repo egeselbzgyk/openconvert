@@ -305,3 +305,167 @@ warn = "Experimental."
         "the case where the two could differ"
     );
 }
+
+/// `target/<profile>/oc-stub-llama-server`, beside the engine: `cargo build -p oc-testkit --bins`.
+fn stub_server() -> PathBuf {
+    let stub = engine_binary().with_file_name(format!(
+        "oc-stub-llama-server{}",
+        std::env::consts::EXE_SUFFIX
+    ));
+    assert!(
+        stub.is_file(),
+        "no stub server at {}; run `cargo build -p oc-testkit --bins` first",
+        stub.display()
+    );
+    stub
+}
+
+/// PHASE 12 part B2 (the AI toggle) on PHASE 9 detail 3's app-owned server: AI assistance on, the
+/// built-in provider, the default model installed. The queue starts the app's own server for that
+/// model when the job's turn comes, the job's one argument names it — endpoint, the run's key file,
+/// the model — and the real engine asks it what it is: the report says the local server answered,
+/// for that model. The lease ends with the job, and the idle clock then stops the server.
+#[test]
+fn a_conversion_with_built_in_ai_is_served_by_the_apps_own_server() {
+    use std::sync::{Arc, Mutex};
+
+    use oc_core::sidecar::readiness::ModelReadiness;
+    use oc_model::document::PresetName;
+    use openconvert_desktop::ai::JobAi;
+    use openconvert_desktop::jobqueue::{JobQueue, JobState, JobView, QueueSink};
+    use openconvert_desktop::llm::{AppModelServer, LlmHost};
+    use openconvert_desktop::models::{self, ModelManager, Row, RowSink};
+
+    struct Quiet;
+    impl QueueSink for Quiet {
+        fn line(&self, _job: &str, _line: String) {}
+        fn changed(&self, _job: &JobView) {}
+    }
+    impl RowSink<ModelReadiness> for Quiet {
+        fn changed(&self, _row: &Row<ModelReadiness>) {}
+    }
+
+    let root = scratch("builtin-ai");
+    let dirs = AppDirs::under(&root.join("app")).expect("made");
+    let store = root.join("store");
+    let registry_path = root.join("models.toml");
+    let commit = "0123456789abcdef0123456789abcdef01234567";
+    let hash = "ab".repeat(32);
+    std::fs::write(
+        &registry_path,
+        format!(
+            r#"schema_version = 1
+default = "tiny"
+
+[[model]]
+id = "tiny"
+tier = "default"
+display_name = "Tiny"
+family = "qwen3"
+arch = "dense"
+license = "Apache-2.0"
+repo = "org/tiny-GGUF"
+revision = "{commit}"
+file = "tiny.gguf"
+sha256 = "{hash}"
+size_bytes = 1000
+context = 8192
+parallel = 1
+min_ram_bytes = 3221225472
+prompt_profile = "qwen3-chatml"
+cache_reuse = true
+"#
+        ),
+    )
+    .expect("written");
+    std::fs::create_dir_all(store.join("tiny")).expect("made");
+    std::fs::write(store.join("tiny").join("tiny.gguf"), [0u8; 1000]).expect("written");
+
+    let manager = ModelManager::new(
+        oc_net::registry::ModelRegistry::load(&registry_path).map_err(|error| error.to_string()),
+        oc_net::store::ModelStore::new(&store),
+        models::http_fetch(),
+        None,
+        Arc::new(Quiet),
+    );
+    let host = Arc::new(Mutex::new(Some(LlmHost::new(
+        stub_server(),
+        dirs.run.clone(),
+    ))));
+    let server = Arc::new(AppModelServer::new(Arc::clone(&host), manager));
+
+    let input = root.join("book.pdf");
+    std::fs::write(&input, oc_testkit::handmade::reference_book(2)).expect("written");
+    let engine = Engine::new(
+        dirs.jobs.clone(),
+        ProcessLauncher::new(engine_binary(), dirs.jobs.clone()),
+    );
+    let mut queue = JobQueue::new(engine, Arc::new(Quiet)).with_model_server(server);
+    queue.enqueue_as(
+        std::slice::from_ref(&input),
+        PresetName::Auto,
+        None,
+        &JobAi::Builtin,
+    );
+
+    let started = Instant::now();
+    let view = loop {
+        queue.tick(Instant::now());
+        let view = queue.views().remove(0);
+        if matches!(
+            view.state,
+            JobState::Exited { .. } | JobState::FailedToStart { .. }
+        ) {
+            break view;
+        }
+        assert!(started.elapsed() < Duration::from_secs(120), "{view:?}");
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    assert_eq!(view.state, JobState::Exited { code: Some(0) }, "{view:?}");
+    assert_eq!(
+        view.ai.as_ref().and_then(|ai| ai.unavailable),
+        None,
+        "the app's server was up"
+    );
+
+    let spec: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(dirs.jobs.join(format!("{}.json", view.id))).expect("the spec"),
+    )
+    .expect("JSON");
+    assert_eq!(spec["ai"]["enabled"], true);
+    assert_eq!(spec["ai"]["model_id"], "tiny");
+    assert!(
+        spec["ai"]["endpoint"]
+            .as_str()
+            .is_some_and(|url| url.starts_with("http://127.0.0.1:")),
+        "{spec}"
+    );
+    assert!(
+        spec["ai"]["api_key_file"]
+            .as_str()
+            .is_some_and(|file| file.starts_with(&*dirs.run.to_string_lossy())),
+        "the run's key is named by its file in the app's run directory, never written in the spec"
+    );
+
+    let report: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(root.join("book.epub.report.json")).expect("the report"),
+    )
+    .expect("JSON");
+    assert_eq!(
+        report["ai"]["provider"], "local_sidecar",
+        "{:#}",
+        report["ai"]
+    );
+    assert_eq!(report["ai"]["model_id"], "tiny");
+
+    // The job has ended, so the lease has: the idle clock stops the server.
+    let idle = seconds(T.llm.idle_kill_secs);
+    let mut guard = host.lock().expect("not poisoned");
+    let running = guard.as_mut().expect("a host");
+    assert!(
+        running.pid().is_some(),
+        "the server outlives the job until it is idle"
+    );
+    assert!(running.tick(Instant::now() + idle), "idle: stopped");
+    assert!(running.pid().is_none());
+}

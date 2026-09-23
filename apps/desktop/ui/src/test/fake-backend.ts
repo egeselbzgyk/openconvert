@@ -37,6 +37,7 @@ export const CONFIG: UiConfig = {
   os: "linux",
   maxPages: 3000,
   maxMemoryBytes: 4294967296,
+  aiTasksEnabled: 0,
 };
 
 export const HELLO: Hello = {
@@ -122,6 +123,10 @@ export class FakeBackend implements Backend {
     maxPages: null,
     maxMemoryBytes: null,
     firstrunDismissed: false,
+    aiEnabled: false,
+    provider: "builtin",
+    ollamaModel: null,
+    custom: { endpoint: "", model: "", apiKeyFile: null, consent: null },
   };
   async pickPdfs(): Promise<string[]> {
     this.calls.push(["pick", null]);
@@ -130,9 +135,11 @@ export class FakeBackend implements Backend {
   async settings(): Promise<Settings> {
     return this.saved;
   }
-  async saveSettings(next: Settings): Promise<void> {
+  async saveSettings(next: Settings): Promise<Settings> {
     this.calls.push(["settings", next]);
-    this.saved = next;
+    // As the Rust side does: the key file and the consent are never the webview's to write.
+    this.saved = { ...next, custom: { ...next.custom, apiKeyFile: this.saved.custom.apiKeyFile, consent: this.saved.custom.consent } };
+    return this.saved;
   }
   reports = new Map<string, Report>();
   noReader = false;

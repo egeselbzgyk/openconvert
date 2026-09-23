@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Event } from "./events";
-import { applyEvent, applyView, checkHeartbeat, newRow, stepState, type Row } from "./jobstate";
+import { aiUnavailable, applyEvent, applyView, checkHeartbeat, newRow, stepState, type Row } from "./jobstate";
 
 const view = { id: "job-1", input: "/b/book.pdf", output: "/b/book.epub", renamed: false, unlocked: false, rebuild: false };
 
@@ -16,6 +16,22 @@ function running(): Row {
 }
 
 describe("jobstate", () => {
+  // Built-in AI: the job's turn has come and the app's model server is loading. It is under way —
+  // Cancel applies — but no engine runs yet, so silence is not "not responding".
+  it("a job waiting for the model server is under way and expects no heartbeat", () => {
+    let row = newRow({ ...view, state: "queued", position: 1 });
+    row = applyView(row, { ...view, ai: { provider: "builtin", unavailable: null }, state: "preparing" });
+    expect(row.phase).toBe("running");
+    expect(row.preparing).toBe(true);
+    expect(checkHeartbeat(row, 60_000, 6000).stalled).toBe(false);
+    row = applyView(row, { ...view, ai: { provider: "builtin", unavailable: null }, state: "running" });
+    expect(row.preparing).toBe(false);
+    expect(aiUnavailable(row)).toBeNull();
+    row = applyEvent(row, event({ t: "warning", code: "W_LLM_UNAVAILABLE", severity: "warn", args: {} }), 1);
+    expect(aiUnavailable(row), "the engine's own finding").toBe("engine");
+    expect(aiUnavailable(newRow({ ...view, state: "running" })), "AI off: nothing to say").toBeNull();
+  });
+
   it("maps engine stages onto the five user-facing steps", () => {
     let row = running();
     row = applyEvent(row, event({ t: "stage", name: "ingest", phase: "begin" }), 1);

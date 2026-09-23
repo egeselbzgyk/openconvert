@@ -1,10 +1,10 @@
 <script lang="ts">
   // Route `settings` (settings.html; `models` is its Models section, and `firstrun` is that section
-  // opened at the default model — `setup`). Live: the document preset, the two resource caps, the
-  // app language, the versions, the third-party notices, and the model manager and packs, whose
-  // rows are exactly what the Rust side's manager reports. What needs the engine's AI support or a
-  // provider (Phase 10 / 11) is drawn as the design draws it, disabled, and says in words that this
-  // build cannot do it yet — never a number or a row it cannot back with real data.
+  // opened at the default model — `setup`). Live: AI assistance and its provider, the document
+  // preset, the two resource caps, the app language, the versions, the third-party notices, and
+  // the model manager and packs, whose rows are exactly what the Rust side's manager reports. What
+  // this build cannot do is drawn as the design draws it and says so in words — never a number or a
+  // row it cannot back with real data.
   import CopyCommand from "../../components/CopyCommand.svelte";
   import Dialog from "../../components/Dialog.svelte";
   import ModelRow from "../../components/ModelRow.svelte";
@@ -35,6 +35,7 @@
     packs = null,
     setup = false,
     onback = null,
+    onsetup = null,
   }: {
     settings: Settings;
     config: UiConfig;
@@ -52,6 +53,9 @@
     setup?: boolean;
     /** "Back to the queue", offered once the first-run download is done. */
     onback?: (() => void) | null;
+    /** AI assistance was turned on with the built-in provider and no model installed: open the
+        model download (settings.html, "Turning it on opens the model download"). */
+    onsetup?: (() => void) | null;
   } = $props();
 
   /** Rows whose licence is shown, awaiting acceptance, by "kind:id". */
@@ -115,6 +119,16 @@
   function save(change: Partial<Settings>) {
     onsave({ ...settings, ...change });
   }
+
+  /** The switch (UI_UX §2.4): saved at once; on, with the built-in provider and no model on this
+      computer, it opens the download of the default one. */
+  function toggleAi(on: boolean) {
+    save({ aiEnabled: on });
+    if (on && settings.provider === "builtin" && firstModel !== undefined && !firstModel.installed) onsetup?.();
+  }
+  const aiState = $derived(
+    settings.aiEnabled ? t("settings.ai.on", { provider: t(`provider.name.${settings.provider}`) }) : t("settings.ai.off"),
+  );
 </script>
 
 <main class="oc-settings">
@@ -140,13 +154,10 @@
         <p>{t("settings.ai.cardBody")}</p>
         <p class="oc-settings__hint">{t("settings.ai.cardNote")}</p>
       </div>
-      <div class="oc-setting">
-        <div class="oc-setting__text">
-          <div class="oc-setting__label">{t("settings.ai.label")}</div>
-          <div class="oc-setting__help" id={aiHelp}>{t("settings.ai.unavailable")}</div>
-        </div>
-        <Toggle checked={false} label={t("settings.ai.label")} disabled describedby={aiHelp} />
-      </div>
+      {@render aiSwitch()}
+      {#if config.aiTasksEnabled === 0}
+        <p class="oc-settings__hint">{t("settings.ai.noTasks")}</p>
+      {/if}
     {:else if section === "models"}
       {#if setup && firstModel !== undefined}
         <p class="oc-settings__hint">
@@ -167,13 +178,7 @@
           {@render downloadable("models", row)}
         {/each}
         {#if setup && firstModel?.installed}
-          <div class="oc-setting">
-            <div class="oc-setting__text">
-              <div class="oc-setting__label">{t("settings.ai.label")}</div>
-              <div class="oc-setting__help" id={aiHelp}>{t("settings.ai.unavailable")}</div>
-            </div>
-            <Toggle checked={false} label={t("settings.ai.label")} disabled describedby={aiHelp} />
-          </div>
+          {@render aiSwitch()}
           {#if onback !== null}
             <div class="oc-actions"><button class="oc-btn oc-btn--primary" onclick={onback}>{t("firstrun.back")}</button></div>
           {/if}
@@ -332,6 +337,16 @@
     {/if}
   </div>
 </main>
+
+{#snippet aiSwitch()}
+  <div class="oc-setting">
+    <div class="oc-setting__text">
+      <div class="oc-setting__label">{t("settings.ai.label")}</div>
+      <div class="oc-setting__help" id={aiHelp}>{aiState}</div>
+    </div>
+    <Toggle checked={settings.aiEnabled} label={t("settings.ai.label")} describedby={aiHelp} onchange={toggleAi} />
+  </div>
+{/snippet}
 
 {#snippet downloadable(kind: CatalogKind, row: NonNullable<Catalog<"models">["rows"]>[number] | NonNullable<Catalog<"packs">["rows"]>[number])}
   {@const owner = catalog(kind)}

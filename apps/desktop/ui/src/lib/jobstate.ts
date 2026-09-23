@@ -11,6 +11,7 @@
  * holds the reactive copy.
  */
 
+import type { Provider } from "./backend";
 import type { Done, Event, Fatal, Warning } from "./events";
 import type { Report } from "./report";
 
@@ -34,9 +35,19 @@ export const STAGE_STEP: Readonly<Record<string, Step>> = {
   repair: "repairing",
 };
 
+/** Why a job that asked for AI assistance converted without it (`src-tauri/src/ai.rs`). */
+export type AiUnavailable = "no_model" | "no_server" | "server_failed" | "no_endpoint" | "plain_http";
+
+/** AI assistance for a job, as the queue knows it; `null` with AI off. */
+export interface AiView {
+  provider: Provider;
+  unavailable: AiUnavailable | null;
+}
+
 /** The queue's view of a job, as the Rust side sends it (`job-changed`). */
 export type QueueState =
   | { state: "queued"; position: number }
+  | { state: "preparing" }
   | { state: "running" }
   | { state: "cancelling" }
   | { state: "cancelled_before_start" }
@@ -52,6 +63,8 @@ export type JobView = {
   unlocked: boolean;
   /** This run applies the user's corrections to a book already converted ("Fix and rebuild"). */
   rebuild: boolean;
+  /** Always sent by the Rust side; `null` with AI off. */
+  ai?: AiView | null;
 } & QueueState;
 
 export type Phase = "queued" | "running" | "cancelling" | "cancelled" | "complete" | "failed";
@@ -73,6 +86,10 @@ export interface Row {
   unlocked: boolean;
   /** "Fix and rebuild": the user's corrections, applied to a book already converted. */
   rebuild: boolean;
+  /** AI assistance for this job, as the queue reported it; `null` with AI off. */
+  ai: AiView | null;
+  /** Its turn has come and it waits for the app's model server to load. */
+  preparing: boolean;
   phase: Phase;
   /** Waiting position, the running job counted as #1 (design decision 6). */
   position: number | null;
@@ -113,6 +130,8 @@ export function newRow(view: JobView): Row {
       renamed: view.renamed,
       unlocked: view.unlocked,
       rebuild: view.rebuild,
+      ai: view.ai ?? null,
+      preparing: false,
       phase: "queued",
       position: null,
       current: null,
@@ -144,10 +163,15 @@ export function applyView(row: Row, view: JobView): Row {
     renamed: view.renamed,
     unlocked: view.unlocked,
     rebuild: view.rebuild,
+    ai: view.ai ?? null,
+    preparing: view.state === "preparing",
   };
   switch (view.state) {
     case "queued":
       return { ...next, phase: "queued", position: view.position };
+    case "preparing":
+      // Under way — Cancel applies — though no engine has started yet.
+      return { ...next, phase: row.phase === "queued" ? "running" : row.phase, position: null };
     case "running":
       return { ...next, phase: row.phase === "queued" ? "running" : row.phase, position: null };
     case "cancelling":
@@ -257,7 +281,8 @@ export function applyEvent(row: Row, event: Event, now: number): Row {
 
 /** Mark the row not responding once more than `timeoutMs` has passed since the last heartbeat. */
 export function checkHeartbeat(row: Row, now: number, timeoutMs: number): Row {
-  const watching = row.phase === "running" || row.phase === "cancelling";
+  // A job waiting for the model server has no engine yet, so nothing to hear from.
+  const watching = (row.phase === "running" && !row.preparing) || row.phase === "cancelling";
   if (!watching || row.lastSignalMs === null) return row.stalled ? { ...row, stalled: false } : row;
   const stalled = now - row.lastSignalMs > timeoutMs;
   return stalled === row.stalled ? row : { ...row, stalled };
@@ -286,6 +311,17 @@ export function stepState(row: Row, step: Step): "done" | "current" | "pending" 
   }
   if (row.finished.includes(step)) return "done";
   return "pending";
+}
+
+/**
+ * Why AI assistance did not help this job, when it was asked for and could not: the queue's reason
+ * (no model, no server, …), or the engine's `W_LLM_UNAVAILABLE`. `null` when it was not asked for
+ * or answered. The banner is non-modal (UI_UX §4): the book converted either way.
+ */
+export function aiUnavailable(row: Row): AiUnavailable | "engine" | null {
+  if (row.ai === null) return null;
+  if (row.ai.unavailable !== null) return row.ai.unavailable;
+  return row.warnings.some((warning) => warning.code === "W_LLM_UNAVAILABLE") ? "engine" : null;
 }
 
 /** Seconds since the last heartbeat, for "no signal for {s} seconds". */

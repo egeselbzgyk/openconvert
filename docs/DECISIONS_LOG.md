@@ -4835,3 +4835,47 @@ so the app runs only the tasks `ai.task.<task>.languages` enables — none, in t
 Evidence: `a_job_spec_with_ai_on_asks_the_endpoint_it_names`,
 `a_job_spec_with_ai_on_and_no_model_converts_without_one`, and three `cmd_job` unit tests.
 Affects: `crates/openconvert/src/cmd_job.rs`, the `<JOB.json>` usage text.
+
+## 2026-09-23 · The AI switch, and the app's own server per job · Phase 12 (P12.18)
+Context: PHASE 12 part B2 item 1 (PROGRESS): persist the choice; for each job with AI on, lease the
+app's `llama-server` for the installed default model and write `ai.enabled`/`endpoint`/
+`api_key_file`/`model_id` into the spec; release when the job ends; the fail-open banner (UI_UX §4);
+the decision count (UI_UX §2.3). Settings › AI assistance was drawn disabled until the engine could
+read `ai` (P12.17).
+Decisions:
+1. **A job takes the AI settings of the moment it is queued** (`ai::JobAi::plan`): off, built-in, an
+   endpoint (Ollama or custom, written as configured), consent required, or unusable. A setting
+   changed later does not reach a job already waiting.
+2. **Built-in waits in the queue, off its lock.** When its turn comes the job is `preparing`: a thread
+   leases the server (`ai::ModelServer`, `llm::AppModelServer` over `LlmHost`) while the queue keeps
+   answering Cancel; then its engine starts with the lease in its spec. The lease is released when
+   the job ends (exit, kill, a failed start), so `llm.idle_kill_secs` counts from the last job. The
+   supervisor clock only *tries* the server's lock, so a loading model never stops the queue's clock;
+   at exit a server still loading is ended through `supervise::kill_all`.
+3. **Fail-open, said once.** No model installed, no `llama-server` in this build, a server that does not
+   come up, a custom endpoint that is not a URL or is plain http off this computer: the book converts
+   without AI and the row's result carries the banner "AI assistance unavailable this run — converted
+   deterministically." with the app's reason; the engine's own `W_LLM_UNAVAILABLE` raises the same
+   banner and its warning line says why.
+4. **The switch says what it does in this build.** Every `ai.task.<task>.languages` ships empty and the
+   job spec has no `all_tasks`, so AI on changes no book yet; `UiConfig.aiTasksEnabled` (from those
+   four keys) makes Settings say so instead of promising more. With AI on the result reads "AI-assisted
+   decisions: N" in place of "Deterministic processing" (UI_UX §2.3).
+5. **The key file and the consent are the Rust side's.** `settings_set` keeps both as they were
+   (`Settings::merged_from_webview`) and withdraws a consent when the endpoint's host changes.
+6. **PROVISIONAL — needs maintainer ratification: built-in serves the registry's default model only.**
+   UI_UX §4's "falls back to the next-safest installed tier" when a model fails its gates at load is
+   not built: "next-safest" has no ordering in the registry, and no model can be fetched here to fail
+   one. A server that does not come up is the fail-open row above.
+7. A rebuild ("Fix and rebuild") with AI on is a full run: the engine never resumes a run that asks a
+   model (merge decision 2).
+Evidence: `built_in_ai_leases_the_app_server_for_the_job_and_releases_it_at_the_end`,
+`built_in_ai_without_a_model_converts_without_ai_and_says_why`,
+`a_job_cancelled_while_the_model_loads_never_starts`, `a_host_nobody_consented_to_never_starts`, the
+four `ai::tests`, `the_webview_cannot_write_a_key_file_or_a_consent`, and — against the real engine and
+`oc-stub-llama-server`, which now answers `/props` as `llama-server` does —
+`a_conversion_with_built_in_ai_is_served_by_the_apps_own_server`; UI: the settings, result and
+jobstate tests named in the commit.
+Affects: `apps/desktop/src-tauri/src/{ai,jobqueue,llm,models,settings,config,main}.rs`,
+`apps/desktop/ui/src/{routes/settings/Settings.svelte,components/{ResultPanel,QueueRow}.svelte,lib/*}`,
+`locales/*.json`, `crates/oc-testkit/src/bin/oc-stub-llama-server.rs`.

@@ -334,6 +334,25 @@ impl<C: Catalog> Manager<C> {
     }
 }
 
+impl<C: Catalog> Clone for Manager<C> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+        }
+    }
+}
+
+impl Manager<ModelRegistry> {
+    /// The registry's default model and its file, when it is installed — what built-in AI
+    /// assistance serves. `None` when it is not installed, or the registry cannot be used.
+    pub fn installed_default(&self) -> Option<(oc_net::registry::ModelEntry, PathBuf)> {
+        let registry = self.inner.registry.as_ref().ok()?;
+        let entry = registry.get(registry.default_id())?.clone();
+        let path = self.installed_path(&entry.id.0)?;
+        Some((entry, path))
+    }
+}
+
 impl Active {
     fn in_flight(&self) -> bool {
         matches!(
