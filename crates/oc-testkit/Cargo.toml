@@ -28,6 +28,15 @@ name = "oc-ocr-engine"
 path = "src/bin/oc-ocr-engine.rs"
 test = false
 
+# The Landlock probe (PHASE 14 rows 14.10 and 14.12): it restricts itself exactly as the engine does,
+# through `oc_core::sandbox::landlock`, and then tries what it is told to — a write, a read, a
+# connect — printing what the kernel said. "A write outside the scope fails" is a thing only a
+# restricted process can observe about itself.
+[[bin]]
+name = "oc-sandbox-probe"
+path = "src/bin/oc-sandbox-probe.rs"
+test = false
+
 [features]
 default = []
 # Rows 9.15 and 9.16 need a real llama-server and a real model, named by `OC_LLAMA_SERVER` and
@@ -47,4 +56,12 @@ serde_json.workspace = true
 thiserror.workspace = true
 pdf-writer.workspace = true
 lopdf.workspace = true
+# The hostile PDFs' compressed streams (PHASE 14): bombs and glyph floods are zlib.
+flate2.workspace = true
+# The fuzz properties (PHASE 14 detail 8): the emitter round trip and its Tier-1 check.
+oc-epub = { path = "../oc-epub", version = "0.1.0" }
+oc-validate = { path = "../oc-validate", version = "0.1.0" }
 image.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true

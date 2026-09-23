@@ -1,0 +1,238 @@
+{
+  "schema_version": 1,
+  "isartor": "fetched by `xtask fetch-isartor` (pinned in xtask/isartor.lock), never committed",
+  "files": [
+    {
+      "name": "mutated/objstm_nest__depth_2.pdf",
+      "sha256": "b8c71cafe082710c4e2181de2490ed5486b0aef2915add857549804311b7ec09",
+      "set": "mutated",
+      "mutation": "objstm_nest",
+      "note": "two object streams deep: past the spec, inside the cap",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/objstm_nest__depth_200.pdf",
+      "sha256": "40bb3fc0eba6758b1290d739cfa59234c3c44d0e295554f9dd512e337b416718",
+      "set": "mutated",
+      "mutation": "objstm_nest",
+      "note": "the catalogue 200 object streams deep",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/objstm_nest__loop.pdf",
+      "sha256": "f2b289a199e7780daecfb019d03b969692c4b20873dda0e7b43e4d475327c691",
+      "set": "mutated",
+      "mutation": "objstm_nest",
+      "note": "three object streams that contain each other",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/pages_loop__kids_catalog.pdf",
+      "sha256": "267f675640da3cf1047eeca208c4e65e287aa04bf8b47781c5edd22a5072ed2e",
+      "set": "mutated",
+      "mutation": "pages_loop",
+      "note": "/Kids names the catalogue",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/pages_loop__kids_self.pdf",
+      "sha256": "39d9a47647e167fe4722da6aba21df7479567c4e49ab142177c4ea58f3bc2a49",
+      "set": "mutated",
+      "mutation": "pages_loop",
+      "note": "/Pages lists itself among its /Kids",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/pages_loop__parent_self.pdf",
+      "sha256": "3b209c01dcc5d41a1b87e6471983bc97ecca82bdf42874d0452c9a7b08ee1c5c",
+      "set": "mutated",
+      "mutation": "pages_loop",
+      "note": "every node is its own /Parent",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/pages_loop__two_nodes.pdf",
+      "sha256": "d58d84d99109a05735ca4da8ccc6a6ba04ade4518801275cf751f3c28365034c",
+      "set": "mutated",
+      "mutation": "pages_loop",
+      "note": "two /Pages nodes that are each other's kid",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/truncate__flate_half.pdf",
+      "sha256": "1a4f265a83955ddd193046fb3e9419f767b1e2a9ed2997d800d8d0e35eeddbb1",
+      "set": "mutated",
+      "mutation": "truncate_stream",
+      "note": "a FlateDecode content stream cut in half",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/truncate__length_huge.pdf",
+      "sha256": "fea5cc0523820e5f60b6675daee4673016b7523b6fc7e5813cf371f9d05c6435",
+      "set": "mutated",
+      "mutation": "truncate_stream",
+      "note": "/Length claims a gigabyte the file does not hold",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/truncate__length_tiny.pdf",
+      "sha256": "acee3729d2a3f44be385ae351e08249753ec5cf28ffd52c17a7dbc4534e773ff",
+      "set": "mutated",
+      "mutation": "truncate_stream",
+      "note": "/Length claims 3 bytes of a longer stream",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/truncate__mid_stream.pdf",
+      "sha256": "ec809ea49fcce24741f2c684e10a401bc1d732b56e67375555260b7e0600ed3b",
+      "set": "mutated",
+      "mutation": "truncate_stream",
+      "note": "the file ends inside a content stream",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/truncate__no_xref.pdf",
+      "sha256": "bb292004e3647a6d721da9dbc1dfe06c0a9194b15cd58e24e62b5ff93dde30c1",
+      "set": "mutated",
+      "mutation": "truncate_stream",
+      "note": "no cross-reference table and no trailer",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_cycle__depth_200.pdf",
+      "sha256": "98e4ce8786cc45c0127ec3fd017d41877c6b21b27e566a7d7bea5aab644102a6",
+      "set": "mutated",
+      "mutation": "xref_cycle",
+      "note": "200 incremental updates: a chain past max_xref_chain",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_cycle__prev_beyond_eof.pdf",
+      "sha256": "79b6c424ff45b2fdcafa787e972d4431aee05f66b0cea0fc4e836094a797ccdf",
+      "set": "mutated",
+      "mutation": "xref_cycle",
+      "note": "/Prev points past the end of the file",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_cycle__prev_negative.pdf",
+      "sha256": "25f7b44915bf611b5590bbfe2654d1bf39d21e9864eeef7b28c2fc87e9b163fa",
+      "set": "mutated",
+      "mutation": "xref_cycle",
+      "note": "/Prev is negative",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_cycle__self_loop.pdf",
+      "sha256": "17f703b66cc9be5b75d6dc5276f8963dbf238a1e524cf64f06cb6cdb207d33c9",
+      "set": "mutated",
+      "mutation": "xref_cycle",
+      "note": "the newest section's /Prev is its own offset",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_cycle__two_cycle.pdf",
+      "sha256": "f5763b1005b545781fdbe55c3835ef4d25da0239f3a32360901bdee3bf3c2999",
+      "set": "mutated",
+      "mutation": "xref_cycle",
+      "note": "two updates whose /Prev point at each other",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_flip__h01_two_glyphs__0.pdf",
+      "sha256": "08d9eff597491da1c824708c50a55c21c26931deb7b51d3953fa7d647ed3b23e",
+      "set": "mutated",
+      "mutation": "xref_flip",
+      "note": "6 random bytes of h01_two_glyphs's xref table replaced",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_flip__h01_two_glyphs__1.pdf",
+      "sha256": "196c20d680028afbb4ffb2ae464c62127aa3639157146899c24b1f506edc206a",
+      "set": "mutated",
+      "mutation": "xref_flip",
+      "note": "6 random bytes of h01_two_glyphs's xref table replaced",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_flip__h01_two_glyphs__2.pdf",
+      "sha256": "1a1da7fdce176be1a676a78900b7ce2aac99995395c3cb6de960424776fdedba",
+      "set": "mutated",
+      "mutation": "xref_flip",
+      "note": "6 random bytes of h01_two_glyphs's xref table replaced",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_flip__h01_two_glyphs__3.pdf",
+      "sha256": "ceb6333cba5b96d657792fbdd52e4273195e107df5e9060f02fa42406d4c5058",
+      "set": "mutated",
+      "mutation": "xref_flip",
+      "note": "6 random bytes of h01_two_glyphs's xref table replaced",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_flip__h13_outline__0.pdf",
+      "sha256": "0faef3e6d286f4114dd3571d1c72c96f0b8972803deb680e1ac288522e62f751",
+      "set": "mutated",
+      "mutation": "xref_flip",
+      "note": "6 random bytes of h13_outline's xref table replaced",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_flip__h13_outline__1.pdf",
+      "sha256": "40b65168fe4733e2339332c72683177dbd995ebe197d8b73402008104cf90425",
+      "set": "mutated",
+      "mutation": "xref_flip",
+      "note": "6 random bytes of h13_outline's xref table replaced",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_flip__h13_outline__2.pdf",
+      "sha256": "56d5088a65f7ba301ec37c85d4cf88fa20d44209725e580ef1e046217b842c24",
+      "set": "mutated",
+      "mutation": "xref_flip",
+      "note": "6 random bytes of h13_outline's xref table replaced",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_flip__h13_outline__3.pdf",
+      "sha256": "c33b768799d3e951fe18e2dd81669dea8fd5b33999bcd523f4f495a1229acc68",
+      "set": "mutated",
+      "mutation": "xref_flip",
+      "note": "6 random bytes of h13_outline's xref table replaced",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_flip__h23_paragraph_across_pages__0.pdf",
+      "sha256": "c42d72e2c0e58de507a5558a2a3e7b393f5bb00247d928c1d62a9cfac85e7830",
+      "set": "mutated",
+      "mutation": "xref_flip",
+      "note": "6 random bytes of h23_paragraph_across_pages's xref table replaced",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_flip__h23_paragraph_across_pages__1.pdf",
+      "sha256": "abb2b0d2628a84be25cebd1da86ed0865c15e07975ab68439f6cf03545261434",
+      "set": "mutated",
+      "mutation": "xref_flip",
+      "note": "6 random bytes of h23_paragraph_across_pages's xref table replaced",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_flip__h23_paragraph_across_pages__2.pdf",
+      "sha256": "cef1d6ca62258f8ae1d7c211a598f6891966b301f111ed5cb5853d8188b2fe06",
+      "set": "mutated",
+      "mutation": "xref_flip",
+      "note": "6 random bytes of h23_paragraph_across_pages's xref table replaced",
+      "expect": "terminates"
+    },
+    {
+      "name": "mutated/xref_flip__h23_paragraph_across_pages__3.pdf",
+      "sha256": "7057c75e47605a4d8ebaa7fab410f9002ddbf568a512e36ffdfcaf5922632fb0",
+      "set": "mutated",
+      "mutation": "xref_flip",
+      "note": "6 random bytes of h23_paragraph_across_pages's xref table replaced",
+      "expect": "terminates"
+    }
+  ]
+}

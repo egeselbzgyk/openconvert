@@ -142,3 +142,39 @@ def test_every_job_this_phase_owns_exists_by_name() -> None:
 
     assert {"full-corpus", "bench", "proptest-deep", "mutation-testing"} <= nightly_jobs
     assert {"python", "corpus-lint"} <= ci_jobs
+
+
+# --------------------------------------------------------------------------- PHASE 14
+
+
+def test_the_isartor_job_fetches_the_pinned_suite_and_turns_the_test_on() -> None:
+    """Row 14.16: a feature-gated test is only a gate if a job fetches its input and turns it on."""
+    commands = run_text(NIGHTLY, "isartor")
+    assert "fetch-isartor" in commands
+    assert "--features isartor" in commands
+    fetch = commands.index("fetch-isartor")
+    assert fetch < commands.index("isartor_corpus_terminates_cleanly")
+
+
+def test_the_fuzz_job_runs_every_target_for_fifteen_minutes() -> None:
+    """Rows 14.13-14.15: the three targets, fifteen minutes each, on the nightly toolchain."""
+    job = workflow(NIGHTLY)["jobs"]["fuzz"]
+    commands = run_text(NIGHTLY, "fuzz")
+    for target in ("ir_deserialize", "job_spec", "xhtml_opf_roundtrip"):
+        assert target in commands
+    assert "-max_total_time=900" in commands
+    assert any("nightly" in str(step.get("uses", "")) for step in job["steps"])
+
+
+def test_the_no_network_job_covers_the_ai_path() -> None:
+    """Row 14.20: `--ai` on a warm cache and the cassettes, under `unshare -n`, proving the
+    namespace is empty first."""
+    commands = run_text(CI, "no-network")
+    ai_step = next(
+        str(step["run"])
+        for step in steps_of(CI, "no-network")
+        if "binary(ai_pipeline)" in str(step.get("run", ""))
+    )
+    assert "unshare -n" in ai_step
+    assert "OC_EXPECT_NO_NETWORK=1" in ai_step
+    assert "unshare -n" in commands and "-p oc-ai" in commands

@@ -1,11 +1,12 @@
+#![forbid(unsafe_code)]
 //! Developer tasks (`cargo run -p xtask -- <task>`).
 //!
 //! Everything here is build- and test-time tooling. Nothing in `xtask` ships.
 
 use xtask::{
     ci_lint, dom_fixtures, epubcheck_parity, fetch_epubcheck, fetch_epubcheck_corpus,
-    fetch_llama_server, fixtures, handmade_fixtures, mutations, stage_sidecars, thresholds_lint,
-    vendor_pdfium,
+    fetch_isartor, fetch_llama_server, fixtures, fuzz_seeds, handmade_fixtures, isolate_parser,
+    mutations, stage_sidecars, thresholds_lint, vendor_pdfium,
 };
 
 use std::path::{Path, PathBuf};
@@ -22,12 +23,21 @@ tasks:
   fetch-epubcheck   fetch the pinned EPUBCheck release and unpack it to vendor/epubcheck/
   fetch-epubcheck-corpus
                     fetch EPUBCheck's own public test corpus to vendor/epubcheck-corpus/
+  fetch-isartor     fetch the pinned Isartor suite (xtask/isartor.lock) to target/isartor/
+                    for the crash-regression tier (PHASE 14 row 14.16)
   fetch-llama-server
                     fetch the pinned llama.cpp release for this host (xtask/llama.lock),
                     unpack it to vendor/llama-server/ and print llama-server's path
   epubcheck-parity  run Tier 1 over that corpus and write docs/TIER1_PARITY.md
                       --check             compare against the committed number instead of
                                           rewriting it; fails when parity has fallen
+  fuzz-seeds        write the fuzz targets' seed corpora to fuzz/corpus/ from the fixtures
+  isolate-parser-spike
+                    measure --isolate-parser's cost: one child per page range, CBOR over a pipe,
+                    against in-process extraction and the whole conversion (PHASE 14 detail 13)
+                      --fixture <STEM>    one fixture only
+                      --repeats <N>       repetitions per fixture (median reported)
+                      --reference-book <PAGES>  the benchmark's synthetic book instead
   handmade-fixtures write the hand-made PDFs to corpus/fixtures/handmade/
   mutations         apply the mutation recipes to the fixtures they belong to and
                     write the results to corpus/fixtures/mutations/
@@ -54,10 +64,39 @@ fn main() -> Result<()> {
         }
         Some("fetch-epubcheck") => fetch_epubcheck::run(&root),
         Some("fetch-epubcheck-corpus") => fetch_epubcheck_corpus::run(&root),
+        Some("fetch-isartor") => fetch_isartor::run(&root),
         Some("fetch-llama-server") => fetch_llama_server::run(&root),
         Some("epubcheck-parity") => {
             let check = std::env::args().any(|a| a == "--check");
             epubcheck_parity::run(&root, check)
+        }
+        Some("fuzz-seeds") => fuzz_seeds::run(&root),
+        Some("isolate-parser-spike") => {
+            let args: Vec<String> = std::env::args().collect();
+            let value = |flag: &str| {
+                args.windows(2)
+                    .find(|pair| pair[0] == flag)
+                    .map(|pair| pair[1].clone())
+            };
+            let repeats = value("--repeats").and_then(|n| n.parse().ok());
+            // `--reference-book <PAGES>`: the benchmark's synthetic book (PHASE 7 row 7.11).
+            let book = match value("--reference-book").and_then(|n| n.parse::<usize>().ok()) {
+                Some(pages) => {
+                    let path = root.join(format!("target/tmp/reference_book_{pages}.pdf"));
+                    std::fs::create_dir_all(root.join("target/tmp"))?;
+                    std::fs::write(&path, oc_testkit::handmade::reference_book(pages))?;
+                    Some(path.display().to_string())
+                }
+                None => value("--fixture"),
+            };
+            isolate_parser::run(&root, book.as_deref(), repeats)
+        }
+        Some(isolate_parser::CHILD) => {
+            let args: Vec<String> = std::env::args().skip(2).collect();
+            let [pdf, first, last] = args.as_slice() else {
+                bail!("{} <pdf> <first> <last>", isolate_parser::CHILD);
+            };
+            isolate_parser::child(Path::new(pdf), first.parse()?, last.parse()?)
         }
         Some("handmade-fixtures") => handmade_fixtures::run(&root),
         Some("mutations") => mutations::run(&root),

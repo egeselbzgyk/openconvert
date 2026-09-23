@@ -30,6 +30,14 @@ pub fn page_inputs(document: &dyn PdfDoc) -> Result<Vec<PageInput>, PdfError> {
 pub fn page_input(document: &dyn PdfDoc, index: u32) -> Result<PageInput, PdfError> {
     let glyphs = document.page_glyphs(index)?;
     let geometry = document.page_geometry(index)?;
+    // An image the page cannot describe is left out, as it always was; an image whose dictionary a
+    // cap refused is not a gap in the book but a document the conversion declines (PHASE 14: a cap
+    // ends the run with a report naming it, never with a silently thinner book).
+    let images = match document.page_images(index) {
+        Ok(images) => images,
+        Err(error) if error.cap().is_some() => return Err(error),
+        Err(_) => Vec::new(),
+    };
     Ok(PageInput {
         page: PageRef::new(index),
         width_pt: geometry.width_pt(),
@@ -37,7 +45,7 @@ pub fn page_input(document: &dyn PdfDoc, index: u32) -> Result<PageInput, PdfErr
         class: glyphs.class,
         glyphs: glyphs.glyphs,
         fonts: glyphs.fonts,
-        images: number_images(document.page_images(index).unwrap_or_default()),
+        images: number_images(images),
         ocr_runs: Vec::new(),
     })
 }

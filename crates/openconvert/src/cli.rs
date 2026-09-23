@@ -78,6 +78,8 @@ pub struct ConvertArgs {
     pub ocr_lang: Option<oc_core::ocr::lang::LangSpec>,
     /// `--re-ocr`: whether an OCR sandwich's own layer is replaced. Default `never` (D13.10).
     pub re_ocr: oc_core::ocr::ReOcr,
+    /// `--max-pages` and `--max-memory` (§2.1); every other limit is `thresholds.toml`'s.
+    pub limits: oc_core::limits::Limits,
 }
 
 pub use openconvert::ai_endpoint::AiArgs;
@@ -225,6 +227,7 @@ usage:
                                   [--no-ai]
                                   [--ocr auto|never|always] [--ocr-path <PATH>]
                                   [--ocr-lang <SPEC>] [--re-ocr never|auto|always]
+                                  [--max-pages <N>] [--max-memory <BYTES|4GiB>]
   openconvert validate <INPUT.epub> [--tier 1|2] [--json] [--epubcheck-jar <PATH>]
   openconvert inspect <INPUT.pdf> [--json] [--pages <RANGE>] [--password <STRING>]
                                   [--progress none|json] [--max-pages <N>]
@@ -254,6 +257,7 @@ usage:
   --password <STRING>  or the OC_PDF_PASSWORD environment variable
   --progress json      NDJSON events on stderr; stdout stays data only
   --max-pages <N>      refuse a document with more pages than this
+  --max-memory <SIZE>  convert: the engine's address-space cap, e.g. 4GiB (RLIMIT_AS on Unix)
 
   -o, --output <PATH>  where the EPUB goes; default <input>.epub beside the input
   --preset <NAME>      auto|novel|academic|textbook|poetry|scanned (default auto)
@@ -409,6 +413,7 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
         ocr_path: None,
         ocr_lang: None,
         re_ocr: oc_core::ocr::ReOcr::Never,
+        limits: oc_core::limits::Limits::default(),
     };
     let mut ai = false;
     let mut no_ai = false;
@@ -438,6 +443,27 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
                         value,
                     },
                 )?);
+            }
+            "--max-pages" => {
+                let value = args.next().ok_or(CliError::MissingValue("--max-pages"))?;
+                parsed.limits.max_pages =
+                    value
+                        .parse()
+                        .ok()
+                        .filter(|pages| *pages > 0)
+                        .ok_or(CliError::BadValue {
+                            what: "--max-pages value",
+                            value,
+                        })?;
+            }
+            "--max-memory" => {
+                let value = args.next().ok_or(CliError::MissingValue("--max-memory"))?;
+                parsed.limits.max_memory_bytes = openconvert::sandbox::parse_bytes(&value)
+                    .filter(|bytes| *bytes > 0)
+                    .ok_or(CliError::BadValue {
+                        what: "--max-memory value (bytes, or a binary unit such as 4GiB)",
+                        value,
+                    })?;
             }
             "--re-ocr" => {
                 let value = args.next().ok_or(CliError::MissingValue("--re-ocr"))?;

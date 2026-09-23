@@ -6,6 +6,7 @@
 
 pub mod cancel;
 pub mod conservation_diff;
+pub mod deadline;
 pub mod escalation;
 pub mod events;
 pub mod exit;
@@ -14,6 +15,7 @@ pub mod ledger_check;
 pub mod limits;
 pub mod ocr;
 pub mod progress;
+pub mod sandbox;
 pub mod sidecar;
 pub mod stages;
 pub mod thresholds;

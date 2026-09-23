@@ -3136,6 +3136,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "landlock"
+version = "0.4.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4cca98e95f35b29d469dade6724c6f96cec9236640f745a0e99b0334ec320ab1"
+dependencies = [
+ "enumflags2",
+ "libc",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3801,10 +3812,12 @@ dependencies = [
  "getrandom 0.3.4",
  "image",
  "insta",
+ "landlock",
  "oc-model",
  "proptest",
  "rayon",
  "regex",
+ "rustix",
  "secrecy",
  "serde",
  "serde_json",
@@ -3812,6 +3825,7 @@ dependencies = [
  "time",
  "toml 0.9.12+spec-1.1.0",
  "tracing",
+ "win32job",
 ]
 
 [[package]]
@@ -3881,6 +3895,7 @@ dependencies = [
 name = "oc-pdf"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "image",
  "insta",
  "lopdf",
@@ -3898,6 +3913,7 @@ dependencies = [
  "thiserror 2.0.20",
  "tracing",
  "unicode-normalization",
+ "weezl 0.2.1",
 ]
 
 [[package]]
@@ -3920,13 +3936,17 @@ dependencies = [
 name = "oc-testkit"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "image",
  "lopdf",
  "oc-ai",
  "oc-core",
+ "oc-epub",
  "oc-model",
  "oc-net",
+ "oc-validate",
  "pdf-writer 0.13.0",
+ "proptest",
  "secrecy",
  "serde",
  "serde_json",
@@ -8377,6 +8397,7 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ciborium",
  "lopdf",
  "oc-core",
  "oc-epub",

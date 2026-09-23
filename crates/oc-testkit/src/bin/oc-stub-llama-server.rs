@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! A stand-in for `llama-server`, for the sidecar lifecycle tests (PHASE 9 rows 9.8–9.13).
 //!
 //! It takes the real server's command line, binds exactly the `--host` and `--port` it is given,

@@ -345,7 +345,7 @@ fn trusted(path: &Path) -> Result<(), OcrUnavailable> {
 }
 
 fn version_of(path: &Path, deadline: Duration) -> Result<Version, OcrUnavailable> {
-    let mut command = std::process::Command::new(path);
+    let mut command = crate::sidecar::orphan::command(path);
     command.arg("--version");
     let output = run_captured(command, deadline).map_err(unrunnable)?;
     // Tesseract 5 prints its banner on stdout; 3.x and some 4.x builds printed it on stderr.
@@ -362,7 +362,7 @@ fn version_of(path: &Path, deadline: Duration) -> Result<Version, OcrUnavailable
 }
 
 fn langs_of(path: &Path, deadline: Duration) -> Result<BTreeSet<String>, OcrUnavailable> {
-    let mut command = std::process::Command::new(path);
+    let mut command = crate::sidecar::orphan::command(path);
     command.arg("--list-langs");
     let output = run_captured(command, deadline).map_err(unrunnable)?;
     if !output.success() {

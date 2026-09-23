@@ -1,0 +1,13 @@
+# The Isartor test suite (PHASE 14 detail 9, SECURITY §12): the PDF Association's catalogued
+# PDF/A-1b violations, freely redistributable, fetched for the crash-regression tier and never
+# committed. `cargo run -p xtask -- fetch-isartor` downloads every file listed here from `source`
+# at the pinned `commit`, checks each against its SHA-256, and writes it under target/isartor/.
+#
+# Not yet pinned: the source could not be reached from the machine this lock was written on
+# (PROVISIONAL, PROGRESS.md "Blocked"). Fill `commit` with a veraPDF-corpus commit and one
+# [[file]] per Isartor PDF — path and sha256 of the downloaded bytes — on a machine that can.
+# Until then the task refuses, naming this file.
+schema_version = 1
+source = "https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/{commit}/{path}"
+commit = "TODO_ISARTOR_COMMIT"
+files = []

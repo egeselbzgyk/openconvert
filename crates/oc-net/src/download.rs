@@ -110,14 +110,23 @@ impl HttpFetch {
 }
 
 impl Fetch for HttpFetch {
+    /// One GET, and one line in the audit log for it (PHASE 14 detail 12): a refused or failed
+    /// connection now, a redirect now, a body when it has been read (with its size).
     fn get(&self, url: &str) -> Result<Fetched, NetError> {
-        let response = self
-            .agent
-            .get(url)
-            .call()
-            .map_err(|error| NetError::Transport(error.to_string()))?;
+        use crate::audit::{record, Entry, Purpose};
+
+        let response = self.agent.get(url).call().map_err(|error| {
+            record(Entry::now(url, Purpose::Download, 0, error.to_string()));
+            NetError::Transport(error.to_string())
+        })?;
         let status = response.status();
         if status.is_redirection() {
+            record(Entry::now(
+                url,
+                Purpose::Download,
+                0,
+                format!("HTTP {}", status.as_u16()),
+            ));
             let location = response
                 .headers()
                 .get("location")
@@ -126,9 +135,54 @@ impl Fetch for HttpFetch {
             return Ok(Fetched::Redirect(location.to_owned()));
         }
         if !status.is_success() {
+            record(Entry::now(
+                url,
+                Purpose::Download,
+                0,
+                format!("HTTP {}", status.as_u16()),
+            ));
             return Err(NetError::Status(status.as_u16()));
         }
-        Ok(Fetched::Body(Box::new(response.into_body().into_reader())))
+        Ok(Fetched::Body(Box::new(AuditedBody {
+            inner: response.into_body().into_reader(),
+            url: url.to_owned(),
+            bytes: 0,
+            ended: false,
+        })))
+    }
+}
+
+/// A download's body that writes its audit line when it is done with: `ok` and the size once it
+/// was read to its end, `incomplete` if it was dropped first.
+struct AuditedBody<R: Read> {
+    inner: R,
+    url: String,
+    bytes: u64,
+    ended: bool,
+}
+
+impl<R: Read> Read for AuditedBody<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let read = self.inner.read(buf)?;
+        self.bytes = self
+            .bytes
+            .saturating_add(u64::try_from(read).unwrap_or(u64::MAX));
+        if read == 0 && !buf.is_empty() {
+            self.ended = true;
+        }
+        Ok(read)
+    }
+}
+
+impl<R: Read> Drop for AuditedBody<R> {
+    fn drop(&mut self) {
+        let outcome = if self.ended { "ok" } else { "incomplete" };
+        crate::audit::record(crate::audit::Entry::now(
+            &self.url,
+            crate::audit::Purpose::Download,
+            self.bytes,
+            outcome,
+        ));
     }
 }
 

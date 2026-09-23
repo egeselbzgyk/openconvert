@@ -1,0 +1,59 @@
+%PDF-1.7
+%€€€€
+
+1 0 obj
+<<
+  /Type /Catalog
+  /Pages 2 0 R
+>>
+endobj
+
+2 0 obj
+<<
+  /Type /Pages
+  /Kids [8 0 R 10 0 R]
+  /Count 2
+>>
+endobj
+
+8 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 400 300]
+  /Contents 9 0 R
+  /Resources <<
+    /Font <<
+      /F1 3 0 R
+    >>
+  >>
+>>
+endobj
+
+9 0 obj
+<<
+  /Length 424
+>>
+stream
+BT
+/F1 12 Tf
+20 260 Td
+(The pipeline runs north) Tj
+ET
+BT
+/F1 12 Tf
+20 240 Td
+(through the valley and the) Tj
+ET
+BT
+/F1 12 Tf
+20 220 Td
+(survey party followed it) Tj
+ET
+BT
+/F1 12 Tf
+20 200 Td
+(summer.) Tj
+ET
+BT
+/

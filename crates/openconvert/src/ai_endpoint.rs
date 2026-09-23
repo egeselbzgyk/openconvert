@@ -91,6 +91,29 @@ pub struct Opened {
     /// The models the endpoint listed when it was probed (none for `llama-server`, which serves
     /// the one it loaded, and for a server the engine started).
     pub models: Vec<String>,
+    /// The TCP port the conversion connects to: the only one Landlock lets it reach (PHASE 14).
+    pub port: Option<u16>,
+}
+
+/// The port an endpoint URL names, or its scheme's default.
+fn port_of(url: &str) -> Option<u16> {
+    const HTTP: u16 = 80;
+    const HTTPS: u16 = 443;
+    let (scheme, rest) = url.split_once("://")?;
+    let authority = rest.split(['/', '?', '#']).next()?;
+    let after_host = match authority.strip_prefix('[') {
+        Some(bracketed) => bracketed.split_once(']')?.1,
+        None => authority.rsplit_once(':').map_or("", |(_, port)| port),
+    };
+    let explicit = after_host.trim_start_matches(':');
+    if !explicit.is_empty() {
+        return explicit.parse().ok();
+    }
+    match scheme.to_ascii_lowercase().as_str() {
+        "http" => Some(HTTP),
+        "https" => Some(HTTPS),
+        _ => None,
+    }
 }
 
 /// Why no provider was opened.
@@ -306,6 +329,7 @@ fn open_endpoint(
         kind,
         consent: granted,
         models: listed,
+        port: port_of(url),
     })
 }
 
@@ -423,6 +447,7 @@ fn spawn_sidecar(args: &AiArgs, registry_text: &str, t: &Thresholds) -> Result<O
             t.llm.temperature as f32,
             secs(t.llm.call_timeout_secs),
         )),
+        port: Some(server.port()),
         server: Some(server),
         kind: ProviderKind::LocalSidecar,
         consent: None,

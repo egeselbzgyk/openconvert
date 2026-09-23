@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! A minimal engine for the OCR teardown test (PHASE 13 row 13.19).
 //!
 //! It starts one OCR call through `oc_core::ocr::invoke`, exactly as the pipeline does, against the
@@ -20,6 +21,8 @@ use oc_core::ocr::OcrScope;
 use oc_model::geom::Rect;
 
 fn main() {
+    // As the real engine does: its children get the parent-death signal (PHASE 14).
+    oc_core::sidecar::orphan::init();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let (mode, program, workdir) = (
         args[0].clone(),
@@ -63,4 +66,5 @@ fn main() {
         }
         other => panic!("unknown mode {other}"),
     }
+    oc_core::sidecar::supervise::settle();
 }

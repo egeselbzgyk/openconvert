@@ -74,8 +74,10 @@ pub fn run<W: Write>(
     };
     let report = match inspect(&backend, &args.input, &options) {
         Ok(report) => report,
-        Err(oc_pdf::error::PdfError::LimitExceeded(exceeded)) => {
-            events.fatal(E_LIMIT, &exceeded.to_string());
+        Err(
+            error @ (oc_pdf::error::PdfError::LimitExceeded(_) | oc_pdf::error::PdfError::Cap(_)),
+        ) => {
+            events.fatal(E_LIMIT, &error.to_string());
             return ExitCode::Usage;
         }
         Err(error @ oc_pdf::error::PdfError::PasswordRequired) => {

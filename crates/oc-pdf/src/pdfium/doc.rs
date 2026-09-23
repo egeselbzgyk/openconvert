@@ -16,7 +16,7 @@ use crate::geom::{PageGeometry, PdfRect, Rotate};
 use crate::glyphs::{family_key, PageGlyphs, STAGE};
 use crate::images::{classify_image, effective_dpi};
 use crate::inspect::{DocMetadata, PdfDoc};
-use crate::limits::check_image;
+use crate::limits::{check_image_before_decode, decode_image_checked, ImageDict};
 use oc_core::limits::Limits;
 use oc_model::extract::{FontId, FontInfo, Glyph, ImageId, ImageRef, PageRef, VecId, VectorRegion};
 use oc_model::ledger::{LedgerEntry, Reason};
@@ -49,6 +49,9 @@ pub struct PdfiumDoc {
     /// say it is". `None` when `lopdf` declines a file PDFium accepted, which happens - it is
     /// the stricter parser - and which costs only the two structural image flags.
     structure: Option<lopdf::Document>,
+    /// Pages whose declared glyph count has passed `limits.max_page_glyphs`, so each page's content
+    /// is counted once however many times the page is loaded (PHASE 14 detail 10).
+    glyphs_checked: std::sync::Mutex<std::collections::BTreeSet<u32>>,
 }
 
 impl PdfiumDoc {
@@ -63,6 +66,21 @@ impl PdfiumDoc {
         password: Option<&str>,
         limits: Limits,
     ) -> Result<Self, PdfError> {
+        // Before PDFium or `lopdf` parses anything (PHASE 14 details 3 and 4): the
+        // cross-reference chain is walked under a depth cap and a visited set, and the page count
+        // is read from the catalogue's own `/Count`, so a refusal costs a walk of the trailers
+        // rather than whatever the real parser would have spent first.
+        let walk = crate::prescan::walk_xref_chain(bytes, &limits)?;
+        if let Some(declared) = walk.declared_page_count(bytes, &limits)? {
+            if declared > u64::from(limits.max_pages) {
+                return Err(oc_core::limits::CapViolation::Pages {
+                    declared,
+                    limit: limits.max_pages,
+                }
+                .into());
+            }
+        }
+
         let document = pdfium
             .load_pdf_from_byte_vec(bytes.to_vec(), password)
             .map_err(open_error)?;
@@ -71,7 +89,7 @@ impl PdfiumDoc {
         let pages = u32::try_from(document.pages().len()).unwrap_or(u32::MAX);
         limits.check_pages(pages)?;
 
-        let structure = lopdf::Document::load_mem(bytes).ok();
+        let structure = load_structure(bytes, &limits);
         let page_ids = structure
             .as_ref()
             .map(crate::pdfium::page_ids)
@@ -83,6 +101,7 @@ impl PdfiumDoc {
             limits,
             page_ids,
             structure,
+            glyphs_checked: std::sync::Mutex::default(),
         })
     }
 }
@@ -213,7 +232,14 @@ impl PdfDoc for PdfiumDoc {
         // at 300 dpi is exactly the pixel bomb `max_image_pixels` exists for.
         let width = (page.width().value * scale).ceil().max(1.0) as u32;
         let height = (page.height().value * scale).ceil().max(1.0) as u32;
-        crate::limits::check_image(width, height, &self.limits)?;
+        check_image_before_decode(
+            &ImageDict {
+                width: u64::from(width),
+                height: u64::from(height),
+            },
+            &self.limits,
+            index,
+        )?;
 
         let config = pdfium_render::prelude::PdfRenderConfig::new()
             .scale_page_by_factor(scale)
@@ -269,6 +295,7 @@ impl PdfiumDoc {
             index,
             message: "page index does not fit in a PDF page number".to_owned(),
         })?;
+        self.check_glyphs(index)?;
         self.document
             .pages()
             .get(page_index)
@@ -280,6 +307,30 @@ impl PdfiumDoc {
 }
 
 impl PdfiumDoc {
+    /// Refuse a page whose content declares more glyphs than a page may draw, before PDFium loads
+    /// it: loading is where PDFium builds an object per text operator (PHASE 14 detail 10).
+    /// Counted from the file's own object tree; a file `lopdf` could not read is left to PDFium
+    /// and the memory cap.
+    fn check_glyphs(&self, index: u32) -> Result<(), PdfError> {
+        let (Some(structure), Some(page)) = (
+            self.structure.as_ref(),
+            self.page_ids
+                .get(usize::try_from(index).unwrap_or(usize::MAX)),
+        ) else {
+            return Ok(());
+        };
+        let mut checked = self
+            .glyphs_checked
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if checked.contains(&index) {
+            return Ok(());
+        }
+        crate::glyph_budget::check_page_glyphs(structure, *page, index, &self.limits)?;
+        checked.insert(index);
+        Ok(())
+    }
+
     /// Extract one page's images (Phase 1 detail 4).
     ///
     /// Geometry and pixel counts come from PDFium; `has_smask` and `is_inline` come from the
@@ -337,7 +388,11 @@ impl PdfiumDoc {
 
             let intrinsic_px = (pixels(image.width()), pixels(image.height()));
             // Before anything decodes, composites or allocates for this image.
-            check_image(intrinsic_px.0, intrinsic_px.1, &self.limits)?;
+            check_image_before_decode(
+                &declared(image.width(), image.height()),
+                &self.limits,
+                index,
+            )?;
             let fact = facts
                 .as_ref()
                 .and_then(|facts| facts.get(position))
@@ -430,23 +485,22 @@ impl PdfiumDoc {
             .ok_or_else(missing)?;
         let object = object.as_image_object().ok_or_else(missing)?;
 
-        check_image(
-            pixels(object.width()),
-            pixels(object.height()),
-            &self.limits,
-        )?;
-
-        let decoded = object
-            .get_processed_image(&self.document)
-            .map_err(|source| PdfError::Page {
-                index: page,
-                message: format!("image {} could not be decoded: {source}", image.0),
-            })?;
-        let rgba = decoded.to_rgba8();
-        Ok(crate::images::DecodedImage {
-            width: rgba.width(),
-            height: rgba.height(),
-            rgba: rgba.into_raw(),
+        // PDFium reads both sides from the image's stream dictionary without decoding it; the
+        // decoder is behind the check, not beside it (PHASE 14 detail 1).
+        let dictionary = declared(object.width(), object.height());
+        decode_image_checked(&dictionary, &self.limits, page, || {
+            let decoded = object
+                .get_processed_image(&self.document)
+                .map_err(|source| PdfError::Page {
+                    index: page,
+                    message: format!("image {} could not be decoded: {source}", image.0),
+                })?;
+            let rgba = decoded.to_rgba8();
+            Ok(crate::images::DecodedImage {
+                width: rgba.width(),
+                height: rgba.height(),
+                rgba: rgba.into_raw(),
+            })
         })
     }
 
@@ -694,6 +748,31 @@ fn is_private_use(c: char) -> bool {
 
 /// An image dimension in pixels. A negative one is not a thing, so it reads as zero and the
 /// derived DPI reads as zero with it - visibly wrong rather than quietly plausible.
+/// The same file, parsed as PDF objects, with `lopdf`'s own decoding of object and
+/// cross-reference streams bounded by the stream ceiling. `lopdf` decodes those eagerly while it
+/// loads, before any of this crate's code sees a byte of them, and its default is unbounded — so
+/// the bound has to be handed in here (PHASE 14 detail 2).
+fn load_structure(bytes: &[u8], limits: &Limits) -> Option<lopdf::Document> {
+    let ceiling = usize::try_from(limits.max_decompressed_stream_bytes).unwrap_or(usize::MAX);
+    lopdf::Document::load_mem_with_options(
+        bytes,
+        lopdf::LoadOptions::with_max_decompressed_size(ceiling),
+    )
+    .ok()
+}
+
+/// An image's declared dimensions as the pixel cap reads them. A side PDFium cannot report is 0,
+/// which the cap passes: PDFium then has nothing it could be asked to allocate for either.
+fn declared(
+    width: Result<pdfium_render::prelude::Pixels, pdfium_render::prelude::PdfiumError>,
+    height: Result<pdfium_render::prelude::Pixels, pdfium_render::prelude::PdfiumError>,
+) -> ImageDict {
+    ImageDict {
+        width: u64::from(pixels(width)),
+        height: u64::from(pixels(height)),
+    }
+}
+
 fn pixels(
     value: Result<pdfium_render::prelude::Pixels, pdfium_render::prelude::PdfiumError>,
 ) -> u32 {

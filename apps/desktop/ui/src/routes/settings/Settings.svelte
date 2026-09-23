@@ -240,14 +240,21 @@
     if (providers !== null) onsaved(await providers.clearKeyFile());
   }
 
-  // Settings › Network log (design decision 6; SECURITY §8). What it lists is `oc-net`'s audit log,
-  // which PHASE 14 detail 12 adds; until then the Rust side answers `not_recorded` and the page says
-  // so, and which connections the app makes — never a row nobody wrote down.
+  // Settings › Network log (design decision 6; SECURITY §8): `oc-net`'s audit log (PHASE 14 detail
+  // 12), newest first, as the Rust side reads it — never a row nobody wrote down. `not_recorded` is
+  // left for a build whose data directory cannot be read.
   let network = $state<NetworkLog | null>(null);
   $effect(() => {
     if (section !== "network" || providers === null || network !== null) return;
     void providers.networkLog().then((log) => (network = log));
   });
+  // The audit log writes a purpose code (`download`, `llm-request`, `llm-probe`); a code this build
+  // has no words for is shown as written rather than hidden.
+  const purpose = (code: string) => {
+    const key = `settings.network.purpose.${code}`;
+    const text = t(key);
+    return text === key ? code : text;
+  };
   const when = (ts: string) =>
     new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(ts));
 
@@ -514,7 +521,7 @@
           </thead>
           <tbody>
             {#each network.entries as entry, index (index)}
-              <tr><td class="oc-num">{when(entry.ts)}</td><td class="oc-mono">{entry.host}</td><td>{entry.purpose}</td><td class="is-num">{formatBytes(entry.bytes, i18n.locale)}</td></tr>
+              <tr><td class="oc-num">{when(entry.ts)}</td><td class="oc-mono">{entry.host}</td><td>{purpose(entry.purpose)}</td><td class="is-num">{formatBytes(entry.bytes, i18n.locale)}</td></tr>
             {/each}
           </tbody>
         </table>

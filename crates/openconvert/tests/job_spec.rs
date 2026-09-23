@@ -19,7 +19,8 @@ fn fixture(name: &str) -> PathBuf {
         "missing fixture {}; run `cargo run -p xtask -- fixtures`",
         path.display()
     );
-    path
+    // A job spec names files exactly: absolute, with no `..` (PHASE 14 row 14.14).
+    std::fs::canonicalize(&path).unwrap_or(path)
 }
 
 /// A fresh scratch directory per test.
@@ -203,6 +204,7 @@ fn a_locked_pdf_opens_with_the_password_from_the_environment() {
     let encrypted = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../corpus/fixtures/mutations/h01__encrypted_password.pdf");
     assert!(encrypted.is_file(), "missing {}", encrypted.display());
+    let encrypted = std::fs::canonicalize(&encrypted).unwrap_or(encrypted);
     let directory = scratch("password");
     let output = directory.join("locked.epub");
     let spec = write_spec(

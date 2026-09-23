@@ -232,23 +232,23 @@ describe("settings route", () => {
   });
 
   // The Network log section is the design's (visible by default); what it lists is PHASE 14 detail
-  // 12's audit log. Until that exists the page says so and names the connections the app makes —
-  // and once the Rust side reads lines, they are listed as they are.
-  it("the network log says this build records nothing yet, and lists what the audit log holds", async () => {
+  // 12's audit log. Empty, the page says which connections would be recorded; with lines, they are
+  // listed with their purpose in words.
+  it("the network log says when nothing has connected, and lists what the audit log holds", async () => {
     const backend = await openSettings();
     nav("Network log")?.click();
     await settle();
     flushSync();
     const body = () => document.querySelector(".oc-settings__body")?.textContent ?? "";
-    expect(body()).toContain("Not recorded yet");
-    expect(body()).toContain("with AI assistance on — to the provider you chose");
+    expect(body()).toContain("No connections yet");
+    expect(body()).toContain("with AI assistance on — each time a conversion asks the provider you chose");
     expect(document.querySelector(".oc-table")).toBeNull();
     unmount(app!);
     app = null;
 
     backend.network = {
       state: "entries",
-      entries: [{ ts: "2026-09-22T10:14:00Z", host: "huggingface.co", purpose: "model download", bytes: 1_181_116_006, outcome: "ok" }],
+      entries: [{ ts: "2026-09-22T10:14:00Z", host: "huggingface.co", purpose: "download", bytes: 1_181_116_006, outcome: "ok" }],
     };
     await openSettings(backend);
     nav("Network log")?.click();
@@ -256,6 +256,6 @@ describe("settings route", () => {
     flushSync();
     const cells = [...document.querySelectorAll(".oc-table td")].map((cell) => cell.textContent);
     expect(cells).toContain("huggingface.co");
-    expect(cells).toContain("model download");
+    expect(cells).toContain("Model or pack download");
   });
 });

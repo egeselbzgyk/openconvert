@@ -25,7 +25,8 @@ fn fixture(name: &str) -> PathBuf {
         "missing fixture {}; run `cargo run -p xtask -- fixtures`",
         path.display()
     );
-    path
+    // A job spec names files exactly: absolute, with no `..` (PHASE 14 row 14.14).
+    std::fs::canonicalize(&path).unwrap_or(path)
 }
 
 fn scratch(test: &str) -> PathBuf {
