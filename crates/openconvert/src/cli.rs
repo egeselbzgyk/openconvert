@@ -245,6 +245,9 @@ usage:
 
   <JOB.json>           a job spec (schemas/job-spec.v1.json) as the only argument: how the
                        desktop app runs a conversion. Events are always NDJSON on stderr.
+                       Its `ai` object is --ai: endpoint, api_key_file, model_path and
+                       model_id are the --llm-*/--model-path flags, and non_loopback_consent
+                       is --llm-allow-host for the endpoint's own host.
 
   --json               machine-readable report on stdout
   --pages <RANGE>      e.g. 1-10,20 (one-based, as printed)

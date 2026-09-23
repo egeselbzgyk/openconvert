@@ -235,3 +235,165 @@ fn a_locked_pdf_opens_with_the_password_from_the_environment() {
     );
     assert!(output.is_file());
 }
+
+/// A `llama-server` on loopback, as the desktop app's own server looks to the engine: `/props`
+/// (what the capability probe recognises it by) and chat completions only with the key, `/health`
+/// without. It records every request line and the key it came with.
+struct LlamaDouble {
+    url: String,
+    seen: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+}
+
+impl LlamaDouble {
+    fn start(key: &'static str) -> Self {
+        use std::io::{BufRead, BufReader, Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+        let url = format!("http://{}", listener.local_addr().expect("bound"));
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let log = std::sync::Arc::clone(&seen);
+        std::thread::spawn(move || {
+            for stream in listener.incoming().map_while(Result::ok) {
+                let mut reader = BufReader::new(stream.try_clone().expect("clone"));
+                let mut request = String::new();
+                if reader.read_line(&mut request).is_err() {
+                    continue;
+                }
+                let (mut authorised, mut length) = (false, 0usize);
+                loop {
+                    let mut line = String::new();
+                    if reader.read_line(&mut line).map_or(true, |n| n == 0) || line == "\r\n" {
+                        break;
+                    }
+                    let lower = line.to_ascii_lowercase();
+                    if let Some(value) = lower.strip_prefix("content-length:") {
+                        length = value.trim().parse().unwrap_or(0);
+                    }
+                    if lower.starts_with("authorization:") && line.trim_end().ends_with(key) {
+                        authorised = true;
+                    }
+                }
+                let mut body = vec![0u8; length];
+                let _ = reader.read_exact(&mut body);
+                let request = request.trim().to_owned();
+                log.lock().expect("the log").push(format!(
+                    "{request} {}",
+                    if authorised { "key" } else { "nokey" }
+                ));
+                let (status, reply) = if request.starts_with("GET /health") {
+                    (200, r#"{"status":"ok"}"#)
+                } else if !authorised {
+                    (401, r#"{"error":{"code":401,"message":"Invalid API Key"}}"#)
+                } else if request.starts_with("GET /props") {
+                    (200, r#"{"default_generation_settings":{}}"#)
+                } else if request.starts_with("POST /v1/chat/completions") {
+                    (
+                        200,
+                        r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"{}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}"#,
+                    )
+                } else {
+                    (404, r#"{"error":{"code":404}}"#)
+                };
+                let mut stream = stream;
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}",
+                    reply.len()
+                );
+            }
+        });
+        Self { url, seen }
+    }
+
+    fn seen(&self) -> Vec<String> {
+        self.seen.lock().expect("the log").clone()
+    }
+}
+
+/// PHASE 12 part B2: the one argument carries AI too. `ai.enabled`, `endpoint`, `api_key_file` and
+/// `model_id` reach the engine exactly as `--ai --llm-endpoint … --llm-api-key-file …
+/// --llm-model …` would: it asks that endpoint what it is, with that key, and the report says which
+/// adapter answered and for which model. Nothing needed consent — the endpoint is this computer.
+#[test]
+fn a_job_spec_with_ai_on_asks_the_endpoint_it_names() {
+    let directory = scratch("ai-on");
+    let server = LlamaDouble::start("app-run-key");
+    let key_file = directory.join("llm.key");
+    std::fs::write(&key_file, "app-run-key").expect("the key is written");
+    let output = directory.join("book.epub");
+    let spec = write_spec(
+        &directory,
+        &serde_json::json!({
+            "schema": "openconvert.job/1",
+            "job_id": "job-ai",
+            "input": {"path": fixture("f07_verse_and_quote")},
+            "output": {"path": output},
+            "ai": {
+                "enabled": true,
+                "endpoint": server.url,
+                "api_key_file": key_file,
+                "model_id": "qwen3-1.7b-instruct"
+            }
+        }),
+    );
+
+    let (code, events) = run_spec(&spec);
+    assert_eq!(code, Some(0), "events: {events:#?}");
+    let done = events.last().expect("events");
+    assert_eq!(done["status"], "ok");
+    let report: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(done["report_path"].as_str().expect("a report")).expect("read"),
+    )
+    .expect("JSON");
+    assert_eq!(
+        report["ai"]["provider"], "local_sidecar",
+        "{:#}",
+        report["ai"]
+    );
+    assert_eq!(report["ai"]["model_id"], "qwen3-1.7b-instruct");
+    assert!(report["consent"].is_null(), "loopback needs no consent");
+    assert!(
+        server
+            .seen()
+            .iter()
+            .any(|line| line.starts_with("GET /props") && line.ends_with(" key")),
+        "the capability probe went to the spec's endpoint with the spec's key: {:?}",
+        server.seen()
+    );
+    assert!(
+        !events
+            .iter()
+            .any(|event| event["t"] == "warning" && event["code"] == "W_LLM_UNAVAILABLE"),
+        "the model was reachable"
+    );
+}
+
+/// With AI on and nothing answering, the book converts without a model and says so — the job
+/// spec's form of RT D20's fail-open, which the app shows as its banner.
+#[test]
+fn a_job_spec_with_ai_on_and_no_model_converts_without_one() {
+    let directory = scratch("ai-down");
+    // A port that was free a moment ago: nothing listens on it.
+    let closed = std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|listener| listener.local_addr())
+        .expect("a loopback port");
+    let output = directory.join("book.epub");
+    let spec = write_spec(
+        &directory,
+        &serde_json::json!({
+            "schema": "openconvert.job/1",
+            "input": {"path": fixture("f01_prose_single_column")},
+            "output": {"path": output},
+            "ai": {"enabled": true, "endpoint": format!("http://{closed}")}
+        }),
+    );
+
+    let (code, events) = run_spec(&spec);
+    assert_eq!(code, Some(0), "events: {events:#?}");
+    assert!(
+        events
+            .iter()
+            .any(|event| event["t"] == "warning" && event["code"] == "W_LLM_UNAVAILABLE"),
+        "the banner's warning: {events:#?}"
+    );
+    assert!(output.is_file());
+}

@@ -18,6 +18,7 @@ use oc_core::jobspec::{self, JobSpec};
 use oc_core::limits::Limits;
 use oc_pdf::pdfium::PdfiumBackend;
 
+use crate::cli::AiArgs;
 use crate::cmd_convert::{hello, ocr_capabilities, run_job, ConvertJob, E_PDFIUM};
 
 /// Every refusal of the spec itself, whatever the reason (§2.2).
@@ -63,14 +64,10 @@ fn read(path: &Path) -> Result<ConvertJob, String> {
 
 /// Turn a valid spec into a job, refusing what this engine cannot honour.
 ///
-/// **Refused, not ignored.** A spec field the engine does not act on yet — AI, threshold
-/// overrides, stage dumps — is a refusal naming the field. Ignoring it would convert a book the
-/// user asked to be converted differently and report success, which is the one outcome worse than
-/// an error.
+/// **Refused, not ignored.** A spec field the engine does not act on yet — threshold overrides,
+/// stage dumps — is a refusal naming the field. Ignoring it would convert a book the user asked to
+/// be converted differently and report success, which is the one outcome worse than an error.
 pub fn resolve(spec: &JobSpec) -> Result<ConvertJob, String> {
-    if spec.ai.as_ref().is_some_and(|ai| ai.enabled) {
-        return Err(unsupported("ai.enabled"));
-    }
     if spec
         .threshold_overrides
         .as_ref()
@@ -129,11 +126,34 @@ pub fn resolve(spec: &JobSpec) -> Result<ConvertJob, String> {
         job_id: spec.job_id.clone(),
         json_events: true,
         overrides: spec.overrides_path.clone(),
-        ai: None,
+        ai: spec.ai.as_ref().and_then(ai_args),
         ocr: oc_core::ocr::OcrMode::Auto,
         ocr_path: None,
         ocr_lang: None,
         re_ocr: oc_core::ocr::ReOcr::Never,
+    })
+}
+
+/// The spec's `ai` object as `convert --ai` and its flags (PHASE 10, PHASE 11): `None` unless it is
+/// switched on. `non_loopback_consent` is consent to the endpoint's own host — the host the app's
+/// consent dialog named — and to no other ([`AiArgs::consenting_to_the_endpoint`]). The validator
+/// has already refused an endpoint off this machine without it (D10); the engine checks again
+/// before it sends anything, and a host nothing consented to is `E_CONSENT_REQUIRED`, exit 2.
+fn ai_args(ai: &oc_core::jobspec::AiSpec) -> Option<AiArgs> {
+    if !ai.enabled {
+        return None;
+    }
+    let args = AiArgs {
+        endpoint: ai.endpoint.clone(),
+        api_key_file: ai.api_key_file.clone(),
+        model_path: ai.model_path.clone(),
+        model: ai.model_id.clone(),
+        ..AiArgs::default()
+    };
+    Some(if ai.non_loopback_consent {
+        args.consenting_to_the_endpoint()
+    } else {
+        args
     })
 }
 
@@ -192,15 +212,78 @@ mod tests {
         );
     }
 
+    /// The desktop app's `ai` object is `convert --ai` and its flags, field for field (PHASE 11's
+    /// hand-off): `endpoint` → `--llm-endpoint`, `api_key_file` → `--llm-api-key-file`,
+    /// `model_path` → `--model-path`, `model_id` → `--llm-model`.
     #[test]
-    fn fields_the_engine_cannot_honour_are_refused_by_name() {
-        let mut ai = spec();
-        ai.ai = Some(oc_core::jobspec::AiSpec {
+    fn an_ai_spec_resolves_to_the_arguments_convert_takes() {
+        let mut on = spec();
+        on.ai = Some(oc_core::jobspec::AiSpec {
             enabled: true,
+            endpoint: Some("http://127.0.0.1:8123".to_owned()),
+            api_key_file: Some("/run/oc/llm.key".into()),
+            model_path: Some("/models/qwen3.gguf".into()),
+            model_id: Some("qwen3-1.7b".to_owned()),
+            non_loopback_consent: false,
+        });
+        let job = resolve(&on).expect("resolves");
+        assert_eq!(
+            job.ai,
+            Some(crate::cli::AiArgs {
+                endpoint: Some("http://127.0.0.1:8123".to_owned()),
+                api_key_file: Some("/run/oc/llm.key".into()),
+                model_path: Some("/models/qwen3.gguf".into()),
+                model: Some("qwen3-1.7b".to_owned()),
+                ..Default::default()
+            })
+        );
+    }
+
+    /// `non_loopback_consent: true` is consent to the endpoint's own host and no other — the host
+    /// the app's consent dialog named (D10) — as `--llm-allow-host <that host>` would be.
+    #[test]
+    fn consent_in_a_spec_is_consent_to_its_endpoints_own_host() {
+        let mut remote = spec();
+        remote.ai = Some(oc_core::jobspec::AiSpec {
+            enabled: true,
+            endpoint: Some("https://LLM.example.org/v1".to_owned()),
+            non_loopback_consent: true,
             ..Default::default()
         });
-        assert!(resolve(&ai).expect_err("refused").contains("ai.enabled"));
+        let job = resolve(&remote).expect("resolves");
+        let ai = job.ai.expect("AI is on");
+        assert_eq!(ai.allow_host.as_deref(), Some("llm.example.org"));
 
+        let mut local = spec();
+        local.ai = Some(oc_core::jobspec::AiSpec {
+            enabled: true,
+            endpoint: Some("http://localhost:11434".to_owned()),
+            ..Default::default()
+        });
+        let job = resolve(&local).expect("resolves");
+        assert_eq!(
+            job.ai.expect("AI is on").allow_host,
+            None,
+            "loopback needs no consent, and none is invented"
+        );
+    }
+
+    /// `ai.enabled = false` is the v1 default, whatever else the object carries: the app keeps its
+    /// provider settings in every spec, and only the switch decides.
+    #[test]
+    fn ai_off_or_absent_resolves_to_no_model() {
+        assert_eq!(resolve(&spec()).expect("resolves").ai, None);
+        let mut off = spec();
+        off.ai = Some(oc_core::jobspec::AiSpec {
+            enabled: false,
+            endpoint: Some("http://127.0.0.1:8123".to_owned()),
+            ..Default::default()
+        });
+        assert_eq!(resolve(&off).expect("resolves").ai, None);
+    }
+
+    #[test]
+    fn fields_the_engine_cannot_honour_are_refused_by_name() {
         let mut thresholds = spec();
         thresholds.threshold_overrides = Some([("x.y".to_owned(), 1.0)].into_iter().collect());
         assert!(resolve(&thresholds)

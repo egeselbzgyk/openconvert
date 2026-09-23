@@ -770,6 +770,15 @@ threshold entries. Workspace 740 tests, desktop 43 (`engine-integration`, after
 the desktop build copies the staged engine over `target/debug/openconvert`), UI 42. Details:
 `docs/DECISIONS_LOG.md`, "Phase 12 meets Phases 10, 11 and 13".
 
+Part B2 work items:
+
+- [x] **P12.17** the engine reads the job spec's `ai` object: `enabled` → `--ai`, `endpoint` /
+      `api_key_file` / `model_path` / `model_id` → the `--llm-*` / `--model-path` flags,
+      `non_loopback_consent` → `--llm-allow-host <endpoint host>`; `enabled: false` is AI off. The
+      one-argument spawn carries AI end to end (a loopback `llama-server` double: the probe goes to
+      the spec's endpoint with the spec's key; the report names the adapter and model) (+ 3 unit,
+      2 integration tests)
+
 1. **The AI toggle** (Settings › AI assistance and the first-run route's "installed" step): it is
    drawn disabled, saying the converter has no AI support in this build. Enabling it needs Phase
    10's engine to accept `ai.enabled` (the job-spec validator refuses the field by name today) and

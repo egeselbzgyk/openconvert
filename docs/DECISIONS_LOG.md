@@ -4821,3 +4821,17 @@ Evidence: the whole workspace suite on the merge (740 tests), `report_f07` snaps
 threshold entries.
 Affects: `crates/openconvert/src/{convert,cache,cmd_convert,cmd_job,main,cli}.rs`,
 `crates/oc-structure/src/escalate.rs`, `crates/oc-core/src/ledger_check.rs`, `thresholds.toml`.
+
+## 2026-09-23 · The job spec's `ai` object is `convert --ai` · Phase 12 (P12.17)
+Context: the engine's job-spec reader refused `ai.enabled` by name until Phase 10 existed; PHASE 11's
+hand-off names the mapping; the desktop app spawns the engine with one argument (12.1), so AI has to
+travel in the spec.
+Decision: `ai.enabled = true` resolves to the same `AiArgs` `convert --ai` builds — `endpoint` →
+`--llm-endpoint`, `api_key_file` → `--llm-api-key-file`, `model_path` → `--model-path`, `model_id` →
+`--llm-model`, `non_loopback_consent: true` → `--llm-allow-host <the endpoint's own host>`
+(`AiArgs::consenting_to_the_endpoint`). `enabled: false` is AI off whatever else the object holds.
+There is no provider-kind field in job-spec v1: the engine probes. There is no `all_tasks` either,
+so the app runs only the tasks `ai.task.<task>.languages` enables — none, in this build.
+Evidence: `a_job_spec_with_ai_on_asks_the_endpoint_it_names`,
+`a_job_spec_with_ai_on_and_no_model_converts_without_one`, and three `cmd_job` unit tests.
+Affects: `crates/openconvert/src/cmd_job.rs`, the `<JOB.json>` usage text.
