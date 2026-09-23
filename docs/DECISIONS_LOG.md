@@ -5100,3 +5100,37 @@ Decisions:
 Evidence: rows 14.13–14.15 in the suite; `every_path_in_an_accepted_spec_is_absolute_and_never_climbs`.
 Affects: SECURITY §12, RT B15, `schemas/job-spec.v1.json` (semantics, not text), `fuzz/`,
 `xtask fuzz-seeds`, `.github/workflows/nightly.yml`.
+
+## 2026-09-23 · The `--isolate-parser` spike: measured, and no-go · Phase 14
+Context: PHASE 14 detail 13 and row 14.23, D16, SECURITY §5 and ratified position 1: a time-boxed
+spike — one child per page range, length-prefixed CBOR of glyph batches over a pipe — measured for
+wall-clock overhead and output identity. **Go** if overhead < 15 % and output unchanged, otherwise
+**no-go**, and the item stays post-v1 either way unless the maintainer promotes it.
+What was built: `cargo run --release -p xtask -- isolate-parser-spike [--fixture <STEM|PATH>]
+[--reference-book <PAGES>] [--repeats N]`. The child is the xtask binary itself (`__parse-range
+<pdf> <first> <last>`: bind PDFium, open the file, extract the range, one CBOR frame per page); the
+parent runs one child per 8-page range, in sequence, reassembles the batches and compares them with
+the same extraction done in process. The per-child cost measured (process start, PDFium bind,
+document open, serialisation) is the one an engine subcommand would pay, and a no-go leaves nothing
+half-built in the engine. Release build, 4 cores, median of 5 (3 for the book).
+Measured:
+- **Output: identical** on every file — every glyph and font of every page, bit for bit, so every
+  byte downstream of `ingest` is unchanged.
+- **Fast corpus (13 Typst fixtures, 1–5 pages):** +84 ms over 1 094 ms of conversion = **7.7 %**
+  (7.0 % on a second run). The aggregate is carried by three image-heavy fixtures whose conversion
+  is ~400 ms of image encoding; on the text fixtures the extra is **24–100 %** of the conversion
+  (a fixed ~5 ms per child against 5–30 ms books).
+- **The benchmark's 300-page reference book** (38 children): in-process extraction 514 ms,
+  isolated 1 370 ms, conversion 1 408 ms: **+856 ms = 60.8 %**.
+Decision: **NO-GO.** The criterion is met only by the fast-corpus aggregate, and only because image
+encoding dominates it; on every text document and on a book-length one the overhead is 24–100 %,
+four times and more the threshold. The cost is per child — each re-opens the whole document
+(PDFium's parse, `lopdf`'s eager load, the structural pre-walk) — so ranges would have to be much
+longer than 8 pages, which gives back most of the isolation. **PROVISIONAL — needs maintainer
+ratification** only in its reading of "overhead on the fast corpus": the aggregate alone would read
+GO. `--isolate-parser` stays post-v1 (D16); v1's crash-isolation granularity stays the job. The
+harness stays in `xtask` so the numbers can be re-measured if the per-child cost changes (a parser
+that opens lazily, a pre-parsed hand-off).
+Evidence: `isolate_parser_spike_overhead_is_recorded` (row 14.23: the harness still runs and
+compares identical, and this entry records a figure and a verdict).
+Affects: D16, SECURITY §5, PHASE 14 detail 13, `xtask/src/isolate_parser.rs`.

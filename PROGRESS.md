@@ -108,7 +108,7 @@ items, in order, with the plan's test rows against each:
 - [x] **P14.12** `fuzz/`: three targets, seeded corpora — rows 14.13–14.15 *(120 s each here, 0 crashes; nightly 15 min unverified here)*
 - [x] **P14.13** `unshare -n` over the AI cassette path — row 14.20 *(run here under `unshare -n`; the CI job itself unverified here)*
 - [x] **P14.14** `unsafe` confined to declared modules — row 14.22
-- [ ] **P14.15** `--isolate-parser` spike, go/no-go — row 14.23
+- [x] **P14.15** `--isolate-parser` spike, go/no-go — row 14.23 *(NO-GO: +60.8 % on the 300-page book, 7.7 % fast-corpus aggregate; PROVISIONAL reading)*
 - [ ] **P14.16** `docs/SECURITY_TESTING.md`, Definition of Done, CHANGELOG, merge
 
 What a fresh session needs:

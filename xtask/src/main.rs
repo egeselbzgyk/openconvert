@@ -5,8 +5,8 @@
 
 use xtask::{
     ci_lint, dom_fixtures, epubcheck_parity, fetch_epubcheck, fetch_epubcheck_corpus,
-    fetch_isartor, fetch_llama_server, fixtures, fuzz_seeds, handmade_fixtures, mutations,
-    stage_sidecars, thresholds_lint, vendor_pdfium,
+    fetch_isartor, fetch_llama_server, fixtures, fuzz_seeds, handmade_fixtures, isolate_parser,
+    mutations, stage_sidecars, thresholds_lint, vendor_pdfium,
 };
 
 use std::path::{Path, PathBuf};
@@ -32,6 +32,12 @@ tasks:
                       --check             compare against the committed number instead of
                                           rewriting it; fails when parity has fallen
   fuzz-seeds        write the fuzz targets' seed corpora to fuzz/corpus/ from the fixtures
+  isolate-parser-spike
+                    measure --isolate-parser's cost: one child per page range, CBOR over a pipe,
+                    against in-process extraction and the whole conversion (PHASE 14 detail 13)
+                      --fixture <STEM>    one fixture only
+                      --repeats <N>       repetitions per fixture (median reported)
+                      --reference-book <PAGES>  the benchmark's synthetic book instead
   handmade-fixtures write the hand-made PDFs to corpus/fixtures/handmade/
   mutations         apply the mutation recipes to the fixtures they belong to and
                     write the results to corpus/fixtures/mutations/
@@ -65,6 +71,33 @@ fn main() -> Result<()> {
             epubcheck_parity::run(&root, check)
         }
         Some("fuzz-seeds") => fuzz_seeds::run(&root),
+        Some("isolate-parser-spike") => {
+            let args: Vec<String> = std::env::args().collect();
+            let value = |flag: &str| {
+                args.windows(2)
+                    .find(|pair| pair[0] == flag)
+                    .map(|pair| pair[1].clone())
+            };
+            let repeats = value("--repeats").and_then(|n| n.parse().ok());
+            // `--reference-book <PAGES>`: the benchmark's synthetic book (PHASE 7 row 7.11).
+            let book = match value("--reference-book").and_then(|n| n.parse::<usize>().ok()) {
+                Some(pages) => {
+                    let path = root.join(format!("target/tmp/reference_book_{pages}.pdf"));
+                    std::fs::create_dir_all(root.join("target/tmp"))?;
+                    std::fs::write(&path, oc_testkit::handmade::reference_book(pages))?;
+                    Some(path.display().to_string())
+                }
+                None => value("--fixture"),
+            };
+            isolate_parser::run(&root, book.as_deref(), repeats)
+        }
+        Some(isolate_parser::CHILD) => {
+            let args: Vec<String> = std::env::args().skip(2).collect();
+            let [pdf, first, last] = args.as_slice() else {
+                bail!("{} <pdf> <first> <last>", isolate_parser::CHILD);
+            };
+            isolate_parser::child(Path::new(pdf), first.parse()?, last.parse()?)
+        }
         Some("handmade-fixtures") => handmade_fixtures::run(&root),
         Some("mutations") => mutations::run(&root),
         Some("ci-lint") => {

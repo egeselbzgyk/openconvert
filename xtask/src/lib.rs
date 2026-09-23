@@ -14,6 +14,7 @@ pub mod fetch_llama_server;
 pub mod fixtures;
 pub mod fuzz_seeds;
 pub mod handmade_fixtures;
+pub mod isolate_parser;
 pub mod mutations;
 pub mod stage_sidecars;
 pub mod thresholds_lint;

@@ -161,3 +161,46 @@ fn unsafe_is_confined_to_declared_modules() {
     assert!(!fires("crates/oc-new/src/lib.rs", &forbid));
     assert!(!fires("fuzz/fuzz_targets/job_spec.rs", "#![no_main]\n"));
 }
+
+/// PHASE 14 row 14.23: the `--isolate-parser` spike's measured overhead and its explicit go/no-go
+/// are in `docs/DECISIONS_LOG.md`, and the harness that produced them still runs — isolated
+/// extraction still identical to in-process on a fixture — so the entry can be re-measured.
+#[test]
+fn isolate_parser_spike_overhead_is_recorded() {
+    let log = std::fs::read_to_string(workspace_root().join("docs/DECISIONS_LOG.md"))
+        .expect("the decisions log");
+    let entry = log
+        .split("\n## ")
+        .find(|entry| entry.contains("`--isolate-parser` spike"))
+        .expect("a DECISIONS_LOG entry for the --isolate-parser spike");
+    assert!(entry.contains("overhead"), "the entry names the overhead");
+    assert!(
+        entry.match_indices('%').any(|(at, _)| entry[..at]
+            .trim_end()
+            .ends_with(|c: char| c.is_ascii_digit())),
+        "the entry records a measured percentage"
+    );
+    assert!(
+        entry.contains("**NO-GO.**") || entry.contains("**GO.**"),
+        "the entry states an explicit go/no-go"
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_xtask"))
+        .args([
+            "isolate-parser-spike",
+            "--fixture",
+            "f01_prose_single_column",
+            "--repeats",
+            "1",
+        ])
+        .current_dir(workspace_root())
+        .output()
+        .expect("xtask runs");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        output.status.success(),
+        "{stdout}\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(stdout.contains("output identical"), "{stdout}");
+}
