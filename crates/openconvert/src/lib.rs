@@ -13,6 +13,7 @@
 
 pub mod ai;
 pub mod ai_endpoint;
+pub mod cache;
 pub mod convert;
 pub mod data_dir;
 pub mod document;
@@ -21,6 +22,7 @@ pub mod dump_structure;
 pub mod dump_text;
 pub mod input;
 pub mod ocr;
+pub mod overrides;
 pub mod pipeline;
 pub mod report;
 pub mod sandbox;

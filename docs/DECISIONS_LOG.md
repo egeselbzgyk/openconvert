@@ -3550,6 +3550,249 @@ comparison with a call to `oc_core::escalation::verse_quote`.
 Evidence: `escalation_predicates_are_pure_and_unit_tested`.
 Affects: ARCHITECTURE §3.1 and §6.1, `oc-core::escalation`, `oc-structure::quotes` (open).
 
+## 2026-09-23 · The engine's one-argument form, and what it refuses · Phase 12
+Context: DECISIONS D13.2 says "the GUI passes one argument: the job-spec path"; §2.1 of the plan
+also lists `convert --job <PATH>` "when present it is the ONLY other arg allowed", which is three
+arguments. §2.2 says the engine validates the spec against `schemas/job-spec.v1.json`.
+Decision: the engine recognises **a lone argument naming a `.json` file** as a job spec
+(`openconvert <JOB.json>`); DECISIONS wins over the plan's `--job` spelling, which is not
+implemented. The lone-argument rule keeps a mistyped subcommand a usage error rather than a spec
+that could not be read. The spec is validated by `oc_core::jobspec`, which **walks the committed
+schema file** (compiled in) rather than re-stating its patterns and minimums in Rust, and fails
+closed on a schema keyword it does not implement; the app and the engine run the same function.
+A valid spec field the engine does not act on yet (`ai.enabled`, `threshold_overrides`,
+`dump_stages`, and `overrides_path` until P12.9) is **refused by name**, never ignored: ignoring it
+would report success on a conversion the user asked for differently. `output.overwrite = false`
+(the schema default) refuses an existing output with `E_OUTPUT_EXISTS`, exit 2 — the app picks a
+free "name (2).epub" before writing the spec (design decision, `result.html` §5); the CLI keeps
+replacing as it always has. `input.sha256`, when given, must match (`E_INPUT_CHANGED`, exit 2).
+A document that needs a password or exceeds a limit is `E_PASSWORD_REQUIRED` / `E_LIMIT_EXCEEDED`
+with exit 2 from `convert` too, the codes `inspect` and `dump-stage` already use, so the app can
+prompt or name the limit. `done` now carries `report_path` (§2.3), and prose no longer follows a
+`fatal` on stderr when stderr is the NDJSON channel.
+Evidence: `crates/oc-core/src/jobspec.rs` tests; `crates/openconvert/tests/job_spec.rs`.
+Affects: IMPLEMENTATION_PLAN §2.1 (`--job` not implemented), §2.2, `oc-core::jobspec`, `openconvert`.
+
+## 2026-09-23 · What the engine's `stage` events cover, and where cancel is checked · Phase 12
+Context: Phase 12 detail 3 has the app render only what the engine reports, and UI_UX §2.2 maps
+the twelve stage names to six labels. `convert` emitted one pseudo-stage, `convert`, and nothing
+else; it did not listen on stdin at all, so a cancel from the app could not have worked.
+Decision: `convert_observed` reports the stages it runs, by their IR names, and only those —
+`inspect` and `paragraphs` are not run by the conversion driver today and are not invented. Two
+attributions are choices: the ornament rule's image hashes are reported as `structure`'s work
+(they are its evidence), and image decoding as `epub`'s (the first thing "Building" does). The
+repair host reports `epub`, `validate` and `repair` itself, so the loop's single call is three
+stages to the user, and `repair` appears only when a repair runs (UI_UX §2.2). Writing
+`report.json` is the `report` stage. `progress` is coalesced in the CLI's sink, not in the stages
+(ARCHITECTURE §8.3), at most `ipc.progress_max_per_sec` per stage and always including the last
+unit. The heartbeat runs on its own thread for the whole run and is stopped before `done`/`fatal`
+is written, so the final event stays the last line. A cancel is honoured at every stage boundary,
+between pages in `ingest`, between images when hashing and decoding, and once more before anything
+is written to the destination; past that point the answer is the book. Not yet checked inside
+`text`/`layout`/`structure` or inside one `build_epub` call: on the 300-page reference book the
+cancel lands in well under the 2 s deadline, but a single stage that runs longer than 2 s on a
+very large book would overrun it — Phase 14's per-stage deadlines share this flag and are where
+finer checks belong.
+Evidence: `crates/openconvert/tests/progress.rs`; `events::tests::the_heartbeat_beats_while_work_runs_and_stops_before_it_returns`.
+Affects: IMPLEMENTATION_PLAN §2.3, UI_UX §2.2, `openconvert::convert`, `oc-validate::repair::host`.
+
+## 2026-09-23 · PROVISIONAL — needs maintainer ratification: the startup handshake is `--version` · Phase 12
+Context: test 12.17 and A0.7 want the app to refuse a stale staged engine **at startup**, before
+any job; D13.2 says "the GUI passes one argument: the job-spec path", and a job spec needs an input
+and an output, which startup does not have. Phase 0's window used `inspect --json --progress json`
+on a fixture, which is four arguments and a file the installed app does not ship.
+Decision (provisional, the most conservative reading): the handshake runs the engine with **one
+fixed argument, `--version`**. When stderr is not a terminal the engine answers with the `hello`
+event on stderr (the version line still goes to stdout, so a person at a terminal sees no JSON).
+The app compares `engine_version`, `protocol` and `ir_version` with its own and shows the blocking
+startup error on any difference. The command is built in Rust; the webview can add nothing to it.
+So the engine accepts exactly two one-argument shapes from the app: `--version` and a job-spec
+path. Overturning this means either a job-spec field for a no-op "hello" job (a schema change, so
+`job-spec.v2`) or checking only the first event of the first real job, which cannot block startup.
+Evidence: `stale_sidecar_is_refused_at_startup` (feature `engine-integration`),
+`the_handshake_refuses_every_mismatch_by_name`, `version_answers_the_handshake_with_hello`.
+Affects: D13.2 (interpretation), A0.7, `openconvert` `--version`, `apps/desktop/src-tauri/src/engine.rs`.
+
+## 2026-09-23 · The app spawns the engine from Rust, never from the webview · Phase 12
+Context: Phase 0's window spawned the engine from TypeScript through `@tauri-apps/plugin-shell`,
+with a capability allowing `bin/openconvert` and `"args": true` — any arguments. Phase 12's
+architecture puts `spawn_engine` and the job queue in Rust.
+Decision: every engine process is started by `openconvert_desktop::engine` in Rust, after the job
+spec has been validated by `oc_core::jobspec` and written into the app's job directory; the
+command has one argument, a path that `fs_scope::is_inside` confirms is in that directory. The
+webview reaches the engine only through the app's own Tauri commands, which take file paths and
+presets, never arguments. This makes the one-argument rule a property of code the UI cannot reach,
+rather than of a shell-scope regex; the capability change that follows (the webview loses
+`shell:allow-execute` entirely) is P12.5. Process groups and job objects remain Phase 9's; until
+part B threads them in, a Unix engine gets its own process group and the supervisor kills the
+engine itself, which orphans nothing while AI is off.
+Evidence: `engine_is_spawned_with_exactly_one_argument`, `job_spec_is_validated_before_spawn`.
+Affects: RT B15, D13.2, Phase 12 detail 1, `apps/desktop/src-tauri`.
+
+## 2026-09-23 · The UI's warning sentences are the engine's templates · Phase 12
+Context: the design's string inventory carries `warn.*` drafts in EN/DE/TR, two of them for codes
+the engine does not have and several with arguments the engine does not send
+(`W_TABLE_AS_IMAGE` with `{n}`, where the engine sends `{rows}`, `{columns}`, `{reason}`). The engine
+already has a template for every registered code in all three locales
+(`crates/oc-core/src/warnings/templates_*.toml`), held to the registry by `xtask ci-lint` and by
+four tests, and the CLI renders from them.
+Decision: the UI renders warnings from **those same files**, compiled into the bundle at build time
+(`ui/src/lib/warnings.ts`), and the locale JSON files carry no `warn.*` keys. One sentence per code
+per locale in the repository, so the argument names cannot drift between the two front ends, and a
+new code needs its three templates exactly once. The design's warning copy is therefore not used;
+its phrasing can be adopted by editing the TOML templates, where it will also reach the CLI. Test
+12.9 reads the registry and asserts every code has a template in every locale with the English slot
+set, and that the UI's three JSON files have identical key and slot sets. Test 12.8 uses the real
+arguments of `W_TABLE_AS_IMAGE` rather than the plan's illustrative `{count:3}`. There is no
+English fallback anywhere: a missing key renders as a visible `⟦key⟧` marker (A12.3).
+Evidence: `warnings_are_localised_from_code_and_args`, `every_warning_code_has_every_locale`.
+Affects: docs/design/handoff/docs/strings.md (`warn.*` rows superseded), Phase 12 rows 12.8, 12.9.
+
+## 2026-09-23 · The preview is the EPUB served to a sandboxed frame by an app protocol · Phase 12
+Context: Phase 12 detail 7 wants a normal, visible webview rendering the generated XHTML, labelled
+approximate; the design draws it as route `preview` inside the main window with chapter navigation
+and a fixed label. The main window runs under `default-src 'self'; connect-src 'none'`, has IPC
+access, and must never execute or style itself from a book's markup.
+Decision: the app registers one custom protocol, `ocpreview`, that serves the finished EPUB of a
+job, entry by entry, straight from the archive (`src-tauri/src/preview.rs`): only names the archive
+contains, nothing with `..`, `/`-rooted or `\`; every response carries its own CSP that allows no
+script and nothing outside the book, plus a small stylesheet that marks `:target` in system colours
+so a page link lands visibly. The main window shows it in an `<iframe sandbox="">` — no scripts,
+an opaque origin, no IPC, no top navigation — and its CSP gains exactly `frame-src ocpreview:
+http://ocpreview.localhost` (WebView2 spells custom schemes as `http://<scheme>.localhost`, which is
+served in-process and never reaches a network). The privacy test pins that as the only non-'self'
+source in the policy. The page list in the book's navigation document drives page steps, so "p. 34"
+means the book's own page 34. The design's highlighted `<mark>` becomes the `:target` of the page
+anchor; the block-level highlight a warning's `block_ids` could drive needs the engine to anchor
+blocks by id in the XHTML, which it does not today. Unverified here: rendering in WebKitGTK, WKWebView
+and WebView2 (no display on this machine; the component tests run in jsdom).
+Evidence: `preview::tests`, `webview_has_no_network_permission`, `preview.svelte.test.ts`.
+Affects: Phase 12 detail 7, D13.9 (CSP, narrowed widening), UI_UX §2.3, report.html §3.
+
+## 2026-09-23 · User corrections are applied by `document` and draw on no budget · Phase 12 · PROVISIONAL — needs maintainer ratification
+Context: the documents disagree about which stage cites `UserOverride`. PIPELINE §9 (step 7, and the
+stage's Purpose) and ARCHITECTURE §4.7 apply `overrides.json` in `document` — "after `structure` and
+before `document`", "overrides applied last" — while PIPELINE §2's stage table and IR_SKETCH give
+`UserOverride` to `repair` ("Conserving, except `UserOverride`"), and `thresholds.toml` counted it in
+the `other` budget, which ARCHITECTURE §4.7 contradicts ("the one place a human may overrule the
+conservation budgets"). DECISIONS.md is silent on the owner. A renamed heading is text inside `C`,
+so the choice decides which invariant check sees it.
+Decision (provisional): `document` applies the corrections as its last step and is checked under a
+second declared contract, `stages::DOCUMENT_CORRECTED` = Budgeted{`UserOverride`}, used only when a
+job names an `overrides.json`; a run without one keeps `document` Conserving. `repair` stays
+Conserving (it never sees a correction). `UserOverride` may add text (`Reason::may_add`: a renamed
+heading's new words), and draws on no budget group and not on the global non-OCR cap; I-1, I-2 and
+I-7 apply to it in full. The corrections' ledger entries go into the document's ledger before the
+validate→repair loop, so the loop's I-7 balances with them. A file that does not apply — another IR
+version, another PDF, block-level entries (D16), unreadable — converts the book without it and is
+named by a warning (`W_OVERRIDES_STALE{file_ir, engine_ir}`, `W_OVERRIDES_OTHER_SOURCE`,
+`W_OVERRIDES_BLOCKS`, `W_OVERRIDES_UNREADABLE`); a TOC correction naming a heading the book does not
+have is counted in `W_OVERRIDES_UNMATCHED{count}`. A level change re-nests the section tree by level
+in reading order, and a moved section takes the role its place implies (a chapter under a chapter
+becomes a section; a section moved to the top becomes a chapter; front and back matter keep theirs).
+Every applied correction is a `Decision{method: User}` whose alternative is what the pipeline chose.
+The report gains `document.authors` and `document.toc` (heading id, title, level, printed page) — the
+editors' starting point — and `convert` gains `--overrides <PATH>` (§2.1 lists it).
+To ratify: the owner (document vs repair) and the budget exemption; PIPELINE §2's table, IR_SKETCH's
+stage-kind line and the `repair.rs` comment would then be aligned.
+Evidence: `overrides_with_wrong_ir_version_are_refused` (12.11), `overrides_roundtrip_metadata_and_toc`
+(12.10), `a_stale_overrides_file_is_named_and_the_book_converts_without_it`,
+`a_user_override_is_balanced_but_draws_on_no_budget`.
+Affects: PIPELINE §2 and §9, IR_SKETCH stage kinds, ARCHITECTURE §4.6–4.7, thresholds.toml comment.
+
+## 2026-09-23 · "Fix and rebuild" resumes from a per-book save named by `OC_CACHE_DIR` · Phase 12 · PROVISIONAL — needs maintainer ratification
+Context: R-15 ratified the partial re-run — a correction re-runs only `document` → `epub` →
+`validate` → `repair` → `report` "from the cached `structure` output" (A12.4b) — but no document says
+where that cache lives, what it holds, who names it, or when a run may resume from it. The job spec
+(schemas/job-spec.v1.json) has no field for it, and the save holds the book's text, which SECURITY
+§10 treats as something to disclose and make clearable.
+Decision (provisional): the engine saves what `structure` settled — `Upstream`: the sections, notes,
+figures, tables, metadata and warnings `document` reads, the per-page labels, classes, orientation and
+column counts, the block→page map, the image list, the producer family and the ledger through
+`structure` — as `<OC_CACHE_DIR>/structure/<source_sha256>.json`, keyed by engine version, IR version,
+digest and forced language, after every full run **when and only when** the environment variable
+`OC_CACHE_DIR` names a directory (the CLI writes nothing by default). A run that brings corrections
+(`overrides_path` / `--overrides`) and finds a save whose key matches starts at `document` from it,
+with the budget totals replayed from the saved ledger (`ReasonTotals::replay`); any mismatch or
+damage is a full run, never an error. The images are still decoded from the PDF for `epub` — that is
+`epub`'s work, not a stage before `structure`. The IR types gained `Deserialize` (plus `BlockId`
+from its text and `CharHistogram` from its map); the three `&'static str` fields are saved as text
+and read back against the warning registry and the stage declarations, so an unknown code or stage
+is a miss. A variable rather than a job-spec field because the location is the app's, not the job's
+(like `OC_PDF_PASSWORD`) and the committed v1 schema stays as the plan wrote it. The desktop app sets
+it to its own `cache/` directory and clears saves with the rest of its cache.
+To ratify: the variable (vs a job-spec field) and the save's lifetime (the app clears it at start).
+Evidence: `a_rebuild_runs_only_the_stages_after_structure` (A12.4b: only downstream stage events; the
+rebuilt EPUB is byte-identical to a full run with the same corrections, the report equal but for
+timings), `a_save_that_does_not_fit_is_a_full_run`, `replaying_a_ledger_charges_what_the_stages_charged`,
+`a_histogram_reads_back_as_written`, `a_block_id_reads_back_from_its_text_and_only_from_it`.
+Affects: UI_UX §2.3, IMPLEMENTATION_PLAN Phase 12 detail 8 / A12.4b, SECURITY §10 (a second on-disk
+store of document text, in the app's cache directory).
+
+## 2026-09-23 · The editors keep corrections in the app's data directory and propose nothing · Phase 12
+Context: result.html §2–3 draws the metadata and TOC editors, the partial rebuild, the updated
+result and the stale-corrections refusal. Its stale frame shows the corrections file beside the
+book (`~/Books/.openconvert/<book>/overrides.ir3.json`) with a "Show file" button, and its TOC frame
+says merge, move and delete "are saved as proposals for the report" — but draws no control that
+makes one.
+Decision: corrections live in the app's own data directory, `overrides/<source_sha256>.json`, one
+file per book, never beside the user's files; an editor sends only what differs from the report it
+shows, and the Rust side merges it into the book's file (a second correction keeps the first,
+because each rebuild starts from the book as `structure` left it). "Fix and rebuild" replaces the
+row with a rebuild job that names the corrections and the digest they were made for (a PDF changed
+since is refused, `E_INPUT_CHANGED`) and replaces the EPUB the queue wrote. The rebuild row shows
+only the steps it runs (Reconstructing, Building, Checking) and says "from cache" when the engine
+resumed after `structure`; the finished row says what was applied, from the rebuilt report's
+`method: user` decisions. A refused corrections file is the engine's warning sentence in a banner —
+no "Show file", since the file is the app's, not the user's. The TOC editor renames and re-levels
+only; no proposals are made or promised (the help text says what the editor does). The language
+list is the book's current tag plus en/de/tr, named by `Intl.DisplayNames` in the UI's language,
+"detected" only when no correction set it. The engine's cache (`OC_CACHE_DIR`) is the app's
+`cache/`, emptied at every start.
+Evidence: `editor.svelte.test.ts` (3), `a_second_correction_keeps_the_first`,
+`a_rebuild_replaces_the_row_with_the_corrections_named`, `the_engine_is_told_where_the_cache_is`,
+`the_cache_is_cleared_and_corrections_are_kept_by_digest`.
+Affects: result.html §2–3 (design decision 6: a small overturn, recorded here), UI_UX §2.3.
+
+## 2026-09-23 · Settings › Advanced offers only what the engine honours · Phase 12
+Context: UI_UX §2.4 and settings.html list, under Advanced, thread count, max pages, max memory,
+Clear cache, Dump stages, a document-language override and a one-job PDF password; UI_UX §2.4 also
+names a `fast|balanced|thorough` quality preset. The v1 job spec (`schemas/job-spec.v1.json`) has
+no thread, document-language or quality field, and the engine refuses `dump_stages` by name.
+Decision: Advanced shows max pages and max memory (→ the spec's `limits`, defaults from
+`thresholds.toml`) and the cache (size and book count, "Clear cache…" behind one confirmation,
+SECURITY §10). Omitted, each because a control the engine cannot act on would be a fake one: the
+thread count, Dump stages and the document-language override (no spec field / refused field — a
+spec change is the maintainer's call), the quality preset (no overlays in `thresholds.toml` yet),
+and the one-job password field (the locked row's inline prompt already delivers D13.11's one-job
+password, through the environment). The first-run card and route are hidden until `ModelReadiness`
+exists (Phase 9, part B).
+Evidence: `settings.svelte.test.ts` (4), `the_cache_is_cleared_and_corrections_are_kept_by_digest`,
+`axe_has_no_serious_violations` (settings and its Advanced section).
+Affects: UI_UX §2.4, settings.html §Advanced, Phase 12 part B.
+
+## 2026-09-23 · Phase 12 in CI, and the signing dry run that could not run here · Phase 12
+Context: Phase 12's tests span three toolchains (the Tauri crate, the Svelte UI, Playwright), and
+detail 13 asks for the Phase-15 signing and notarization workflow to be run once on a throwaway tag
+(row 12.14 `signing_dry_run_completes_on_a_throwaway_tag`, A12.7, ratified R-17).
+Decision: ci.yml's `desktop` job now also lints with `--all-features` and runs the desktop crate's
+tests with `engine-integration` against the real engine (12.1, 12.2, 12.6, 12.7, 12.13, 12.17 and
+the binary-anchored A12.1); the `ui` job runs Vitest, svelte-check, the UI lint, the build, and the
+Playwright spec under the shipped CSP in Chromium (12.14–12.16, A12.5); nightly.yml gains
+`webkit-ui`, the same spec in WebKit. `.github/workflows/signing-dryrun.yml` is the dry run:
+manual only, `v0.0.0-*` tags only, the three platforms' bundles (NSIS + MSI, app + DMG, AppImage)
+with updater artefacts, every Mach-O in the macOS bundle verified with `codesign --strict`, the app
+with `spctl --assess` and `stapler validate` (app and DMG), Authenticode verified with `signtool`,
+every updater signature verified against the public key, and the tag deleted whatever happened. The
+bundle settings Phase 15 will own are passed as `--config` overrides rather than committed.
+Outcome: **not run — unverified here.** This machine has no GitHub Actions, no signing certificates
+and no macOS or Windows; the workflow's YAML parses and nothing more is known. Until a maintainer
+runs it with the secrets it names, A12.7 is open. The bundle does not yet carry `libpdfium`
+(Phase 15) or `llama-server` (Phase 9); the nested-signature walk covers them unchanged once they
+are packaged.
+Evidence: the workflows; `forty_dropped_books_all_complete_one_at_a_time` (A12.1, real engine).
+Affects: IMPLEMENTATION_PLAN Phase 12 detail 13, A12.1, A12.5, A12.7; Phase 15.
+
 ## 2026-09-23 · `webpki-roots` resolved by option (a): platform roots · Phase 9
 Context: the 2026-09-09 entry deferred the choice between (a) platform/native TLS roots, (b) a
 `deny.toml` exception scoped to `webpki-roots`, and (c) amending D15, to the phase that owns
@@ -3828,6 +4071,185 @@ Evidence: `the_shipped_lock_pins_all_four_assets_by_sha256_and_size` (asserts fo
 lower-case SHA-256s and non-zero sizes, all accepted by `pinned`), and the `sha256sum` / `stat`
 output above.
 Affects: D8, D9, PHASE 9 detail 1, `xtask/llama.lock`, PROGRESS.md Blocked items 2 and 3.
+
+## 2026-09-23 · The app's own model server: one per app, a key file, idle by job · Phase 12
+Context: PHASE 9 detail 3 says "the desktop app supplies a long-lived, app-owned server so a 1 GB
+model loads once per batch, not once per book", and files `apps/desktop/src-tauri/src/llm.rs` under
+Phase 9, which deferred it to Phase 12. It does not say how the engine is given the server's key,
+what "idle" means for a server that jobs share, or what happens when another model is chosen.
+Decision:
+1. `LlmHost` starts the server with the engine's own code path, `oc_core::sidecar::server::
+   OwnedServer` — port from `oc_net::loopback::free_port` on `127.0.0.1`, a fresh CSPRNG key in
+   `LLAMA_API_KEY`, `-np 1`, registered with `supervise` from the moment it is spawned — and asks
+   `GET /health` through `oc-net` every `llm.health_poll_millis` for up to `llm.load_timeout_secs`
+   (new, provisional, 120 s; each probe `llm.health_probe_timeout_millis`, new, provisional, 1 s).
+2. The key reaches an engine as a **file**, `<app data>/run/llm.key`, created fresh with mode
+   `0600` on Unix — the job spec's `ai.api_key_file`, which D10 and the schema already name. Never
+   argv (visible in `ps`) and never the job spec (kept on disk with the job). The run directory is
+   emptied when the app starts and the key is deleted with the server.
+3. "In flight" for the app's server is **a job holding a lease**, not a single HTTP call: a job's
+   lease is `call_started` at acquire and `call_finished` at release, so `OwnedServer::kill_if_idle`
+   stops the server `llm.idle_kill_secs` after the last job ended, never during a job however long
+   its deterministic stages take. The app's supervisor clock calls it.
+4. A different model restarts the server, but only when no job holds it (`LlmError::Busy`
+   otherwise — unreachable with `desktop.max_concurrent_jobs = 1`).
+5. `-t` is the machine's core count (`available_parallelism`, one if it cannot say). With one
+   conversion at a time the engine's rayon pool and the server do not run their heavy parts at
+   once; ARCHITECTURE §8.3's "set from one place" is revisited with Phase 10's measurements.
+6. The server binary is `llama-server` beside the app's executable (Tauri `externalBin`, staged by
+   Phase 15). Nothing starts it until AI assistance can be turned on (part B2).
+Evidence: `the_app_server_listens_on_loopback_and_hands_its_key_over_a_private_file`,
+`the_app_server_is_shared_by_jobs_and_stopped_when_idle` (fails with the lease accounting removed),
+`another_model_restarts_the_server_only_when_no_job_holds_it`,
+`the_app_server_does_not_outlive_the_app`, `a_server_that_cannot_start_is_an_error` — all against
+`oc-stub-llama-server`, Linux. **Unverified here:** macOS, Windows, and a real server with a real
+model (no GGUF can be fetched).
+Affects: PHASE 9 detail 3, PHASE 12 Files, `thresholds.toml` (`llm.load_timeout_secs`,
+`llm.health_probe_timeout_millis`), `apps/desktop/src-tauri/src/{llm.rs,fs_scope.rs,main.rs}`.
+
+## 2026-09-23 · The app ends an engine's whole process tree · Phase 12
+Context: ARCHITECTURE §8.2 and PHASE 9 detail 5: the app puts each engine in a job object
+(Windows) or its own process group (Unix) and ends it with the job or `kill(-pgid)`; a `Drop` guard
+alone is insufficient. Phase 9 built the engine's side (`oc_core::sidecar::supervise`) and left the
+app's to Phase 12. CLAUDE.md keeps `#![forbid(unsafe_code)]` in the desktop crate.
+Decision:
+1. `apps/desktop/src-tauri/src/tree.rs`. **Unix:** the engine leads a new process group (it
+   already did); a kill is `kill_process_group(pgid, SIGKILL)` from `rustix` (safe API). An engine
+   that exits by itself has its group **swept before it is reaped**, looked at with
+   `waitid(P_PID, WEXITED | WNOHANG | WNOWAIT)`: until the reap the engine's zombie holds the group
+   id, so a sweep can never reach a group that reused the number. Once reaped, the tree never
+   signals the group again. Every unreaped group is listed process-wide for `end_all`.
+2. **Windows:** a job object per engine with `KILL_ON_JOB_CLOSE`, through `win32job` 2.0.3
+   (MIT OR Apache-2.0, a safe wrapper over `windows` 0.61, which Tauri already pulls in). Ending
+   the tree is closing the job; Windows closes it when the app dies however it dies. The engine is
+   assigned just after spawn (no `CREATE_SUSPENDED` without FFI of our own); the engine reads its
+   spec before it starts anything, so nothing escapes. The plan's `PROCESS_MEMORY` and `JOB_TIME`
+   limits are resource limits, and stay with Phase 14's hardening (SECURITY §4).
+3. `oc_core::sidecar::supervise::on_teardown(hook)`: `kill_all` — and so the panic hook and the
+   signal handler — also run registered hooks. The app registers `tree::end_all` at start and runs
+   it at `RunEvent::Exit`, before stopping its model server. A SIGINT/SIGTERM to the app now tears
+   everything down and exits 3 (supervise's "a signal to stop is a cancellation").
+4. **PROVISIONAL — needs maintainer ratification:** `win32job` is the "reviewed wrapper crate"
+   the Phase 9 entry of the same date anticipates for job objects; nobody has reviewed it, and it
+   has not run here. `tree.rs` compiles and is clippy-clean for `x86_64-pc-windows-msvc` and
+   `aarch64-apple-darwin` (checked with a scratch crate that includes the file; the desktop crate
+   itself cannot be cross-checked because `ring` needs the MSVC C toolchain).
+Evidence: `a_killed_engine_takes_its_whole_process_tree_with_it` and
+`an_engine_that_crashes_leaves_nothing_behind` (both fail — 30 s hangs, the stderr pipe held open
+by the orphan — with the group kill or the sweep removed), `quitting_the_app_ends_every_running_engine`,
+`a_dropped_engine_handle_ends_its_tree`, `teardown_hooks_run_with_the_registered_children`. Linux.
+**Unverified here:** macOS (same code) and Windows (job objects).
+Affects: ARCHITECTURE §8.2, PHASE 9 detail 5, `Cargo.toml` (`rustix`, `win32job`),
+`crates/oc-core/src/sidecar/supervise.rs`, `apps/desktop/src-tauri/src/{tree.rs,engine.rs,main.rs}`.
+
+## 2026-09-23 · The app's model manager: one store, the licence first, Cancel deletes · Phase 12
+Context: PHASE 12 detail 9 and row 12.12 ("progress events arrive; cancelling deletes the
+`.part`"), UI_UX §2.4 and §3, LICENSE_AND_DEPENDENCIES §6. The first-run mockup (`firstrun.html`
+step 2b) shows a cancelled download keeping its partial file with "Resume download" and "Discard
+partial file", and `components.md` has "failed (Retry, resumes)"; UI_UX §4 says a failed download
+resumes "where the transport supports it".
+Decision:
+1. **Cancel deletes the `.part`**, as row 12.12 says; behaviour follows the plan, not the mockup
+   (`docs/design/README.md`: the design governs appearance only). A cancelled row is simply "not
+   installed" again. `oc-net`'s transport sends no `Range` request, so it does not "support" a
+   resume: **Retry starts again from the first byte**, and a failed download leaves nothing on disk
+   either. `DownloadProgress::cancelled()` (default `false`) is asked between chunks and ends the
+   pull with `NetError::Cancelled`; a first download that fails or is cancelled also removes its
+   empty model directory. A transfer stalled inside one read sees the cancel when the read returns;
+   the row shows "cancelling" until then.
+2. **One store for the CLI and the app**: `oc_net::store::default_root()` (moved from
+   `cmd_model.rs`), `<data dir>/openconvert/models`, so a model is fetched once. The registry the
+   app reads is the one the engine compiles in (`oc_net::registry::BUNDLED`, moved likewise).
+3. **The licence is accepted per model and per licence**, in `<app config>/licenses.json`
+   (`{model id: SPDX}`); a changed licence needs a new acceptance. The Rust side refuses a pull
+   nobody accepted (`UiError::LicenseNotAccepted`), so the webview cannot skip the step. The text
+   shown is `oc_net::download::license_text`, the same text written beside the model.
+4. **Rows are `ModelReadiness` plus two things the manager owns**: `license_accepted` and the
+   download's state (`idle` / `downloading{done,total}` / `cancelling` / `failed{kind}`). The app's
+   `models::readiness` builds the rows the way `cmd_model::readiness` does; `oc-net` may not depend
+   on `oc-core` (ARCHITECTURE §3.1), so the function exists twice and an engine-integration test
+   (`the_app_and_the_cli_list_the_same_models`) holds the two outputs equal.
+5. **A registry with placeholder pins offers no model at all**: `ModelRegistry` refuses the whole
+   file, so the screen says models are not available in this build, and why. That is today's
+   shipped state (Phase 9 Blocked item 1).
+6. Progress is announced at most once per percent, as `openconvert model pull` does.
+Evidence: `model_download_progress_streams_and_cancels` (fails with the cancel ignored),
+`a_model_is_downloaded_only_after_its_license_is_accepted`, `a_failed_download_is_a_row_to_retry`,
+`model_rows_are_the_readiness_fields`, `an_unpinned_registry_offers_no_download`,
+`the_app_and_the_cli_list_the_same_models`, `a_cancelled_download_deletes_its_part` (oc-net). All
+against `oc-testkit`'s loopback model host through the real client and allowlist. **Unverified
+here:** a download from huggingface.co (egress 403, and no pins).
+Affects: PHASE 12 detail 9, row 12.12, UI_UX §2.4/§4, `docs/design/handoff/firstrun.html` step 2b,
+`crates/oc-net/src/{download.rs,verify.rs,store.rs,registry.rs,lib.rs}`,
+`crates/openconvert/src/cmd_model.rs`, `apps/desktop/src-tauri/src/{models.rs,main.rs}`.
+
+## 2026-09-23 · Packs: the model mechanism over a pack registry; the validation pack not yet available · Phase 12
+Context: PHASE 12 detail 9: "the same mechanism installs the optional validation pack (jlink'd
+minimal JRE + `epubcheck.jar`, ~40–50 MB) and later the OCR pack — one download mechanism, three
+payloads, all SHA-256 pinned". LICENSE_AND_DEPENDENCIES §6 says the runtime's licence must be
+verified per vendor before the pack ships. No document says where the pack is built or hosted,
+and nothing lets a conversion use an installed EPUBCheck (the job spec has no field for it; the
+engine's Tier 2 is `--tier 2` with `java` and a jar found the CI way).
+Decision:
+1. `oc_net::download::Artifact` is what the downloader fetches; a model entry and a pack entry
+   both become one (`pull` is `pull_artifact` of the model's). `oc_net::packs` parses `packs.toml`
+   (compiled in, like `models.toml`) with the model registry's pin rules plus placeholders refused
+   in `license`, `repo` and `file`. Packs live in `<data dir>/openconvert/packs/<id>/`.
+2. The app's manager is generic over a `Catalog` (`models::Manager<C>`): `ModelManager` over the
+   model registry, `PackManager` over the pack registry — the same licence-first rule, progress
+   events (`pack-changed`), Cancel and store. A pack row is `PackReadiness` (id, name, contents,
+   installed, size, licence, licence path), read from the registry and the store.
+3. **PROVISIONAL — needs maintainer ratification:** `packs.toml` ships with the validation pack's
+   `license`, `repo`, `revision`, `file` and `sha256` as `TODO_` placeholders, so the Packs screen
+   says it is not available in this version. Before it can be filled: choose the Java runtime's
+   vendor and verify its licence, bundle that licence's text with EPUBCheck's BSD-3-Clause in
+   `oc-net` (the downloader writes only licences whose text it carries), build and publish the pack
+   on a host the allowlist names (today only the model host), and decide how a conversion is told
+   to use it (a job-spec field and the engine's Tier-2 runner reading the pack's runtime and jar).
+   The pack is installed as one verified file; unpacking it belongs with that engine step.
+   `xtask ci-lint --release-branch` does not refuse `TODO_` in `packs.toml`: v1 can ship without
+   the optional pack, as it ships without the OCR pack.
+Evidence: `pack_registry_rejects_placeholders`, `a_pack_installs_through_the_model_downloader`
+(oc-net), `the_validation_pack_installs_through_the_model_mechanism` (licence refused then
+accepted, progress streamed, `LICENSE` beside it), `the_shipped_validation_pack_is_not_available_in_this_version`.
+Affects: PHASE 12 detail 9, D6, LICENSE_AND_DEPENDENCIES §6, `packs.toml`,
+`crates/oc-net/src/{packs.rs,download.rs,store.rs,registry.rs}`,
+`apps/desktop/src-tauri/src/{packs.rs,models.rs,main.rs}`.
+
+## 2026-09-23 · The Models, Packs and first-run screens render the manager's rows · Phase 12
+Context: PHASE 12 detail 9 ("the models screen renders exactly the `ModelReadiness` fields") and
+detail 2 of "Visual design" ("every number shown comes from an engine event, the report,
+`ModelReadiness` or `thresholds.toml`"); screen-map `models` and `firstrun`; the design strings'
+first-run costs ("~1,100 MB download", "~1–2 GB RAM") are mockup placeholders. Two registry fields
+are English prose: a model's `warn` and a pack's `contents`.
+Decision:
+1. `ModelRow.svelte` (components.md `ModelRow`/`PackRow`) renders a row's fields and nothing else:
+   size and RAM estimate as the locale writes bytes (binary units, as the cache and memory cap are
+   counted), the CPU expectation through UI_UX §2's four words in the user's language (any other
+   string as the registry has it), the licence and, once installed, its path. Download progress is
+   the bytes the manager reports (`role="progressbar"`, bytes as `aria-valuetext`).
+2. The first-run costs are `firstrun.cost.download`/`firstrun.cost.ram` with a `{size}` slot, filled
+   from the default model's `size_bytes` and `ram_estimate_bytes`; the design's figures are gone
+   from all three locales. The card shows only while the queue is empty, the registry is usable,
+   the default model is not installed and "Not now" was never pressed (design decision 10).
+   "Set up AI assistance" opens route `firstrun`: the Models section with only the default row, its
+   licence shown, and "Back to the queue" once it is installed.
+3. A model's `warn` and a pack's `contents` are registry prose in English. The UI shows a sentence
+   in the user's language instead — `models.warn` whenever `warn` is present, and
+   `packs.contents.<id>` for a pack it knows — never the English text (A12.3's "never an English
+   fallback"). The registry's words stay for maintainers and `openconvert model list`.
+4. The AI toggle stays disabled, and its help now says why: the converter has no AI support in this
+   build (part B2). The drafts of every new DE/TR string need the same native review as the rest.
+Evidence: `renders exactly the ModelReadiness fields of each row`,
+`model_download_progress_streams_and_cancels — the licence first, real bytes, a working Cancel`,
+`an installed model offers Delete; a failed download offers Retry`,
+`a registry without pins offers no model, and the validation pack is not available`,
+`the card's costs are the default model's row; Set up opens it with its licence shown`,
+`Not now hides the card and it stays hidden` (Vitest); `first_run_downloads_the_default_model_by_keyboard`
+and axe/contrast on the `models` and `firstrun` screens under the shipped CSP (Playwright, Chromium).
+Affects: PHASE 12 detail 9 and "Visual design" 2–3, `docs/design/handoff/strings/*.json`
+(`firstrun.cost.*`), `apps/desktop/ui/src/{components/ModelRow.svelte,components/FirstRunCard.svelte,
+routes/settings/Settings.svelte,routes/queue/Queue.svelte,App.svelte,lib/catalog.svelte.ts}`.
 
 ## 2026-09-23 · The verse band has one definition, and the classifier reads it · Phase 10
 Context: the open finding of 2026-09-22 — `oc-structure::quotes::classify_indented` compared the
@@ -4440,3 +4862,144 @@ Evidence: `owned_server_does_not_outlive_a_sigkilled_engine`,
 `ocr_child_does_not_outlive_a_sigkilled_engine` (Linux; both failed before the trampoline).
 Affects: D13.2, SECURITY §3, ARCHITECTURE §8.2, `crates/oc-core/src/sidecar/{orphan,supervise}.rs`,
 `crates/oc-core/src/sandbox/`.
+
+## 2026-09-23 · Phase 12 meets Phases 10, 11 and 13: one conversion path, one cache rule · Phase 12
+Context: `phase/12-desktop-ui` rewrote the conversion driver for real progress, cancel and the
+partial re-run (`convert_observed`, `Upstream`, `cache.rs`); main, meanwhile, split the same driver
+for the AI step (`prepare` / `convert_prepared` / `finish`, Phase 10) and put OCR inside `ingest`
+(Phase 13), and `convert` for the providers (Phase 11). Merging `origin/main` (c812e9e) into the
+branch had to keep every behaviour of both.
+Decisions:
+1. **One driver.** `convert` → `convert_with_ai` → `convert_observed(…, ai, t, observe)`: `ingest`
+   (pages read one at a time, then OCR) → `text` → `furniture` → `layout` → `structure` (+ the AI
+   step, inside `structure` as a user sees it) → `document` → … . `prepare` and `convert_prepared`
+   stay public for the tests that change a book's evidence before `structure`. The job spec and
+   `convert` resolve to one `ConvertJob`, which now carries `--ai` and the four OCR flags;
+   `hello` carries `ocr:tesseract-…` from discovery on both paths (a job spec reads scanned pages
+   the way `convert`'s default `--ocr auto` does). Image decoding uses main's `slots` (never the
+   position among a page's images, which OCR changes).
+2. **The partial re-run saves only what it can restore whole.** A run that asked a model, or in which
+   OCR read, refused or warned about anything, is neither saved nor resumed: the model's answers and
+   OCR's report are not in the save, and a rebuild whose report silently dropped them would describe
+   another book. The escalation records *are* saved (`EscalationRecord` now owns its `task` and
+   `predicate` text so it can be read back; the JSON is unchanged), so a born-digital book keeps its
+   shortcut. The cache key gained the OCR settings (mode, re-OCR, languages, engine); `ingest` joined
+   the stages a saved ledger may name; `ReasonTotals::replay` carries what OCR added (I-6).
+3. **Duplicate thresholds**: both branches added `llm.load_timeout_secs` and
+   `llm.health_probe_timeout_millis` (the desktop app's server wait; `convert --ai`'s). One wait, one
+   key: main's values (300 s, 2000 ms) are kept and the desktop app's `llm.rs` reads them.
+4. **A deadlock the merge exposed.** `main.rs` held stderr's lock on the main thread for the whole
+   run; the heartbeat thread's first write blocked on it while holding the event sink, and the run's
+   next event blocked on the sink. Every run longer than `ipc.heartbeat_secs` hung — never seen on
+   the branch because its fixtures finish inside one period, seen at once with OCR. The top-level
+   sink now writes to an unlocked `Stderr`
+   (`a_run_longer_than_the_heartbeat_period_beats_and_keeps_reporting`).
+Evidence: the whole workspace suite on the merge (740 tests), `report_f07` snapshot recounted to 224
+threshold entries.
+Affects: `crates/openconvert/src/{convert,cache,cmd_convert,cmd_job,main,cli}.rs`,
+`crates/oc-structure/src/escalate.rs`, `crates/oc-core/src/ledger_check.rs`, `thresholds.toml`.
+
+## 2026-09-23 · The job spec's `ai` object is `convert --ai` · Phase 12 (P12.17)
+Context: the engine's job-spec reader refused `ai.enabled` by name until Phase 10 existed; PHASE 11's
+hand-off names the mapping; the desktop app spawns the engine with one argument (12.1), so AI has to
+travel in the spec.
+Decision: `ai.enabled = true` resolves to the same `AiArgs` `convert --ai` builds — `endpoint` →
+`--llm-endpoint`, `api_key_file` → `--llm-api-key-file`, `model_path` → `--model-path`, `model_id` →
+`--llm-model`, `non_loopback_consent: true` → `--llm-allow-host <the endpoint's own host>`
+(`AiArgs::consenting_to_the_endpoint`). `enabled: false` is AI off whatever else the object holds.
+There is no provider-kind field in job-spec v1: the engine probes. There is no `all_tasks` either,
+so the app runs only the tasks `ai.task.<task>.languages` enables — none, in this build.
+Evidence: `a_job_spec_with_ai_on_asks_the_endpoint_it_names`,
+`a_job_spec_with_ai_on_and_no_model_converts_without_one`, and three `cmd_job` unit tests.
+Affects: `crates/openconvert/src/cmd_job.rs`, the `<JOB.json>` usage text.
+
+## 2026-09-23 · The AI switch, and the app's own server per job · Phase 12 (P12.18)
+Context: PHASE 12 part B2 item 1 (PROGRESS): persist the choice; for each job with AI on, lease the
+app's `llama-server` for the installed default model and write `ai.enabled`/`endpoint`/
+`api_key_file`/`model_id` into the spec; release when the job ends; the fail-open banner (UI_UX §4);
+the decision count (UI_UX §2.3). Settings › AI assistance was drawn disabled until the engine could
+read `ai` (P12.17).
+Decisions:
+1. **A job takes the AI settings of the moment it is queued** (`ai::JobAi::plan`): off, built-in, an
+   endpoint (Ollama or custom, written as configured), consent required, or unusable. A setting
+   changed later does not reach a job already waiting.
+2. **Built-in waits in the queue, off its lock.** When its turn comes the job is `preparing`: a thread
+   leases the server (`ai::ModelServer`, `llm::AppModelServer` over `LlmHost`) while the queue keeps
+   answering Cancel; then its engine starts with the lease in its spec. The lease is released when
+   the job ends (exit, kill, a failed start), so `llm.idle_kill_secs` counts from the last job. The
+   supervisor clock only *tries* the server's lock, so a loading model never stops the queue's clock;
+   at exit a server still loading is ended through `supervise::kill_all`.
+3. **Fail-open, said once.** No model installed, no `llama-server` in this build, a server that does not
+   come up, a custom endpoint that is not a URL or is plain http off this computer: the book converts
+   without AI and the row's result carries the banner "AI assistance unavailable this run — converted
+   deterministically." with the app's reason; the engine's own `W_LLM_UNAVAILABLE` raises the same
+   banner and its warning line says why.
+4. **The switch says what it does in this build.** Every `ai.task.<task>.languages` ships empty and the
+   job spec has no `all_tasks`, so AI on changes no book yet; `UiConfig.aiTasksEnabled` (from those
+   four keys) makes Settings say so instead of promising more. With AI on the result reads "AI-assisted
+   decisions: N" in place of "Deterministic processing" (UI_UX §2.3).
+5. **The key file and the consent are the Rust side's.** `settings_set` keeps both as they were
+   (`Settings::merged_from_webview`) and withdraws a consent when the endpoint's host changes.
+6. **PROVISIONAL — needs maintainer ratification: built-in serves the registry's default model only.**
+   UI_UX §4's "falls back to the next-safest installed tier" when a model fails its gates at load is
+   not built: "next-safest" has no ordering in the registry, and no model can be fetched here to fail
+   one. A server that does not come up is the fail-open row above.
+7. A rebuild ("Fix and rebuild") with AI on is a full run: the engine never resumes a run that asks a
+   model (merge decision 2).
+Evidence: `built_in_ai_leases_the_app_server_for_the_job_and_releases_it_at_the_end`,
+`built_in_ai_without_a_model_converts_without_ai_and_says_why`,
+`a_job_cancelled_while_the_model_loads_never_starts`, `a_host_nobody_consented_to_never_starts`, the
+four `ai::tests`, `the_webview_cannot_write_a_key_file_or_a_consent`, and — against the real engine and
+`oc-stub-llama-server`, which now answers `/props` as `llama-server` does —
+`a_conversion_with_built_in_ai_is_served_by_the_apps_own_server`; UI: the settings, result and
+jobstate tests named in the commit.
+Affects: `apps/desktop/src-tauri/src/{ai,jobqueue,llm,models,settings,config,main}.rs`,
+`apps/desktop/ui/src/{routes/settings/Settings.svelte,components/{ResultPanel,QueueRow}.svelte,lib/*}`,
+`locales/*.json`, `crates/oc-testkit/src/bin/oc-stub-llama-server.rs`.
+
+## 2026-09-23 · Settings › Provider and the consent dialog · Phase 12 (P12.19)
+Context: PHASE 11's hand-off ("What Phase 12 must wire from Phase 11") and UI_UX §2.4: Built-in /
+Ollama (detected) / Custom endpoint; the consent dialog naming the host, saying plainly that document
+text leaves the computer (D10); `E_CONSENT_REQUIRED` re-opens it; the webview keeps
+`connect-src 'none'`.
+Decisions:
+1. **The engine answers every provider question** (`providers::ProviderCli` → `openconvert provider
+   detect|check|probe --json --progress json`), off the main thread. These are not conversions, so
+   they take more than one argument; the command is built in Rust, and the one value the webview
+   supplies — a URL — must be an `http(s)://` URL with no control character, so it can never be read
+   as a flag. A refusal is read by its NDJSON code, never by its prose.
+2. **Built-in and Ollama are chosen at once; a custom endpoint only through "Use this endpoint…"**:
+   `provider check` (sends nothing) → plain http off this computer is refused in the user's language;
+   a host off this computer without consent opens the dialog; Allow asks the Rust side to record the
+   consent (`grant_consent`, `Settings::granting_consent`: host + RFC 3339 time) and selects the
+   endpoint; Cancel records nothing. The key file is picked in a native dialog by the Rust side
+   (`pick_key_file`) and is never read by the app.
+3. **"Test connection"** is `provider probe` with the saved settings (the consent passed only to the
+   host it names); built-in has nothing to probe until a job starts it.
+4. **`E_CONSENT_REQUIRED`, or the queue's `consent_required` refusal, opens the dialog again** — once by
+   itself, and from the row's "Review consent…"; the row says "Sending text to another computer needs
+   your consent · Nothing was sent.", never a generic error. Allow converts that book again.
+Evidence: `a_provider_question_names_its_url_as_one_argument_and_refuses_anything_else`,
+`test_connection_probes_what_a_conversion_would_open`, `a_consent_refusal_names_its_host`,
+`the_providers_screen_reads_the_engines_answers` (engine-integration, the real engine); UI: the two
+provider-screen tests and the two consent tests in `queue.svelte.test.ts`.
+Affects: `apps/desktop/src-tauri/src/{providers,main}.rs`, `apps/desktop/ui/src/{routes/settings/
+Settings.svelte,components/{ConsentDialog,QueueRow}.svelte,App.svelte,lib/{backend,jobstate}.ts}`,
+`locales/*.json`, `tests/dom/ui/tauri-mock.ts`.
+
+## 2026-09-23 · Settings › Network log: a hook for PHASE 14's audit log, not a stand-in · Phase 12 (P12.21)
+Context: the Network log section is the design's own decision (`docs/design/handoff/docs/
+decisions.md` 6, PHASE 12 "Visual design" 6) and SECURITY §8's auditability promise; the log it lists
+is `oc-net`'s audit log, `{ts, host, purpose, bytes, outcome}` per connection — PHASE 14 detail 12,
+not built. Phase 11 added no event for it (§2.3 is closed). Part B1's wording said the app connects
+only for downloads; with Phase 11 wired it also connects, when AI is on, to the chosen provider.
+Decision: `netlog::read()` answers `NotRecorded`, always, behind a command (`network_log`) and a page
+already wired for `Entries` (a table: when, host, why, data). The page says this build records
+nothing yet and names every connection it can make: a model or pack download (only to the
+registry's pinned host), and with AI on the provider chosen (the model server or Ollama on this
+computer, or a custom endpoint the user allowed). No row is invented and nothing is counted. PHASE 14
+replaces `read()`'s body with a reader of `<data_dir>/network-audit.log`.
+Evidence: `the_network_log_says_it_is_not_recorded_until_there_is_an_audit_log`; UI: the network
+log says this build records nothing yet, and lists what the audit log holds.
+Affects: `apps/desktop/src-tauri/src/{netlog,main}.rs`, `Settings.svelte`, `locales/*.json`,
+PHASE 14 detail 12 (fills the hook).

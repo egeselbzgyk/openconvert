@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The main window may listen for the app's own events and nothing else. It gets no HTTP permission (D13.9) and no shell permission: the engine is spawned by the Rust side with one argument, never by the webview (RT B15). The app's own commands are the webview's whole reach.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
+}

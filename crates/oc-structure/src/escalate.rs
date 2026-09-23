@@ -22,7 +22,7 @@ use oc_core::thresholds::Thresholds;
 use oc_model::confidence::Signal;
 use oc_model::extract::OutlineEntry;
 use oc_model::ids::BlockId;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::headings::cluster::StyleInventory;
 use crate::headings::levels::HeadingAssignment;
@@ -62,14 +62,18 @@ impl Escalation {
 }
 
 /// One escalated choice, as the report and the calibration corpus carry it.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+///
+/// Owned text rather than the `&'static str` the predicates speak in, so that a record can be read
+/// back — from a saved `structure` result that "Fix and rebuild" resumes from (A12.4b), or from a
+/// report by a later calibration — and not only written.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EscalationRecord {
     /// The task, as ARCHITECTURE §9.6 names it.
-    pub task: &'static str,
+    pub task: String,
     /// The block the choice is about, for a per-block task; `None` for a choice about the book.
     pub subject: Option<BlockId>,
     /// Why the predicate fired, in its own words.
-    pub predicate: &'static str,
+    pub predicate: String,
     /// What it read. The data a later calibration consumes (ARCHITECTURE §6.1).
     pub signals: Vec<Signal>,
     /// A hash of the task, the subject and the signals: two records with the same hash were
@@ -104,9 +108,9 @@ impl EscalationRecord {
             hasher.update(&signal.value.to_bits().to_le_bytes());
         }
         Self {
-            task,
+            task: task.to_owned(),
             subject,
-            predicate,
+            predicate: predicate.to_owned(),
             signals,
             input_hash: hasher.finalize().to_hex().to_string(),
         }

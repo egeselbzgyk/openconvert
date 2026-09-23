@@ -6,10 +6,10 @@
 //! it is computed by one pure function over counters that can be tested without a PDF.
 
 use oc_core::thresholds::Thresholds;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// What a page is, and therefore how it is routed (D13.10).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PageClass {
     /// Born-digital text. The extraction path.

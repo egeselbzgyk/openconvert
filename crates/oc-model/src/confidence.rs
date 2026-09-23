@@ -10,10 +10,10 @@
 //! or they did not, and inventing a number for them would be a false precision that a later
 //! calibration could not correct.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// What kind of thing decided.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Method {
     /// A rule, a threshold or a lookup. No model was consulted.
@@ -25,7 +25,7 @@ pub enum Method {
 }
 
 /// One named piece of evidence and what it measured.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Signal {
     pub name: String,
     pub value: f32,
@@ -41,7 +41,7 @@ impl Signal {
 }
 
 /// How a decision was reached.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Confidence {
     pub method: Method,
     /// `None` for a predicate-based decision, which is most of v1.

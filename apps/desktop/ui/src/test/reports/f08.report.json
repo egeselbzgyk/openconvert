@@ -1,0 +1,293 @@
+{
+ "schema": "openconvert.report/1",
+ "status": "ok",
+ "engine": {
+  "version": "0.1.0",
+  "ir_version": 1,
+  "pdfium_version": "151.0.7881.0",
+  "prompt_version": null
+ },
+ "input": {
+  "sha256": "c1e30d32339e93054184382ef800e37b10e19711ba1ea4b6bcd1e8de8c0b46f8",
+  "filename": "f08_footnotes.pdf",
+  "pages": 2,
+  "producer_family": "Typst"
+ },
+ "document": {
+  "classification": "book-prose",
+  "preset": "novel",
+  "language": "und",
+  "title": "Notes at the Foot",
+  "sections": 2,
+  "figures": 0,
+  "tables": 0,
+  "notes": 3,
+  "images_extracted": 0,
+  "authors": [
+   "O. Convert"
+  ],
+  "toc": [
+   {
+    "heading": "AH5RIBDA3A",
+    "title": "Chapter One",
+    "level": 1,
+    "page": "1"
+   },
+   {
+    "heading": "A5KJ74TDMA",
+    "title": "Chapter Two",
+    "level": 1,
+    "page": "2"
+   }
+  ]
+ },
+ "timings_ms": [
+  [
+   "ingest",
+   17
+  ],
+  [
+   "text",
+   1
+  ],
+  [
+   "furniture",
+   0
+  ],
+  [
+   "layout",
+   25
+  ],
+  [
+   "structure",
+   1
+  ],
+  [
+   "document",
+   0
+  ],
+  [
+   "epub+validate+repair",
+   7
+  ],
+  [
+   "total",
+   51
+  ]
+ ],
+ "conservation": {
+  "c_raw_chars": 930,
+  "c0_chars": 930,
+  "epub_chars": 900,
+  "retention": 0.9677419,
+  "per_stage": [
+   {
+    "stage": "text",
+    "kind": "budgeted",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 1.0
+   },
+   {
+    "stage": "furniture",
+    "kind": "budgeted",
+    "removed_chars": 30,
+    "added_chars": 0,
+    "retention": 0.9677419
+   },
+   {
+    "stage": "layout",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.9677419
+   },
+   {
+    "stage": "structure",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.9677419
+   },
+   {
+    "stage": "document",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.9677419
+   },
+   {
+    "stage": "epub",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.9677419
+   },
+   {
+    "stage": "validate",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.9677419
+   },
+   {
+    "stage": "repair",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.9677419
+   }
+  ],
+  "per_reason": [
+   {
+    "reason": "running_header",
+    "removed_chars": 28,
+    "added_chars": 0,
+    "net_removed": 28,
+    "budget_group": "furniture",
+    "budget": 0.04,
+    "measured": 0.030107526881720432,
+    "headroom": 0.009892473118279569
+   },
+   {
+    "reason": "page_number",
+    "removed_chars": 2,
+    "added_chars": 0,
+    "net_removed": 2,
+    "budget_group": "furniture",
+    "budget": 0.04,
+    "measured": 0.002150537634408602,
+    "headroom": 0.0378494623655914
+   }
+  ],
+  "i7": {
+   "holds": true,
+   "missing_chars": 0,
+   "added_chars": 0,
+   "missing_sample": []
+  }
+ },
+ "page_classes": {
+  "text": 2
+ },
+ "validation": {
+  "tier1": {
+   "valid": true,
+   "checked": [
+    "ocf.mimetype",
+    "ocf.container",
+    "ocf.case_collisions",
+    "opf.parse",
+    "opf.metadata",
+    "opf.integrity",
+    "xhtml.well_formed",
+    "xhtml.properties",
+    "xhtml.no_script_no_remote",
+    "xhtml.no_entities",
+    "book.note_bijection",
+    "book.fragments",
+    "book.resources",
+    "book.alt_text",
+    "book.image_parity"
+   ],
+   "findings": []
+  },
+  "tier2_ran": false,
+  "tier3_ran": false,
+  "structural": {
+   "i7": {
+    "missing": {},
+    "extra": {},
+    "epub_chars": 900,
+    "c0_chars": 930
+   },
+   "retention": 0.9677419,
+   "image_parity": true,
+   "note_bijection": true,
+   "hrefs_resolve": true,
+   "heading_sanity": {
+    "h1_count": 2,
+    "level_skips": [],
+    "monotone_with_pages": true,
+    "h1_count_plausible": null
+   },
+   "duplicates": {
+    "blocks": 10,
+    "duplicates": 0,
+    "worst": []
+   },
+   "quality": {
+    "region": "document",
+    "dup_line_frac": 0.0,
+    "dup_para_frac": 0.0,
+    "top_2gram": 0.024444444,
+    "top_3gram": 0.026666667,
+    "top_4gram": 0.024444444,
+    "non_alpha_word_ratio": 0.0,
+    "mean_word_len": 4.455446,
+    "replacement_share": 0.0,
+    "dict_hit_rate": null
+   },
+   "warnings": [
+    {
+     "code": "W_LOW_RETENTION",
+     "severity": "warn",
+     "args": {
+      "floor": "0.980",
+      "retention": "0.968"
+     },
+     "blocks": [],
+     "page": null
+    }
+   ]
+  }
+ },
+ "repair": {
+  "status": "clean",
+  "iterations": 0,
+  "fires": {},
+  "log": [],
+  "remaining": []
+ },
+ "warnings": [
+  {
+   "code": "W_LOW_RETENTION",
+   "severity": "warn",
+   "args": {
+    "floor": "0.980",
+    "retention": "0.968"
+   },
+   "blocks": [],
+   "page": null
+  }
+ ],
+ "decisions": [
+  {
+   "stage": "document",
+   "subject": null,
+   "kind": "document_class",
+   "chosen": "book-prose",
+   "alternatives": [
+    "academic-multicolumn",
+    "scanned",
+    "slides/other"
+   ],
+   "method": "deterministic",
+   "llm": null,
+   "fallback": null
+  },
+  {
+   "stage": "document",
+   "subject": null,
+   "kind": "preset",
+   "chosen": "novel",
+   "alternatives": [
+    "auto"
+   ],
+   "method": "deterministic",
+   "llm": null,
+   "fallback": null
+  }
+ ],
+ "thresholds": []
+}

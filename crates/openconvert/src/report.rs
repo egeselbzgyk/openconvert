@@ -85,6 +85,50 @@ pub struct DocumentSummary {
     pub figures: usize,
     pub tables: usize,
     pub notes: usize,
+    /// How many images extraction found — the other side of `figures` in the image-parity check,
+    /// so the result panel can say "12 of 12" from the report rather than from a guess (Phase 12).
+    pub images_extracted: u32,
+    /// `dc:creator`, in order — what the metadata editor starts from.
+    pub authors: Vec<String>,
+    /// Every heading, in reading order, with the block id a TOC correction names it by
+    /// (ARCHITECTURE §4.7): what "Review TOC" lists.
+    pub toc: Vec<TocEntry>,
+}
+
+/// One heading of the book as the TOC editor lists it.
+#[derive(Clone, Debug, Serialize)]
+pub struct TocEntry {
+    pub heading: oc_model::ids::BlockId,
+    pub title: String,
+    /// 1..=6.
+    pub level: u8,
+    /// The printed page label of the page the section starts on, or its one-based number when
+    /// the page printed none.
+    pub page: String,
+}
+
+/// The book's headings, in reading order.
+fn toc(document: &oc_model::document::Document) -> Vec<TocEntry> {
+    let label = |index: u32| {
+        document
+            .page_breaks
+            .iter()
+            .find(|brk| brk.page.index == index)
+            .and_then(|brk| brk.page.label.clone())
+            .unwrap_or_else(|| index.saturating_add(1).to_string())
+    };
+    document
+        .walk()
+        .into_iter()
+        .filter_map(|section| {
+            section.heading.as_ref().map(|heading| TocEntry {
+                heading: heading.id,
+                title: heading.text(),
+                level: heading.level,
+                page: label(section.source_pages.0),
+            })
+        })
+        .collect()
 }
 
 /// One reason's ledger total, with the budget it draws on and what is left of it.
@@ -332,6 +376,9 @@ pub fn report(conversion: &Conversion, input: ReportInput<'_>) -> Report {
             figures: document.figures.len(),
             tables: document.tables.len(),
             notes: document.notes.len(),
+            images_extracted: conversion.extracted_images,
+            authors: document.meta.authors.clone(),
+            toc: toc(document),
         },
         timings_ms: timings,
         conservation: ConservationReport {

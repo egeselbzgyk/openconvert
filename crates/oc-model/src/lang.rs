@@ -6,7 +6,7 @@
 
 use std::borrow::Cow;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// A BCP-47 language tag, held lower-cased and compared on its primary subtag.
 ///
@@ -15,7 +15,7 @@ use serde::Serialize;
 /// we have not thought about" into a parse failure at the one point in the pipeline that must
 /// not fail — emitting a valid package. `Cow` so the tags the code names are `const` and cost
 /// nothing, while a detected or configured one owns its bytes.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct LangTag(Cow<'static, str>);
 

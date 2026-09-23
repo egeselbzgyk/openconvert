@@ -1,0 +1,80 @@
+import { describe, expect, it } from "vitest";
+
+import type { Event } from "./events";
+import { aiUnavailable, applyEvent, applyView, checkHeartbeat, newRow, stepState, type Row } from "./jobstate";
+
+const view = { id: "job-1", input: "/b/book.pdf", output: "/b/book.epub", renamed: false, unlocked: false, rebuild: false };
+
+function event(e: Record<string, unknown>): Event {
+  return { v: 1, seq: 0, ts_ms: 0, ...e } as Event;
+}
+
+function running(): Row {
+  let row = newRow({ ...view, state: "running" });
+  row = applyEvent(row, event({ t: "hello", protocol: 1 }), 0);
+  return applyEvent(row, event({ t: "job", pages: 10, phase: "started" }), 0);
+}
+
+describe("jobstate", () => {
+  // Built-in AI: the job's turn has come and the app's model server is loading. It is under way —
+  // Cancel applies — but no engine runs yet, so silence is not "not responding".
+  it("a job waiting for the model server is under way and expects no heartbeat", () => {
+    let row = newRow({ ...view, state: "queued", position: 1 });
+    row = applyView(row, { ...view, ai: { provider: "builtin", unavailable: null }, state: "preparing" });
+    expect(row.phase).toBe("running");
+    expect(row.preparing).toBe(true);
+    expect(checkHeartbeat(row, 60_000, 6000).stalled).toBe(false);
+    row = applyView(row, { ...view, ai: { provider: "builtin", unavailable: null }, state: "running" });
+    expect(row.preparing).toBe(false);
+    expect(aiUnavailable(row)).toBeNull();
+    row = applyEvent(row, event({ t: "warning", code: "W_LLM_UNAVAILABLE", severity: "warn", args: {} }), 1);
+    expect(aiUnavailable(row), "the engine's own finding").toBe("engine");
+    expect(aiUnavailable(newRow({ ...view, state: "running" })), "AI off: nothing to say").toBeNull();
+    // One `llm` event per model call, cached ones included: the row counts them.
+    row = applyEvent(row, event({ t: "llm", call_id: "c1", purpose: "metadata", cached: false }), 2);
+    row = applyEvent(row, event({ t: "llm", call_id: "c2", purpose: "verse_quote", cached: true }), 3);
+    expect(row.llmCalls).toBe(2);
+  });
+
+  it("maps engine stages onto the five user-facing steps", () => {
+    let row = running();
+    row = applyEvent(row, event({ t: "stage", name: "ingest", phase: "begin" }), 1);
+    expect(stepState(row, "analyzing")).toBe("current");
+    row = applyEvent(row, event({ t: "stage", name: "text", phase: "begin" }), 2);
+    row = applyEvent(row, event({ t: "stage", name: "furniture", phase: "begin" }), 3);
+    expect(stepState(row, "analyzing")).toBe("done");
+    expect(stepState(row, "extracting")).toBe("current");
+    expect(stepState(row, "building")).toBe("pending");
+    row = applyEvent(row, event({ t: "done", status: "ok", report_path: "/r" }), 4);
+    expect(row.phase).toBe("complete");
+    expect(stepState(row, "checking")).toBe("done");
+  });
+
+  it("shows Repairing only when repair ran", () => {
+    let row = running();
+    expect(row.repaired).toBe(false);
+    row = applyEvent(row, event({ t: "stage", name: "repair", phase: "begin" }), 1);
+    expect(row.repaired).toBe(true);
+    expect(stepState(row, "repairing")).toBe("repair");
+  });
+
+  it("a cancelled run is cancelled by the engine's word, or by the exit after a kill", () => {
+    let row = applyView(running(), { ...view, state: "cancelling" });
+    expect(row.phase).toBe("cancelling");
+    const saidSo = applyEvent(row, event({ t: "done", status: "cancelled" }), 1);
+    expect(saidSo.phase).toBe("cancelled");
+    row = applyView(row, { ...view, state: "exited", code: null });
+    expect(row.phase).toBe("cancelled");
+  });
+
+  it("an exit with no final event is a failure, never a success", () => {
+    const row = applyView(running(), { ...view, state: "exited", code: 101 });
+    expect(row.phase).toBe("failed");
+    expect(row.fatal?.code).toBe("E_EXIT");
+  });
+
+  it("the heartbeat watchdog only watches running rows", () => {
+    const queued = newRow({ ...view, state: "queued", position: 2 });
+    expect(checkHeartbeat(queued, 1_000_000, 6000).stalled).toBe(false);
+  });
+});

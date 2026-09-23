@@ -19,7 +19,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::allowlist;
-use crate::registry::{is_commit, ModelEntry};
+use crate::registry::{is_commit, ModelEntry, ModelId};
 use crate::store::{self, ModelStore};
 use crate::verify::{self, CopyError};
 use crate::NetError;
@@ -31,6 +31,48 @@ pub const DEFAULT_URL_TEMPLATE: &str = "https://huggingface.co/{repo}/resolve/{r
 /// than installed without its terms beside it (LICENSE_AND_DEPENDENCIES §5).
 const APACHE_2_0: &str = "Apache-2.0";
 const APACHE_2_0_TEXT: &str = include_str!("../licenses/Apache-2.0.txt");
+
+/// The licence text written beside a download under `spdx`, if one is bundled — what a model
+/// manager shows the user, word for word, before they accept it (UI_UX §2.4).
+pub fn license_text(spdx: &str) -> Option<&'static str> {
+    (spdx == APACHE_2_0).then_some(APACHE_2_0_TEXT)
+}
+
+/// A pinned file the downloader can fetch: a model's GGUF or a pack's archive (PHASE 12 detail 9:
+/// "one download mechanism, three payloads, all SHA-256 pinned"). It lands in
+/// `<store>/<id>/<file>`, with `LICENSE` and `NOTICE` beside it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Artifact {
+    pub id: ModelId,
+    pub display_name: String,
+    /// SPDX; the downloader writes its bundled text as `LICENSE`, and refuses one it has none for.
+    pub license: String,
+    pub notice_text: Option<String>,
+    pub repo: String,
+    /// A 40-hex commit.
+    pub revision: String,
+    pub file: String,
+    pub url_template: Option<String>,
+    pub sha256: String,
+    pub size_bytes: u64,
+}
+
+impl From<&ModelEntry> for Artifact {
+    fn from(e: &ModelEntry) -> Self {
+        Self {
+            id: e.id.clone(),
+            display_name: e.display_name.clone(),
+            license: e.license.clone(),
+            notice_text: e.notice_text.clone(),
+            repo: e.repo.clone(),
+            revision: e.revision.clone(),
+            file: e.file.clone(),
+            url_template: e.url_template.clone(),
+            sha256: e.sha256.clone(),
+            size_bytes: e.size_bytes,
+        }
+    }
+}
 
 /// What one GET brought back.
 pub enum Fetched {
@@ -144,9 +186,15 @@ impl<R: Read> Drop for AuditedBody<R> {
     }
 }
 
-/// Told how far a download has got.
+/// Told how far a download has got, and asked whether to go on.
 pub trait DownloadProgress {
     fn bytes(&self, done: u64, total: u64);
+    /// Whether the caller wants the download stopped. Asked between chunks: a cancel takes effect
+    /// when the next chunk would be read, and the download then fails with
+    /// [`NetError::Cancelled`] and deletes its `.part`.
+    fn cancelled(&self) -> bool {
+        false
+    }
 }
 
 /// The numbers a download needs, read by the caller from `thresholds.toml`.
@@ -174,27 +222,41 @@ impl Downloader {
         &self.store
     }
 
-    /// Download, verify and install one registry entry. Returns the model file's path.
+    /// Download, verify and install one model registry entry. Returns the model file's path.
     pub fn pull(&self, e: &ModelEntry, p: &dyn DownloadProgress) -> Result<PathBuf, NetError> {
-        if e.license != APACHE_2_0 {
-            return Err(NetError::UnknownLicense(e.license.clone()));
-        }
-        let url = resolve_url(e)?;
-        let dir = self.store.dir_of(e)?;
-        let target = self.store.path_of(e)?;
+        self.pull_artifact(&Artifact::from(e), p)
+    }
+
+    /// Download, verify and install one pinned file — a model or a pack, by the same steps.
+    /// Returns the file's path in the store.
+    pub fn pull_artifact(
+        &self,
+        e: &Artifact,
+        p: &dyn DownloadProgress,
+    ) -> Result<PathBuf, NetError> {
+        let license =
+            license_text(&e.license).ok_or_else(|| NetError::UnknownLicense(e.license.clone()))?;
+        let url = resolve_artifact_url(e)?;
+        let dir = self.store.dir_for(&e.id.0)?;
+        let target = self.store.path_for(&e.id.0, &e.file)?;
         let part = part_path(&target);
 
         let mut body = self.open(&url)?;
         std::fs::create_dir_all(&dir).map_err(io)?;
         let file = File::create(&part).map_err(io)?;
         let mut writer = BufWriter::new(file);
-        let copied = verify::copy_hashed(&mut body, &mut writer, e.size_bytes, &mut |done| {
-            p.bytes(done, e.size_bytes)
-        })
+        let copied = verify::copy_hashed(
+            &mut body,
+            &mut writer,
+            e.size_bytes,
+            &mut |done| p.bytes(done, e.size_bytes),
+            &|| p.cancelled(),
+        )
         .map_err(|error| match error {
             CopyError::TooLarge => NetError::TooLarge {
                 expected: e.size_bytes,
             },
+            CopyError::Stopped => NetError::Cancelled,
             CopyError::Read(error) => NetError::Transport(error.to_string()),
             CopyError::Write(error) => io(error),
         })
@@ -208,19 +270,19 @@ impl Downloader {
         let (_, actual) = match copied {
             Ok(copied) => copied,
             Err(error) => {
-                let _ = std::fs::remove_file(&part);
+                discard(&part, &dir);
                 return Err(error);
             }
         };
         if actual != e.sha256 {
-            let _ = std::fs::remove_file(&part);
+            discard(&part, &dir);
             return Err(NetError::ShaMismatch {
                 expected: e.sha256.clone(),
                 actual,
             });
         }
 
-        write_beside(&dir.join(store::LICENSE_FILE), APACHE_2_0_TEXT)?;
+        write_beside(&dir.join(store::LICENSE_FILE), license)?;
         write_beside(&dir.join(store::NOTICE_FILE), &notice(e, &url))?;
         std::fs::rename(&part, &target).map_err(io)?;
         Ok(target)
@@ -250,6 +312,11 @@ impl Downloader {
 /// The URL a registry entry downloads from: its template with `{repo}`, `{revision}` and `{file}`
 /// filled in. The revision must be a commit, and the result must be on the allowlist.
 pub fn resolve_url(e: &ModelEntry) -> Result<String, NetError> {
+    resolve_artifact_url(&Artifact::from(e))
+}
+
+/// [`resolve_url`], for any pinned file.
+pub fn resolve_artifact_url(e: &Artifact) -> Result<String, NetError> {
     if !is_commit(&e.revision) {
         return Err(NetError::UnpinnedRevision(e.revision.clone()));
     }
@@ -278,6 +345,14 @@ fn check_repo(repo: &str) -> Result<(), NetError> {
     }
 }
 
+/// Delete a download that will not be installed, and its directory if that leaves it empty (a
+/// first download that failed). A directory still holding an earlier verified model is kept:
+/// `remove_dir` only removes an empty one.
+fn discard(part: &Path, dir: &Path) {
+    let _ = std::fs::remove_file(part);
+    let _ = std::fs::remove_dir(dir);
+}
+
 fn part_path(target: &Path) -> PathBuf {
     let mut name = target.as_os_str().to_owned();
     name.push(store::PART_SUFFIX);
@@ -285,7 +360,7 @@ fn part_path(target: &Path) -> PathBuf {
 }
 
 /// What `NOTICE` says: the entry's own notice, and where and what exactly was downloaded.
-fn notice(e: &ModelEntry, url: &str) -> String {
+fn notice(e: &Artifact, url: &str) -> String {
     let own = e
         .notice_text
         .clone()

@@ -227,3 +227,46 @@ fn download_is_atomic_on_interrupt() {
     assert_eq!(std::fs::read(path).expect("the model"), body);
     assert!(!dir.join("tiny/tiny.gguf.part").exists());
 }
+
+/// Asks to stop once the first bytes have arrived: the user pressed Cancel mid-download.
+struct CancelAfterFirstBytes(std::sync::atomic::AtomicBool);
+impl DownloadProgress for CancelAfterFirstBytes {
+    fn bytes(&self, done: u64, _: u64) {
+        if done > 0 {
+            self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+    fn cancelled(&self) -> bool {
+        self.0.load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+/// Phase 12 row 12.12's half in the downloader: Cancel stops the transfer at the next chunk and
+/// deletes the `.part` — nothing of the download is left, not even its empty directory.
+#[test]
+fn a_cancelled_download_deletes_its_part() {
+    let server = Server::start();
+    let dir = scratch();
+    let body = common::body();
+    server.route(
+        "huggingface.co",
+        &common::resolve_path(),
+        Answer::Body(body.clone()),
+    );
+    let downloader = Downloader::new(ModelStore::new(&dir), server.fetch(), common::config());
+    let entry = common::entry(&body, TEMPLATE);
+
+    let error = downloader
+        .pull(
+            &entry,
+            &CancelAfterFirstBytes(std::sync::atomic::AtomicBool::new(false)),
+        )
+        .expect_err("cancelled");
+    assert_eq!(error, NetError::Cancelled);
+    assert!(files_under(&dir).is_empty(), "{:?}", files_under(&dir));
+    assert!(!dir.join("tiny").exists(), "no empty model directory");
+
+    // Nothing about a cancel stops the next pull.
+    let path = downloader.pull(&entry, &Quiet).expect("a clean retry");
+    assert_eq!(std::fs::read(path).expect("the model"), body);
+}

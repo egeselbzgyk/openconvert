@@ -8,13 +8,54 @@ repository.workspace   = true
 description  = "OpenConvert desktop app (Tauri 2): spawns the CLI engine as a supervised subprocess"
 publish      = false
 
+[lib]
+name = "openconvert_desktop"
+path = "src/lib.rs"
+
 [[bin]]
 name = "openconvert-desktop"
 path = "src/main.rs"
 
+[features]
+# Tests that drive real sidecar binaries: they need `cargo build -p openconvert -p oc-testkit --bins`
+# (the engine, and the stub llama-server the model-server tests start), the vendored PDFium
+# (`cargo run -p xtask -- vendor-pdfium`) and nothing else. Gated rather than skipped
+# (IMPLEMENTATION_PLAN §0.2); the `desktop` CI job turns it on.
+engine-integration = []
+
 [dependencies]
 tauri.workspace = true
-tauri-plugin-shell.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-opener.workspace = true
+# The job-spec validator and the thresholds: the same code the engine runs (D13.1).
+oc-core = { path = "../../../crates/oc-core", version = "0.1.0" }
+oc-model = { path = "../../../crates/oc-model", version = "0.1.0" }
+# The only crate that opens a socket (D13.9): the app's model manager downloads through it, and it
+# picks the port of, and asks the health of, the app's own llama-server (`llm.rs`).
+oc-net = { path = "../../../crates/oc-net", version = "0.1.0" }
+# The model server's per-run key, which is zeroed when dropped and never printed.
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+# The preview reads the finished EPUB: its navigation document and the files it serves to the
+# preview frame (`preview.rs`).
+zip.workspace = true
+quick-xml.workspace = true
+# The diagnostic bundle's default file name carries the date.
+time.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+rustix.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+win32job.workspace = true
+
+[dev-dependencies]
+# The transport trait the model server's tests call it through.
+oc-ai = { path = "../../../crates/oc-ai", version = "0.1.0" }
+# The 300-page reference book for the cancel test, built where it is used.
+oc-testkit = { path = "../../../crates/oc-testkit", version = "0.1.0" }
 
 [build-dependencies]
 tauri-build.workspace = true

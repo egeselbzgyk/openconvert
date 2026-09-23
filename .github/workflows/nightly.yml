@@ -84,6 +84,20 @@ jobs:
       - run: npx --prefix tests/dom playwright install --with-deps webkit
       - run: npm --prefix tests/dom run test:webkit
 
+  # Phase 12: the desktop UI's spec (keyboard-only flow, axe, contrast, the shipped CSP) in WebKit,
+  # the engine behind WKWebView on macOS and WebKitGTK on Linux — the webviews the app actually
+  # runs in there. Chromium runs it on every pull request (`ui` in ci.yml).
+  webkit-ui:              # Phase 12
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci --prefix apps/desktop/ui && npm --prefix apps/desktop/ui run build
+      - run: npm ci --prefix tests/dom
+      - run: npx --prefix tests/dom playwright install --with-deps webkit
+      - run: npm --prefix tests/dom run test:ui:webkit
+
   # Phase 7, TEST_STRATEGY §3.8. A suite that passes when the code is wrong is a suite that
   # was never testing the code. `--in-place` is deliberately not used: the report is the
   # output, and a surviving mutant is a finding to read rather than a build to fail, because

@@ -1,0 +1,175 @@
+name: signing-dryrun
+# Phase 12 detail 13 / row 12.14 `signing_dry_run_completes_on_a_throwaway_tag` (ratified R-17).
+#
+# The Phase-15 release path — Windows NSIS + MSI, macOS .dmg with Developer ID signing of every
+# nested binary plus notarization and stapling, Linux AppImage, updater-manifest signing — run once,
+# early, against a disposable tag, so that the failure modes that only a real signing run shows
+# (macOS nested-binary signing above all) are found in Phase 12 rather than in a release. The
+# artefacts are discarded and the tag is deleted at the end; the outcome and any fixes go into
+# docs/DECISIONS_LOG.md.
+#
+# Manual only. It needs the repository secrets below, which only a maintainer can provide:
+#   APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
+#   APPLE_ID, APPLE_PASSWORD (app-specific), APPLE_TEAM_ID,
+#   WINDOWS_CERTIFICATE (base64 .pfx), WINDOWS_CERTIFICATE_PASSWORD,
+#   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD, TAURI_UPDATER_PUBKEY.
+# A missing secret fails the job that needs it by name, before anything is built.
+#
+# What it cannot cover yet: the bundle does not carry `libpdfium` (packaged in Phase 15) or
+# `llama-server` (Phase 9), so the nested-signature check sees the app and the engine sidecar only.
+# It walks every Mach-O in the bundle, so it covers them unchanged once they are packaged.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The throwaway tag to build and then delete"
+        required: true
+        default: "v0.0.0-signing-dryrun"
+permissions: { contents: write }
+concurrency: { group: signing-dryrun, cancel-in-progress: false }
+env: { CARGO_TERM_COLOR: always }
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: refuse anything but a throwaway tag
+        run: |
+          case "${{ inputs.tag }}" in
+            v0.0.0-*) ;;
+            *) echo "::error::only v0.0.0-* tags are throwaway"; exit 1 ;;
+          esac
+      - run: |
+          git tag "${{ inputs.tag }}"
+          git push origin "refs/tags/${{ inputs.tag }}"
+
+  build:
+    needs: tag
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, bundles: "app,dmg" }
+          - { os: windows-latest, bundles: "nsis,msi" }
+          - { os: ubuntu-22.04, bundles: "appimage" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "refs/tags/${{ inputs.tag }}" }
+      - name: every secret this platform signs with is present
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+        run: |
+          need() { if [ -z "${!1}" ]; then echo "::error::secret $1 is not set"; exit 1; fi; }
+          need TAURI_SIGNING_PRIVATE_KEY; need TAURI_UPDATER_PUBKEY
+          if [ "$RUNNER_OS" = macOS ]; then need APPLE_CERTIFICATE; need APPLE_ID; fi
+          if [ "$RUNNER_OS" = Windows ]; then need WINDOWS_CERTIFICATE; fi
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci --prefix apps/desktop/ui
+      - run: cargo run -p xtask -- vendor-pdfium
+      - run: cargo build -p openconvert --release --locked
+      - run: cargo run -p xtask -- stage-sidecars --release
+      - run: cargo install tauri-cli --version "^2" --locked
+
+      - name: import the Developer ID certificate
+        if: runner.os == 'macOS'
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      - name: import the Authenticode certificate
+        if: runner.os == 'Windows'
+        id: authenticode
+        shell: pwsh
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "authenticode.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String("${{ secrets.WINDOWS_CERTIFICATE }}"))
+          $password = ConvertTo-SecureString "${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}" -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
+
+      # The bundle settings Phase 15 will commit, passed as an override so that this dry run does
+      # not decide them early: updater artefacts on, and the Windows certificate by thumbprint.
+      - name: build and sign
+        shell: bash
+        working-directory: apps/desktop/src-tauri
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          overrides='{"bundle":{"createUpdaterArtifacts":true'
+          if [ "$RUNNER_OS" = Windows ]; then
+            overrides="$overrides"',"windows":{"certificateThumbprint":"${{ steps.authenticode.outputs.thumbprint }}","digestAlgorithm":"sha256","timestampUrl":"http://timestamp.digicert.com"}'
+          fi
+          overrides="$overrides"'}}'
+          cargo tauri build --bundles "${{ matrix.bundles }}" --config "$overrides"
+
+      # macOS: every Mach-O in the bundle signed and valid (the engine sidecar, and every nested
+      # library), the app accepted by Gatekeeper, and the notarization ticket stapled.
+      - name: verify nested signatures, Gatekeeper and stapling
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          app=$(find target/release/bundle/macos -maxdepth 1 -name '*.app' | head -n 1)
+          dmg=$(find target/release/bundle/dmg -maxdepth 1 -name '*.dmg' | head -n 1)
+          find "$app" -type f | while read -r file; do
+            if file "$file" | grep -q 'Mach-O'; then
+              codesign --verify --strict --verbose=2 "$file"
+            fi
+          done
+          codesign --verify --deep --strict --verbose=2 "$app"
+          spctl --assess --type execute --verbose=4 "$app"
+          xcrun stapler validate "$app"
+          xcrun stapler validate "$dmg"
+      - name: verify Authenticode signatures
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Select-Object -Last 1
+          Get-ChildItem target\release\bundle -Recurse -Include *.exe,*.msi | ForEach-Object {
+            & $signtool.FullName verify /pa /v $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "unsigned: $($_.FullName)" }
+          }
+      # Every platform: each updater artefact's signature verifies against the public key the app
+      # will ship with (minisign format, which Tauri base64-wraps in the `.sig` it writes).
+      - name: verify updater signatures
+        shell: bash
+        env:
+          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
+        run: |
+          set -euo pipefail
+          cargo install rsign2 --locked
+          echo "$TAURI_UPDATER_PUBKEY" | base64 -d > "$RUNNER_TEMP/updater.pub"
+          found=0
+          while IFS= read -r sig; do
+            found=1
+            base64 -d < "$sig" > "$RUNNER_TEMP/artefact.minisig"
+            rsign verify -p "$RUNNER_TEMP/updater.pub" -x "$RUNNER_TEMP/artefact.minisig" "${sig%.sig}"
+          done < <(find target/release/bundle -name '*.sig')
+          if [ "$found" = 0 ]; then echo "::error::no updater signatures were produced"; exit 1; fi
+
+  # The throwaway tag goes whatever happened above; the artefacts were never uploaded.
+  cleanup:
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: git push origin --delete "refs/tags/${{ inputs.tag }}"

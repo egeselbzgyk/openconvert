@@ -2,14 +2,17 @@
   "name": "openconvert-dom-checks",
   "private": true,
   "version": "0.1.0",
-  "description": "D7 / R6 §11 Layer 2: structural DOM assertions on the emitted XHTML, in a real browser",
+  "description": "D7 / R6 \u00a711 Layer 2: structural DOM assertions on the emitted XHTML, in a real browser",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "test": "playwright test --project=chromium-reader-600x800 --project=chromium-phone-390x844 --project=chromium-tablet-1024x768",
-    "test:webkit": "playwright test --project=webkit"
+    "test:webkit": "playwright test --project=webkit",
+    "test:ui": "playwright test --project=chromium-ui",
+    "test:ui:webkit": "playwright test --project=webkit-ui"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.56.1"
   }
 }

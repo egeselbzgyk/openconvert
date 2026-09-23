@@ -21,6 +21,11 @@ const VIEWPORTS = [
   { name: "tablet-1024x768", width: 1024, height: 768 },
 ];
 
+/** The desktop UI's spec, which runs against the built app rather than an EPUB. */
+const UI_SPEC = /ui\.spec\.ts$/;
+/** The main window's default size, from `apps/desktop/src-tauri/tauri.conf.json`. */
+const APP_WINDOW = { width: 900, height: 640 };
+
 export default defineConfig({
   testDir: "./specs",
   // A book is a handful of small documents; a spec that needs more than this is stuck.
@@ -36,6 +41,7 @@ export default defineConfig({
   projects: [
     ...VIEWPORTS.map((viewport) => ({
       name: `chromium-${viewport.name}`,
+      testIgnore: UI_SPEC,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: viewport.width, height: viewport.height },
@@ -44,7 +50,20 @@ export default defineConfig({
     // Nightly only: selected with `--project=webkit`, never part of the default run.
     {
       name: "webkit",
+      testIgnore: UI_SPEC,
       use: { ...devices["Desktop Safari"], viewport: { width: 600, height: 800 } },
+    },
+    // The desktop app's own UI (Phase 12), at its window's default size (`tauri.conf.json`):
+    // Chromium on every pull request, WebKit — WKWebView's and WebKitGTK's engine — nightly.
+    {
+      name: "chromium-ui",
+      testMatch: UI_SPEC,
+      use: { ...devices["Desktop Chrome"], viewport: APP_WINDOW },
+    },
+    {
+      name: "webkit-ui",
+      testMatch: UI_SPEC,
+      use: { ...devices["Desktop Safari"], viewport: APP_WINDOW },
     },
   ],
 });

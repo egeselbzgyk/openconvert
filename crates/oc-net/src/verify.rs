@@ -16,23 +16,30 @@ const CHUNK: usize = 1 << 16;
 pub enum CopyError {
     /// More bytes arrived than `limit` allows.
     TooLarge,
+    /// `stop` said to stop.
+    Stopped,
     Read(std::io::Error),
     Write(std::io::Error),
 }
 
 /// Copy `reader` into `writer`, hashing as it goes, and refusing to go past `limit` bytes.
-/// `progress` is told the running total after every chunk. Returns the byte count and the
-/// lowercase hex SHA-256.
+/// `progress` is told the running total after every chunk, and `stop` is asked before every read,
+/// so a caller can end the copy between two chunks. Returns the byte count and the lowercase hex
+/// SHA-256.
 pub fn copy_hashed(
     reader: &mut dyn Read,
     writer: &mut dyn Write,
     limit: u64,
     progress: &mut dyn FnMut(u64),
+    stop: &dyn Fn() -> bool,
 ) -> Result<(u64, String), CopyError> {
     let mut hasher = Sha256::new();
     let mut buffer = vec![0u8; CHUNK];
     let mut total: u64 = 0;
     loop {
+        if stop() {
+            return Err(CopyError::Stopped);
+        }
         let n = match reader.read(&mut buffer) {
             Ok(0) => break,
             Ok(n) => n,

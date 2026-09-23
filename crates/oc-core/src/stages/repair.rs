@@ -13,9 +13,10 @@ use super::StageDecl;
 ///
 /// PIPELINE §12 words it as "**Conserving**, except `UserOverride`". The exception is not declared
 /// here, and deliberately: a `Conserving` stage's ledger must be empty by I-3, so declaring a
-/// reason it may never cite would be a contract that contradicts itself. User corrections keyed by
-/// `BlockId` arrive with the review UI in Phase 12; the stage becomes `Budgeted` with
-/// `UserOverride` in its reason set at that point, in the commit that can also test it.
+/// reason it may never cite would be a contract that contradicts itself. User corrections arrived
+/// in Phase 12 and are applied by `document` (PIPELINE §9 step 7, ARCHITECTURE §4.7), which cites
+/// `UserOverride` under [`super::DOCUMENT_CORRECTED`]; `repair` never does, so it stays Conserving
+/// (`docs/DECISIONS_LOG.md`, 2026-09-23).
 pub const REPAIR: StageDecl = StageDecl {
     name: "repair",
     kind: StageKind::Conserving,

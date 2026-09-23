@@ -47,7 +47,11 @@ fn no_escalation_when_outline_present() {
     use oc_structure::escalate::{TASK_BOOK_STRUCTURE, TASK_VERSE_QUOTE};
 
     let built = common::build("f07_verse_and_quote");
-    let tasks: Vec<&str> = built.escalations.iter().map(|record| record.task).collect();
+    let tasks: Vec<&str> = built
+        .escalations
+        .iter()
+        .map(|record| record.task.as_str())
+        .collect();
     assert!(
         !tasks.contains(&TASK_BOOK_STRUCTURE),
         "an outline exists, so book structure is never escalated: {tasks:?}"
@@ -81,6 +85,8 @@ fn prepared(stem: &str) -> openconvert::convert::Prepared {
             preset: oc_model::document::PresetName::Auto,
             epub: common::epub_options(),
             ocr: openconvert::ocr::OcrOptions::off(),
+            overrides: None,
+            cache_dir: None,
         },
         &oc_core::thresholds::T,
     )

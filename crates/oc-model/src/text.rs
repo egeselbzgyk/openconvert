@@ -4,14 +4,14 @@
 //! sharing a baseline. Neither is a paragraph and neither knows about columns: reading order
 //! and segmentation are `layout`'s, in Phase 3.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::extract::{FontId, PageRef};
 use crate::geom::Rect;
 
 /// A run's index within its document. Stable within one extraction, and no more than that —
 /// a `BlockId` is what survives a re-run (D13.3).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct RunId(pub u32);
 
 /// Where a run's text came from.
@@ -19,7 +19,7 @@ pub struct RunId(pub u32);
 /// Load-bearing for the source-retention metric, not decoration: text this pipeline invented
 /// with OCR must not be counted as text it retained from the document (ARCHITECTURE §5.4,
 /// I-6).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TextProvenance {
     /// Drawn by the PDF.
@@ -31,7 +31,7 @@ pub enum TextProvenance {
 }
 
 /// One stretch of one line in one style.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Run {
     pub id: RunId,
     pub page: PageRef,
@@ -54,7 +54,7 @@ pub struct Run {
 }
 
 /// One baseline's worth of runs.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Line {
     pub runs: Vec<RunId>,
     pub bbox: Rect,
@@ -73,7 +73,7 @@ pub struct Line {
 /// Three kinds, and no more, because these are the three a cross-page repetition signal can
 /// tell apart with the confidence that licenses deletion (PIPELINE §5). Watermarks and
 /// decorative glyphs are removed under their own reasons without being labelled here.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FurnitureKind {
     RunningHeader,

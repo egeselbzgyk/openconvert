@@ -115,6 +115,8 @@ pub fn build_path_with(
             preset: PresetName::Auto,
             epub: epub_options(),
             ocr,
+            overrides: None,
+            cache_dir: None,
         },
         &T,
     )
@@ -153,6 +155,8 @@ pub fn build_with(stem: &str, epub: EpubOptions) -> Built {
             language: Some(LangTag::EN),
             preset: PresetName::Auto,
             epub,
+            overrides: None,
+            cache_dir: None,
             ocr: openconvert::ocr::OcrOptions::off(),
         },
         &T,
