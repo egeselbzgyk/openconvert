@@ -162,6 +162,67 @@ fn unsafe_is_confined_to_declared_modules() {
     assert!(!fires("fuzz/fuzz_targets/job_spec.rs", "#![no_main]\n"));
 }
 
+/// D13.8 / row 15.13: no shipped crate computes with the platform C library's transcendental
+/// functions, whose last bits differ between glibc, Apple's libm and the Windows CRT — the cause
+/// of CI run 35902627957's cross-OS EPUB difference. The repository passes, and the rule fires on
+/// the shapes it exists for, in a shipped crate's source and nowhere else.
+#[test]
+fn platform_maths_is_refused_where_output_is_made() {
+    let output = xtask("ci-lint");
+    assert!(
+        output.status.success(),
+        "ci-lint: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let fires =
+        |path: &str, text: &str| !ci_lint::platform_maths_findings_in(path, text).is_empty();
+    for call in [
+        "a.sin()",
+        "a.cos()",
+        "y.atan2(x)",
+        "x.hypot(y)",
+        "x.exp()",
+        "x.ln()",
+        "x.powf(2.2)",
+        "x.powi(2)",
+        "x.log10()",
+        "x.sin_cos()",
+        "f32::sin(x)",
+        "f64::powf(x, y)",
+    ] {
+        assert!(
+            fires(
+                "crates/oc-layout/src/blocks.rs",
+                &format!("let v = {call};\n")
+            ),
+            "{call}"
+        );
+    }
+    assert!(fires(
+        "crates/openconvert/src/main.rs",
+        "let v = x.exp();\n"
+    ));
+    assert!(!fires(
+        "crates/oc-epub/src/resample.rs",
+        "let v = libm::sinf(a) / a;\n"
+    ));
+    assert!(!fires(
+        "crates/oc-layout/src/blocks.rs",
+        "let v = (x * x).sqrt().round();\n"
+    ));
+    assert!(!fires(
+        "crates/oc-layout/src/blocks.rs",
+        "// f32::sin is the platform's, so not a.sin() here\n"
+    ));
+    assert!(!fires("crates/oc-testkit/src/lib.rs", "let v = a.sin();\n"));
+    assert!(!fires("xtask/src/fixtures.rs", "let v = a.sin();\n"));
+    assert!(!fires(
+        "crates/oc-layout/tests/props.rs",
+        "let v = a.sin();\n"
+    ));
+}
+
 /// PHASE 14 row 14.23: the `--isolate-parser` spike's measured overhead and its explicit go/no-go
 /// are in `docs/DECISIONS_LOG.md`, and the harness that produced them still runs — isolated
 /// extraction still identical to in-process on a fixture — so the entry can be re-measured.

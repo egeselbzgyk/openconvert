@@ -475,7 +475,8 @@ fn line_angle_deg(a: Rect, b: Rect) -> f32 {
     if dx == 0.0 && dy == 0.0 {
         return 90.0;
     }
-    dy.atan2(dx).to_degrees()
+    // `libm`, not `f32::atan2`: the platform's `atan2f` is not the same bits on every OS (D13.8).
+    libm::atan2f(dy, dx).to_degrees()
 }
 
 /// How far apart two lines are, along that same vector.
@@ -736,7 +737,8 @@ fn pivot_of(candidate: &Candidate) -> Option<Rect> {
     let mut best: Option<(i64, Rect)> = None;
     for obstacle in &candidate.obstacles {
         let (ox, oy) = centroid(*obstacle);
-        let distance = (((ox - cx).powi(2) + (oy - cy).powi(2)).sqrt() * 100.0).round() as i64;
+        let (dx, dy) = (ox - cx, oy - cy);
+        let distance = ((dx * dx + dy * dy).sqrt() * 100.0).round() as i64;
         let better = match &best {
             None => true,
             Some((best_distance, best_rect)) => {

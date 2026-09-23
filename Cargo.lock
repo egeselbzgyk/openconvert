@@ -4075,6 +4075,7 @@ version = "0.1.0"
 dependencies = [
  "image",
  "insta",
+ "libm",
  "oc-model",
  "proptest",
  "quick-xml 0.42.0",
@@ -4090,6 +4091,7 @@ name = "oc-layout"
 version = "0.1.0"
 dependencies = [
  "insta",
+ "libm",
  "oc-core",
  "oc-model",
  "oc-text",
@@ -4166,6 +4168,7 @@ version = "0.1.0"
 dependencies = [
  "blake3",
  "insta",
+ "libm",
  "oc-core",
  "oc-layout",
  "oc-model",
