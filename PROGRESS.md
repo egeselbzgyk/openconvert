@@ -127,7 +127,11 @@ Work items, in order, with the plan's test rows against each:
       `updater_manifest_signature_verifies`, 15.10 `updater_rejects_tampered_payload` (test keypair
       made in-test). Provisional: no `tauri-plugin-updater` (it needs the banned `reqwest`). No UI row
       yet (part B)
-- [ ] **P15.8** SBOM: `cargo cyclonedx` + `npm sbom`, merged by `xtask sbom` — rows 15.11, 15.12
+- [x] **P15.8** `xtask sbom --out <file>`: `cargo cyclonedx` (0.5.9, 1.5) over the engine and the
+      shell + `npm sbom` over the UI + the natives from the locks, merged into CycloneDX 1.6,
+      reproducible, validated offline against the vendored 1.6.1 schema — rows 15.11
+      `sbom_is_valid_cyclonedx_1_6`, 15.12 `sbom_lists_every_vendored_native` (release-artifacts,
+      **pass here** on the generated SBOM: 776 components), plus three default-suite logic tests
 - [ ] **P15.9** reproducibility gate (`xtask repro`) — row 15.13 (Linux half here)
 - [ ] **P15.10** version bump rules (`xtask bump-rules-check`), `docs/VERSIONING.md` — rows 15.16, 15.17
 - [ ] **P15.11** release gates and `release.yml`: placeholders, no Python — rows 15.14, 15.18

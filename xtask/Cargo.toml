@@ -45,6 +45,10 @@ typst.workspace = true
 typst-pdf.workspace = true
 typst-layout.workspace = true
 typst-assets.workspace = true
+# `xtask sbom` validates the release SBOM against the vendored CycloneDX 1.6 schema (row 15.11).
+# Without its default features, which resolve remote schemas over HTTP: everything is offline.
+jsonschema = { version = "0.57", default-features = false }
+uuid.workspace = true
 
 [dev-dependencies]
 # The release tests read the macOS entitlements plist (PHASE 15 row 15.5).

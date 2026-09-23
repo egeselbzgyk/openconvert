@@ -4,7 +4,7 @@
 
 use xtask::{
     ci_lint, dom_fixtures, epubcheck_parity, fetch_epubcheck, fetch_epubcheck_corpus,
-    fetch_llama_server, fixtures, handmade_fixtures, mutations, release, stage_sidecars,
+    fetch_llama_server, fixtures, handmade_fixtures, mutations, release, sbom, stage_sidecars,
     thresholds_lint, vendor_pdfium,
 };
 
@@ -42,6 +42,9 @@ tasks:
                     PDFium and the server's libraries in native/, the natives' licences,
                     and a build stamp (needs vendor-pdfium and fetch-llama-server first)
                       --release           stage the release build instead of debug
+  sbom --out <file> the release SBOM: cargo cyclonedx over the engine and the shell, npm sbom
+                    over the UI, the vendored natives; merged into CycloneDX 1.6, validated
+                    offline against xtask/schemas/cyclonedx (needs cargo-cyclonedx, npm)
   release           the release artefacts and their gates (PHASE 15):
                       manifest --os <os> --bundle-dir <dir> --out <file>
                       notes <manifest>...              the release body's SHA-256 section
@@ -74,6 +77,10 @@ fn main() -> Result<()> {
         }
         Some("thresholds-lint") => thresholds_lint::run(&root),
         Some("dom-fixtures") => dom_fixtures::run(&root),
+        Some("sbom") => {
+            let args: Vec<String> = std::env::args().skip(2).collect();
+            sbom::run(&root, &args)
+        }
         Some("release") => {
             let args: Vec<String> = std::env::args().skip(2).collect();
             release::run(&args)

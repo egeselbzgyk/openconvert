@@ -13,6 +13,7 @@ pub mod fixtures;
 pub mod handmade_fixtures;
 pub mod mutations;
 pub mod release;
+pub mod sbom;
 pub mod stage_sidecars;
 pub mod thresholds_lint;
 pub mod vendor_pdfium;

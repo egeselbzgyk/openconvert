@@ -5072,3 +5072,28 @@ not describe as built. Validation (`flatpak-builder-lint`, a real `flatpak-build
 Evidence: `flatpak_manifest_has_no_network_finish_arg` (RED with `--share=network` added, and with
 `--no-default-features` removed).
 Affects: `packaging/linux/{openconvert.desktop,io.openconvert.OpenConvert.metainfo.xml,flatpak/}`.
+
+## 2026-09-23 · The release SBOM: what is in it and how it stays the same · Phase 15 (P15.8)
+Context: detail 6 — `cargo cyclonedx` over the workspace plus `npm sbom` over the UI, merged by
+`xtask sbom` into one CycloneDX 1.6 document listing the vendored natives as first-class components.
+Decision: `cargo-cyclonedx` 0.5.9 (the current release, installed here with `cargo install --locked`)
+writes at most CycloneDX 1.5, so its output is an *input*: `xtask sbom` runs it for the two crates
+that ship — `openconvert` and `openconvert-desktop`, default features, `--target all` — and not for
+`xtask` or `oc-testkit`, which never ship; `npm sbom --package-lock-only` over the UI (npm 10.9.7:
+every UI package is a build dependency, and the ones the bundle embeds, Svelte's runtime and
+`@tauri-apps/api`, are among them); and the natives from the locks — PDFium and `llama-server` for
+each of the four shipped triples with version, SHA-256 of the pinned archive, SPDX licence and source
+URL, plus every pack `packs.toml` has really pinned (none in v1; D4 uses the system's Tesseract, so
+there is no Tesseract component until an OCR pack ships). Merged: components keyed by `bom-ref` in
+sorted order, the build machine's absolute path replaced by `.` in every string, no timestamp, a
+UUIDv5 serial number from the content — so two runs on one tree give byte-identical files (checked).
+Validated offline against the CycloneDX 1.6.1 schema, vendored under `xtask/schemas/cyclonedx/`
+(Apache-2.0, three files, SHA-256s in its README) with the `jsonschema` crate (MIT) without its
+HTTP-resolving default features; a reference to anything but the two vendored sub-schemas is refused
+rather than fetched. Here: 776 components, valid. `jsonschema` and `serde_yaml` are tooling-only
+(`xtask`), audited by `deny.tools.toml` (licences, bans, sources clean).
+Evidence: `sbom_is_valid_cyclonedx_1_6`, `sbom_lists_every_vendored_native` (release-artifacts,
+`OC_SBOM`, run here on the generated SBOM), `the_merged_sbom_validates_offline_and_names_no_build_path`,
+`the_sbom_schema_check_rejects_an_invalid_document`,
+`a_pinned_pack_joins_the_sbom_and_a_placeholder_does_not`.
+Affects: `xtask/src/sbom.rs`, `xtask/schemas/cyclonedx/`, `xtask/Cargo.toml`.

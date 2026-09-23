@@ -805,3 +805,179 @@ fn flatpak_manifest_has_no_network_finish_arg() {
     let entry = read(&root.join("packaging/linux/openconvert.desktop"));
     assert!(entry.contains("Icon=io.openconvert.OpenConvert"));
 }
+
+/// Two small inputs in the shape `cargo cyclonedx` and `npm sbom` write, rooted at `root`.
+fn tiny_inputs(root: &str) -> (Vec<serde_json::Value>, serde_json::Value) {
+    let engine = serde_json::json!({
+        "bomFormat": "CycloneDX", "specVersion": "1.5", "version": 1,
+        "serialNumber": "urn:uuid:749b3ca8-c7ae-40fa-b2ad-32f364d6f6cd",
+        "metadata": {
+            "timestamp": "2026-09-23T06:46:05Z",
+            "component": {
+                "type": "application", "name": "openconvert", "version": "0.1.0",
+                "bom-ref": format!("path+file://{root}/crates/openconvert#0.1.0"),
+                "components": [{ "type": "application", "name": "openconvert",
+                                 "bom-ref": "bin-target-1" }],
+            },
+        },
+        "components": [{
+            "type": "library", "name": "serde", "version": "1.0.229",
+            "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.229",
+            "purl": "pkg:cargo/serde@1.0.229",
+            "licenses": [{ "expression": "MIT OR Apache-2.0" }],
+        }],
+        "dependencies": [{
+            "ref": format!("path+file://{root}/crates/openconvert#0.1.0"),
+            "dependsOn": ["registry+https://github.com/rust-lang/crates.io-index#serde@1.0.229"],
+        }],
+    });
+    let ui = serde_json::json!({
+        "bomFormat": "CycloneDX", "specVersion": "1.5", "version": 1,
+        "metadata": { "component": { "type": "library", "name": "ui", "version": "0.1.0",
+                                     "bom-ref": "openconvert-ui@0.1.0" } },
+        "components": [{ "type": "library", "name": "svelte", "version": "5.57.1",
+                         "bom-ref": "svelte@5.57.1", "scope": "optional" }],
+        "dependencies": [{ "ref": "openconvert-ui@0.1.0", "dependsOn": ["svelte@5.57.1"] }],
+    });
+    (vec![engine], ui)
+}
+
+/// The merge logic under row 15.11: one CycloneDX 1.6 document that validates offline against the
+/// vendored schema, with no build-machine path left in it, no timestamp, and the same serial
+/// number every time.
+#[test]
+fn the_merged_sbom_validates_offline_and_names_no_build_path() {
+    use xtask::sbom::{merge, natives, validate, SCHEMA_DIR};
+
+    let root = workspace_root();
+    let build_root = "/home/builder/checkout";
+    let (cargo, npm) = tiny_inputs(build_root);
+    let natives = natives(&root).expect("the locks");
+    let bom = merge(&cargo, &npm, &natives, "1.0.0", build_root);
+    assert_eq!(bom["specVersion"], "1.6");
+    let errors = validate(&bom, &root.join(SCHEMA_DIR)).expect("the schema compiles");
+    assert!(errors.is_empty(), "{errors:#?}");
+
+    let text = serde_json::to_string(&bom).expect("json");
+    assert!(!text.contains(build_root), "a build path leaked");
+    assert!(!text.contains("timestamp"));
+    assert_eq!(bom, merge(&cargo, &npm, &natives, "1.0.0", build_root));
+    let refs: Vec<&str> = bom["components"]
+        .as_array()
+        .expect("components")
+        .iter()
+        .filter_map(|c| c["bom-ref"].as_str())
+        .collect();
+    let mut sorted = refs.clone();
+    sorted.sort_unstable();
+    assert_eq!(refs, sorted, "components in a fixed order");
+    assert!(refs.contains(&"path+file://./crates/openconvert#0.1.0"));
+    assert!(refs.contains(&"svelte@5.57.1"));
+}
+
+/// The validator is not a formality: a document the schema forbids is reported, offline.
+#[test]
+fn the_sbom_schema_check_rejects_an_invalid_document() {
+    use xtask::sbom::{validate, SCHEMA_DIR};
+
+    let bad = serde_json::json!({
+        "bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
+        "components": [{ "type": "banana", "name": "x",
+                         "hashes": [{ "alg": "SHA-256", "content": "not hex" }] }],
+    });
+    let errors = validate(&bad, &workspace_root().join(SCHEMA_DIR)).expect("the schema compiles");
+    assert!(errors.len() >= 2, "{errors:#?}");
+}
+
+/// Rows 15.12's natives, from the locks: PDFium and `llama-server` for every shipped triple with a
+/// version, a SHA-256 and a licence; a pack once it is really pinned, and not while it is a
+/// placeholder (the v1 state: no pack ships).
+#[test]
+fn a_pinned_pack_joins_the_sbom_and_a_placeholder_does_not() {
+    use xtask::sbom::{natives, SHIPPED_TRIPLES};
+
+    let root = workspace_root();
+    let listed = natives(&root).expect("the locks");
+    for name in ["pdfium", "llama-server"] {
+        for triple in SHIPPED_TRIPLES {
+            let native = listed
+                .iter()
+                .find(|n| n.name == name && n.target == triple)
+                .unwrap_or_else(|| panic!("{name} for {triple}"));
+            assert_eq!(native.sha256.len(), 64);
+            assert!(!native.version.is_empty() && !native.license.is_empty());
+            assert!(native.source_url.starts_with("https://github.com/"));
+        }
+    }
+    assert!(
+        !listed.iter().any(|n| n.target == "any"),
+        "no pack is pinned in v1"
+    );
+
+    let scratch = std::env::temp_dir().join(format!("oc-sbom-packs-{}", std::process::id()));
+    std::fs::create_dir_all(&scratch).expect("dir");
+    std::fs::write(
+        scratch.join("packs.toml"),
+        "schema_version = 1\n[[pack]]\nid = \"ocr\"\nlicense = \"Apache-2.0\"\nrepo = \"o/ocr\"\n\
+         revision = \"0123456789abcdef0123456789abcdef01234567\"\nfile = \"ocr.zip\"\n\
+         sha256 = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n",
+    )
+    .expect("write");
+    let with_pack = natives(&scratch).expect("natives");
+    assert!(with_pack
+        .iter()
+        .any(|n| n.name == "ocr" && n.license == "Apache-2.0"));
+    let _ = std::fs::remove_dir_all(scratch);
+}
+
+/// Row 15.11 on the release's own SBOM (`OC_SBOM`, written by `xtask sbom` in the release job):
+/// valid CycloneDX 1.6.
+#[cfg(feature = "release-artifacts")]
+#[test]
+fn sbom_is_valid_cyclonedx_1_6() {
+    use xtask::sbom::{validate, SCHEMA_DIR};
+
+    let bom = json(&required_env("OC_SBOM"));
+    assert_eq!(bom["specVersion"], "1.6");
+    assert_eq!(bom["bomFormat"], "CycloneDX");
+    let errors = validate(&bom, &workspace_root().join(SCHEMA_DIR)).expect("the schema compiles");
+    assert!(errors.is_empty(), "{errors:#?}");
+    // The two crates that ship and the UI are all in it, with their dependencies.
+    let components = bom["components"].as_array().expect("components");
+    for name in [
+        "openconvert",
+        "openconvert-desktop",
+        "ui",
+        "tauri",
+        "pdfium-render",
+    ] {
+        assert!(
+            components.iter().any(|c| c["name"] == name),
+            "{name} is in the SBOM"
+        );
+    }
+}
+
+/// Row 15.12 on the release's own SBOM: every vendored native, for every shipped target, with its
+/// version, SHA-256 and licence.
+#[cfg(feature = "release-artifacts")]
+#[test]
+fn sbom_lists_every_vendored_native() {
+    use xtask::sbom::SHIPPED_TRIPLES;
+
+    let bom = json(&required_env("OC_SBOM"));
+    let components = bom["components"].as_array().expect("components");
+    for name in ["pdfium", "llama-server"] {
+        for triple in SHIPPED_TRIPLES {
+            let native = components
+                .iter()
+                .find(|c| c["bom-ref"] == format!("native:{name}@{triple}"))
+                .unwrap_or_else(|| panic!("{name} for {triple} is not in the SBOM"));
+            assert!(native["version"].as_str().is_some_and(|v| !v.is_empty()));
+            let sha = native["hashes"][0]["content"].as_str().expect("a hash");
+            assert_eq!(native["hashes"][0]["alg"], "SHA-256");
+            assert_eq!(sha.len(), 64, "{name} {triple}");
+            assert!(native["licenses"][0]["license"]["id"].is_string());
+        }
+    }
+}
