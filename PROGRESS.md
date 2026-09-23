@@ -299,7 +299,7 @@ What a fresh session needs:
 | Row | State |
 |---|---|
 | Every named test exists and passes | **Yes.** All 10 rows under their names: 11.1 and 11.6 in `oc-net` (`tests/detect.rs`, `tests/consent.rs`); 11.2, 11.3 (`tests/ollama.rs`), 11.4 (`tests/providers.rs`) and 11.10 (`tests/contract.rs`) in `oc-ai`; 11.5, 11.7, 11.8, 11.9 in `openconvert` (`tests/providers.rs`). Plus 18 additions, and `ai_against_a_live_ollama_converts_every_book` behind `--features live-llm` (fails loudly without `OC_LIVE_OLLAMA_MODEL` — **unverified here**: Ollama is not installed and no model can be fetched). |
-| `cargo nextest run --workspace` green | **Yes**, 663 tests (635 + 28). |
+| `cargo nextest run --workspace` green | **Yes**, 663 tests on the branch (635 + 28); **700** after merging Phase 13's `main`. |
 | Green on Linux/macOS/Windows CI | **Unverified here:** GitHub Actions is disabled; no macOS or Windows machine. |
 | clippy `-D warnings` clean | **Yes**, workspace, all targets, all features (including `live-llm`). |
 | `cargo fmt --check` clean | **Yes.** |
