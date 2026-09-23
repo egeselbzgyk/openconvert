@@ -214,11 +214,9 @@ Resolved by the maintainer's decisions of 2026-09-23: the updater keypair (gener
 
 - The repository secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` must be set,
   or the release job's build legs stop at their first step.
-- The updater endpoint in `tauri.conf.json` (`plugins.updater.endpoints`) and `Cargo.toml`'s
-  `repository` name `github.com/openconvert/openconvert`, while the releases are published from the
-  repository `release.yml` runs in. The endpoint is compiled into 1.0.0: unless it names where the
-  releases are (or will be, with GitHub's redirect after a transfer), a 1.0.0 install never finds
-  1.0.1. A maintainer decision, before tagging.
+- ~~The updater endpoint~~ — settled 2026-09-23: `tauri.conf.json` `plugins.updater.endpoints` and
+  `Cargo.toml` `repository` name `github.com/egeselbzgyk/openconvert`, where the releases are published
+  (DECISIONS_LOG 2026-09-23).
 - Nothing in `release.yml` beyond its unit tests has run yet: the Windows installers, the cross-OS
   reproducibility comparison, `flatpak-builder-lint` and the publication run first on the tag.
 

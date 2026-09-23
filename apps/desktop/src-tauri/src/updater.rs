@@ -220,7 +220,7 @@ mod tests {
         let setup = Setup::from_plugin_config(config["plugins"].get(CONFIG_KEY)).expect("a setup");
         assert!(setup
             .endpoint
-            .starts_with("https://github.com/openconvert/openconvert/releases/"));
+            .starts_with("https://github.com/egeselbzgyk/openconvert/releases/"));
         assert!(setup.endpoint.ends_with("/latest.json"));
         // Until the maintainer generates the release keypair (RELEASE_CHECKLIST), a check refuses
         // before it asks anything.

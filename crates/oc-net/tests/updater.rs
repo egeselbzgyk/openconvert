@@ -20,8 +20,8 @@ use oc_net::NetError;
 mod common;
 
 const ENDPOINT: &str =
-    "https://github.com/openconvert/openconvert/releases/latest/download/latest.json";
-const ASSET: &str = "https://github.com/openconvert/openconvert/releases/download/v9.9.9/\
+    "https://github.com/egeselbzgyk/openconvert/releases/latest/download/latest.json";
+const ASSET: &str = "https://github.com/egeselbzgyk/openconvert/releases/download/v9.9.9/\
                      OpenConvert_9.9.9_amd64.AppImage";
 const CDN: &str = "https://release-assets.githubusercontent.com/github-production-release-asset/1/\
                    OpenConvert_9.9.9_amd64.AppImage";

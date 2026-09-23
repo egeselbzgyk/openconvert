@@ -27,7 +27,7 @@ Opener = Callable[[str], Iterable[bytes]]
 # connection is noticed before the process is holding the whole file in memory.
 CHUNK_BYTES = 1 << 20
 
-USER_AGENT = "openconvert-corpus/1 (+https://github.com/openconvert/openconvert)"
+USER_AGENT = "openconvert-corpus/1 (+https://github.com/egeselbzgyk/openconvert)"
 
 
 class ChecksumMismatch(RuntimeError):

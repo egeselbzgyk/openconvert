@@ -5844,3 +5844,16 @@ behind `libm`, `base64` 0.22 and `minisign-verify`). `bump-rules-check --tag` no
 the gaps are the 1.0.0 notes' "Known limitations" and `PROGRESS.md` › Blocked.
 Evidence: `the_tag_is_the_version_both_manifests_declare`; `cargo run -p xtask -- bump-rules-check --tag v1.0.0` clean.
 Affects: every manifest, `xtask/src/versions.rs`, `crates/openconvert/tests/snapshots/report__report_f07.snap`.
+
+## 2026-09-23 · The updater endpoint names the repository releases are published from · maintainer's decision
+
+Decision (maintainer): the URL built into 1.0.0 — `tauri.conf.json` `plugins.updater.endpoints`, and
+`Cargo.toml` `repository` — is `https://github.com/egeselbzgyk/openconvert`, the repository the
+release workflow publishes from. It named `github.com/openconvert/openconvert`, an organisation that
+does not exist, so an installed 1.0.0 would never have found 1.0.1. Should the repository move to an
+organisation later, GitHub redirects the old release URLs, so 1.0.0 installs keep updating.
+The eval harness's download User-Agent and the updater tests name the same repository.
+Unchanged on purpose: `corpus/manifest.json` (its `url` fields are provenance records of the
+fixtures) and `IMPLEMENTATION_PLAN.md` (the plan as written).
+Affects: `Cargo.toml`, `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/src/updater.rs`,
+`crates/oc-net/tests/updater.rs`, `eval/src/oc_eval/corpus/download.py`.

@@ -1921,11 +1921,9 @@ so `STATUS` stays `IN_PROGRESS`; most need a maintainer, a machine this one is n
    signed manifest yet, no attached SBOM or published hashes, `--no-ai` byte identity over the fast corpus
    on Linux + Windows unverified (`ci.yml`'s one-fixture `epub-bytes` is green on three OSes).
    **Needs the maintainer before tagging:** the secrets `TAURI_SIGNING_PRIVATE_KEY` /
-   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; and the updater endpoint (`tauri.conf.json`
-   `plugins.updater.endpoints`, and `Cargo.toml` `repository`) names `github.com/openconvert/openconvert`
-   while `origin` is `github.com/egeselbzgyk/openconvert` and `release.yml` publishes there — compiled
-   into 1.0.0, it decides whether a 1.0.0 install ever finds 1.0.1. Not changed here: which URL is the
-   project's is the maintainer's call.
+   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The updater endpoint is settled (maintainer, 2026-09-23):
+   `tauri.conf.json` `plugins.updater.endpoints` and `Cargo.toml` `repository` name
+   `github.com/egeselbzgyk/openconvert`, where `release.yml` publishes.
 7. ~~**Installer budget**~~ **Resolved (maintainer, 2026-09-23):** the AppImage's budget is 120 MB
    (`release.max_linux_installer_bytes`); 112 953 848 bytes fits.
 8. **CI** — GitHub Actions now runs `ci.yml` on pushes to `main` (run #44 green on ubuntu/macOS/Windows);
