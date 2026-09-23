@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! Developer tasks (`cargo run -p xtask -- <task>`).
 //!
 //! Everything here is build- and test-time tooling. Nothing in `xtask` ships.

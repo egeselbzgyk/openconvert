@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! A minimal engine for the sidecar teardown tests (PHASE 9 rows 9.9 and 9.10).
 //!
 //! It does what the real engine does before it asks a model anything — pick a loopback port, start

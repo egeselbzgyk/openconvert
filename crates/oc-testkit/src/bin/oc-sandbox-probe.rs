@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! The Landlock probe (PHASE 14 rows 14.10 and 14.12).
 //!
 //! `oc-sandbox-probe [--read P]… [--rw P]… [--connect-port N]… -- <action>…`, where an action is

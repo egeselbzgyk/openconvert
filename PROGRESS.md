@@ -107,7 +107,7 @@ items, in order, with the plan's test rows against each:
 - [x] **P14.11** crash corpus: `oc-eval mutate`, `corpus/fixtures/crash/`, Isartor fetch — rows 14.16–14.18 *(14.16 unverified here: no Isartor pins)*
 - [x] **P14.12** `fuzz/`: three targets, seeded corpora — rows 14.13–14.15 *(120 s each here, 0 crashes; nightly 15 min unverified here)*
 - [x] **P14.13** `unshare -n` over the AI cassette path — row 14.20 *(run here under `unshare -n`; the CI job itself unverified here)*
-- [ ] **P14.14** `unsafe` confined to declared modules — row 14.22
+- [x] **P14.14** `unsafe` confined to declared modules — row 14.22
 - [ ] **P14.15** `--isolate-parser` spike, go/no-go — row 14.23
 - [ ] **P14.16** `docs/SECURITY_TESTING.md`, Definition of Done, CHANGELOG, merge
 

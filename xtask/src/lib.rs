@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! Developer tasks, as a library so the binary and the integration tests share one
 //! implementation of every rule.
 //!

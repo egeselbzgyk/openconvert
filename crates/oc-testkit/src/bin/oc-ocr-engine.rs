@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! A minimal engine for the OCR teardown test (PHASE 13 row 13.19).
 //!
 //! It starts one OCR call through `oc_core::ocr::invoke`, exactly as the pipeline does, against the
