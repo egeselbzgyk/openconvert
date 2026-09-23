@@ -23,7 +23,7 @@ release.
 - **Reads scanned pages** with the Tesseract OCR engine when your system has it installed (English,
   German and Turkish tested), and scanned regions of otherwise digital pages too.
 - **Optional AI assistance, off by default.** With a small local model you choose to download (Qwen3
-  1.7B by default, about 1.1 GB), or Ollama, or an OpenAI-compatible server you run, the converter can
+  1.7B by default), or Ollama, or an OpenAI-compatible server you run, the converter can
   ask four narrow questions per book — title and author, heading levels, front and back matter, verse
   or quotation — and every answer is checked before it is used. Nothing is sent off your computer unless
   you point it at a server elsewhere and consent to that host.
@@ -40,12 +40,48 @@ release.
 
 ### Security
 
-<!-- Phase 14 fills this in; the release job refuses these notes while the placeholder below is here. -->
+The threat OpenConvert defends against is a hostile PDF. What this release does about it, each
+claim with where it is tested (`docs/SECURITY_TESTING.md` has the full map):
 
-TODO_PHASE14_SECURITY_CLAIMS — replace this paragraph with the security properties Phase 14 delivered,
-one line each, each naming the test or CI job that proves it (for example: the resource caps enforced
-before the operation they bound; Landlock on Linux; the engine's process isolation; the fuzzed
-parsers; the network audit log). Keep the wording to what is proven.
+- **Every resource limit is checked before the work it bounds**, from what the file declares:
+  image size (100 megapixels) before any decoding, decompressed stream size (256 MiB, one budget for a
+  whole filter chain), the cross-reference chain's depth and cycles and the page count (3 000) before
+  PDFium opens the file, the text on a page (1 000 000 glyph bytes) before the page loads, and a
+  deadline on every stage (300 s). A limit ends the conversion with exit code 1 and a report, and never
+  leaves a file at the output path. *(SECURITY_TESTING §1; the `hardening` suite injects 1 000
+  violations across every limit.)*
+- **Memory:** on Linux the converter caps its own address space (4 GiB by default, `--max-memory`)
+  before the PDF opens, and the report records it. *(row 14.7)*
+- **Linux sandbox:** on Linux 5.13 and later the converter confines itself with Landlock before it
+  reads the PDF — it can read its input, the models and the system's program directories, write only
+  the output and temporary directories, and (on kernels with Landlock network rules) connect only to
+  the local AI server it started. *(rows 14.10, 14.12; verified on Linux 6.18)*
+- **Child processes:** on Linux, `llama-server` and `tesseract` started by the converter end with it,
+  even if the converter is killed. *(`ocr_child_does_not_outlive_a_sigkilled_engine`,
+  `owned_server_does_not_outlive_a_sigkilled_engine`)*
+- **No network on the conversion path:** the converter's core has no code that can open a socket
+  (enforced by `cargo deny` and a dependency test), conversions — including AI assistance replayed from
+  recordings — pass inside an empty network namespace, and every connection the app or the converter
+  does make is recorded in a log you can read in Settings › Network log; a conversion without AI
+  records none. *(rows 14.20, 14.21)*
+- **The parsers OpenConvert writes** (the document model, the job file, the EPUB builder) are fuzzed,
+  and damaged PDFs made to break parsers — cyclic cross-references, truncated streams, nested object
+  streams, looping page trees; 29 today — are permanent regression tests: each must end with exit 0 or
+  1, a report and no partial output. *(rows 14.13–14.15, 14.17)*
+- **Updates** are signed with the project's Ed25519 key and installed only after the signature over
+  the downloaded file has been verified; a check happens only when you ask. *(rows 15.9, 15.10)*
+
+**Known gaps in this release, stated rather than hidden:**
+
+- **Windows has no memory cap** (the job object ends the converter's children with it, but does not
+  limit memory), and the Windows and macOS containment has not been verified on those systems.
+- **No sandbox below Linux 5.13, and none on macOS or Windows.** On an older kernel, or with
+  `OC_LANDLOCK=off`, the conversion runs unconfined and the report says so.
+- **The desktop app's own children** — the converters it runs and its model server — are ended when
+  the app quits or crashes, but not yet guaranteed to end if the app itself is killed outright.
+- The fuzzing campaigns ran for two minutes per target (no crashes), not yet continuously, and the
+  public Isartor test suite has not been run against this release.
+- The Windows installers are not code-signed (below).
 
 ### Installing and verifying
 

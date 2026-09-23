@@ -181,6 +181,10 @@ Work items, in order, with the plan's test rows against each:
       (602 crates, 354 texts — `landlock` joined); the version baseline re-recorded (`--record none`,
       unchanged: Phase 14 moved no IR or protocol digest); the report snapshot counts 229 thresholds
       (Phase 14's `limits.max_object_nesting`… plus Phase 15's two)
+- [x] **P15.19** (after the merge) the 1.0.0 release notes' Security section: only what Phase 14
+      verified, each claim with its row, and the gaps (no Windows memory cap, no sandbox below Linux
+      5.13 or on macOS/Windows, the desktop app's children if the app is killed, fuzzing not
+      continuous, Isartor not run, Windows unsigned); `release changelog --version v1.0.0` passes
 - [x] **P15.16** row 15.19's scripted half: `packaging/smoke/fresh-install.{sh,ps1}` (hash check,
       install, `--smoke-convert`, EPUB check), referenced by RELEASE_CHECKLIST.md —
       `fresh_install_script_checks_the_hash_and_the_epub` (Linux, stand-in AppImage); the `.ps1` and

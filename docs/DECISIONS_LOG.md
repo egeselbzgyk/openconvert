@@ -5460,3 +5460,18 @@ server: three lines, `update`, `ok` / `HTTP 302` / `ok` with the payload's size)
 an `update` line as "Update check".
 Affects: `crates/oc-net/src/{audit,download}.rs`, `crates/oc-net/tests/{updater.rs,common/mod.rs}`,
 `apps/desktop/src-tauri/src/main.rs`, `apps/desktop/ui/locales/*.json`, the settings UI test.
+
+## 2026-09-23 · The 1.0.0 security claims: what Phase 14 proved, and the gaps · Phase 15 (part B, P15.19)
+Context: the `## [1.0.0]` draft held `TODO_PHASE14_SECURITY_CLAIMS` until Phase 14 merged.
+Decision: the Security section claims only what Phase 14 verified on Linux 6.18 (its CHANGELOG entry,
+`docs/SECURITY_TESTING.md`, its Definition of Done), each claim naming its row: caps before the work
+(exit 1, report, no output), `RLIMIT_AS` on Linux, Landlock on Linux ≥ 5.13, children ending with a
+killed converter on Linux, no socket on the conversion path with the audit log, fuzzing and the mutated
+crash corpus, signed updates. It then states the gaps in plain words: no Windows memory cap (P14-b) and
+Windows/macOS containment unverified; no sandbox below 5.13 or on macOS/Windows, and `OC_LANDLOCK=off`
+(P14-c); the desktop app's own children not guaranteed to end if the app is killed outright (Phase 14
+notes: the app does not use the PDEATHSIG trampoline); fuzzing two minutes per target, not continuous;
+Isartor not run (P14-a); Windows installers unsigned. `xtask release changelog --version v1.0.0` now
+extracts the notes (87 lines) without refusing.
+Evidence: `release_notes_come_from_the_changelog_and_refuse_a_placeholder`; the command above.
+Affects: `docs/CHANGELOG.md`.
