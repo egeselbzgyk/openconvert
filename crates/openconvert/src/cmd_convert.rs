@@ -111,8 +111,11 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
         &T,
     );
     // The engine-owned server, if any, is not needed past the conversion: stop it now rather
-    // than at exit (D8's idle-kill, reached at once).
+    // than at exit (D8's idle-kill, reached at once). What the report says about the provider —
+    // which adapter, and the consent it needed — outlives it.
     let _ = context;
+    let provider_kind = opened.as_ref().map(|opened| opened.kind);
+    let consent = opened.as_ref().and_then(|opened| opened.consent.clone());
     drop(opened);
     let mut conversion = match converted {
         Ok(conversion) => conversion,
@@ -175,6 +178,8 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
             producer_family: conversion.producer_family,
             pages: page_count(&conversion),
             page_classes: conversion.page_classes.clone(),
+            provider: provider_kind,
+            consent: consent.as_ref(),
         },
     );
     match openconvert::report::to_json(&report) {

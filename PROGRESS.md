@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 11
-CURRENT_ITEM: P11.7 — consent in the report; a failing provider degrades (rows 11.7, 11.9).
-              Phase 11 is on `phase/11-byo-providers`; P11.1–P11.6 are done. Phase 7.5 is still parked.
+CURRENT_ITEM: P11.8 — `openconvert provider detect|check|probe` (Phase 12's settings page).
+              Phase 11 is on `phase/11-byo-providers`; P11.1–P11.7 are done. Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -174,7 +174,7 @@ What a fresh session needs:
 ## Current work item
 
 **Phase 11 — BYO providers**, on `phase/11-byo-providers` (worktree `/home/user/wt/phase10`).
-Next: **P11.7**.
+Next: **P11.8**.
 
 ## Phase 11 — built on `phase/11-byo-providers`
 
@@ -190,7 +190,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P11.5** the Phase-8 cassettes through every adapter — row 11.10
 - [x] **P11.6** `openconvert`: provider resolution, `--llm-provider`/`--llm-model`/`--llm-allow-host`,
       `E_CONSENT_REQUIRED` — rows 11.5, 11.8
-- [ ] **P11.7** consent in the report; a failing provider degrades — rows 11.7, 11.9
+- [x] **P11.7** consent in the report; a failing provider degrades — rows 11.7, 11.9
 - [ ] **P11.8** `openconvert provider detect|check|probe` (what Phase 12's settings page calls)
 - [ ] **P11.9** the Definition of Done, CHANGELOG, merge
 
@@ -221,6 +221,9 @@ What a fresh session needs:
   `Connector` (tests use an in-process one); `Opened { provider, server, kind, consent }`. The
   probe picks the adapter; a model is never guessed. `openconvert/tests/common/endpoint.rs` is a
   loopback model server for binary tests.
+- **The report**: top-level `consent {host, granted_at, scope}` only when a remote endpoint was
+  opened under consent; `ai.provider` names the adapter. `ReportInput` gained `provider` and
+  `consent`. `report__report_f07.snap` moved only in its threshold count (205 → 209).
 - Build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0`. **Disk is tight** (~5 GB free while
   three worktrees build).
 
@@ -1529,3 +1532,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P11.3     oc-ai: Ollama through /api/chat, num_ctx always set, format schema (11.2, 11.3 + 1)  e50805a
 2026-09-23  P11.4     oc-net: detect Ollama on localhost:11434; probe what an endpoint is (11.1 + 3)  e7f7945
 2026-09-23  P11.5     oc-ai: the cassette contract through every adapter (11.10)  933dd2b
+2026-09-23  P11.6     openconvert: providers by probe, consent by name, E_CONSENT_REQUIRED (11.5, 11.8 + 5)  525fc0e

@@ -520,3 +520,187 @@ fn provider_flags_need_ai_and_a_known_provider() {
         assert_eq!(output.status.code(), Some(2), "{extra:?}");
     }
 }
+
+/// Row 11.7. With consent, the report says that text left the machine: the host, when consent was
+/// given, and for how long — and a conversion that needed no consent has no such section.
+#[test]
+fn consent_is_recorded_in_report() {
+    use oc_ai::session::{Clock, SystemClock};
+    use openconvert::ai::AiContext;
+    use openconvert::report::{report, to_json, ReportInput};
+
+    let network = Fake::serving(&[("/props", LLAMA_PROPS)]);
+    let opened = open_with(
+        &AiArgs {
+            allow_host: Some("books.example.org".to_owned()),
+            all_tasks: true,
+            ..args("https://books.example.org/v1")
+        },
+        REGISTRY,
+        &T,
+        &network,
+    )
+    .expect("consent was given");
+    let record = opened.consent.clone().expect("a consent record");
+
+    let backend = oc_pdf::pdfium::PdfiumBackend::bind().expect("PDFium");
+    let bytes = std::fs::read(common::fixture("f07_verse_and_quote")).expect("the fixture");
+    let clock = SystemClock::new();
+    let context = AiContext {
+        provider: opened.provider.as_ref(),
+        cache: None,
+        clock: &clock,
+        started_ms: clock.now_ms(),
+        all_tasks: true,
+    };
+    let options = openconvert::convert::ConvertOptions {
+        filename: "f07_verse_and_quote.pdf".to_owned(),
+        language: Some(oc_model::lang::LangTag::new("en")),
+        preset: oc_model::document::PresetName::Auto,
+        epub: common::epub_options(),
+    };
+    let conversion = openconvert::convert::convert_bytes_with_ai(
+        &backend,
+        &bytes,
+        None,
+        &options,
+        Some(&context),
+        &T,
+    )
+    .expect("converted");
+    assert!(
+        network
+            .asked
+            .lock()
+            .expect("not poisoned")
+            .iter()
+            .any(|asked| asked.starts_with("POST")),
+        "a question went to the consented host"
+    );
+
+    let written = |consent: Option<&ConsentRecord>| -> serde_json::Value {
+        let report = report(
+            &conversion,
+            ReportInput {
+                filename: &options.filename,
+                pdfium_version: "test",
+                producer_family: conversion.producer_family,
+                pages: 1,
+                page_classes: conversion.page_classes.clone(),
+                provider: Some(opened.kind),
+                consent,
+            },
+        );
+        serde_json::from_str(&to_json(&report).expect("serialises")).expect("JSON")
+    };
+
+    let json = written(Some(&record));
+    assert_eq!(json["consent"]["host"], "books.example.org");
+    assert_eq!(json["consent"]["granted_at"], record.granted_at_rfc3339());
+    assert_eq!(json["consent"]["scope"], "run");
+    assert!(json["consent"]["granted_at"]
+        .as_str()
+        .is_some_and(|stamp| stamp.ends_with('Z') && stamp.contains('T')));
+    assert_eq!(json["ai"]["provider"], "local_sidecar");
+
+    let json = written(None);
+    assert!(json.get("consent").is_none(), "no consent, no section");
+}
+
+/// Row 11.9 and A11.4. An endpoint that answers its probe and then fails every question — a 500 —
+/// and one that answers nothing at all: each book is the deterministic book byte for byte, exit 0,
+/// and the report says why the model did not help. For every adapter.
+#[test]
+fn provider_failure_degrades_to_deterministic() {
+    let scratch = Scratch::new("degrade");
+    let convert = |name: &str, extra: &[&str]| {
+        Command::new(binary())
+            .arg("convert")
+            .arg(common::fixture("f07_verse_and_quote"))
+            .arg("-o")
+            .arg(scratch.join(&format!("{name}.epub")))
+            .args(["--modified", "2026-01-01T00:00:00Z", "--lang", "en"])
+            .args(extra)
+            .env("XDG_DATA_HOME", scratch.join("data"))
+            .output()
+            .expect("the binary runs")
+    };
+    let plain = convert("plain", &["--no-ai"]);
+    assert!(plain.status.success());
+    let deterministic = std::fs::read(scratch.join("plain.epub")).expect("the book");
+
+    let failing = [
+        (
+            "llama",
+            Endpoint::start(&[
+                ("GET", "/props", 200, LLAMA_PROPS),
+                ("POST", "/v1/chat/completions", 500, r#"{"error":"boom"}"#),
+            ]),
+            &[][..],
+            "the endpoint refused the request",
+        ),
+        (
+            "ollama",
+            Endpoint::start(&[
+                (
+                    "GET",
+                    "/api/tags",
+                    200,
+                    r#"{"models":[{"name":"qwen3:1.7b"}]}"#,
+                ),
+                ("POST", "/api/chat", 500, r#"{"error":"boom"}"#),
+            ]),
+            &[][..],
+            "the endpoint refused the request",
+        ),
+        (
+            "generic",
+            Endpoint::start(&[
+                (
+                    "GET",
+                    "/v1/models",
+                    200,
+                    r#"{"data":[{"id":"some-model"}]}"#,
+                ),
+                ("POST", "/v1/chat/completions", 500, r#"{"error":"boom"}"#),
+            ]),
+            &[][..],
+            "the endpoint refused the request",
+        ),
+        (
+            "silent",
+            Endpoint::start(&[]),
+            &["--llm-provider", "builtin"][..],
+            "the endpoint did not answer the capability probe",
+        ),
+    ];
+    for (name, endpoint, extra, reason) in &failing {
+        let url = endpoint.url();
+        let mut flags = vec!["--ai", "--ai-all-tasks", "--llm-endpoint", url.as_str()];
+        flags.extend_from_slice(extra);
+        let output = convert(name, &flags);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            std::fs::read(scratch.join(&format!("{name}.epub"))).expect("the book"),
+            deterministic,
+            "{name}: the deterministic book"
+        );
+        let report: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(scratch.join(&format!("{name}.epub.report.json")))
+                .expect("the report"),
+        )
+        .expect("JSON");
+        let banner = report["warnings"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|warning| warning["code"] == "W_LLM_UNAVAILABLE")
+            .unwrap_or_else(|| panic!("{name}: no W_LLM_UNAVAILABLE"));
+        assert_eq!(banner["args"]["reason"], *reason, "{name}");
+    }
+}

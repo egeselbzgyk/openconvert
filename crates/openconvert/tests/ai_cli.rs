@@ -171,6 +171,7 @@ fn ai_default_is_off() {
 
     let report = report(&scratch.join("default.report.json"));
     assert!(report.get("ai").is_none(), "no ai section with AI off");
+    assert!(report.get("consent").is_none(), "nothing left the machine");
     assert!(report["engine"]["prompt_version"].is_null());
     assert!(report["decisions"]
         .as_array()

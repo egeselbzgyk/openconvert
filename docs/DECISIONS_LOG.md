@@ -4153,3 +4153,23 @@ Decisions:
 Evidence: `crates/openconvert/tests/providers.rs` (rows 11.5, 11.8 and four more),
 `ai_endpoint::the_job_specs_consent_names_the_endpoints_own_host`.
 Affects: IMPLEMENTATION_PLAN §2.1/§2.2, D10, `openconvert::{ai_endpoint, cli, cmd_convert}`, Phase 12.
+
+## 2026-09-23 · What the report says about a provider · Phase 11
+Context: PHASE 11 detail 4 — "the granted consent, the host, and the timestamp are recorded in the
+conversion report"; detail 5 and A11.4 — a failing provider is a deterministic book, exit 0, and a
+recorded warning.
+Decisions:
+1. **A top-level `consent: {host, granted_at, scope}`**, present only when an endpoint off this
+   machine was opened under consent (`granted_at` RFC 3339 UTC to the second, `scope: "run"`). Not
+   inside `ai`: it is a fact about the run's privacy, not about the model's work, and a reader
+   looking for "did text leave?" should not have to know where AI details live.
+2. **`ai.provider`** names the adapter (`local_sidecar`, `ollama`, `openai_compatible`).
+3. **A consent whose endpoint then failed its probe is not recorded**: nothing was opened, and the
+   probe's `GET`s carry no document text. A consent whose endpoint was opened is recorded even if
+   every question then failed — the question itself carried the text.
+4. **Failure is the Phase 10 path, unchanged**: a probe that nothing answers is `W_LLM_UNAVAILABLE`
+   ("the endpoint did not answer the capability probe"); a 500 on a question stops the session and
+   is `W_LLM_UNAVAILABLE` ("the endpoint refused the request"); the book is the `--no-ai` book byte
+   for byte, exit 0 — for the `llama-server`, Ollama and generic adapters alike.
+Evidence: `crates/openconvert/tests/providers.rs` (rows 11.7, 11.9).
+Affects: PIPELINE §13 (report), D10, `openconvert::report` (`ReportInput.{provider, consent}`).
