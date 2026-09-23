@@ -28,11 +28,11 @@ CI job that enables that feature is named here (`IMPLEMENTATION_PLAN.md` §0.2).
 | `tier1-parity` | `xtask epubcheck-parity --check` over EPUBCheck's own corpus — row 5.18 | now |
 | `epub-bytes` + `epub_is_byte_identical_across_os` | each OS converts `f07` with `--modified` pinned; a fourth job asserts the three sha256s agree — row 5.5, A5.3 | now |
 | `dom-checks` | Playwright DOM assertions (Chromium) | **Phase 6** |
-| `no-network` → `assert-no-net-deps` | `xtask assert-no-net-deps` (one step, not a job) | **Phase 14** |
+| `no-network` → AI path | `binary(ai_pipeline) or binary(ai)` under `unshare -n` with `OC_EXPECT_NO_NETWORK=1` — row 14.20; the `cargo tree` fact is the step `assert oc-core cannot reach a socket crate` (row 9.7), not an xtask | now (Phase 14) |
 
-**The last three are `if: false`**, because the commands they call do not exist yet. A job that
-reports red for a reason unrelated to the code under review teaches everyone to ignore the colour,
-which is worse than an absent job; the comment above each one names the phase that turns it on.
+**Rows marked with a phase were `if: false`** until that phase, because the commands they called did
+not exist yet. A job that reports red for a reason unrelated to the code under review teaches
+everyone to ignore the colour, which is worse than an absent job; the comment above each one names the phase that turns it on.
 Until Phase 14, the socket ban is enforced by `deny.toml`'s `wrappers` rule inside `deny`, which is
 a build-time property rather than a weaker check.
 
@@ -44,8 +44,8 @@ Linux, in `desktop`. `cargo fmt --all` and `cargo deny` still cover the crate. S
 `docs/DECISIONS_LOG.md`, 2026-09-13.
 
 `.github/workflows/nightly.yml` declares `full-corpus`, `webkit-dom`, `mutation-testing`,
-`proptest-deep` (`PROPTEST_CASES=4096`), `bench`, `live-llm-cassette-refresh`, `ace-a11y`; each body is
-replaced by the phase that owns it.
+`proptest-deep` (`PROPTEST_CASES=4096`), `bench`, `live-llm-cassette-refresh`, `ace-a11y`, and (Phase 14)
+`isartor` and `fuzz`; each body is replaced by the phase that owns it.
 
 ## Phase 0
 
@@ -592,3 +592,70 @@ back on.
 | 13.26d | `tesseract::tests::every_call_caps_openmp_at_one_thread` | `oc-core` | unit | `test` | green |
 | 13.26e | `ocr_tesseract::mixed_page_with_system_tesseract_reads_only_the_plate` | `openconvert` (feature `tesseract`) | fixture (f11, real Tesseract) — A13.3 | `ocr` | green |
 | 13.26f | `ocr_e2e::an_old_tesseract_converts_as_if_none_existed` | `openconvert` | binary (a fake 4.1.1, Unix) — A13.7 | `test` | green |
+
+## Phase 14 — Security hardening
+
+All rows run in `test` on Linux here. The Landlock rows decide "should enforce" from the kernel
+release (≥ 5.13; this machine is 6.18, ABI 7) and assert the recorded skip below it. Windows and
+macOS are type-checked only: the job object, the memory cap (none on Windows yet, provisional) and
+the orphan tests are unverified on those systems. The fuzz properties run in the ordinary suite over
+`fuzz/corpus/`; the 15-minute `cargo fuzz` campaigns are the nightly `fuzz` job. `isartor` is a cargo
+feature of `openconvert`, turned on only by the nightly `isartor` job.
+
+| # | Test | Crate | Kind | Job | Status |
+|---|---|---|---|---|---|
+| 14.1 | `limits::image_pixel_cap_checked_before_decode` | `oc-pdf` | unit (spy decoder never entered) | `test` | green |
+| 14.2 | `limits::bounded_inflate_stops_at_ceiling` | `oc-pdf` | unit | `test` | green |
+| 14.3 | `limits::declared_length_is_not_trusted` | `oc-pdf` | unit | `test` | green |
+| 14.3a | `filters::every_filter_decodes_its_known_vector` | `oc-pdf` | unit — detail 2's filters | `test` | green |
+| 14.3b | `filters::a_filter_chain_shares_one_budget` | `oc-pdf` | unit | `test` | green |
+| 14.3c | `filters::our_filter_chain_agrees_with_lopdf_on_every_fixture` | `oc-pdf` | fixture (differential) | `test` | green |
+| 14.4 | `prescan::xref_chain_depth_is_capped` | `oc-pdf` | unit | `test` | green |
+| 14.5 | `prescan::xref_cycle_terminates_via_visited_set` | `oc-pdf` | unit | `test` | green |
+| 14.6 | `prescan::page_cap_checked_before_first_page_load` | `oc-pdf` | unit | `test` | green |
+| 14.6a | `prescan::every_fixture_walks_and_agrees_with_pdfium_on_its_page_count` | `oc-pdf` | fixture (differential) | `test` | green |
+| 14.6b | `hardening::a_declared_5000_page_pdf_exits_1_with_a_report` | `openconvert` | binary — 14.6's exit 1 | `test` | green |
+| 14.7 | `hardening::memory_cap_is_applied_before_the_pdf_opens` | `openconvert` | binary (Unix; Windows has no memory cap yet, provisional) | `test` | green (Linux) |
+| 14.7a | `sandbox::rlimit::the_memory_cap_limits_the_address_space` | `oc-core` | unit | `test` | green |
+| 14.7b | `sandbox::byte_counts_parse_with_binary_units_only` | `openconvert` | unit — `--max-memory` | `test` | green |
+| 14.8 | `deadline::deadline_and_cancel_share_one_abort_path` | `oc-core` | unit (clock-injected) | `test` | green |
+| 14.8a | `deadline::a_dropped_deadline_never_fires` | `oc-core` | unit (clock-injected) | `test` | green |
+| 14.8b | `hardening::a_stage_deadline_aborts_through_the_cancel_path` | `openconvert` | binary | `test` | green |
+| 14.9 | `hardening::degenerate_40m_glyph_pdf_fails_cleanly` | `openconvert` | binary — A14.3, SECURITY §4 | `test` | green |
+| 14.9a | `glyph_budget::text_operators_count_their_string_bytes` | `oc-pdf` | unit | `test` | green |
+| 14.9b | `glyph_budget::every_committed_fixture_is_far_under_the_page_cap` | `oc-pdf` | fixture | `test` | green |
+| 14.10 | `sandbox::landlock_applies_on_supported_kernel` | `oc-testkit` | integration (`oc-sandbox-probe`, Linux ≥ 5.13) — A14.4 | `test` | green |
+| 14.10a | `hardening::a_normal_conversion_succeeds_inside_landlock` | `openconvert` | binary — the over-restriction half of 14.10 | `test` | green |
+| 14.10b | `sandbox::a_scope_reads_the_input_and_writes_beside_the_output` | `openconvert` | unit | `test` | green |
+| 14.11 | `hardening::landlock_skips_gracefully_when_unsupported` | `openconvert` | binary (`OC_LANDLOCK=off`) — A14.5 | `test` | green |
+| 14.12 | `sandbox::landlock_blocks_tcp_connect_on_abi4` | `oc-testkit` | integration (`oc-sandbox-probe`) | `test` | green |
+| 14.13 | `fuzz_props::fuzz_ir_deserialize_no_panic` | `oc-testkit` | property over `fuzz/corpus/`; target `ir_deserialize` | `test`, nightly `fuzz` | green; nightly unverified here |
+| 14.14 | `fuzz_props::fuzz_job_spec_accepts_only_absolute_paths` | `oc-testkit` | property over `fuzz/corpus/`; target `job_spec` | `test`, nightly `fuzz` | green; nightly unverified here |
+| 14.14a | `jobspec::tests::every_path_in_an_accepted_spec_is_absolute_and_never_climbs` | `oc-core` | unit — the hole 14.14 found | `test` | green |
+| 14.15 | `fuzz_props::fuzz_xhtml_opf_roundtrip_fires_no_repair` | `oc-testkit` | property over `fuzz/corpus/`; target `xhtml_opf_roundtrip` | `test`, nightly `fuzz` | green; nightly unverified here |
+| 14.15a | `test_ci_workflows::test_the_fuzz_job_runs_every_target_for_fifteen_minutes` | `eval` | CI-gate (workflow text) | `python` | green |
+| 14.16 | `crash_corpus::isartor_corpus_terminates_cleanly` | `openconvert` (feature `isartor`) | integration — A14.6 | nightly `isartor` | **unverified here**: `xtask/isartor.lock` is not pinned |
+| 14.16a | `test_ci_workflows::test_the_isartor_job_fetches_the_pinned_suite_and_turns_the_test_on` | `eval` | CI-gate (workflow text) | `python` | green |
+| 14.16b | `fetch_isartor::an_unpinned_lock_refuses_before_fetching` | `xtask` | unit | `test` | green |
+| 14.16c | `fetch_isartor::a_lock_path_cannot_escape_the_target` | `xtask` | unit | `test` | green |
+| 14.17 | `crash_corpus::mutated_crash_corpus_terminates_cleanly` | `openconvert` | integration (29 files) — A14.6 | `test` | green |
+| 14.18 | `crash_corpus::crash_fixtures_are_manifest_keyed` | `openconvert` | CI-gate | `test` | green |
+| 14.18a | `test_crash_corpus::test_the_committed_crash_corpus_regenerates_byte_identically` | `eval` | CI-gate | `python` | green |
+| 14.18b | `test_crash_corpus::test_the_manifest_keys_files_by_name_and_sha256_in_order` | `eval` | unit | `python` | green |
+| 14.18c | `test_crash_corpus::test_every_generator_contributes_and_names_are_unique` | `eval` | unit | `python` | green |
+| 14.19 | `hardening::no_partial_output_after_any_cap_violation` | `openconvert` | property (1 000 injected violations) | `test` | green |
+| 14.19a | `hardening::a_gigapixel_claim_is_refused_from_the_dictionary` | `openconvert` | binary — A14.1 | `test` | green |
+| 14.19b | `hardening::a_decompression_bomb_fails_closed_through_convert` | `openconvert` | binary — A14.2 | `test` | green |
+| 14.20 | `ai_pipeline::unshare_n_covers_the_ai_cassette_path` | `openconvert` | CI-gate (`OC_EXPECT_NO_NETWORK=1` proves the namespace empty) — A14.7 | `no-network` | green here under `unshare -n`; the job unverified here |
+| 14.20a | `test_ci_workflows::test_the_no_network_job_covers_the_ai_path` | `eval` | CI-gate (workflow text) | `python` | green |
+| 14.21 | `audit::net_audit_log_records_downloads_and_nothing_else` | `oc-net` | integration (loopback server) | `test` | green |
+| 14.21a | `hardening::a_conversion_appends_nothing_to_the_network_audit_log` | `openconvert` | binary | `test` | green |
+| 14.21b | `audit::the_log_rotates_at_its_size` | `oc-net` | unit | `test` | green |
+| 14.21c | `audit::hosts_are_read_without_port_or_credentials` | `oc-net` | unit | `test` | green |
+| 14.21d | `netlog::tests::the_network_log_lists_the_audit_log_newest_first` | `openconvert-desktop` | unit — Settings › Network log | `desktop` | green |
+| 14.22 | `ci::unsafe_is_confined_to_declared_modules` | `xtask` | CI-gate | `test` | green |
+| 14.23 | `ci::isolate_parser_spike_overhead_is_recorded` | `xtask` | bench (spike): harness runs, output identical, verdict in `docs/DECISIONS_LOG.md` | `test` | green (NO-GO recorded) |
+| 14.24 | `ocr_invoke::ocr_child_does_not_outlive_a_sigkilled_engine` | `oc-testkit` | integration (Linux; PDEATHSIG trampoline) | `test` | green |
+| 14.24a | `sidecar::owned_server_does_not_outlive_a_sigkilled_engine` | `oc-testkit` | integration (Linux) | `test` | green |
+| 14.24b | `sidecar::orphan::a_trampoline_command_names_its_target` | `oc-core` | unit | `test` | green |
+| 14.24c | `sidecar::orphan::an_unguarded_command_is_the_program_itself` | `oc-core` | unit | `test` | green |
