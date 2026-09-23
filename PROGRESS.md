@@ -4,8 +4,8 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 11
-CURRENT_ITEM: P11.5 — the Phase-8 cassettes through every adapter (row 11.10).
-              Phase 11 is on `phase/11-byo-providers`; P11.1–P11.4 are done. Phase 7.5 is still parked.
+CURRENT_ITEM: P11.6 — `openconvert`: provider resolution, consent flag, `E_CONSENT_REQUIRED`
+              (rows 11.5, 11.8). Phase 11 is on `phase/11-byo-providers`; P11.1–P11.5 are done. Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -174,7 +174,7 @@ What a fresh session needs:
 ## Current work item
 
 **Phase 11 — BYO providers**, on `phase/11-byo-providers` (worktree `/home/user/wt/phase10`).
-Next: **P11.5**.
+Next: **P11.6**.
 
 ## Phase 11 — built on `phase/11-byo-providers`
 
@@ -187,7 +187,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P11.3** `oc-ai::provider::ollama`: native `/api/chat`, `format`, `options.num_ctx`,
       `keep_alive`, `think: false` — rows 11.2, 11.3
 - [x] **P11.4** `oc-net::detect`: `Transport::get`, `detect_ollama`, the capability probe — row 11.1
-- [ ] **P11.5** the Phase-8 cassettes through every adapter — row 11.10
+- [x] **P11.5** the Phase-8 cassettes through every adapter — row 11.10
 - [ ] **P11.6** `openconvert`: provider resolution, `--llm-provider`/`--llm-model`/`--llm-allow-host`,
       `E_CONSENT_REQUIRED` — rows 11.5, 11.8
 - [ ] **P11.7** consent in the report; a failing provider degrades — rows 11.7, 11.9
@@ -212,6 +212,9 @@ What a fresh session needs:
 - **`oc_net::detect`**: `detect_ollama` (`GET /api/tags`), `probe` (`/props` → llama-server,
   `/api/tags` → Ollama, `/v1/models` → generic, which is `ProviderCaps::neither` — PROVISIONAL),
   `api_root` strips a trailing `/v1`. `Transport::get` exists (default 404).
+- **Row 11.10** (`oc-ai/tests/contract.rs`) asks every committed cassette through five adapter
+  configurations over `tests/common/cassette_server.rs` and compares with `Replay`: re-recording
+  cassettes needs no per-adapter work.
 - Build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0`. **Disk is tight** (~5 GB free while
   three worktrees build).
 
@@ -1514,3 +1517,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P11.1     oc-net: consent names the host; HttpTransport refuses any other (11.6 + 4)  a1515b6
 2026-09-23  P11.2     oc-ai: provider adapters; an unconstrained provider warns (11.4 + 3)  ad6cea3
 2026-09-23  P11.3     oc-ai: Ollama through /api/chat, num_ctx always set, format schema (11.2, 11.3 + 1)  e50805a
+2026-09-23  P11.4     oc-net: detect Ollama on localhost:11434; probe what an endpoint is (11.1 + 3)  e7f7945
