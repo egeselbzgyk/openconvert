@@ -1,0 +1,273 @@
+{
+ "schema": "openconvert.report/1",
+ "status": "ok",
+ "engine": {
+  "version": "0.1.0",
+  "ir_version": 1,
+  "pdfium_version": "151.0.7881.0",
+  "prompt_version": null
+ },
+ "input": {
+  "sha256": "ee634a9fe84df4fcde925e1b1ace31b2954468678fabe3e41a2ab599f139e941",
+  "filename": "f03_image_only.pdf",
+  "pages": 0,
+  "producer_family": "Typst"
+ },
+ "document": {
+  "classification": "scanned",
+  "preset": "scanned",
+  "language": "und",
+  "title": "f03 image only",
+  "sections": 1,
+  "figures": 4,
+  "tables": 0,
+  "notes": 0,
+  "images_extracted": 2,
+  "authors": [],
+  "toc": []
+ },
+ "timings_ms": [
+  [
+   "ingest",
+   2
+  ],
+  [
+   "text",
+   0
+  ],
+  [
+   "furniture",
+   0
+  ],
+  [
+   "layout",
+   0
+  ],
+  [
+   "structure",
+   0
+  ],
+  [
+   "document",
+   0
+  ],
+  [
+   "epub+validate+repair",
+   5609
+  ],
+  [
+   "total",
+   5611
+  ]
+ ],
+ "conservation": {
+  "c_raw_chars": 0,
+  "c0_chars": 0,
+  "epub_chars": 0,
+  "retention": 0.0,
+  "per_stage": [
+   {
+    "stage": "text",
+    "kind": "budgeted",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.0
+   },
+   {
+    "stage": "furniture",
+    "kind": "budgeted",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.0
+   },
+   {
+    "stage": "layout",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.0
+   },
+   {
+    "stage": "structure",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.0
+   },
+   {
+    "stage": "document",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.0
+   },
+   {
+    "stage": "epub",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.0
+   },
+   {
+    "stage": "validate",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.0
+   },
+   {
+    "stage": "repair",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.0
+   }
+  ],
+  "per_reason": [],
+  "i7": {
+   "holds": true,
+   "missing_chars": 0,
+   "added_chars": 0,
+   "missing_sample": []
+  }
+ },
+ "page_classes": {
+  "image_only": 2
+ },
+ "validation": {
+  "tier1": {
+   "valid": true,
+   "checked": [
+    "ocf.mimetype",
+    "ocf.container",
+    "ocf.case_collisions",
+    "opf.parse",
+    "opf.metadata",
+    "opf.integrity",
+    "xhtml.well_formed",
+    "xhtml.properties",
+    "xhtml.no_script_no_remote",
+    "xhtml.no_entities",
+    "book.note_bijection",
+    "book.fragments",
+    "book.resources",
+    "book.alt_text",
+    "book.image_parity"
+   ],
+   "findings": []
+  },
+  "tier2_ran": false,
+  "tier3_ran": false,
+  "structural": {
+   "i7": {
+    "missing": {},
+    "extra": {},
+    "epub_chars": 0,
+    "c0_chars": 0
+   },
+   "retention": 0.0,
+   "image_parity": true,
+   "note_bijection": true,
+   "hrefs_resolve": true,
+   "heading_sanity": {
+    "h1_count": 0,
+    "level_skips": [],
+    "monotone_with_pages": null,
+    "h1_count_plausible": null
+   },
+   "duplicates": {
+    "blocks": 0,
+    "duplicates": 0,
+    "worst": []
+   },
+   "quality": {
+    "region": "document",
+    "dup_line_frac": 0.0,
+    "dup_para_frac": 0.0,
+    "top_2gram": 0.0,
+    "top_3gram": 0.0,
+    "top_4gram": 0.0,
+    "non_alpha_word_ratio": 0.0,
+    "mean_word_len": 0.0,
+    "replacement_share": 0.0,
+    "dict_hit_rate": null
+   },
+   "warnings": []
+  }
+ },
+ "repair": {
+  "status": "clean",
+  "iterations": 0,
+  "fires": {},
+  "log": [],
+  "remaining": []
+ },
+ "warnings": [
+  {
+   "code": "W_STYLE_INVENTORY_INVALID",
+   "severity": "warn",
+   "args": {
+    "body_char_share": "0.000",
+    "clusters": "0"
+   },
+   "blocks": [],
+   "page": null
+  },
+  {
+   "code": "W_NO_TEXT_EXTRACTED",
+   "severity": "warn",
+   "args": {},
+   "blocks": [],
+   "page": null
+  },
+  {
+   "code": "W_PAGE_BREAK_UNPLACED",
+   "severity": "info",
+   "args": {},
+   "blocks": [],
+   "page": {
+    "index": 0,
+    "label": null
+   }
+  },
+  {
+   "code": "W_PAGE_BREAK_UNPLACED",
+   "severity": "info",
+   "args": {},
+   "blocks": [],
+   "page": {
+    "index": 1,
+    "label": null
+   }
+  }
+ ],
+ "decisions": [
+  {
+   "stage": "document",
+   "subject": null,
+   "kind": "document_class",
+   "chosen": "scanned",
+   "alternatives": [
+    "book-prose",
+    "academic-multicolumn",
+    "slides/other"
+   ],
+   "method": "deterministic",
+   "llm": null,
+   "fallback": null
+  },
+  {
+   "stage": "document",
+   "subject": null,
+   "kind": "preset",
+   "chosen": "scanned",
+   "alternatives": [
+    "auto"
+   ],
+   "method": "deterministic",
+   "llm": null,
+   "fallback": null
+  }
+ ],
+ "thresholds": []
+}

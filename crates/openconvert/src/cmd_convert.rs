@@ -7,35 +7,119 @@
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
+use oc_core::cancel::{Cancel, Outcome};
+use oc_core::progress::StagePhase;
 
 use oc_core::events::EventSink;
 use oc_core::exit::ExitCode;
 use oc_core::thresholds::T;
 use oc_epub::EpubOptions;
 use oc_pdf::backend::PdfBackend;
+use oc_pdf::inspect::PdfOpen;
 use oc_pdf::pdfium::PdfiumBackend;
 
-use crate::cli::ConvertArgs;
+use crate::cli::{AiArgs, ConvertArgs, Progress};
 use oc_ai::session::Clock;
 use openconvert::ai_endpoint::{self, OpenError};
-use openconvert::convert::{convert_bytes_with_ai, ConvertOptions};
+use openconvert::convert::{convert_observed, ConvertError, ConvertOptions, Observe};
 
 /// The model registry the engine was built with (PHASE 9 detail 6).
 const BUNDLED_REGISTRY: &str = include_str!("../../../models.toml");
 
-const E_PDFIUM: &str = "E_PDFIUM_ABI";
+pub(crate) const E_PDFIUM: &str = "E_PDFIUM_ABI";
 const E_INPUT: &str = "E_INPUT";
+/// The job spec named an input whose bytes are not the ones it hashed.
+const E_INPUT_CHANGED: &str = "E_INPUT_CHANGED";
 const E_PDF: &str = "E_PDF";
+const E_PASSWORD: &str = "E_PASSWORD_REQUIRED";
+const E_LIMIT: &str = "E_LIMIT_EXCEEDED";
 const E_OUTPUT: &str = "E_OUTPUT";
+/// The output exists and the job did not ask for it to be replaced.
+const E_OUTPUT_EXISTS: &str = "E_OUTPUT_EXISTS";
 const E_CONVERT: &str = "E_CONVERT";
 const E_REPORT: &str = "E_REPORT";
 const E_USAGE: &str = "E_USAGE";
 
+/// The environment variable naming the directory where a run saves what `structure` settled, for
+/// a later run with the user's corrections to resume from (A12.4b).
+pub const CACHE_VAR: &str = "OC_CACHE_DIR";
+
+/// One conversion, however it was asked for: from `convert`'s flags or from a job spec.
+///
+/// The two front ends resolve to this and nothing downstream knows which one it was — which is
+/// what "one code path serves GUI, CLI, CI and benchmarks" means in practice (D13.1).
+#[derive(Clone, Debug)]
+pub struct ConvertJob {
+    pub input: PathBuf,
+    pub output: PathBuf,
+    pub report: PathBuf,
+    /// Replace an existing output. The CLI always has; a job spec says so explicitly, and the
+    /// app never does — it picks a free name instead (the design's "never overwrite" rule).
+    pub overwrite: bool,
+    /// The input's SHA-256 as the job writer saw it; a mismatch means the file changed between
+    /// the drop and the conversion.
+    pub expected_sha256: Option<String>,
+    pub preset: oc_model::document::PresetName,
+    pub language: Option<oc_model::lang::LangTag>,
+    pub password: Option<String>,
+    pub modified: Option<String>,
+    pub locale: oc_core::warnings::Locale,
+    pub limits: oc_core::limits::Limits,
+    pub job_id: Option<String>,
+    /// NDJSON events on stderr. Always true for a job spec, whose only reader is a supervisor.
+    pub json_events: bool,
+    /// The `overrides.json` the job named (ARCHITECTURE §4.7).
+    pub overrides: Option<PathBuf>,
+    /// How the model is reached, when it is (PHASE 10). `None` is `ai.enabled = false`.
+    pub ai: Option<AiArgs>,
+    /// Whether scanned content is read (PHASE 13).
+    pub ocr: oc_core::ocr::OcrMode,
+    /// An explicit `tesseract`, replacing discovery.
+    pub ocr_path: Option<PathBuf>,
+    /// Traineddata names; by default the document's language decides.
+    pub ocr_lang: Option<oc_core::ocr::lang::LangSpec>,
+    /// Whether an OCR sandwich's own layer is replaced (D13.10).
+    pub re_ocr: oc_core::ocr::ReOcr,
+}
+
+impl ConvertJob {
+    /// `convert`'s flags, resolved against the documented defaults (§2.1).
+    pub fn from_args(args: &ConvertArgs) -> Self {
+        let output = args
+            .output
+            .clone()
+            .unwrap_or_else(|| default_output(&args.input));
+        Self {
+            input: args.input.clone(),
+            report: args
+                .report
+                .clone()
+                .unwrap_or_else(|| default_report(&output)),
+            output,
+            overwrite: true,
+            expected_sha256: None,
+            preset: args.preset,
+            language: args.language.clone(),
+            password: args.password.clone(),
+            modified: args.modified.clone(),
+            locale: args.locale,
+            limits: oc_core::limits::Limits::default(),
+            job_id: None,
+            json_events: args.progress == Progress::Json,
+            overrides: args.overrides.clone(),
+            ai: args.ai.clone(),
+            ocr: args.ocr,
+            ocr_path: args.ocr_path.clone(),
+            ocr_lang: args.ocr_lang.clone(),
+            re_ocr: args.re_ocr,
+        }
+    }
+}
+
 /// Run the subcommand, returning the process exit code.
-pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode {
-    // The wall-clock share is of the whole conversion, so its clock starts here (D13.6).
-    let clock = oc_ai::session::SystemClock::new();
-    let started_ms = clock.now_ms();
+pub fn run<W: Write + Send>(args: &ConvertArgs, events: &EventSink<W>) -> ExitCode {
     let backend = match PdfiumBackend::bind() {
         Ok(backend) => backend,
         Err(error) => {
@@ -43,36 +127,167 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
             return ExitCode::Usage;
         }
     };
+    let job = ConvertJob::from_args(args);
+    hello(
+        &backend,
+        events,
+        &ocr_capabilities(job.ocr, job.ocr_path.as_deref()),
+    );
+    run_job(&job, &backend, events)
+}
 
-    let bytes = match std::fs::read(&args.input) {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            events.fatal(E_INPUT, &format!("{}: {error}", args.input.display()));
-            return ExitCode::Usage;
-        }
-    };
+/// `hello` from a freshly bound backend, or the `fatal` that says why there is none.
+///
+/// The capabilities are the ones a job spec's run would have — OCR by discovery, as `auto` finds
+/// it — so a supervisor's version handshake learns what its conversions can do.
+pub(crate) fn announce<W: Write>(events: &EventSink<W>) {
+    match PdfiumBackend::bind() {
+        Ok(backend) => hello(
+            &backend,
+            events,
+            &ocr_capabilities(oc_core::ocr::OcrMode::Auto, None),
+        ),
+        Err(error) => events.fatal(E_PDFIUM, &error.to_string()),
+    }
+}
 
-    let output = args
-        .output
-        .clone()
-        .unwrap_or_else(|| default_output(&args.input));
-
-    // Discovery runs once, before anything is read, so that `hello` can say whether this run can
-    // OCR (PHASE 13 detail 1). `--ocr never` asks nothing of the machine at all.
-    let workdir = temporary_beside(&output);
-    let ocr = ocr_options(args, &workdir);
-    let capabilities: Vec<String> = ocr
-        .engine
-        .as_ref()
-        .map(|engine| vec![engine.capability()])
-        .unwrap_or_default();
+/// The `hello` event: always the first line of a run (§2.3).
+pub(crate) fn hello<W: Write>(backend: &PdfiumBackend, events: &EventSink<W>, extra: &[String]) {
     events.hello_with(
         env!("CARGO_PKG_VERSION"),
         oc_model::IR_VERSION,
         &backend.version().version,
-        &capabilities,
+        extra,
     );
+}
 
+/// The capabilities this run discovered beyond the ones every engine has: `ocr:tesseract-5.3.4`
+/// when a usable Tesseract was found (PHASE 13 detail 1). Discovery runs once, before anything is
+/// read, so that `hello` can say it; `--ocr never` asks nothing of the machine at all.
+pub(crate) fn ocr_capabilities(mode: oc_core::ocr::OcrMode, path: Option<&Path>) -> Vec<String> {
+    if mode == oc_core::ocr::OcrMode::Never {
+        return Vec::new();
+    }
+    oc_core::ocr::discover::discover(path)
+        .map(|info| vec![info.capability()])
+        .unwrap_or_default()
+}
+
+/// How a run ended, decided before the final event is written.
+///
+/// The final line — `done` or `fatal` — is written only after the heartbeat has stopped, so that it
+/// is always the last line on the channel (§2.3). The steps therefore return this instead of
+/// writing it.
+enum Ending {
+    Done {
+        report: PathBuf,
+        output: PathBuf,
+    },
+    Cancelled,
+    Fatal {
+        code: &'static str,
+        message: String,
+        exit: ExitCode,
+    },
+}
+
+fn fatal(code: &'static str, message: String, exit: ExitCode) -> Ending {
+    Ending::Fatal {
+        code,
+        message,
+        exit,
+    }
+}
+
+/// Convert one resolved job with a bound backend. `hello` has already been sent.
+///
+/// Listens on stdin for a cancel for the whole run, and sends a heartbeat every
+/// `ipc.heartbeat_secs` until the run has decided how it ends (D13.2).
+pub(crate) fn run_job<W: Write + Send>(
+    job: &ConvertJob,
+    backend: &PdfiumBackend,
+    events: &EventSink<W>,
+) -> ExitCode {
+    let cancel = Cancel::new();
+    crate::control::listen(cancel.clone());
+    let interval = Duration::from_secs(u64::try_from(T.ipc.heartbeat_secs).unwrap_or(u64::MAX));
+
+    let ending = events.with_heartbeat(interval, || steps(job, backend, events, &cancel));
+    match ending {
+        Ending::Done { report, output } => {
+            events.done_job(
+                Outcome::Completed.status(),
+                &report.to_string_lossy(),
+                Some(&output.to_string_lossy()),
+            );
+            ExitCode::Ok
+        }
+        Ending::Cancelled => {
+            events.done(Outcome::Cancelled.status());
+            ExitCode::Cancelled
+        }
+        Ending::Fatal {
+            code,
+            message,
+            exit,
+        } => {
+            events.fatal(code, &message);
+            exit
+        }
+    }
+}
+
+/// Everything between `hello` and the final event.
+fn steps<W: Write + Send>(
+    job: &ConvertJob,
+    backend: &PdfiumBackend,
+    events: &EventSink<W>,
+    cancel: &Cancel,
+) -> Ending {
+    let args = job;
+    let bytes = match std::fs::read(&args.input) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            return fatal(
+                E_INPUT,
+                format!("{}: {error}", args.input.display()),
+                ExitCode::Usage,
+            )
+        }
+    };
+    let sha256 = openconvert::convert::sha256_hex(&bytes);
+    if let Some(expected) = &job.expected_sha256 {
+        if &sha256 != expected {
+            return fatal(
+                E_INPUT_CHANGED,
+                format!(
+                    "{} has SHA-256 {sha256}, the job spec expected {expected}",
+                    args.input.display()
+                ),
+                ExitCode::Usage,
+            );
+        }
+    }
+
+    let output = job.output.clone();
+    if !job.overwrite && output.exists() {
+        return fatal(
+            E_OUTPUT_EXISTS,
+            format!(
+                "{} exists and the job does not allow replacing it",
+                output.display()
+            ),
+            ExitCode::Usage,
+        );
+    }
+
+    // The wall-clock share is of the whole conversion, so its clock starts here (D13.6).
+    let clock = oc_ai::session::SystemClock::new();
+    let started_ms = clock.now_ms();
+
+    // OCR's rasters go to a job-private directory beside the output, deleted with the conversion
+    // whatever became of it.
+    let workdir = temporary_beside(&output);
     let options = ConvertOptions {
         filename: args
             .input
@@ -88,49 +303,78 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
             warn_total_bytes: u64::try_from(T.epub.warn_total_bytes).unwrap_or(u64::MAX),
             modified: args.modified.clone().unwrap_or_else(now_utc),
         },
-        ocr,
+        // An unreadable file reads as empty text, which the conversion refuses by name
+        // (`W_OVERRIDES_UNREADABLE`) and converts the book without: the job asked for corrections,
+        // and the report has to say they were not applied rather than the run pretend none were asked.
+        overrides: args
+            .overrides
+            .as_ref()
+            .map(|path| std::fs::read_to_string(path).unwrap_or_default()),
+        // The app names its cache directory in the environment of every engine it starts, so a
+        // "Fix and rebuild" can resume after `structure` (A12.4b). Unset, nothing is saved.
+        cache_dir: std::env::var_os(CACHE_VAR).map(PathBuf::from),
+        ocr: ocr_options(job, &workdir),
     };
 
-    // `--ai`: open the model, or learn why not. An endpoint off this machine without consent, and
-    // an endpoint the engine will not interpret, are refused before anything is sent; anything else
+    let pdf = match backend.open_with_limits(&bytes, args.password.as_deref(), &job.limits) {
+        Ok(pdf) => pdf,
+        Err(error) => {
+            let (code, exit) = open_failure(&error);
+            return fatal(code, error.to_string(), exit);
+        }
+    };
+    events.emit(
+        "job",
+        serde_json::json!({
+            "job_id": job.job_id,
+            "input_sha256": sha256,
+            "pages": pdf.page_count(),
+            "phase": "started",
+        }),
+    );
+
+    // AI: open the model, or learn why not. An endpoint off this machine without consent, and an
+    // endpoint the engine will not interpret, are refused before anything is sent; anything else
     // that stops a model answering converts the book without one, and says so.
-    let (opened, unavailable) = match &args.ai {
+    let (opened, unavailable) = match &job.ai {
         None => (None, None),
         Some(ai) => match ai_endpoint::open(ai, BUNDLED_REGISTRY, &T) {
             Ok(opened) => (Some(opened), None),
             Err(OpenError::Unavailable(reason)) => (None, Some(reason)),
             Err(refused) => {
+                let exit = refused.exit_code();
                 let (code, message) = refused
                     .fatal()
                     .unwrap_or((E_USAGE, "the model could not be opened".to_owned()));
-                events.fatal(code, &message);
-                eprintln!("error: {message}");
-                return refused.exit_code();
+                return fatal(code, message, exit);
             }
         },
     };
-    let cache = oc_ai::cache::FileCache::new(openconvert::data_dir::llm_cache());
+    let llm_cache = oc_ai::cache::FileCache::new(openconvert::data_dir::llm_cache());
     let context = opened.as_ref().map(|opened| openconvert::ai::AiContext {
         provider: opened.provider.as_ref(),
-        cache: Some(&cache),
+        cache: Some(&llm_cache),
         clock: &clock,
         started_ms,
-        all_tasks: args.ai.as_ref().is_some_and(|ai| ai.all_tasks),
+        all_tasks: job.ai.as_ref().is_some_and(|ai| ai.all_tasks),
     });
 
-    events.stage("convert", "begin");
-    let converted = convert_bytes_with_ai(
-        &backend,
-        &bytes,
-        args.password.as_deref(),
+    let progress = EventProgress::new(events);
+    let observe = Observe {
+        progress: &progress,
+        cancel,
+    };
+    let converted = convert_observed(
+        pdf.as_ref(),
+        &sha256,
         &options,
         context.as_ref(),
         &T,
+        observe,
     );
-    // The engine-owned server, if any, is not needed past the conversion: stop it now rather
-    // than at exit (D8's idle-kill, reached at once). What the report says about the provider —
-    // which adapter, and the consent it needed — outlives it.
-    let _ = context;
+    // The engine-owned server, if any, is not needed past the conversion: stop it now rather than
+    // at exit (D8's idle-kill, reached at once). What the report says about the provider — which
+    // adapter, and the consent it needed — outlives it.
     let provider_kind = opened.as_ref().map(|opened| opened.kind);
     let consent = opened.as_ref().and_then(|opened| opened.consent.clone());
     drop(opened);
@@ -139,17 +383,15 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
     let _ = std::fs::remove_dir_all(&workdir);
     let mut conversion = match converted {
         Ok(conversion) => conversion,
+        Err(ConvertError::Cancelled) => return Ending::Cancelled,
         Err(error) => {
             let code = match &error {
-                openconvert::convert::ConvertError::Pdf(_) => E_PDF,
+                ConvertError::Pdf(_) => E_PDF,
                 _ => E_CONVERT,
             };
-            events.fatal(code, &error.to_string());
-            eprintln!("error: {error}");
-            return ExitCode::Failed;
+            return fatal(code, error.to_string(), ExitCode::Failed);
         }
     };
-    events.stage("convert", "end");
 
     // AI was asked for and no model could be reached: the banner (RT D20).
     if let Some(reason) = unavailable {
@@ -184,50 +426,54 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
         events.warning(warning.code, severity_name(warning.severity), args);
     }
 
-    // The report is written **before** the atomic rename, so a report exists even for a conversion
-    // that then fails to place its output (PIPELINE §13).
-    let report_path = args
-        .report
-        .clone()
-        .unwrap_or_else(|| default_report(&output));
-    let report = openconvert::report::report(
-        &conversion,
-        openconvert::report::ReportInput {
-            filename: &options.filename,
-            pdfium_version: &backend.version().version,
-            producer_family: conversion.producer_family,
-            pages: page_count(&conversion),
-            page_classes: conversion.page_classes.clone(),
-            provider: provider_kind,
-            consent: consent.as_ref(),
-        },
-    );
-    match openconvert::report::to_json(&report) {
-        Ok(json) => {
-            if let Err(error) = std::fs::write(&report_path, json) {
-                events.fatal(E_REPORT, &format!("{}: {error}", report_path.display()));
-                eprintln!("error: {}: {error}", report_path.display());
-                return ExitCode::Failed;
-            }
-        }
-        Err(error) => {
-            events.fatal(E_REPORT, &error.to_string());
-            eprintln!("error: the report could not be serialised: {error}");
-            return ExitCode::Failed;
-        }
+    // The last boundary a cancel is honoured at: past it, the book is written and the answer is
+    // the book. Nothing has been written to the destination yet — neither the report nor the
+    // temporary — so a cancelled job leaves the directory as it found it.
+    if cancel.is_cancelled() {
+        return Ending::Cancelled;
     }
 
+    // The report is written **before** the atomic rename, so a report exists even for a conversion
+    // that then fails to place its output (PIPELINE §13).
+    let report_path = job.report.clone();
+    let written = oc_core::progress::timed(&progress, "report", || {
+        let report = openconvert::report::report(
+            &conversion,
+            openconvert::report::ReportInput {
+                filename: &options.filename,
+                pdfium_version: &backend.version().version,
+                producer_family: conversion.producer_family,
+                pages: page_count(&conversion),
+                page_classes: conversion.page_classes.clone(),
+                provider: provider_kind,
+                consent: consent.as_ref(),
+            },
+        );
+        match openconvert::report::to_json(&report) {
+            Ok(json) => std::fs::write(&report_path, json)
+                .map(|()| report)
+                .map_err(|error| format!("{}: {error}", report_path.display())),
+            Err(error) => Err(error.to_string()),
+        }
+    });
+    let report = match written {
+        Ok(report) => report,
+        Err(message) => return fatal(E_REPORT, message, ExitCode::Failed),
+    };
+
     if let Err(error) = write_atomically(&output, conversion.built.bytes.as_slice()) {
-        events.fatal(E_OUTPUT, &format!("{}: {error}", output.display()));
-        eprintln!("error: {}: {error}", output.display());
-        return ExitCode::Failed;
+        return fatal(
+            E_OUTPUT,
+            format!("{}: {error}", output.display()),
+            ExitCode::Failed,
+        );
     }
 
     // The warnings, as sentences, for a person reading a terminal. Only when stderr is *not* the
     // NDJSON channel: with `--progress json` stderr is one JSON object per line and a line of prose
     // in it would break every reader (§2.3). The GUI localises the codes itself (R10 §6.20); this
     // is the same templates serving the other front end.
-    if !matches!(args.progress, crate::cli::Progress::Json) {
+    if !job.json_events {
         for warning in &conversion.document.warnings {
             match oc_core::warnings::render(args.locale, warning.code, &warning.args) {
                 Some(text) => eprintln!("{}: {text}", severity_name(warning.severity)),
@@ -242,34 +488,98 @@ pub fn run<W: Write>(args: &ConvertArgs, events: &mut EventSink<W>) -> ExitCode 
     // too rather than reporting success (D13.7). Still exit 0: the book exists and the report is
     // where the verdict lives, and a script that treated "slightly invalid" as "no output" would
     // throw away a usable book.
-    if report.status == openconvert::report::Status::Invalid {
+    if report.status == openconvert::report::Status::Invalid && !job.json_events {
         eprintln!(
             "warning: the container is not valid: see {}",
             report_path.display()
         );
     }
 
-    events.done_with("ok", Some(&output.to_string_lossy()));
-    ExitCode::Ok
+    Ending::Done {
+        report: report_path,
+        output,
+    }
 }
 
-/// What `--ocr`, `--ocr-path`, `--ocr-lang` and `--re-ocr` ask for, with the engine discovered.
-fn ocr_options(args: &ConvertArgs, workdir: &Path) -> openconvert::ocr::OcrOptions {
+/// Progress as NDJSON: `stage` edges as they happen, `progress` coalesced (D13.2).
+///
+/// Coalescing is the sink's job and not the stages' (ARCHITECTURE §8.3): a page loop reports every
+/// page, and this lets through at most `ipc.progress_max_per_sec` per stage per second — always
+/// including a stage's last unit, so a bar that reaches the end is never left short of it.
+struct EventProgress<'a, W: Write + Send> {
+    events: &'a EventSink<W>,
+    min_gap: Duration,
+    last: std::sync::Mutex<std::collections::BTreeMap<String, Instant>>,
+}
+
+impl<'a, W: Write + Send> EventProgress<'a, W> {
+    fn new(events: &'a EventSink<W>) -> Self {
+        let per_second = u32::try_from(T.ipc.progress_max_per_sec)
+            .unwrap_or(u32::MAX)
+            .max(1);
+        Self {
+            events,
+            min_gap: Duration::from_secs(1) / per_second,
+            last: std::sync::Mutex::new(std::collections::BTreeMap::new()),
+        }
+    }
+}
+
+impl<W: Write + Send> oc_core::progress::Progress for EventProgress<'_, W> {
+    fn advance(&self, stage: &str, index: u32, total: u32) {
+        let done = index.saturating_add(1);
+        let now = Instant::now();
+        let mut last = self
+            .last
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let due = last
+            .get(stage)
+            .is_none_or(|previous| now.duration_since(*previous) >= self.min_gap);
+        if due || done >= total {
+            last.insert(stage.to_owned(), now);
+            self.events.progress(stage, done, total, "pages");
+        }
+    }
+
+    fn stage(&self, name: &str, phase: StagePhase) {
+        match phase {
+            StagePhase::Begin => self.events.stage(name, "begin"),
+            StagePhase::End { elapsed_ms } => self.events.stage_end(name, elapsed_ms),
+        }
+    }
+}
+
+/// The fatal code and exit status for a document that would not open.
+///
+/// A password and a limit are both things the user can act on — the app prompts for the one and
+/// names the other — so they get codes of their own, the same ones `inspect` and `dump-stage`
+/// use, and exit 2: nothing was attempted. Anything else is a PDF this engine cannot read.
+fn open_failure(error: &oc_pdf::error::PdfError) -> (&'static str, ExitCode) {
+    match error {
+        oc_pdf::error::PdfError::PasswordRequired => (E_PASSWORD, ExitCode::Usage),
+        oc_pdf::error::PdfError::LimitExceeded(_) => (E_LIMIT, ExitCode::Usage),
+        _ => (E_PDF, ExitCode::Failed),
+    }
+}
+
+/// What the job's OCR settings ask for, with the engine discovered (PHASE 13).
+fn ocr_options(job: &ConvertJob, workdir: &Path) -> openconvert::ocr::OcrOptions {
     use oc_core::ocr::discover::{discover, region_deadline};
     use oc_core::ocr::invoke::{OcrEngine, Tesseract};
     use oc_core::ocr::OcrMode;
 
-    if args.ocr == OcrMode::Never {
+    if job.ocr == OcrMode::Never {
         return openconvert::ocr::OcrOptions::off();
     }
-    let engine = discover(args.ocr_path.as_deref()).map(|info| {
+    let engine = discover(job.ocr_path.as_deref()).map(|info| {
         std::sync::Arc::new(Tesseract::new(info, workdir, region_deadline()))
             as std::sync::Arc<dyn OcrEngine>
     });
     let mut options = openconvert::ocr::OcrOptions::auto(engine, &T);
-    options.mode = args.ocr;
-    options.re_ocr = args.re_ocr;
-    options.langs = args.ocr_lang.clone();
+    options.mode = job.ocr;
+    options.re_ocr = job.re_ocr;
+    options.langs = job.ocr_lang.clone();
     options
 }
 

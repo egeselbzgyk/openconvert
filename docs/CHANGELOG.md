@@ -1322,3 +1322,108 @@ against a real Ollama or a real remote endpoint is unverified here. Built on
 - No network-log event: the audit log of every outbound connection is Phase 14 detail 12.
 - The desktop Provider settings page (`routes/settings/providers.svelte`) is Phase 12's to wire,
   over `openconvert provider …` and the job spec's `ai` fields.
+
+## Phase 12 — Desktop UI
+
+The shipping application: drop PDFs, watch the engine's real progress, cancel, read the result and
+the report, preview the book, fix its metadata and table of contents and rebuild in seconds, manage
+models and packs, and — opt-in, off by default — AI assistance through the app's own model server,
+Ollama or a custom endpoint the user consented to by host. EN/DE/TR throughout, keyboard and screen
+reader operable, no network permission in the webview. **`ai.enabled` stays `false` by default.**
+Verified here on Linux without a display: the Rust crate (with the real engine), Vitest, svelte-check,
+the UI lint and build, and Playwright (Chromium) under the shipped CSP. A real Tauri window on
+WebKitGTK / WKWebView / WebView2, macOS and Windows, every CI job and the signing dry run are
+unverified here. Built on `phase/12-desktop-ui`.
+
+### New CLI and job-spec behaviour (`openconvert`)
+
+- **`openconvert <JOB.json>`** — the desktop app's one argument (RT B15): validated against
+  `schemas/job-spec.v1.json` before the PDF is touched, resolved into the same job `convert` builds.
+  NDJSON always on. Its `ai` object is `convert --ai`: `endpoint` / `api_key_file` / `model_path` /
+  `model_id` → `--llm-endpoint` / `--llm-api-key-file` / `--model-path` / `--llm-model`,
+  `non_loopback_consent` → `--llm-allow-host <the endpoint's host>`. `threshold_overrides` and
+  `dump_stages` are still refused by name.
+- **`convert --overrides <PATH.json>`** and the job spec's `overrides_path` — the user's metadata and
+  TOC corrections, applied in `document` (ARCHITECTURE §4.7).
+- **`OC_CACHE_DIR`** — where a full run saves what `structure` settled; a run with corrections that
+  finds a matching save runs only `document` → `report` (A12.4b). Runs that ask a model or ran OCR
+  are neither saved nor resumed.
+- **`--version`** answers with `hello` on stderr when stderr is not a terminal: the app's startup
+  handshake (RT A5.7). `hello.capabilities` carries `ocr:tesseract-…` on every path.
+- New error codes: **`E_JOBSPEC`** (exit 2), **`E_OUTPUT_EXISTS`**, **`E_INPUT_CHANGED`**;
+  `convert` reports **`E_PASSWORD_REQUIRED`** and **`E_LIMIT_EXCEEDED`** (exit 2).
+
+### Events (§2.3)
+
+- `stage{name, phase, elapsed_ms}` for the twelve real stage names as they run; `progress{stage,
+  done, total, unit}` coalesced to `ipc.progress_max_per_sec`; `heartbeat` every `ipc.heartbeat_secs`
+  from a thread of its own; `job{job_id, input_sha256, pages, phase}`; `done{status, report_path,
+  output_path}`. `{"t":"cancel"}` on stdin ends the run with `done{cancelled}`, exit 3, nothing at
+  the destination. `EventSink` is `&self` and thread-safe.
+- Fixed: a run longer than one heartbeat period deadlocked (stderr's lock held for the whole run).
+
+### IR and report
+
+- New: `oc_model::overrides` (`Overrides`, `MetadataPatch`, `TocPatch`, `ir_version` first); the IR
+  types gain `Deserialize`. Corrections are ledgered as `UserOverride` under `document`
+  (`DOCUMENT_CORRECTED`), one `Decision{method: User}` each.
+- Report: `document.authors`, `document.toc` (block id, title, level, page), `document.images_extracted`.
+- `EscalationRecord` owns its `task` and `predicate` text (the JSON is unchanged).
+
+### New warning codes (en, de, tr)
+
+- `W_OVERRIDES_UNREADABLE`, `W_OVERRIDES_STALE` (another IR version), `W_OVERRIDES_OTHER_SOURCE`
+  (another PDF), `W_OVERRIDES_BLOCKS` (block-level entries, not v1's), `W_OVERRIDES_UNMATCHED`.
+
+### New `thresholds.toml` entries
+
+- `ipc.heartbeat_secs` (2), `ipc.heartbeat_timeout_secs` (6), `ipc.progress_max_per_sec` (10),
+  `ipc.cancel_deadline_secs` (2), `ipc.kill_after_secs` (5), `desktop.max_concurrent_jobs` (1),
+  `desktop.supervisor_tick_ms`, `desktop.copied_revert_secs`; `llm.load_timeout_secs` and
+  `llm.health_probe_timeout_millis` are shared with Phase 10 (its values kept). The report snapshot
+  counts 224 entries.
+
+### The desktop app (`apps/desktop`)
+
+- **Supervisor** (`engine.rs`, `fs_scope.rs`, `tree.rs`): one validated argument in the app's job
+  directory; its own process group (Unix) / job object (Windows) ended whole, at exit and from the
+  panic hook and signal handler; the startup handshake refuses a stale engine.
+- **Queue** (`jobqueue.rs`): one conversion at a time, cancel escalating to a kill at
+  `ipc.kill_after_secs`, outputs never overwritten ("name (2).epub"), unlock with a one-job password
+  (`OC_PDF_PASSWORD`, never on disk), "Fix and rebuild" with the saved corrections.
+- **AI assistance** (`ai.rs`, `llm.rs`): Settings › AI assistance is live and off by default. A job
+  takes the settings of its enqueue; with the built-in provider it leases the app's own
+  `llama-server` for the installed default model (loopback, a per-run key in a private file, idle
+  stop, stopped at exit), waiting `preparing` off the queue's lock; the lease ends with the job.
+  Fail-open with a non-modal banner; "AI-assisted decisions: N" with AI on; the running row counts
+  the engine's `llm` events. This build's evaluation enables no task, and the switch says so.
+- **Providers** (`providers.rs`): Settings › Provider over `openconvert provider detect | check |
+  probe`; Ollama as detected with its models; a custom endpoint only after the consent dialog that
+  names its host and says document text leaves the computer (D10); the key file chosen in a native
+  dialog; `E_CONSENT_REQUIRED` re-opens the dialog. The report page names the adapter, the model, the
+  calls and the consent.
+- **Models and packs** (`models.rs`, `packs.rs`): `ModelReadiness` rows, the licence in full before
+  the first download, streamed progress, a Cancel that deletes the `.part`; the same mechanism for
+  packs. The shipped registries still have placeholders, so no download is offered in this build.
+- **Screens** (Svelte 5, the ported design system): queue, result, report, preview (the EPUB in a
+  sandboxed frame from the app's `ocpreview:` protocol), metadata and TOC editors, settings, models,
+  first run, the diagnostic bundle (written where the user says, reviewed, never sent), the blocking
+  startup error. Settings › Network log is a hook for PHASE 14 detail 12's audit log and says this
+  build records nothing yet.
+- **Privacy**: the webview has no `http:` and no `shell:` permission; CSP `default-src 'self';
+  connect-src 'none'; …` with no `'unsafe-inline'`; only the app's own events can be listened for.
+
+### CI
+
+- `desktop` job (crate tests with `engine-integration`, clippy `--all-features`), `ui` job (Vitest,
+  svelte-check, lint, build, Playwright `chromium-ui`), nightly `webkit-ui`, and
+  `.github/workflows/signing-dryrun.yml` (manual, `v0.0.0-*` tags only). None has run: Actions are
+  disabled here.
+
+### Known gaps, carried forward
+
+- **Unverified here:** a real Tauri window (WebKitGTK, WKWebView, WebView2: drag and drop, IPC under
+  `connect-src 'none'`, the `ocpreview:` frame), `webkit-ui`, every CI job, macOS and Windows at run
+  time, and the signing dry run (A12.7, row 12.14 signing) — it needs certificates and Actions.
+- A real model behind the app's server and a real remote endpoint (no GGUF can be fetched here).
+- PROVISIONAL decisions awaiting ratification are listed in `PROGRESS.md` › Blocked (Phase 12).

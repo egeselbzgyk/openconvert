@@ -19,15 +19,21 @@ pub enum Progress {
 /// A parsed command line.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
-    Convert(ConvertArgs),
+    /// Boxed: the conversion's flags outweigh every other command's several times over.
+    Convert(Box<ConvertArgs>),
     Validate(ValidateArgs),
     Inspect(InspectArgs),
     DumpStage(DumpStageArgs),
     DiffStage(DiffStageArgs),
+    /// One job-spec path and nothing else: how the desktop app runs a conversion (D13.2,
+    /// RT B15). Everything the job needs is in the file.
+    Job(PathBuf),
     Model(ModelArgs),
     Provider(ProviderArgs),
-    /// `--help` or `--version`: print and exit successfully.
+    /// `--help`: print and exit successfully.
     Print(String),
+    /// `--version`: print the version, and answer a supervisor's version handshake (RT A5.7).
+    Version(String),
 }
 
 /// `convert <INPUT.pdf>`: the whole pipeline, PDF to EPUB.
@@ -57,6 +63,8 @@ pub struct ConvertArgs {
     /// which would make three template files that only a GUI could read — and the GUI is Phase 12.
     /// Precedence is CLI > job-spec either way (D13.11), so the flag is the spec's field named.
     pub locale: oc_core::warnings::Locale,
+    /// The user's corrections (`overrides.json`, ARCHITECTURE §4.7).
+    pub overrides: Option<PathBuf>,
     /// How the model is reached, when it is (PHASE 10). `None` is `ai.enabled = false`: the v1
     /// default, and what `--no-ai` forces whatever else the line says.
     pub ai: Option<AiArgs>,
@@ -209,7 +217,7 @@ usage:
   openconvert convert <INPUT.pdf> [-o <OUT.epub>] [--preset <NAME>] [--lang <TAG>]
                                   [--password <STRING>] [--progress none|json]
                                   [--modified <YYYY-MM-DDThh:mm:ssZ>] [--report <PATH.json>]
-                                  [--locale en|de|tr]
+                                  [--locale en|de|tr] [--overrides <PATH.json>]
                                   [--ai [--ai-all-tasks] [--llm-endpoint <URL>]
                                         [--llm-provider builtin|ollama|openai-compatible]
                                         [--llm-model <NAME>] [--llm-allow-host <HOST>]
@@ -231,8 +239,15 @@ usage:
   openconvert provider check <URL> [--json]
   openconvert provider probe <URL> [--llm-provider <P>] [--llm-model <NAME>]
                                   [--llm-allow-host <HOST>] [--llm-api-key-file <PATH>] [--json]
+  openconvert <JOB.json>
   openconvert --version
   openconvert --help
+
+  <JOB.json>           a job spec (schemas/job-spec.v1.json) as the only argument: how the
+                       desktop app runs a conversion. Events are always NDJSON on stderr.
+                       Its `ai` object is --ai: endpoint, api_key_file, model_path and
+                       model_id are the --llm-*/--model-path flags, and non_loopback_consent
+                       is --llm-allow-host for the endpoint's own host.
 
   --json               machine-readable report on stdout
   --pages <RANGE>      e.g. 1-10,20 (one-based, as printed)
@@ -246,6 +261,9 @@ usage:
   --modified <STAMP>   force dcterms:modified, for byte-identical output
   --report <PATH>      where report.json goes; default <output>.report.json
   --locale <TAG>       en|de|tr; which language the warnings are printed in (default en)
+  --overrides <PATH>   the user's metadata and TOC corrections (overrides.json); with
+                       OC_CACHE_DIR set, a run resumes after `structure` from the last
+                       full run of the same PDF, which saves there
   --ocr <MODE>         auto|never|always; auto reads scanned pages and uncovered image
                        regions with the system Tesseract 5, when one is found (default auto)
   --ocr-path <PATH>    the tesseract binary to use instead of searching for one
@@ -277,13 +295,22 @@ usage:
 
 /// Parse the arguments after the program name.
 pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, CliError> {
+    let args: Vec<String> = args.into_iter().collect();
+    // The GUI's form: exactly one argument, a job spec (D13.2). Recognised by being the only
+    // argument and naming a `.json` file, so that a mistyped subcommand is still reported as
+    // one rather than as a job spec that could not be read.
+    if let [only] = args.as_slice() {
+        if is_job_spec_path(only) {
+            return Ok(Command::Job(PathBuf::from(only)));
+        }
+    }
     let mut args = args.into_iter().peekable();
 
     let first = args.next().ok_or(CliError::NoSubcommand)?;
     match first.as_str() {
         "--help" | "-h" => return Ok(Command::Print(USAGE.to_owned())),
         "--version" | "-V" => {
-            return Ok(Command::Print(format!(
+            return Ok(Command::Version(format!(
                 "openconvert {}\n",
                 env!("CARGO_PKG_VERSION")
             )))
@@ -355,6 +382,14 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, CliErro
     }
 }
 
+/// Whether a lone argument names a job spec rather than a subcommand or a flag.
+fn is_job_spec_path(arg: &str) -> bool {
+    !arg.starts_with('-')
+        && std::path::Path::new(arg)
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
+}
+
 /// Parse `convert <INPUT.pdf>`, having already consumed the subcommand.
 fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, CliError> {
     let mut inputs = Vec::new();
@@ -368,6 +403,7 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
         modified: None,
         report: None,
         locale: oc_core::warnings::Locale::En,
+        overrides: None,
         ai: None,
         ocr: oc_core::ocr::OcrMode::Auto,
         ocr_path: None,
@@ -434,6 +470,11 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
             "--locale" => {
                 let value = args.next().ok_or(CliError::MissingValue("--locale"))?;
                 parsed.locale = oc_core::warnings::Locale::from_tag(&value);
+            }
+            "--overrides" => {
+                parsed.overrides = Some(PathBuf::from(
+                    args.next().ok_or(CliError::MissingValue("--overrides"))?,
+                ));
             }
             "--password" => {
                 parsed.password = Some(args.next().ok_or(CliError::MissingValue("--password"))?);
@@ -506,7 +547,7 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
     match inputs.len() {
         1 => {
             parsed.input = inputs.remove(0);
-            Ok(Command::Convert(parsed))
+            Ok(Command::Convert(Box::new(parsed)))
         }
         _ => Err(CliError::ConvertArgs),
     }

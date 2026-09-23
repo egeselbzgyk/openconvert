@@ -81,6 +81,15 @@ impl Decision {
         }
     }
 
+    /// A choice the user made, through `overrides.json` (ARCHITECTURE §4.7). `alternatives`
+    /// then holds what the pipeline had chosen, so the report shows what was overruled.
+    pub fn user(stage: &'static str, kind: &'static str, chosen: impl Into<String>) -> Self {
+        Self {
+            method: Method::User,
+            ..Self::deterministic(stage, kind, chosen)
+        }
+    }
+
     /// Whether the choice was escalated and the deterministic answer stood anyway (D13.5, gate D).
     pub fn fallback_used(&self) -> bool {
         self.fallback.is_some()

@@ -1,0 +1,313 @@
+{
+ "schema": "openconvert.report/1",
+ "status": "ok",
+ "engine": {
+  "version": "0.1.0",
+  "ir_version": 1,
+  "pdfium_version": "151.0.7881.0",
+  "prompt_version": null
+ },
+ "input": {
+  "sha256": "c4ff0780679e13043f1b997e47f356965f353504434729b263ba8be3b22701cc",
+  "filename": "f09_novel_structure.pdf",
+  "pages": 5,
+  "producer_family": "Typst"
+ },
+ "document": {
+  "classification": "book-prose",
+  "preset": "novel",
+  "language": "und",
+  "title": "A Short Novel",
+  "sections": 7,
+  "figures": 0,
+  "tables": 0,
+  "notes": 0,
+  "images_extracted": 0,
+  "authors": [
+   "O. Convert"
+  ],
+  "toc": [
+   {
+    "heading": "RXPJQAAZLA",
+    "title": "Preface",
+    "level": 1,
+    "page": "1"
+   },
+   {
+    "heading": "WY4YVSW43A",
+    "title": "Contents",
+    "level": 1,
+    "page": "2"
+   },
+   {
+    "heading": "7PKUVCSWBA",
+    "title": "Chapter One",
+    "level": 1,
+    "page": "3"
+   },
+   {
+    "heading": "FHDZZXS7UA",
+    "title": "A Section Within",
+    "level": 2,
+    "page": "3"
+   },
+   {
+    "heading": "DOEJGFAWXA",
+    "title": "Chapter Two",
+    "level": 1,
+    "page": "4"
+   },
+   {
+    "heading": "I3N6NVAVZA",
+    "title": "Appendix A",
+    "level": 1,
+    "page": "5"
+   },
+   {
+    "heading": "NISLDEJBGA",
+    "title": "Index",
+    "level": 1,
+    "page": "5"
+   }
+  ]
+ },
+ "timings_ms": [
+  [
+   "ingest",
+   91
+  ],
+  [
+   "text",
+   7
+  ],
+  [
+   "furniture",
+   0
+  ],
+  [
+   "layout",
+   37
+  ],
+  [
+   "structure",
+   2
+  ],
+  [
+   "document",
+   0
+  ],
+  [
+   "epub+validate+repair",
+   12
+  ],
+  [
+   "total",
+   149
+  ]
+ ],
+ "conservation": {
+  "c_raw_chars": 1857,
+  "c0_chars": 1857,
+  "epub_chars": 1802,
+  "retention": 0.97038233,
+  "per_stage": [
+   {
+    "stage": "text",
+    "kind": "budgeted",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 1.0
+   },
+   {
+    "stage": "furniture",
+    "kind": "budgeted",
+    "removed_chars": 55,
+    "added_chars": 0,
+    "retention": 0.97038233
+   },
+   {
+    "stage": "layout",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.97038233
+   },
+   {
+    "stage": "structure",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.97038233
+   },
+   {
+    "stage": "document",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.97038233
+   },
+   {
+    "stage": "epub",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.97038233
+   },
+   {
+    "stage": "validate",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.97038233
+   },
+   {
+    "stage": "repair",
+    "kind": "conserving",
+    "removed_chars": 0,
+    "added_chars": 0,
+    "retention": 0.97038233
+   }
+  ],
+  "per_reason": [
+   {
+    "reason": "running_header",
+    "removed_chars": 55,
+    "added_chars": 0,
+    "net_removed": 55,
+    "budget_group": "furniture",
+    "budget": 0.04,
+    "measured": 0.029617662897145933,
+    "headroom": 0.010382337102854067
+   }
+  ],
+  "i7": {
+   "holds": true,
+   "missing_chars": 0,
+   "added_chars": 0,
+   "missing_sample": []
+  }
+ },
+ "page_classes": {
+  "text": 5
+ },
+ "validation": {
+  "tier1": {
+   "valid": true,
+   "checked": [
+    "ocf.mimetype",
+    "ocf.container",
+    "ocf.case_collisions",
+    "opf.parse",
+    "opf.metadata",
+    "opf.integrity",
+    "xhtml.well_formed",
+    "xhtml.properties",
+    "xhtml.no_script_no_remote",
+    "xhtml.no_entities",
+    "book.note_bijection",
+    "book.fragments",
+    "book.resources",
+    "book.alt_text",
+    "book.image_parity"
+   ],
+   "findings": []
+  },
+  "tier2_ran": false,
+  "tier3_ran": false,
+  "structural": {
+   "i7": {
+    "missing": {},
+    "extra": {},
+    "epub_chars": 1802,
+    "c0_chars": 1857
+   },
+   "retention": 0.97038233,
+   "image_parity": true,
+   "note_bijection": true,
+   "hrefs_resolve": true,
+   "heading_sanity": {
+    "h1_count": 6,
+    "level_skips": [],
+    "monotone_with_pages": true,
+    "h1_count_plausible": null
+   },
+   "duplicates": {
+    "blocks": 22,
+    "duplicates": 0,
+    "worst": []
+   },
+   "quality": {
+    "region": "document",
+    "dup_line_frac": 0.0,
+    "dup_para_frac": 0.0,
+    "top_2gram": 0.54162043,
+    "top_3gram": 0.8007769,
+    "top_4gram": 1.0521643,
+    "non_alpha_word_ratio": 0.6363636,
+    "mean_word_len": 2.2752526,
+    "replacement_share": 0.0,
+    "dict_hit_rate": null
+   },
+   "warnings": [
+    {
+     "code": "W_LOW_RETENTION",
+     "severity": "warn",
+     "args": {
+      "floor": "0.980",
+      "retention": "0.970"
+     },
+     "blocks": [],
+     "page": null
+    }
+   ]
+  }
+ },
+ "repair": {
+  "status": "clean",
+  "iterations": 0,
+  "fires": {},
+  "log": [],
+  "remaining": []
+ },
+ "warnings": [
+  {
+   "code": "W_LOW_RETENTION",
+   "severity": "warn",
+   "args": {
+    "floor": "0.980",
+    "retention": "0.970"
+   },
+   "blocks": [],
+   "page": null
+  }
+ ],
+ "decisions": [
+  {
+   "stage": "document",
+   "subject": null,
+   "kind": "document_class",
+   "chosen": "book-prose",
+   "alternatives": [
+    "academic-multicolumn",
+    "scanned",
+    "slides/other"
+   ],
+   "method": "deterministic",
+   "llm": null,
+   "fallback": null
+  },
+  {
+   "stage": "document",
+   "subject": null,
+   "kind": "preset",
+   "chosen": "novel",
+   "alternatives": [
+    "auto"
+   ],
+   "method": "deterministic",
+   "llm": null,
+   "fallback": null
+  }
+ ],
+ "thresholds": []
+}

@@ -27,13 +27,14 @@ env: { CARGO_TERM_COLOR: always, RUSTFLAGS: "-D warnings", INSTA_UPDATE: "no" }
 
 # Why the engine jobs say `--exclude openconvert-desktop`:
 #
-# The Tauri crate has no Rust tests — test 0.22, the engine handshake, is a Vitest test in
-# `apps/desktop/ui` and runs in the `ui` job — so its only assertion is "it compiles". Buying
-# that assertion inside `--workspace` costs every job on every OS a GUI toolchain: GTK and
-# WebKit on Linux, a built `ui/dist`, and a staged sidecar binary, because `tauri-build`
-# resolves `externalBin` at build time. It is bought once, on Linux, in the `desktop` job
-# below. Phase 12 owns the UI and Phase 15 owns cross-platform packaging; when they arrive,
-# that job is where the matrix goes.
+# Building the Tauri crate inside `--workspace` would cost every job on every OS a GUI toolchain:
+# GTK and WebKit on Linux, a built `ui/dist`, and a staged sidecar binary, because `tauri-build`
+# resolves `externalBin` at build time. It is bought once, on Linux, in the `desktop` job below,
+# which also runs the crate's tests — the supervisor, the queue, the job-spec rules, the privacy
+# gate (12.13) and, with `engine-integration`, the real engine's cancel and stale-sidecar paths
+# (12.6, 12.17) and the app-owned model server's lifecycle against `oc-stub-llama-server`. The UI's own tests (Vitest, svelte-check, the lint, and the Playwright spec under
+# the shipped CSP) are the `ui` job's. Phase 15 owns cross-platform packaging; when it arrives,
+# the `desktop` job is where the matrix goes.
 #
 # `cargo fmt --all` and `cargo deny` still cover the crate — neither builds it.
 
@@ -127,9 +128,14 @@ jobs:
       - run: npm ci --prefix apps/desktop/ui && npm --prefix apps/desktop/ui run build
       # `externalBin` resolves at build time, so the engine has to exist and be staged under
       # the target-triple name Tauri looks for before the shell will compile at all.
-      - run: cargo build -p openconvert --locked
+      # The stub llama-server the app's model-server tests start is an `oc-testkit` binary.
+      - run: cargo build -p openconvert -p oc-testkit --bins --locked
       - run: cargo run -p xtask -- stage-sidecars
-      - run: cargo clippy -p openconvert-desktop --all-targets --locked -- -D warnings
+      - run: cargo clippy -p openconvert-desktop --all-targets --all-features --locked -- -D warnings
+      # The engine the integration tests drive binds PDFium at run time, from `vendor/pdfium`.
+      - run: cargo run -p xtask -- vendor-pdfium
+      - uses: taiki-e/install-action@nextest
+      - run: cargo nextest run -p openconvert-desktop --features engine-integration --locked --profile ci
 
   no-network:                                          # D13.9, R8 §A7
     runs-on: ubuntu-latest
@@ -351,13 +357,27 @@ jobs:
         if: failure()
         with: { name: dom-checks-junit, path: tests/dom/results/junit.xml }
 
+  # The desktop UI: component tests (Vitest), types (svelte-check), the repository's UI rules
+  # (`scripts/lint.mjs`: CSP, privacy, colour, casing, string keys), and then the built bundle in
+  # Chromium under the CSP `tauri.conf.json` ships — keyboard-only conversion, axe, contrast in
+  # both schemes (Phase 12 rows 12.14–12.16). WebKit runs the same spec nightly (`webkit-ui`).
   ui:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - run: npm ci --prefix apps/desktop/ui && npm --prefix apps/desktop/ui run test && npm --prefix apps/desktop/ui run lint
+      - run: npm ci --prefix apps/desktop/ui
+      - run: npm --prefix apps/desktop/ui run test
+      - run: npm --prefix apps/desktop/ui run check
+      - run: npm --prefix apps/desktop/ui run lint
+      - run: npm --prefix apps/desktop/ui run build
+      - run: npm ci --prefix tests/dom
+      - run: npx --prefix tests/dom playwright install --with-deps chromium
+      - run: npm --prefix tests/dom run test:ui
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: ui-junit, path: tests/dom/results/junit.xml }
 
   # Phase 7. `eval/` is never a build or runtime dependency of the shipped product (D1), and
   # the `no-network` and release jobs prove the engine needs no Python — but the eval tooling

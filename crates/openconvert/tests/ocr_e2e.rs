@@ -658,6 +658,8 @@ fn ocr_never_calls_the_llm() {
         preset: oc_model::document::PresetName::Auto,
         epub: common::epub_options(),
         ocr: OcrOptions::auto(Ok(witness.clone() as Arc<dyn OcrEngine>), &T),
+        overrides: None,
+        cache_dir: None,
     };
     let conversion = openconvert::convert::convert_with_ai(
         pdf.as_ref(),

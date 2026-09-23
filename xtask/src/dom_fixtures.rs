@@ -84,6 +84,8 @@ pub fn run(root: &Path) -> Result<()> {
                     warn_total_bytes: u64::try_from(T.epub.warn_total_bytes).unwrap_or(u64::MAX),
                     modified: MODIFIED.to_owned(),
                 },
+                overrides: None,
+                cache_dir: None,
                 ocr: openconvert::ocr::OcrOptions::off(),
             },
             &T,

@@ -10,7 +10,7 @@
 //! Phase 4's question; all `layout` says is which lines belong together, which column they
 //! sit in, and in what order a reader meets them.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::extract::PageRef;
 use crate::geom::Rect;
@@ -24,7 +24,7 @@ use crate::text::{FurnitureKind, Line};
 /// elements before cutting because they are what fragments an otherwise clean sort, and the
 /// mask needs to know which blocks those are. Everything finer — heading levels, captions,
 /// list items, verse — is `structure`'s, in Phase 4.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BlockKindHint {
     /// Ordinary text, set in a column.
@@ -39,7 +39,7 @@ pub enum BlockKindHint {
 }
 
 /// A set of lines the page keeps together.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Block {
     pub id: BlockId,
     pub page: PageRef,
@@ -78,7 +78,7 @@ impl Block {
 /// per-document adaptation is the capability R1 §C.4 #3 says nobody in this space fully
 /// exploits. A page is not enough evidence — a chapter opening indents nothing, a page of
 /// dialogue indents everything.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ParagraphConvention {
     /// The first line of a paragraph is indented; paragraphs follow each other without a gap.
@@ -94,7 +94,7 @@ pub enum ParagraphConvention {
 /// and `structure` fills the second: `spans` with their styles, `drop_cap`, `align`, `lang`
 /// and `confidence`. Until it has run they are the empty values, which is honest rather than
 /// convenient: a paragraph nobody has interpreted has no spans, not a guess at them.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Para {
     pub id: BlockId,
     /// The blocks this paragraph was assembled from, in reading order.

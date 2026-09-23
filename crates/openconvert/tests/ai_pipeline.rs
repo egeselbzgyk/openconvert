@@ -211,6 +211,8 @@ fn options(stem: &str) -> ConvertOptions {
         preset: oc_model::document::PresetName::Auto,
         epub: common::epub_options(),
         ocr: openconvert::ocr::OcrOptions::off(),
+        overrides: None,
+        cache_dir: None,
     }
 }
 

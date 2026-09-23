@@ -11,6 +11,9 @@
 //! - and, when the desktop app supervises the engine, `kill(-pgid)` or the job object: the server is
 //!   spawned into the engine's own process group, so the supervisor's group kill reaches it too.
 //!
+//! A supervisor whose own processes are not `Child`ren registered here — the desktop app's engine
+//! process groups — adds its teardown with [`on_teardown`], and the same three paths run it.
+//!
 //! What this cannot cover without `unsafe` code of our own is an engine killed outright
 //! (`SIGKILL`, a segfault in PDFium): Linux's `PR_SET_PDEATHSIG` must be set between `fork` and
 //! `exec`, and a Windows nested job object is FFI. Both are Phase 14's hardening; see
@@ -23,6 +26,7 @@ use std::sync::{Mutex, MutexGuard, Once, PoisonError};
 use crate::exit::ExitCode;
 
 static CHILDREN: Mutex<BTreeMap<u32, Child>> = Mutex::new(BTreeMap::new());
+static HOOKS: Mutex<Vec<fn()>> = Mutex::new(Vec::new());
 static INSTALL: Once = Once::new();
 
 /// The registry. A panic elsewhere never poisons it for good: nothing is done while it is held that
@@ -71,11 +75,26 @@ pub fn wait(pid: u32) -> Option<std::process::ExitStatus> {
     child.and_then(|mut child| child.wait().ok())
 }
 
-/// Kill and reap every registered child.
+/// Also run `hook` whenever everything is torn down — by [`kill_all`], the panic hook or the
+/// signal handler. Installs the hooks first. A hook must not panic and must not block: it runs
+/// inside a panic hook and a signal handler's thread.
+pub fn on_teardown(hook: fn()) {
+    install();
+    HOOKS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .push(hook);
+}
+
+/// Kill and reap every registered child, then run every [`on_teardown`] hook.
 pub fn kill_all() {
     let drained = std::mem::take(&mut *children());
     for child in drained.into_values() {
         end(child);
+    }
+    let hooks = HOOKS.lock().unwrap_or_else(PoisonError::into_inner).clone();
+    for hook in hooks {
+        hook();
     }
 }
 
@@ -108,4 +127,27 @@ pub fn install() {
             tracing::warn!(%error, "no signal handler: a signalled engine may orphan its sidecar");
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::*;
+
+    static TORN_DOWN: AtomicUsize = AtomicUsize::new(0);
+
+    fn count() {
+        TORN_DOWN.fetch_add(1, Ordering::SeqCst);
+    }
+
+    /// The desktop app's engine groups are not `Child`ren of this registry; the teardown that
+    /// ends the registered children ends them too.
+    #[test]
+    fn teardown_hooks_run_with_the_registered_children() {
+        on_teardown(count);
+        let before = TORN_DOWN.load(Ordering::SeqCst);
+        kill_all();
+        assert_eq!(TORN_DOWN.load(Ordering::SeqCst), before + 1);
+    }
 }

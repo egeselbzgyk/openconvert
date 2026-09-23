@@ -9,7 +9,10 @@
     "noUnusedParameters": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["vitest/globals"]
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "types": ["vitest/globals", "vite/client", "svelte", "node"]
   },
-  "include": ["src"]
+  "include": ["src/**/*.ts", "src/**/*.svelte", "vite.config.ts"]
 }

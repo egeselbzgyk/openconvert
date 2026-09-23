@@ -28,12 +28,22 @@ impl ModelStore {
     /// The directory an entry lives in. The id and file name are checked to be plain names, so
     /// no registry entry can place a file outside the store.
     pub fn dir_of(&self, entry: &ModelEntry) -> Result<PathBuf, NetError> {
-        Ok(self.root.join(plain_name(&entry.id.0)?))
+        self.dir_for(&entry.id.0)
     }
 
     /// Where an entry's model file lives once it is verified.
     pub fn path_of(&self, entry: &ModelEntry) -> Result<PathBuf, NetError> {
-        Ok(self.dir_of(entry)?.join(plain_name(&entry.file)?))
+        self.path_for(&entry.id.0, &entry.file)
+    }
+
+    /// The directory of the download with this id, a plain name.
+    pub fn dir_for(&self, id: &str) -> Result<PathBuf, NetError> {
+        Ok(self.root.join(plain_name(id)?))
+    }
+
+    /// Where download `id`'s `file` lives once it is verified.
+    pub fn path_for(&self, id: &str, file: &str) -> Result<PathBuf, NetError> {
+        Ok(self.dir_for(id)?.join(plain_name(file)?))
     }
 }
 
@@ -124,4 +134,49 @@ fn model_file(dir: &Path) -> Option<(PathBuf, u64)> {
         found = Some((path, metadata.len()));
     }
     found
+}
+
+/// Where models live unless told otherwise: `openconvert/models` in the per-OS data directory.
+/// `openconvert model` (without `--dir`) and the desktop app's model manager use the same place, so
+/// a model is downloaded once whichever of them fetched it.
+pub fn default_root() -> PathBuf {
+    data_dir().join("openconvert").join("models")
+}
+
+/// Where optional packs live (LICENSE_AND_DEPENDENCIES §6): `openconvert/packs` beside the models.
+pub fn default_packs_root() -> PathBuf {
+    data_dir().join("openconvert").join("packs")
+}
+
+#[cfg(target_os = "linux")]
+fn data_dir() -> PathBuf {
+    std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .or_else(|| home().map(|home| home.join(".local").join("share")))
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
+#[cfg(target_os = "macos")]
+fn data_dir() -> PathBuf {
+    home()
+        .map(|home| home.join("Library").join("Application Support"))
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
+#[cfg(windows)]
+fn data_dir() -> PathBuf {
+    std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+fn data_dir() -> PathBuf {
+    home().unwrap_or_else(|| PathBuf::from("."))
+}
+
+#[cfg(unix)]
+fn home() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(PathBuf::from)
 }

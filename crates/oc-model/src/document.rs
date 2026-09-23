@@ -10,7 +10,7 @@
 //! [`Document::dangling_references`] is that check, stated once here rather than separately
 //! in `document`, in the Tier-1 validator and in the emitter.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::decision::Decision;
 use crate::doc::{Content, Figure, Metadata, Note, PageBreak, Section, Table, Warning};
@@ -22,7 +22,7 @@ use crate::ledger::Ledger;
 ///
 /// The classification is recorded in the report and is what `auto` resolves a preset from,
 /// so it is a fact about the book rather than an internal switch.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum DocClass {
     /// Running prose in one column: a novel, an essay collection, a biography.
@@ -49,7 +49,7 @@ impl DocClass {
 }
 
 /// A document preset: a named partial override map over `thresholds.toml` keys (D13.11).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PresetName {
     /// Resolved from [`DocClass`] at the `document` stage. Never the value a finished
@@ -167,25 +167,7 @@ impl Document {
     /// text and moves none between them. Metadata, `alt` and page-list labels are outside `C`
     /// by definition (ARCHITECTURE §5.2) and are deliberately absent.
     pub fn text_pieces(&self) -> Vec<String> {
-        let mut out = Vec::new();
-        for section in self.walk() {
-            if let Some(heading) = &section.heading {
-                out.push(heading.text());
-            }
-            collect_text(&section.content, &mut out);
-        }
-        for note in &self.notes {
-            collect_text(&note.body, &mut out);
-        }
-        for table in &self.tables {
-            out.extend(table.cell_texts());
-        }
-        for figure in &self.figures {
-            if let Some(caption) = &figure.caption {
-                out.push(crate::doc::spans_text(caption));
-            }
-        }
-        out
+        book_text(&self.sections, &self.notes, &self.tables, &self.figures)
     }
 
     fn dangling_in(&self, content: &[Content], missing: &mut Vec<String>) {
@@ -250,6 +232,38 @@ pub fn walk_content(content: &[Content]) -> Vec<&Content> {
             }
             Content::List(list) => out.extend(walk_list(list)),
             _ => {}
+        }
+    }
+    out
+}
+
+/// Every piece of text in a book held as these four: each section's heading and flow, depth
+/// first, then every note's body, every table's cells and every figure's caption.
+///
+/// [`Document::text_pieces`], for the parts before they are a `Document` — which is what
+/// `structure` hands `document`, and what a run resuming after `structure` reads back.
+pub fn book_text(
+    sections: &[crate::doc::Section],
+    notes: &[crate::doc::Note],
+    tables: &[crate::doc::Table],
+    figures: &[crate::doc::Figure],
+) -> Vec<String> {
+    let mut out = Vec::new();
+    for section in sections.iter().flat_map(crate::doc::Section::walk) {
+        if let Some(heading) = &section.heading {
+            out.push(heading.text());
+        }
+        collect_text(&section.content, &mut out);
+    }
+    for note in notes {
+        collect_text(&note.body, &mut out);
+    }
+    for table in tables {
+        out.extend(table.cell_texts());
+    }
+    for figure in figures {
+        if let Some(caption) = &figure.caption {
+            out.push(crate::doc::spans_text(caption));
         }
     }
     out

@@ -59,13 +59,21 @@ time      = { version = "0.3", features = ["formatting", "macros"] }
 # --- desktop shell (apps/desktop only) ---
 tauri              = { version = "2", features = [] }
 tauri-build        = "2"
-tauri-plugin-shell = "2"
+# Native file picker and save dialog, and "open with the default app" / "show in folder". Both
+# are called from the app's own Rust commands; the webview is granted neither plugin (test 12.13).
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
 # --- parallelism / process ---
 rayon = "1"
 # The sidecar supervisor (PHASE 9 detail 5). `ctrlc` is one safe API over SIGINT/SIGTERM and the
 # Windows console-ctrl handler; `getrandom` is the CSPRNG the per-run key comes from.
 ctrlc     = { version = "3.5", features = ["termination"] }
 getrandom = "0.3"
+# The desktop app ends an engine's whole process tree, not only the engine (D13.2, ARCHITECTURE
+# §8.2): on Unix a safe `kill(-pgid)` and a `waitid` that looks without reaping; on Windows a job
+# object with KILL_ON_JOB_CLOSE through a safe wrapper, so neither needs `unsafe` of our own.
+rustix   = { version = "1.1", features = ["process"] }
+win32job = "2.0"
 # --- net (oc-net only) ---
 # TLS roots come from the platform verifier, not `webpki-roots`: that crate is CDLA-Permissive-2.0,
 # which D15's allow-list does not name (docs/DECISIONS_LOG.md, 2026-09-09 and Phase 9). `rustls`

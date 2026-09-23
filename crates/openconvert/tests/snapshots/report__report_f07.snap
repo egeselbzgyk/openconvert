@@ -25,7 +25,19 @@ expression: value
     "sections": 2,
     "figures": 0,
     "tables": 0,
-    "notes": 0
+    "notes": 0,
+    "images_extracted": 0,
+    "authors": [
+      "O. Convert"
+    ],
+    "toc": [
+      {
+        "heading": "AH5RIBDA3A",
+        "title": "Chapter One",
+        "level": 1,
+        "page": "1"
+      }
+    ]
   },
   "timings_ms": "[redacted]",
   "conservation": {
@@ -244,5 +256,5 @@ expression: value
       "input_hash": "adc3de8ec21ab7d5d16b72e02fc20ac7bb4deb29d0b34a22a31535e227bfae2b"
     }
   ],
-  "thresholds": "[216 entries, redacted]"
+  "thresholds": "[224 entries, redacted]"
 }

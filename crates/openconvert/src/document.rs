@@ -51,10 +51,45 @@ pub const W_PAGE_BREAK_UNPLACED: &str = "W_PAGE_BREAK_UNPLACED";
 /// which is not a valid publication and is not a book either.
 pub const W_NO_TEXT_EXTRACTED: &str = "W_NO_TEXT_EXTRACTED";
 
+/// What `document` reads of `structure`'s output — all of it: the sections, notes, figures,
+/// tables, metadata and warnings.
+///
+/// Its own type rather than the whole [`StructureOutput`], because the rest of that — the style
+/// inventory, the claims, the escalation candidates — is the stage's working state, which nothing
+/// after it reads. That is what lets a run resume after `structure` from a saved copy of exactly
+/// this (Phase 12, A12.4b): the partial rebuild hands `document` what the full run handed it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Structured {
+    pub sections: Vec<Section>,
+    pub notes: Vec<oc_model::doc::Note>,
+    pub figures: Vec<Figure>,
+    pub tables: Vec<oc_model::doc::Table>,
+    pub metadata: oc_model::doc::Metadata,
+    pub warnings: Vec<Warning>,
+}
+
+impl Structured {
+    pub fn of(output: &StructureOutput) -> Self {
+        Self {
+            sections: output.sections.clone(),
+            notes: output.notes.clone(),
+            figures: output.figures.clone(),
+            tables: output.tables.clone(),
+            metadata: output.metadata.clone(),
+            warnings: output.warnings.clone(),
+        }
+    }
+
+    /// Every piece of text the four places hold — `structure`'s `emitted_text`, over the parts.
+    pub fn emitted_text(&self) -> Vec<String> {
+        oc_model::document::book_text(&self.sections, &self.notes, &self.tables, &self.figures)
+    }
+}
+
 /// Everything the stage reads beyond what `structure` produced.
 pub struct DocumentInput<'a> {
     pub source_sha256: &'a str,
-    pub structure: &'a StructureOutput,
+    pub structure: &'a Structured,
     /// The printed page label per page, as `furniture` recovered it.
     pub labels: &'a [Option<String>],
     /// Per page, what `inspect` classified it as.

@@ -5,9 +5,10 @@
 
 use std::path::PathBuf;
 
-/// Where models live: `<data>/openconvert/models`.
+/// Where models live: `<data>/openconvert/models` — the model store's own default, so that the
+/// desktop app's model manager, `openconvert model` and the AI step name one place.
 pub fn models() -> PathBuf {
-    base().join("openconvert").join("models")
+    oc_net::store::default_root()
 }
 
 /// Where the LLM answer cache lives: `<data>/openconvert/cache/llm` (ARCHITECTURE §9.4).

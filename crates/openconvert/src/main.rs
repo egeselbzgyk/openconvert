@@ -10,12 +10,13 @@ mod cmd_convert;
 mod cmd_diff_stage;
 mod cmd_dump_stage;
 mod cmd_inspect;
+mod cmd_job;
 mod cmd_model;
 mod cmd_provider;
 mod cmd_validate;
 mod control;
 
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 use std::process::ExitCode as ProcessExitCode;
 
 use oc_core::events::EventSink;
@@ -36,18 +37,36 @@ fn run() -> ExitCode {
         .windows(2)
         .any(|w| w[0] == "--progress" && w[1] == "json");
 
-    let stderr = std::io::stderr();
-    let mut events = EventSink::new(stderr.lock(), wants_events);
+    // Unlocked: a sink holding stderr's lock for the whole run would block every other thread
+    // that writes to it — the heartbeat's first, which then holds the sink while it waits, and the
+    // run's next event after it. Each command's own sink locks what it needs when it needs it.
+    let events = EventSink::new(std::io::stderr(), wants_events);
 
     match cli::parse(args) {
         Ok(Command::Print(text)) => {
             print!("{text}");
             ExitCode::Ok
         }
+        Ok(Command::Version(text)) => {
+            print!("{text}");
+            // The version handshake (RT A5.7): the desktop app runs `--version` with stderr piped
+            // and refuses a staged engine whose `hello` is not the one it was built with. A person
+            // at a terminal gets the version line and no JSON.
+            if !std::io::stderr().is_terminal() {
+                cmd_convert::announce(&EventSink::new(std::io::stderr(), true));
+            }
+            ExitCode::Ok
+        }
         Ok(Command::Convert(convert)) => {
-            let mut events =
-                EventSink::new(std::io::stderr().lock(), convert.progress == Progress::Json);
-            cmd_convert::run(&convert, &mut events)
+            // Unlocked `Stderr`, because the heartbeat writes from a thread of its own; the sink
+            // serialises the lines.
+            let events = EventSink::new(std::io::stderr(), convert.progress == Progress::Json);
+            cmd_convert::run(&convert, &events)
+        }
+        Ok(Command::Job(path)) => {
+            // A job spec's only reader is a supervisor, so the channel is always on.
+            let events = EventSink::new(std::io::stderr(), true);
+            cmd_job::run(&path, &events)
         }
         Ok(Command::Validate(validate)) => {
             let mut events = EventSink::new(

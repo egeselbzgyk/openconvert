@@ -11,11 +11,13 @@ use anyhow::{bail, Context, Result};
 
 /// Directories never walked: build output, vendored blobs, and the documents that *discuss*
 /// these rules and would otherwise trip them.
-const SKIP_DIRS: [&str; 8] = [
+const SKIP_DIRS: [&str; 9] = [
     ".git",
     "target",
     "vendor",
     "node_modules",
+    // The UI's build output: bundled third-party code, not this repository's source.
+    "dist",
     ".venv",
     "docs",
     "research",
@@ -244,7 +246,7 @@ fn find_word(haystack: &str, needle: &str) -> Option<usize> {
 
 /// Every file worth linting: source and configuration, never build output.
 fn source_files(root: &Path) -> Result<Vec<PathBuf>> {
-    const EXTENSIONS: [&str; 6] = ["rs", "toml", "py", "ts", "js", "yml"];
+    const EXTENSIONS: [&str; 8] = ["rs", "toml", "py", "ts", "js", "mjs", "svelte", "yml"];
 
     let mut files = Vec::new();
     let mut stack = vec![root.to_path_buf()];

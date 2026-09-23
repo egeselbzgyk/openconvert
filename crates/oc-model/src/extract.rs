@@ -3,19 +3,19 @@
 
 use std::collections::BTreeMap;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::geom::Rect;
 
 /// A font, interned per document so a glyph carries an index rather than a string.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct FontId(pub u16);
 
 /// One character as the document draws it, with every signal D3 verified available.
 ///
 /// Thirteen fields, and none of them is optional: a signal that could not be read is a
 /// backend bug, not a `None`. A1.1 asserts that no field arrives as a placeholder.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Glyph {
     pub ch: char,
     /// The inked box: what the glyph covers.
@@ -41,7 +41,7 @@ pub struct Glyph {
 }
 
 /// A font as the document declares it.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FontInfo {
     pub id: FontId,
     pub name: String,
@@ -86,6 +86,29 @@ impl Serialize for CharHistogram {
             map.serialize_entry(ch.encode_utf8(&mut [0u8; 4]), &count)?;
         }
         map.end()
+    }
+}
+
+/// Read back from the map [`Serialize`] writes: one-character keys, counts as values. A key of
+/// any other length is not a character and fails the read.
+impl<'de> Deserialize<'de> for CharHistogram {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let counts = BTreeMap::<String, u32>::deserialize(deserializer)?;
+        let mut histogram = CharHistogram::new();
+        for (key, count) in counts {
+            let mut chars = key.chars();
+            match (chars.next(), chars.next()) {
+                // A zero count is no character; `iter` never writes one, so neither is it read.
+                (Some(_), None) if count == 0 => {}
+                (Some(ch), None) => histogram.slot(ch, count),
+                _ => {
+                    return Err(serde::de::Error::custom(format!(
+                        "{key:?} is not one character"
+                    )))
+                }
+            }
+        }
+        Ok(histogram)
     }
 }
 
@@ -209,7 +232,7 @@ impl CharHistogram {
 /// The label is the *printed* page number when one has been detected — `"iv"`, `"12"` — which
 /// is not the index: front matter restarts the numbering, and a reader who asks for page 12
 /// means the one with 12 on it.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PageRef {
     pub index: u32,
     pub label: Option<String>,
@@ -223,7 +246,7 @@ impl PageRef {
 }
 
 /// An image, interned per document.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ImageId(pub u32);
 
 /// What an image is doing on the page.
@@ -232,7 +255,7 @@ pub struct ImageId(pub u32);
 /// page and goes to OCR, a `Figure` becomes a `<figure>` with a caption, an `Ornament` is a
 /// candidate for dropping once Phase 4 sees it repeat, and a `Strip` is usually a rule that
 /// should not survive into a reflowable book at all.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ImageKind {
     Figure,
@@ -245,7 +268,7 @@ pub enum ImageKind {
 }
 
 /// One image as a page draws it.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ImageRef {
     pub id: ImageId,
     pub page: PageRef,
@@ -267,7 +290,7 @@ pub struct ImageRef {
 }
 
 /// A vector region's identifier, interned per document in draw order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct VecId(pub u32);
 
 /// A vector drawing on a page: one path object's bounding box, and whether it is a rule.
@@ -277,7 +300,7 @@ pub struct VecId(pub u32);
 /// table lattice (§8.7 — long thin axis-aligned paths snapped into a grid). Everything else
 /// vector is rasterised at 2× in v1 (D16), so the IR carries the box and the count rather
 /// than the path data.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct VectorRegion {
     pub id: VecId,
     pub page: PageRef,
@@ -309,7 +332,7 @@ impl VectorRegion {
 ///
 /// The outline is the strongest structural signal a PDF carries, and the only one a producer
 /// writes deliberately: Phase 4 prefers it over every heuristic it has when the two disagree.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OutlineEntry {
     pub title: String,
     /// Depth in the tree, zero for a top-level entry.
@@ -318,4 +341,16 @@ pub struct OutlineEntry {
     /// whose action is something other than "go to a page in this document" — a URI, a
     /// launch, a remote destination.
     pub page: Option<u32>,
+}
+
+/// A histogram reads back from its map as the same multiset — ASCII and beyond, counts intact —
+/// which is what a saved ledger resumes from (Phase 12, A12.4b).
+#[test]
+fn a_histogram_reads_back_as_written() {
+    let mut histogram = CharHistogram::new();
+    histogram.add_str("Çağrı çiçek, ﬁn — Straße");
+    let text = serde_json::to_string(&histogram).expect("serialises");
+    let back: CharHistogram = serde_json::from_str(&text).expect("reads");
+    assert_eq!(back, histogram);
+    assert!(serde_json::from_str::<CharHistogram>(r#"{"ab": 1}"#).is_err());
 }
