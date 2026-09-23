@@ -177,6 +177,10 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P15.17** (after Phase 14's merge) the update check in the network audit log: purpose `update`,
       `HttpFetch::with_purpose`, "Update check" in Settings › Network log —
       `every_update_connection_is_in_the_network_audit_log`, the network-log UI test
+- [x] **P15.18** (after the merge) the Phase 14 follow-ups: `licenses/third-party-rust.txt` regenerated
+      (602 crates, 354 texts — `landlock` joined); the version baseline re-recorded (`--record none`,
+      unchanged: Phase 14 moved no IR or protocol digest); the report snapshot counts 229 thresholds
+      (Phase 14's `limits.max_object_nesting`… plus Phase 15's two)
 - [x] **P15.16** row 15.19's scripted half: `packaging/smoke/fresh-install.{sh,ps1}` (hash check,
       install, `--smoke-convert`, EPUB check), referenced by RELEASE_CHECKLIST.md —
       `fresh_install_script_checks_the_hash_and_the_epub` (Linux, stand-in AppImage); the `.ps1` and
