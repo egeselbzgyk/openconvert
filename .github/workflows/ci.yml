@@ -173,11 +173,22 @@ jobs:
       # The engine only. The Tauri shell's binary is not what this job is about, and
       # building it here would drag in the GUI toolchain for nothing.
       - run: cargo build -p openconvert --locked --bins
-      - run: cargo nextest list -p oc-core -p openconvert --locked -E 'test(convert_) or test(inspect_)'
+      # `providers` is excluded: its tests talk to a stub server on loopback, which an empty
+      # namespace has down, and one of them has `convert_` in its name
+      # (`provider_probe_answers_what_convert_would_open`), so the bare filter failed here.
+      - run: cargo nextest list -p oc-core -p openconvert --locked -E '(test(convert_) or test(inspect_)) and not binary(providers)'
       - name: conversions under an empty network namespace
         run: |
           sudo unshare -n -- sudo -u "$USER" env "PATH=$PATH" \
-            cargo nextest run -p oc-core -p openconvert --locked -E 'test(convert_) or test(inspect_)'
+            cargo nextest run -p oc-core -p openconvert --locked -E '(test(convert_) or test(inspect_)) and not binary(providers)'
+      # PHASE 14 row 14.20 (A14.7): the `--ai` path too — a warm answer cache, the committed
+      # cassettes through `Replay`, and every in-process AI test — where no socket can reach a
+      # network. `OC_EXPECT_NO_NETWORK=1` makes `unshare_n_covers_the_ai_cassette_path` first prove
+      # the namespace is empty, so a green step is not one that happened to have a network.
+      - name: the AI path under an empty network namespace
+        run: |
+          sudo unshare -n -- sudo -u "$USER" env "PATH=$PATH" OC_EXPECT_NO_NETWORK=1 \
+            cargo nextest run -p openconvert --locked -E 'binary(ai_pipeline) or binary(ai)'
       # A8.3: every tier below nightly makes zero live model calls. `oc-ai` has no socket-capable
       # dependency (test 8.15) and replays cassettes through a provider that holds no transport;
       # here the whole suite — gates, stub, cassettes — also runs where a socket cannot open at

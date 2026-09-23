@@ -710,6 +710,9 @@ fn smoke_convert(handle: AppHandle, pdf: PathBuf, tick: Duration) {
 }
 
 fn main() {
+    // The app's own connections — its model manager's downloads — go in the same audit log the
+    // engine writes, and Settings › Network log reads it (PHASE 14 detail 12).
+    oc_net::audit::install(netlog::log());
     // Every engine's process tree ends with the app, however it ends: this teardown runs from the
     // panic hook and the signal handler `supervise` installs (D13.2), and at `RunEvent::Exit`.
     oc_core::sidecar::supervise::on_teardown(tree::end_all);

@@ -250,3 +250,43 @@ jobs:
       - run: cargo run -p xtask -- vendor-pdfium
       - run: cargo run -p xtask -- fixtures
       - run: xvfb-run -a cargo nextest run -p openconvert --features ace --locked -E 'test(ace_zero_serious_violations)'
+
+  # PHASE 14 row 14.16 (A14.6): the Isartor suite — the PDF Association's catalogued PDF/A-1b
+  # violations — through the engine, each file ending in exit 0 or 1 with a report, never a hang
+  # or a 101. Fetched by commit and per-file SHA-256 from `xtask/isartor.lock` and never committed;
+  # the feature turns the test on, and with it on and nothing fetched the test fails. Fails at the
+  # fetch until the lock is pinned (PROGRESS.md, Blocked).
+  isartor:                # Phase 14
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: 1.98.1 }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+      - run: cargo run -p xtask -- vendor-pdfium
+      - run: cargo run -p xtask -- fetch-isartor
+      - run: cargo nextest run -p openconvert --features isartor --locked -E 'test(isartor_corpus_terminates_cleanly)'
+
+  # PHASE 14 row 14.13–14.15 (A14.8): the three cargo-fuzz targets on OpenConvert's own parsers —
+  # the IR deserialiser, the job-spec validator, the XHTML/OPF emitter round trip — fifteen minutes
+  # each, seeded from the committed `fuzz/corpus/`. Nightly toolchain in this job only. A crash
+  # fails the job and uploads the input; it is minimised with `cargo fuzz tmin` and committed under
+  # `corpus/fixtures/crash/fuzz/` in the fixing commit (the crash manifest keys it).
+  fuzz:                   # Phase 14
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo install cargo-fuzz --locked
+      - name: fuzz each target for 15 minutes
+        working-directory: fuzz
+        run: |
+          for target in ir_deserialize job_spec xhtml_opf_roundtrip; do
+            mkdir -p "../target/fuzz-corpus/$target" && cp corpus/$target/* "../target/fuzz-corpus/$target/"
+            cargo fuzz run -O "$target" "../target/fuzz-corpus/$target" -- -max_total_time=900 -rss_limit_mb=2048
+          done
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: fuzz-artifacts, path: fuzz/artifacts }

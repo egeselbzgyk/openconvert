@@ -38,6 +38,9 @@ openconvert = { path = "../crates/openconvert", version = "0.1.0" }
 oc-net = { path = "../crates/oc-net", version = "0.1.0" }
 anyhow.workspace = true
 thiserror.workspace = true
+# The `--isolate-parser` spike's wire format: length-prefixed CBOR, as PHASE 14 detail 13 names it.
+# Already in the graph through `criterion`.
+ciborium = "0.2"
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true

@@ -109,8 +109,8 @@ fn decoding_a_pixel_bomb_is_refused() {
     let document = backend.open(&bytes, None).expect("the fixture opens");
 
     match document.image_bytes(0, ImageId(0)) {
-        Err(oc_pdf::error::PdfError::LimitExceeded(exceeded)) => {
-            assert_eq!(exceeded.limit, oc_core::limits::MAX_IMAGE_PIXELS);
+        Err(error @ oc_pdf::error::PdfError::Cap(_)) => {
+            assert_eq!(error.cap(), Some(oc_core::limits::MAX_IMAGE_PIXELS));
         }
         other => panic!("a 1.6-gigapixel claim must be refused before decoding, got {other:?}"),
     }

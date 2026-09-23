@@ -8,6 +8,7 @@
 //! (D9: "downloads never happen during a conversion").
 
 pub mod allowlist;
+pub mod audit;
 pub mod consent;
 pub mod detect;
 pub mod download;

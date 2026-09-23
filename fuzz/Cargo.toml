@@ -1,0 +1,44 @@
+# The cargo-fuzz targets (PHASE 14 detail 8, D11, SECURITY §12): OpenConvert's own parsers, not
+# PDFium's. Its own workspace, excluded from the root one: it needs a nightly toolchain and
+# libFuzzer, and neither belongs in the stable build or its gates. The properties themselves live in
+# `oc_testkit::fuzz_props`, which the ordinary suite also runs over `fuzz/corpus/`.
+#
+#   cargo +nightly fuzz run <target> -- -max_total_time=900
+#
+# Never shipped; `oc-testkit` is dev-only.
+[package]
+name = "openconvert-fuzz"
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+oc-testkit = { path = "../crates/oc-testkit" }
+
+[[bin]]
+name = "ir_deserialize"
+path = "fuzz_targets/ir_deserialize.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "job_spec"
+path = "fuzz_targets/job_spec.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "xhtml_opf_roundtrip"
+path = "fuzz_targets/xhtml_opf_roundtrip.rs"
+test = false
+doc = false
+bench = false

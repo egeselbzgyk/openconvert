@@ -483,3 +483,95 @@ fn ai_without_all_tasks_asks_nothing_until_a_language_is_enabled() {
         common::sha256_hex_of(without.built.bytes.as_slice())
     );
 }
+
+/// Row 14.20 (A14.7, D13.9), the CI gate's test: the `--ai` path completes with no network at all.
+///
+/// The no-network job runs this file under `unshare -n` with `OC_EXPECT_NO_NETWORK=1`, and the test
+/// first proves the namespace is real — an outbound connect fails and loopback is the only
+/// interface — so a green job is not a job that happened to have a network. Then the AI path runs twice more from
+/// what is on disk: a warm answer cache (the model panics if asked), and the committed cassettes
+/// through `Replay`, a provider that holds no transport and answers from files. Both complete, and
+/// the warm run is byte-identical to the cold one.
+#[test]
+fn unshare_n_covers_the_ai_cassette_path() {
+    if std::env::var("OC_EXPECT_NO_NETWORK").is_ok_and(|value| value == "1") {
+        let outbound = std::net::TcpStream::connect_timeout(
+            &std::net::SocketAddr::from(([1, 1, 1, 1], 443)),
+            std::time::Duration::from_secs(2),
+        );
+        assert!(
+            outbound.is_err(),
+            "a socket reached the network: not an empty namespace"
+        );
+        #[cfg(target_os = "linux")]
+        {
+            let devices = std::fs::read_to_string("/proc/net/dev").expect("/proc/net/dev");
+            let interfaces: Vec<&str> = devices
+                .lines()
+                .skip(2)
+                .filter_map(|line| line.split(':').next())
+                .map(str::trim)
+                .collect();
+            assert_eq!(
+                interfaces,
+                ["lo"],
+                "an interface besides loopback: not an empty namespace"
+            );
+        }
+    }
+
+    let root = std::env::temp_dir().join(format!("oc-ai-offline-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let cache = oc_ai::cache::FileCache::new(&root);
+    let clock = SystemClock::new();
+    let context = |provider: &'static dyn LlmProvider| AiContext {
+        provider,
+        cache: Some(&cache),
+        clock: &clock,
+        started_ms: clock.now_ms(),
+        all_tasks: true,
+    };
+
+    // Cold, from the in-process model: fills the cache.
+    let echo: &'static Echo = Box::leak(Box::new(Echo::new()));
+    let cold = convert_fixture(
+        "f09_novel_structure",
+        Evidence::Stripped,
+        Some(&context(echo)),
+    );
+    assert!(
+        echo.calls.load(Ordering::SeqCst) > 0,
+        "the cold run asked the model"
+    );
+
+    // Warm: every answer from the cache, none from a model.
+    let warm = convert_fixture(
+        "f09_novel_structure",
+        Evidence::Stripped,
+        Some(&context(&Panicking)),
+    );
+    let outcome = warm.ai.as_ref().expect("the AI step ran");
+    assert!(!outcome.calls.is_empty() && outcome.calls.iter().all(|call| call.cached));
+    assert_eq!(
+        common::sha256_hex_of(cold.built.bytes.as_slice()),
+        common::sha256_hex_of(warm.built.bytes.as_slice())
+    );
+
+    // The cassettes: whatever they hold and whatever they miss, the conversion completes whole.
+    let cassettes =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../oc-ai/tests/cassettes");
+    let replay: &'static oc_ai::cassette::Replay = Box::leak(Box::new(
+        oc_ai::cassette::Replay::new(&cassettes, oc_ai::cassette::STUB_MODEL),
+    ));
+    let uncached = AiContext {
+        provider: replay,
+        cache: None,
+        clock: &clock,
+        started_ms: clock.now_ms(),
+        all_tasks: true,
+    };
+    let replayed = convert_fixture("f09_novel_structure", Evidence::Stripped, Some(&uncached));
+    assert!(replayed.ai.is_some(), "the AI step ran on the cassettes");
+    assert!(replayed.structural.i7.holds(), "and the book is whole");
+    let _ = std::fs::remove_dir_all(&root);
+}

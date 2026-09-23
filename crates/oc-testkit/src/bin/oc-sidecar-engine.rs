@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! A minimal engine for the sidecar teardown tests (PHASE 9 rows 9.9 and 9.10).
 //!
 //! It does what the real engine does before it asks a model anything — pick a loopback port, start
@@ -21,6 +22,8 @@ use oc_core::sidecar::server::{Health, OwnedServer};
 use oc_net::transport::HttpTransport;
 
 fn main() {
+    // As the real engine does: its children get the parent-death signal (PHASE 14).
+    oc_core::sidecar::orphan::init();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let (mode, program) = (args[0].as_str(), PathBuf::from(&args[1]));
 
@@ -54,6 +57,7 @@ fn main() {
         },
         other => panic!("unknown mode {other}"),
     }
+    oc_core::sidecar::supervise::settle();
 }
 
 /// `GET /health` over loopback: 200 is ready, anything else is not yet.

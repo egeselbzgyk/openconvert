@@ -178,8 +178,47 @@ pub fn parse(text: &str) -> Result<JobSpec, JobSpecError> {
             pointer: String::new(),
             problem: error.to_string(),
         })?;
+    check_paths(&spec)?;
     check_consent(&spec)?;
     Ok(spec)
+}
+
+/// Every path a spec names is absolute and has no `..` in it (PHASE 14 row 14.14, RT B15).
+///
+/// The schema says only "string". A relative path would be resolved against whatever directory
+/// the engine happens to run in, and a `..` defeats every prefix check a supervisor or a sandbox
+/// makes on the path ("inside the job directory" is not a property `/jobs/../home/me` has). So the
+/// spec's writer — the app, or whatever wrote a file the engine was pointed at — names files
+/// exactly, or the spec is refused before anything is read.
+fn check_paths(spec: &JobSpec) -> Result<(), JobSpecError> {
+    let ai = spec.ai.as_ref();
+    let paths = [
+        ("/input/path", Some(&spec.input.path)),
+        ("/input/password_file", spec.input.password_file.as_ref()),
+        ("/output/path", Some(&spec.output.path)),
+        ("/output/report_path", spec.output.report_path.as_ref()),
+        ("/overrides_path", spec.overrides_path.as_ref()),
+        (
+            "/ai/api_key_file",
+            ai.and_then(|ai| ai.api_key_file.as_ref()),
+        ),
+        ("/ai/model_path", ai.and_then(|ai| ai.model_path.as_ref())),
+    ];
+    for (pointer, path) in paths {
+        let Some(path) = path else {
+            continue;
+        };
+        if !path.is_absolute() {
+            return Err(invalid(pointer, "is not an absolute path"));
+        }
+        if path
+            .components()
+            .any(|component| component == std::path::Component::ParentDir)
+        {
+            return Err(invalid(pointer, "contains `..`"));
+        }
+    }
+    Ok(())
 }
 
 /// D10: a non-loopback endpoint needs `non_loopback_consent: true`.
@@ -416,6 +455,53 @@ mod tests {
 
     fn refused(document: &Value) -> JobSpecError {
         parse(&document.to_string()).expect_err("the spec is refused")
+    }
+
+    /// `minimal()` with `value` at the JSON pointer `field`, creating the objects on the way.
+    fn with(field: &str, value: Value) -> Value {
+        let mut spec = minimal();
+        let parts: Vec<&str> = field.trim_start_matches('/').split('/').collect();
+        let (last, parents) = parts.split_last().expect("a pointer");
+        let mut node = &mut spec;
+        for part in parents {
+            node = node
+                .as_object_mut()
+                .expect("an object")
+                .entry(*part)
+                .or_insert_with(|| serde_json::json!({}));
+        }
+        node.as_object_mut()
+            .expect("an object")
+            .insert((*last).to_owned(), value);
+        spec
+    }
+
+    /// PHASE 14 row 14.14's property as a unit test, and RT B15's reason for it: the one argument
+    /// the app passes is only as safe as the validator behind it, and a validator that accepts a
+    /// relative path or a `..` has let the spec's writer choose what the engine reads and writes
+    /// relative to wherever it runs.
+    #[cfg(unix)]
+    #[test]
+    fn every_path_in_an_accepted_spec_is_absolute_and_never_climbs() {
+        for (field, value) in [
+            ("/input/path", serde_json::json!("in.pdf")),
+            ("/input/path", serde_json::json!("/tmp/../etc/passwd")),
+            ("/input/path", serde_json::json!("")),
+            ("/output/path", serde_json::json!("../out.epub")),
+            ("/output/report_path", serde_json::json!("report.json")),
+            ("/input/password_file", serde_json::json!("/tmp/a/../../pw")),
+            ("/overrides_path", serde_json::json!("overrides.json")),
+            ("/ai/api_key_file", serde_json::json!("key")),
+            ("/ai/model_path", serde_json::json!("/m/../../model.gguf")),
+        ] {
+            let spec = with(field, value.clone());
+            match refused(&spec) {
+                JobSpecError::Invalid { pointer, .. } => assert_eq!(pointer, field, "{value}"),
+                other => panic!("{field} = {value}: expected Invalid, got {other}"),
+            }
+        }
+        // And the ordinary shape still passes.
+        assert!(parse(&minimal().to_string()).is_ok());
     }
 
     #[test]

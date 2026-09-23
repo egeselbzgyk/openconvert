@@ -59,6 +59,22 @@ pub const RELEASE_PLACEHOLDER_FILES: [&str; 4] = [
 /// `xtask`.
 const SELF_REFERENTIAL_FILES: [&str; 2] = ["xtask/src/ci_lint.rs", "xtask/tests/ci.rs"];
 
+/// Where `unsafe` may appear at all (PHASE 14 row 14.22): the PDFium binding module and the three
+/// syscall modules of the sandbox. Everything else is `#![forbid(unsafe_code)]` and must not so much
+/// as spell an `unsafe` block — and today none of these four contains one either: the syscalls
+/// belong to `pdfium-render`, `rustix`, `landlock` and `win32job` (ARCHITECTURE §5 allows the first
+/// only, and the higher authority is kept; see `docs/DECISIONS_LOG.md`).
+const UNSAFE_ALLOWED: [&str; 4] = [
+    "crates/oc-pdf/src/pdfium/",
+    "crates/oc-core/src/sandbox/landlock.rs",
+    "crates/oc-core/src/sandbox/rlimit.rs",
+    "crates/oc-core/src/sandbox/jobobject.rs",
+];
+
+/// Crate roots that cannot forbid `unsafe_code`: libFuzzer's `fuzz_target!` expands to a
+/// `#[no_mangle]` entry point, which the lint counts, in a dev-only workspace of its own.
+const FORBID_EXEMPT_DIRS: [&str; 1] = ["fuzz/"];
+
 /// One rule violation, with enough location to fix it.
 struct Finding {
     path: PathBuf,
@@ -84,6 +100,7 @@ pub fn run(workspace_root: &Path, release_branch: bool) -> Result<()> {
     }
 
     check_warning_registry(workspace_root, &mut findings)?;
+    check_unsafe(workspace_root, &mut findings)?;
 
     if release_branch {
         let today = crate::thresholds_lint::today_for_test();
@@ -342,6 +359,91 @@ fn report(workspace_root: &Path, findings: Vec<Finding>) -> Result<()> {
         );
     }
     bail!("ci-lint found {} violation(s)", findings.len())
+}
+
+/// PHASE 14 row 14.22: `unsafe` only in [`UNSAFE_ALLOWED`], and every crate root forbids it.
+fn check_unsafe(workspace_root: &Path, findings: &mut Vec<Finding>) -> Result<()> {
+    for path in source_files(workspace_root)? {
+        if path.extension().is_none_or(|ext| ext != "rs")
+            || is_self_referential(workspace_root, &path)
+        {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let relative = relative(workspace_root, &path);
+        for rule_line in unsafe_rule(&relative, &text) {
+            findings.push(Finding {
+                path: path.clone(),
+                line: rule_line.0,
+                rule: rule_line.1,
+                text: rule_line.2,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn relative(workspace_root: &Path, path: &Path) -> String {
+    path.strip_prefix(workspace_root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+/// Whether `relative` is a crate root: `lib.rs`, `main.rs` or a `src/bin/` file.
+fn is_crate_root(relative: &str) -> bool {
+    relative.ends_with("/src/lib.rs")
+        || relative.ends_with("/src/main.rs")
+        || relative.contains("/src/bin/")
+        || relative.starts_with("fuzz/fuzz_targets/")
+}
+
+/// The `unsafe` rule over one file, by its path relative to the workspace root:
+/// `(line, rule, text)` for each violation.
+fn unsafe_rule(relative: &str, text: &str) -> Vec<(usize, &'static str, String)> {
+    const UNSAFE_RULE: &str =
+        "`unsafe` outside the declared modules (the PDFium binding, the sandbox's syscall modules)";
+    const FORBID_RULE: &str = "a crate root without #![forbid(unsafe_code)]";
+    const FORBID: &str = "#![forbid(unsafe_code)]";
+
+    let allowed = UNSAFE_ALLOWED
+        .iter()
+        .any(|declared| relative.starts_with(declared));
+    let mut out = Vec::new();
+    for (number, line) in text.lines().enumerate() {
+        // Prose about `unsafe` — a doc comment saying there is none — is not a use of it.
+        let code = line.split("//").next().unwrap_or_default();
+        let uses = [
+            "unsafe {",
+            "unsafe fn",
+            "unsafe impl",
+            "unsafe extern",
+            "unsafe trait",
+        ]
+        .iter()
+        .any(|form| find_word(code, form).is_some())
+            || code.contains("allow(unsafe_code)");
+        if uses && !allowed {
+            out.push((number + 1, UNSAFE_RULE, line.trim().to_owned()));
+        }
+    }
+    let exempt = FORBID_EXEMPT_DIRS
+        .iter()
+        .any(|dir| relative.starts_with(dir));
+    if is_crate_root(relative) && !exempt && !text.contains(FORBID) {
+        out.push((1, FORBID_RULE, relative.to_owned()));
+    }
+    out
+}
+
+/// [`unsafe_rule`] for a test: the rules that fire on `text` at `relative`.
+pub fn unsafe_findings_in(relative: &str, text: &str) -> Vec<String> {
+    unsafe_rule(relative, text)
+        .into_iter()
+        .map(|(_, rule, _)| rule.to_owned())
+        .collect()
 }
 
 /// The rules, applied to a string rather than to the repository, so a test can feed them

@@ -13,6 +13,8 @@ oc-model = { path = "../oc-model", version = "0.1.0" }
 oc-core = { path = "../oc-core", version = "0.1.0" }
 pdfium-render.workspace = true
 lopdf.workspace = true
+flate2.workspace = true
+weezl.workspace = true
 quick-xml.workspace = true
 regex.workspace = true
 serde.workspace = true

@@ -4786,6 +4786,83 @@ Evidence: `crates/openconvert/tests/providers.rs` (`provider_detect_reports_olla
 `provider_check_says_whether_consent_is_needed`, `provider_probe_answers_what_convert_would_open`).
 Affects: IMPLEMENTATION_PLAN §2.1, UI_UX §2.4, Phase 12 (`routes/settings/providers.svelte`), Phase 14.
 
+## 2026-09-23 · The resource caps, checked before the work: what each one reads · Phase 14
+Context: PHASE 14 details 1–4 ask for caps checked before the expensive operation, a bounded
+filter chain that ignores `/Length`, and an xref/ObjStm walk with a depth counter and a visited set.
+Decisions:
+1. **The image cap counts pixels, not pixels × components.** Detail 1 multiplies by components; D13.2
+   names the cap "max image pixels (100 MP declared)", and the threshold's evidence is Pillow's
+   `MAX_IMAGE_PIXELS`, a pixel count. D13.2 governs. The check reads the dictionary only
+   (`ImageDict`), and `decode_image_checked` takes the decoder as a closure so it cannot be reached
+   first.
+2. **Our own filter chain, one budget per stream.** `oc_pdf::filters::decode_stream` decodes Flate,
+   LZW, RunLength, ASCII85, ASCIIHex and the PNG/TIFF predictors as `Read` adapters, each layer
+   through `BoundedInflate`; the layers **share** `max_decompressed_stream_bytes`, so nesting a bomb
+   does not multiply the ceiling. Page content and XMP use it; `lopdf` (which decodes object and
+   xref streams itself while loading, unbounded by default) now loads with `max_decompressed_size`.
+   A regression test holds the chain to `lopdf`'s answers on every committed fixture.
+3. **The structural pre-walk runs before PDFium and `lopdf`** (`oc_pdf::prescan`): startxref, `/Prev`,
+   `/XRefStm`, classic tables and xref streams, a depth counter (`XrefDepth`) and a visited set of
+   offsets (`XrefCycle`); object-stream nesting on the way to the catalogue under the same two
+   guards (`XrefDepth`, `ObjStmCycle`, a variant the plan's enum lacks: an object stream cycle has no
+   byte offset). **A cycle is a refusal**, as detail 3 says, not a warning. Anything else that does
+   not parse ends the walk silently — PDFium reconstructs broken tables, and a pre-check that refused
+   what the parser reads would be a regression.
+4. **The page cap reads the catalogue's `/Count`** through that walk, before any page object exists
+   in either parser; PDFium's own count is still checked after it opens, for files the walk cannot
+   follow (object streams it cannot decode, encryption).
+5. **`limits.max_object_nesting = 64`, provisional.** The walk's parser must bound its own recursion;
+   64 is the depth PDFium's syntax parser is understood to allow (not verified here).
+Evidence: rows 14.1–14.6; `our_filter_chain_agrees_with_lopdf_on_every_fixture`,
+`every_fixture_walks_and_agrees_with_pdfium_on_its_page_count`.
+Affects: `crates/oc-pdf/src/{limits,filters,prescan}.rs`, `crates/oc-core/src/limits.rs`,
+`thresholds.toml`.
+
+## 2026-09-23 · One abort path: deadlines live on the cancel flag · Phase 14
+Context: PHASE 14 detail 6: a `DeadlineGuard` sets the same flag as cancel, polled at stage
+boundaries and inside per-page loops.
+Decision: the deadline is stored **on `Cancel`**, and `Cancel::is_cancelled()` — the poll every loop
+already makes — also reads the clock and, past the deadline, sets the flag with
+`AbortCause::Deadline(stage)`. No timer thread. The first cause wins, so a deadline cannot turn a
+user's cancel into a failure. `Scratch::clean_up` is the single cleanup and removes each path once.
+A single native call that never returns is not caught by a poll; that is the supervisor's kill
+(D13.2) and the caps' job.
+Evidence: `deadline_and_cancel_share_one_abort_path` (14.8), `a_dropped_deadline_never_fires`.
+Affects: `crates/oc-core/src/{cancel,deadline}.rs`.
+
+## 2026-09-23 · Children that do not outlive a killed engine, without `unsafe` · Phase 14
+Context: carried over from Phase 9 (DECISIONS_LOG "Who tears the sidecar down") and Phase 13 (row
+13.19): an engine killed outright (SIGKILL, a PDFium segfault) runs no hook and no destructor.
+D13.2 asks for `PR_SET_PDEATHSIG` on Linux and a job object on Windows; CLAUDE.md and ARCHITECTURE
+§5 allow `unsafe` only in the PDFium binding (the plan's row 14.22 would also allow three syscall
+modules — the higher authority is kept, and none of them contains `unsafe`).
+Decisions:
+1. **Linux: an exec trampoline.** `oc_core::sidecar::orphan::command` starts the engine's own binary
+   as `__oc-exec-child <engine pid> -- <program> <args…>`; `orphan::init()` (first line of every
+   engine `main`) recognises it, sets `PR_SET_PDEATHSIG = SIGTERM` through rustix's safe wrapper,
+   exits if the engine already died (its parent pid changed), and `exec`s the program — same pid,
+   environment and stdio. No `pre_exec`, no `unsafe`. Opt-in: a binary that never calls `init` (the
+   desktop app, tests) spawns directly, as before.
+2. **The death signal follows the spawning thread**, so children are spawned by threads that wait
+   for them (both call sites already do).
+3. **Windows: `win32job`** puts each child in the engine's `KILL_ON_JOB_CLOSE` job (`orphan::adopt`).
+   Type-checked for `x86_64-pc-windows-msvc`; **unverified here** (no Windows machine).
+4. **macOS has no `PDEATHSIG`**: the process group and the supervisor's `kill(-pgid)` remain the
+   mechanism, as ARCHITECTURE §8.2 says. **Unverified here.**
+5. **`supervise::settle()`** ends `main`: when a SIGTERM is being handled, `main` waits for the
+   handler's `exit(3)` instead of returning first. Found while stress-testing: the handler's
+   teardown ends the children, the waiting work finishes early, and `main` returned 0 in 3 of 24
+   parallel runs of `ocr_child_dies_with_the_engine` (0 of 32 after).
+6. **PROVISIONAL — needs maintainer ratification: no Windows memory cap.** `win32job` does not expose
+   `JOB_OBJECT_LIMIT_PROCESS_MEMORY`, and setting it is `unsafe` FFI this project does not write. The
+   engine reports the cap `unsupported` on Windows. Ratify one of: `unsafe` confined to
+   `sandbox/jobobject.rs` as row 14.22 allows; an upstream `limit_process_memory` in `win32job`; or
+   the desktop app's job object carrying the limit.
+Evidence: `owned_server_does_not_outlive_a_sigkilled_engine`,
+`ocr_child_does_not_outlive_a_sigkilled_engine` (Linux; both failed before the trampoline).
+Affects: D13.2, SECURITY §3, ARCHITECTURE §8.2, `crates/oc-core/src/sidecar/{orphan,supervise}.rs`,
+`crates/oc-core/src/sandbox/`.
+
 ## 2026-09-23 · Phase 12 meets Phases 10, 11 and 13: one conversion path, one cache rule · Phase 12
 Context: `phase/12-desktop-ui` rewrote the conversion driver for real progress, cancel and the
 partial re-run (`convert_observed`, `Upstream`, `cache.rs`); main, meanwhile, split the same driver
@@ -4926,6 +5003,137 @@ Evidence: `the_network_log_says_it_is_not_recorded_until_there_is_an_audit_log`;
 log says this build records nothing yet, and lists what the audit log holds.
 Affects: `apps/desktop/src-tauri/src/{netlog,main}.rs`, `Settings.svelte`, `locales/*.json`,
 PHASE 14 detail 12 (fills the hook).
+
+## 2026-09-23 · The engine's hardening, wired into `convert` · Phase 14
+Context: PHASE 14 details 5–7, 9–10 and rows 14.6–14.11, 14.19: the memory cap before the PDF opens,
+Landlock before the first PDF byte, per-stage deadlines, and "exit 1 with a report" for a file a cap
+refuses.
+Decisions:
+1. **Order in `run_job`/`steps`:** `RLIMIT_AS` → (control and heartbeat threads) → the AI endpoint
+   opened (an engine-owned `llama-server` must not inherit the sandbox; a refusal still reads
+   nothing) → OCR discovery → **Landlock** → the memory cap read back for the report → the first PDF
+   byte. The AI endpoint used to open after the PDF did; nothing else moved. The control and
+   heartbeat threads exist before Landlock and stay unrestricted below ABI 8 (they read stdin and
+   write stderr); every thread that touches the PDF is created after it and inherits it.
+2. **The scope set:** read the input (the file, not its directory), the overrides file and the
+   system font directories PDFium's font mapper scans (so a restricted run maps fonts exactly as an
+   unrestricted one: the output must not depend on the kernel, D13.8); read and write the output's
+   directory, the report's, `/dev/null`, the rebuild cache and — with `--ai` — the LLM answer
+   cache; when OCR may start `tesseract`: read and execute `/bin`, `/usr/bin`, the system library
+   directories, the loader cache, the engine binary (the exec trampoline) and the program's
+   `<prefix>`. TCP `connect` only to the AI endpoint's port. Every existing CLI and OCR test,
+   including the real-Tesseract ones, now runs inside it.
+3. **PROVISIONAL — needs maintainer ratification: `OC_LANDLOCK=off`.** An operator's switch that
+   skips Landlock and records `disabled by OC_LANDLOCK=off` in the report. It is how row 14.11's
+   recorded skip is exercised on a kernel that has Landlock, and how a too-narrow scope would be
+   diagnosed in the field. Whoever controls the engine's environment controls the engine already.
+4. **A cap is exit 1 with a failure report** (`convert` and the job spec): `{schema, status:
+   "failed", engine, input, failure: {code, message, cap}, sandbox}` at the report path; no book, no
+   temporary. `inspect` and `dump-stage` keep exit 2 for a refused document (§2.4, unchanged).
+5. **An image refused by the pixel cap refuses the document.** `ingest` used to drop a page's images
+   silently when `page_images` failed; a cap violation now propagates (exit 1, `max_image_pixels`),
+   any other failure still drops them. A book silently thinner than its source is the outcome the
+   caps must not produce.
+6. **PROVISIONAL — needs maintainer ratification: `limits.max_page_glyphs = 1 000 000`.** SECURITY
+   §4's 3-page/40-million-glyph PDF is bounded by none of D13.2's caps (measured: PDFium past 13 GB of
+   RSS on three pages of one-glyph `Tj`s). The count is the string bytes of the text-showing
+   operators in the page content and the forms it paints, taken through the bounded filter chain
+   before PDFium loads the page. Refused in 0.3–1.6 s at 45–200 MB here.
+7. **A stage deadline is a failure** (`E_LIMIT_EXCEEDED`, cap `stage_deadline_secs`), a cancel is a
+   cancel (exit 3): the cause on the shared flag decides. Every stage the driver runs is armed.
+Evidence: `crates/openconvert/tests/hardening.rs` (14.7, 14.9, 14.11, 14.19 and additions), the whole
+suite under Landlock.
+Affects: D13.2, D13.9, SECURITY §4 and §11, PHASE 14 details 5–7 and 9–10, `cmd_convert.rs`,
+`openconvert::{sandbox, report, deliver, input}`, `oc_pdf::glyph_budget`, `thresholds.toml`.
+
+## 2026-09-23 · The crash-regression corpus, and the Isartor pins that could not be taken · Phase 14
+Context: PHASE 14 detail 9 and rows 14.16–14.18: Isartor plus a mutated set, keyed `(name, sha256)`
+in `corpus/fixtures/crash/manifest.json`; Isartor fetched by `xtask fetch-isartor` with a pinned
+SHA-256 and never vendored.
+Decisions:
+1. **The mutated set is generated, deterministic and committed** (`python -m oc_eval.mutate.crash`,
+   29 files, 168 KB): `xref_cycle` (self loop, two-section cycle, 200-deep chain, `/Prev` past the
+   end and negative), `xref_flip` (seeded byte flips in three seeds' xref tables), `truncate_stream`
+   (a file ending mid-stream, no xref, lying `/Length`s, a Flate stream cut in half), `objstm_nest`
+   (the catalogue 200 object streams deep, a loop of three, a shallow nesting inside the cap) and
+   `pages_loop` (kids that are themselves, each other, the catalogue; a node its own parent). The
+   seeds are the committed hand-made fixtures. `--check` regenerates in memory and fails on any
+   difference (pytest).
+2. **What the corpus proves is behaviour, not quality**: every file terminates with exit 0 or 1 and
+   a report, no 101, no hang, no book at the output path after exit 1. Here: 17 convert, 12 are
+   refused (6 by `max_xref_chain`, 5 by PDFium as unreadable).
+3. **PROVISIONAL — needs maintainer ratification: the Isartor pins are empty.** The PDF
+   Association's site is refused by this sandbox's egress policy, and reading the suite from the
+   veraPDF corpus mirror was not permitted here. `xtask/isartor.lock` has the source template
+   (veraPDF-corpus at a commit, per-file SHA-256) with `commit = "TODO_ISARTOR_COMMIT"` and no
+   files, and `fetch-isartor` refuses until it is filled. The nightly `isartor` job fails at the
+   fetch until then; row 14.16 is **unverified here**.
+Evidence: `crash_fixtures_are_manifest_keyed`, `mutated_crash_corpus_terminates_cleanly`,
+`eval/tests/test_crash_corpus.py`.
+Affects: `corpus/fixtures/crash/`, `eval/src/oc_eval/mutate/`, `xtask/isartor.lock`,
+`.github/workflows/nightly.yml`.
+
+## 2026-09-23 · The fuzz targets, and the path rule they found missing · Phase 14
+Context: PHASE 14 detail 8 and rows 14.13–14.15: `cargo-fuzz` on the IR deserialiser, the job-spec
+validator and the XHTML/OPF emitter round trip; corpora seeded from the committed fixtures; a
+nightly job, 15 minutes a target.
+Decisions:
+1. **The properties live in `oc_testkit::fuzz_props`**, and each `fuzz/fuzz_targets/*.rs` is one
+   line. The ordinary suite runs the same properties over `fuzz/corpus/` and a few hundred
+   generated inputs (`crates/oc-testkit/tests/fuzz_props.rs`), so they stay compiling and green
+   between nights. `fuzz/` is a workspace of its own (`exclude = ["fuzz"]`): nightly and libFuzzer
+   stay out of the stable build and its gates.
+2. **What "the IR" is for `ir_deserialize`:** the semantic layer the engine reads back from a saved
+   run (`SemanticIr`: metadata, language, sections, notes, figures, tables, page breaks) — the
+   whole `Document` holds `&'static str` registries and is never deserialised. The property is
+   that canonical JSON is a fixed point.
+3. **`xhtml_opf_roundtrip` draws its document from the bytes with a bounded cursor**, not proptest's
+   pass-through RNG: the first version hung (proptest re-drew from exhausted input forever).
+4. **Row 14.14 found a hole: `oc_core::jobspec` accepted any path.** The schema says only
+   "string", so `"book.pdf"` and `"/in/../etc/passwd"` passed. Every path a spec names — input,
+   password file, output, report, overrides, API key file, model — must now be absolute with no
+   `..` (`check_paths`, `JobSpecError::Invalid` at the field's pointer). The engine's own job-spec
+   tests now canonicalise their fixture paths.
+5. **Run here:** 120 s each, `-rss_limit_mb=2048`, seeded: `ir_deserialize` 1 692 734 runs,
+   `job_spec` 2 632 543, `xhtml_opf_roundtrip` 21 243 — no crash, no failed property. The nightly
+   15-minute campaigns (and OSS-Fuzz-length ones) are **unverified here** (no CI).
+Evidence: rows 14.13–14.15 in the suite; `every_path_in_an_accepted_spec_is_absolute_and_never_climbs`.
+Affects: SECURITY §12, RT B15, `schemas/job-spec.v1.json` (semantics, not text), `fuzz/`,
+`xtask fuzz-seeds`, `.github/workflows/nightly.yml`.
+
+## 2026-09-23 · The `--isolate-parser` spike: measured, and no-go · Phase 14
+Context: PHASE 14 detail 13 and row 14.23, D16, SECURITY §5 and ratified position 1: a time-boxed
+spike — one child per page range, length-prefixed CBOR of glyph batches over a pipe — measured for
+wall-clock overhead and output identity. **Go** if overhead < 15 % and output unchanged, otherwise
+**no-go**, and the item stays post-v1 either way unless the maintainer promotes it.
+What was built: `cargo run --release -p xtask -- isolate-parser-spike [--fixture <STEM|PATH>]
+[--reference-book <PAGES>] [--repeats N]`. The child is the xtask binary itself (`__parse-range
+<pdf> <first> <last>`: bind PDFium, open the file, extract the range, one CBOR frame per page); the
+parent runs one child per 8-page range, in sequence, reassembles the batches and compares them with
+the same extraction done in process. The per-child cost measured (process start, PDFium bind,
+document open, serialisation) is the one an engine subcommand would pay, and a no-go leaves nothing
+half-built in the engine. Release build, 4 cores, median of 5 (3 for the book).
+Measured:
+- **Output: identical** on every file — every glyph and font of every page, bit for bit, so every
+  byte downstream of `ingest` is unchanged.
+- **Fast corpus (13 Typst fixtures, 1–5 pages):** +84 ms over 1 094 ms of conversion = **7.7 %**
+  (7.0 % on a second run). The aggregate is carried by three image-heavy fixtures whose conversion
+  is ~400 ms of image encoding; on the text fixtures the extra is **24–100 %** of the conversion
+  (a fixed ~5 ms per child against 5–30 ms books).
+- **The benchmark's 300-page reference book** (38 children): in-process extraction 514 ms,
+  isolated 1 370 ms, conversion 1 408 ms: **+856 ms = 60.8 %**.
+Decision: **NO-GO.** The criterion is met only by the fast-corpus aggregate, and only because image
+encoding dominates it; on every text document and on a book-length one the overhead is 24–100 %,
+four times and more the threshold. The cost is per child — each re-opens the whole document
+(PDFium's parse, `lopdf`'s eager load, the structural pre-walk) — so ranges would have to be much
+longer than 8 pages, which gives back most of the isolation. **PROVISIONAL — needs maintainer
+ratification** only in its reading of "overhead on the fast corpus": the aggregate alone would read
+GO. `--isolate-parser` stays post-v1 (D16); v1's crash-isolation granularity stays the job. The
+harness stays in `xtask` so the numbers can be re-measured if the per-child cost changes (a parser
+that opens lazily, a pre-parsed hand-off).
+Evidence: `isolate_parser_spike_overhead_is_recorded` (row 14.23: the harness still runs and
+compares identical, and this entry records a figure and a verdict).
+Affects: D16, SECURITY §5, PHASE 14 detail 13, `xtask/src/isolate_parser.rs`.
 
 ## 2026-09-23 · The engine sidecar is `openconvert-engine`, not `openconvert` · Phase 15 (P15.1)
 Context: carry-over from Phase 12. `tauri-build` copies every `externalBin` into `target/<profile>/`

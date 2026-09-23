@@ -59,6 +59,7 @@ impl OwnedServer {
                 program: program.to_owned(),
                 message: error.to_string(),
             })?;
+        super::orphan::adopt(&child);
         let pid = supervise::register(child);
         Ok(Self {
             pid,

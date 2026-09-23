@@ -1482,3 +1482,82 @@ unverified here. Built on `phase/12-desktop-ui`.
   time, and the signing dry run (A12.7, row 12.14 signing) — it needs certificates and Actions.
 - A real model behind the app's server and a real remote endpoint (no GGUF can be fetched here).
 - PROVISIONAL decisions awaiting ratification are listed in `PROGRESS.md` › Blocked (Phase 12).
+
+## Phase 14 — Security hardening
+
+`SECURITY.md` as enforced, tested behaviour: every resource cap is checked **before** the work it
+bounds, from what the file declares; a cap, a deadline and a cancel end through one abort path, in
+exit 1 with a report and nothing at the output path; the engine confines itself on Linux (Landlock,
+`RLIMIT_AS`) and its children cannot outlive it; every outbound connection is audited; the parsers we
+own are fuzzed; files that once crashed us are permanent regressions. `docs/SECURITY_TESTING.md` maps
+each promise to its test. Verified here on Linux 6.18 (Landlock ABI 7). macOS and Windows at run
+time, kernels older than 5.13, the Isartor suite, the nightly fuzz campaigns and every CI job are
+unverified here. Built on `phase/14-security-hardening`.
+
+### CLI, job spec and report (`openconvert`)
+
+- New `convert` flags: `--max-memory <BYTES|4GiB>` (binary units only; default
+  `limits.max_memory_bytes`) and `--max-pages <N>` (default `limits.max_pages`). Both were in §2.1
+  already; `inspect --max-pages` is Phase 1's.
+- A cap or a stage deadline in `convert` is now **exit 1** with a failure report: `status: "failed"`,
+  `failure.{code: "E_LIMIT_EXCEEDED", message, cap}` (the `thresholds.toml` key that fired). The book
+  is written beside the destination and renamed only on success, so a failed run never leaves a file
+  at the output path. `inspect` and `dump-stage` still exit 2 on a cap.
+- `report.json` gains a `sandbox` section: `memory.{mechanism, status, requested_bytes,
+  in_force_at_open, flag, reason}` and `landlock.{status, abi, net_restricted, reason}`.
+- A job spec must name every path (input, password file, output, report, overrides, API key file,
+  model) **absolute, with no `..`**; anything else is `E_JOBSPEC` at the field's pointer.
+- New environment variable `OC_LANDLOCK=off` — an operator's switch that records the skip in the
+  report (PROVISIONAL).
+- Hidden argv form `__oc-exec-child <pid> -- <program> …`: the engine re-executes itself as a
+  trampoline that sets the parent-death signal and `exec`s a child (`llama-server`, `tesseract`).
+
+### Engine (`oc-core`, `oc-pdf`, `oc-net`)
+
+- `oc_core::limits::CapViolation` — one variant per cap (`Pages`, `ImagePixels`, `StreamBytes`,
+  `XrefDepth`, `XrefCycle`, `ObjStmCycle`, `PageGlyphs`, `Memory`, `Deadline`), `cap()` names it.
+- `oc_core::deadline` — `DeadlineGuard`, `AbortCause`, `Clock`/`ManualClock`, `Scratch`; deadlines
+  live on `Cancel` and every `is_cancelled()` poll checks them.
+- `oc_core::sandbox::{rlimit, jobobject, landlock}` — `RLIMIT_AS` (rustix), a job object with
+  `KILL_ON_JOB_CLOSE` (win32job; no memory limit, PROVISIONAL), Landlock (`ScopeSet`,
+  `LandlockOutcome`, ABI-5 filesystem rights, TCP connect on ABI ≥ 4). No `unsafe` of ours.
+- `oc_core::sidecar::orphan` — the PDEATHSIG trampoline; `supervise::settle` makes a SIGTERM end the
+  run as exit 3.
+- `oc_pdf::limits` (`check_image_before_decode`, `BoundedInflate`), `oc_pdf::filters` (our own
+  Flate/LZW/RunLength/ASCII85/ASCIIHex chain with predictors, one budget per chain; `lopdf` loads
+  with `max_decompressed_size`), `oc_pdf::prescan` (xref/ObjStm walk and catalogue `/Count` before
+  PDFium opens), `oc_pdf::glyph_budget` (text-operator bytes counted before a page loads).
+- `oc_net::audit` — `<data_dir>/openconvert/network-audit.log`, one JSON line
+  `{ts, host, purpose, bytes, outcome, loopback}` per connection (`download`, `llm-request`,
+  `llm-probe`), rotated to `.1`. The desktop app installs it too and Settings › Network log reads it.
+
+### thresholds.toml
+
+- `limits.max_page_glyphs` (1 000 000, PROVISIONAL), `limits.max_object_nesting` (64, PROVISIONAL),
+  `net.audit_log_rotate_bytes` (1 MiB). The report snapshot's redacted threshold count moves with
+  them.
+
+### Fuzzing, corpus, xtask, CI
+
+- `fuzz/` (own workspace, nightly only): `ir_deserialize`, `job_spec`, `xhtml_opf_roundtrip`, with
+  seeded corpora; the properties are `oc_testkit::fuzz_props` and run in the ordinary suite too.
+- `corpus/fixtures/crash/mutated/` (29 files) and `manifest.json`, from `python -m
+  oc_eval.mutate.crash` (`xref_cycle`, `xref_flip`, `truncate_stream`, `objstm_nest`, `pages_loop`).
+- xtask: `fetch-isartor` (refuses until `xtask/isartor.lock` is pinned), `fuzz-seeds`,
+  `isolate-parser-spike`; `ci-lint` confines `unsafe` to the PDFium binding and the three syscall
+  modules and requires `#![forbid(unsafe_code)]` at every other crate root.
+- `oc-testkit`: `hostile` (PDF builders for every cap), `oc-sandbox-probe`.
+- CI: the `no-network` job runs the `--ai` cassette path under `unshare -n` too, and no longer
+  counts `binary(providers)` among conversions; nightly `isartor` and `fuzz` (15 minutes a target).
+
+### Decisions
+
+- `--isolate-parser`: **NO-GO** for v1 — output identical, but +60.8 % on a 300-page book
+  (`docs/DECISIONS_LOG.md`).
+
+### Known gaps, carried forward
+
+- **Unverified here:** Windows and macOS at run time (job object, memory cap, orphan handling), a
+  Linux kernel older than 5.13 (A14.5 is shown through `OC_LANDLOCK=off`), row 14.16 (Isartor pins
+  empty), the nightly 15-minute fuzz campaigns (120 s per target here, zero crashes), every CI job.
+- PROVISIONAL decisions awaiting ratification are listed in `PROGRESS.md` › Blocked (Phase 14).

@@ -3,9 +3,8 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 14
-CURRENT_ITEM: Phase 14 — Security hardening. Phase 12 is complete and merged (2026-09-23); its
-              Network log is a hook for PHASE 14 detail 12's audit log (`netlog.rs`).
+CURRENT_PHASE: 15
+CURRENT_ITEM: Phase 15 — Packaging & release. Phase 14 is complete and merged (2026-09-23).
               Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
@@ -86,7 +85,14 @@ LAST_UPDATED: 2026-09-23
       `phase/13-ocr` and merged into `main` 2026-09-23. Tesseract 5.3.4 was on this machine, so the
       real-engine tests ran: synthetic-scan CER 0.0007 against 0.03. The real-scan stratum, macOS
       and Windows are unverified here; two provisional decisions are in the Blocked section.)*
-- [ ] **Phase 14** — Security hardening
+- [x] **Phase 14** — Security hardening  *(all 23 named tests exist; 22 pass here — 14.16 needs the
+      Isartor pins, which could not be taken here, and is unverified. 47 Rust tests in the default
+      suite, 6 Python and 1 desktop test added; built on `phase/14-security-hardening` and merged into
+      `main` 2026-09-23. Caps checked before the work, one abort path, Landlock (ABI 7 here) and
+      `RLIMIT_AS`, children that die with the engine, the network audit log, three fuzz targets
+      (120 s each here, zero crashes), 29 mutated crash files. `--isolate-parser` is NO-GO. macOS,
+      Windows, old kernels, the nightly campaigns and every CI job are unverified here; the
+      provisional decisions are in the Blocked section.)*
 - [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
 
 ## Phase 15 — on branch `phase/15-packaging-release` (part A: everything that does not need Phase 14)
@@ -266,6 +272,126 @@ of 15.9, `flatpak-builder-lint`, the Windows and macOS updater install paths, an
 - Disk is tight: run the suite per package (`scratchpad/p15/test_all.sh` deletes each package's test
   binaries after it runs).
 
+## Phase 14 — on branch `phase/14-security-hardening`
+
+Built in the worktree `/home/user/wt/phase13` while Phase 12 is finished on its own branch. Work
+items, in order, with the plan's test rows against each:
+
+- [x] **P14.1** `CapViolation`; the image cap read from the dictionary, the decoder behind it — row 14.1
+- [x] **P14.2** `BoundedInflate` and our own filter chain; `lopdf` loads bounded — rows 14.2, 14.3
+- [x] **P14.3** the xref/ObjStm pre-walk: depth counter and visited set — rows 14.4, 14.5
+- [x] **P14.4** the page cap from the catalogue's `/Count`, before any page object — row 14.6 *(the CLI's exit 1 + report is P14.10)*
+- [x] **P14.5** one abort path: `AbortCause`, `DeadlineGuard`, one cleanup — row 14.8 *(wired into `convert` in P14.10)*
+- [x] **P14.6** `oc_core::sandbox::{rlimit, jobobject}`: `RLIMIT_AS`, the engine's job object *(row 14.7, the CLI half, is P14.10)*
+- [x] **P14.7** children never outlive a killed engine: PDEATHSIG trampoline, job object (Phases 9, 13)
+- [x] **P14.8** Landlock: `ScopeSet`, self-restriction — rows 14.10, 14.12 *(14.11, the engine's recorded skip, is P14.10)*
+- [x] **P14.9** `oc-net` audit log — row 14.21
+- [x] **P14.10** the engine: `--max-memory`/`--max-pages`, Landlock and deadlines wired into `convert`; caps end in exit 1 with a report and no output; the 40 M-glyph PDF — rows 14.7, 14.9, 14.11, 14.19, 14.6's exit 1
+- [x] **P14.11** crash corpus: `oc-eval mutate`, `corpus/fixtures/crash/`, Isartor fetch — rows 14.16–14.18 *(14.16 unverified here: no Isartor pins)*
+- [x] **P14.12** `fuzz/`: three targets, seeded corpora — rows 14.13–14.15 *(120 s each here, 0 crashes; nightly 15 min unverified here)*
+- [x] **P14.13** `unshare -n` over the AI cassette path — row 14.20 *(run here under `unshare -n`; the CI job itself unverified here)*
+- [x] **P14.14** `unsafe` confined to declared modules — row 14.22
+- [x] **P14.15** `--isolate-parser` spike, go/no-go — row 14.23 *(NO-GO: +60.8 % on the 300-page book, 7.7 % fast-corpus aggregate; PROVISIONAL reading)*
+- [x] **P14.16** `docs/SECURITY_TESTING.md`, Definition of Done, CHANGELOG, merge
+
+What a fresh session needs:
+
+- `oc_core::limits::CapViolation` is the structured Phase 14 refusal (one variant per cap, `cap()`
+  names it); Phase 1's flat `LimitExceeded` stays for the page count. `PdfError::cap()` answers
+  "was this a cap?" for both.
+- The pixel cap counts **pixels**, not pixels × components: D13.2 says "max image pixels (100 MP
+  declared)", which outranks the plan's detail 1.
+- `oc_pdf::filters::decode_stream` is our own chain (Flate, LZW, RunLength, ASCII85, ASCIIHex,
+  PNG/TIFF predictors), every layer read through `limits::BoundedInflate`, **one budget shared by
+  the whole chain**. Page content and XMP go through it; `lopdf` now loads with
+  `max_decompressed_size` (it decodes ObjStm/xref streams itself, and its default was unbounded).
+  `our_filter_chain_agrees_with_lopdf_on_every_fixture` holds it to `lopdf`'s answers. The dev
+  profile builds `miniz_oxide`/`adler2` at `opt-level = 3` so the 256 MiB ceiling tests take ~2 s.
+- `oc_pdf::prescan` walks the xref chain (tables, xref streams, hybrid `/XRefStm`) **before PDFium or
+  lopdf opens the file**: depth counter → `XrefDepth`, visited offsets → `XrefCycle`, object-stream
+  nesting on the way to the catalogue → `XrefDepth`/`ObjStmCycle`; then `/Root → /Pages → /Count`
+  → `CapViolation::Pages`. Lenient otherwise: a section that does not parse ends the walk silently
+  (PDFium reconstructs). Its own parser nests at most `limits.max_object_nesting` (64, new,
+  provisional). New thresholds change the report snapshot's "[N entries, redacted]" count.
+- Deadlines live **on `Cancel`**: `oc_core::deadline::DeadlineGuard::arm(stage, limit, &cancel)`
+  records a deadline that every `cancel.is_cancelled()` poll also checks, and past it the poll sets
+  the same flag with `AbortCause::Deadline(stage)` (first cause wins). `Scratch::clean_up` is the one
+  cleanup (paths are taken as they are removed, so a second call removes nothing). Clock injected
+  (`Cancel::with_clock`, `ManualClock`).
+- `oc_core::sandbox` holds the mechanisms, each over a crate that owns the syscall (no `unsafe` of
+  ours): `rlimit` (rustix `setrlimit(RLIMIT_AS)`, soft limit only), `jobobject` (win32job,
+  KILL_ON_JOB_CLOSE; **no Windows memory cap**: win32job does not expose
+  `JOB_OBJECT_LIMIT_PROCESS_MEMORY` and setting it ourselves is `unsafe` FFI — PROVISIONAL, Blocked),
+  `landlock` (P14.8). The workspace `rustix`/`win32job` lines are copied verbatim from Phase 12's
+  branch so the two merge cleanly. Windows/macOS type-check: `CARGO_FEATURE_PURE=1 cargo check -p
+  oc-core --target x86_64-pc-windows-msvc` (blake3's C build needs MSVC otherwise).
+- **Children cannot outlive a SIGKILLed engine (Linux):** `oc_core::sidecar::orphan::command(program)`
+  starts `<engine> __oc-exec-child <pid> -- <program> …`, which sets `PR_SET_PDEATHSIG` (rustix) and
+  `exec`s; every engine `main` calls `orphan::init()` first (openconvert, `oc-sidecar-engine`,
+  `oc-ocr-engine`) and `supervise::settle()` last (a SIGTERM ends the run as exit 3, not whatever
+  `main` returned first). The desktop app does not call `init`, so its own `OwnedServer` spawns
+  directly. **For Phase 15 / a Phase 12 follow-up:** adding `orphan::init()` to the desktop `main`
+  is not enough on its own — PDEATHSIG fires when the *spawning thread* exits, and Tauri spawns
+  from async-runtime threads that may exit; it wants a dedicated long-lived spawner thread.
+- **Landlock** is `oc_core::sandbox::landlock::landlock_self_restrict(&ScopeSet) -> LandlockOutcome`
+  (landlock 0.4.7, ABI-5 fs rights all handled, TCP bind/connect handled on ABI ≥ 4 with `connect`
+  allowed only to `ScopeSet::connect_ports`). This kernel is 6.18, ABI 7, and enforces it; there is no
+  securityfs in the container, so the tests decide "should enforce" from the kernel release
+  (≥ 5.13). Rows 14.10/14.12 run `oc-sandbox-probe` (oc-testkit), which restricts itself with the
+  engine's call and reports what the kernel said. Landlock binds the calling thread and its later
+  threads (ABI < 8), so the engine must apply it before starting any thread.
+- **Network audit log** (`oc_net::audit`): `openconvert` `main` installs
+  `<data>/openconvert/network-audit.log` (`data_dir::network_audit_log()`, rotated at
+  `net.audit_log_rotate_bytes`); `HttpFetch::get` (one line per connection: a body's line is written
+  when it is dropped, with its size) and `HttpTransport` (`llm-probe` for GET, `llm-request` for
+  POST) record `{ts, host, purpose, bytes, outcome, loopback}`. The desktop app downloads models
+  and packs in its own process, so its `main` installs the same log, and Settings › Network log
+  reads it newest first (`netlog.rs`; JSON lines, `.1` is the previous generation).
+- **`convert` (and the job spec) now:** `SandboxReport::start` (RLIMIT_AS) → AI endpoint opened →
+  OCR discovered → Landlock (`openconvert::sandbox::scope_for`/`restrict`) → PDF read. Stage deadlines
+  ride on the `Cancel` (`set_stage_deadline`, armed per stage in `Timings::observed`). A cap or a
+  deadline is exit 1 with a **failure report** (`status: "failed"`, `failure.{code,message,cap}`);
+  `inspect`/`dump-stage` still exit 2. `OC_LANDLOCK=off` records a skip (PROVISIONAL). New cap
+  `limits.max_page_glyphs` (`oc_pdf::glyph_budget`, counted before PDFium loads a page;
+  PROVISIONAL). Hostile PDF builders: `oc_testkit::hostile`. The engine tests are
+  `crates/openconvert/tests/hardening.rs`; row 14.19 runs 1 000 violations in ~25 s on 4 threads.
+- **Crash corpus:** `python -m oc_eval.mutate.crash [--check]` writes 29 mutated files to
+  `corpus/fixtures/crash/mutated/` and the `(name, sha256)` manifest; minimised fuzz crashes go in
+  `corpus/fixtures/crash/fuzz/` and are keyed on the next run. Rust tests:
+  `crates/openconvert/tests/crash_corpus.rs` (14.17, 14.18; 14.16 behind `--features isartor`).
+  `xtask fetch-isartor` refuses until `xtask/isartor.lock` is pinned (Blocked).
+- **Fuzzing:** properties in `oc_testkit::fuzz_props` (run by the suite over `fuzz/corpus/`);
+  targets in `fuzz/` (own workspace; `cargo +nightly fuzz run -O <target> <corpus copy> --
+  -max_total_time=N`, with `CARGO_TARGET_DIR` in the scratchpad — the build is ~1 GB). Seeds:
+  `cargo run -p xtask -- fuzz-seeds`. Job specs now refuse relative or `..` paths.
+- **No-network job:** a new step runs `binary(ai_pipeline) or binary(ai)` under `unshare -n` with
+  `OC_EXPECT_NO_NETWORK=1` (row 14.20's test proves the namespace is empty first). The conversion
+  step's filter now excludes `binary(providers)`: its loopback stub cannot run with `lo` down and
+  one of its tests matched `test(convert_)`. Verified here with `unshare -n` (no `ip` tool, so `lo`
+  stays down).
+- `openconvert::sandbox` is the report's `sandbox` section and `--max-memory` parsing
+  (`parse_bytes`, binary units only), wired into `convert` (P14.10).
+- `docs/SECURITY_TESTING.md` maps each SECURITY promise to its test and how to run it.
+
+### Phase 14 — Definition of Done
+
+`IMPLEMENTATION_PLAN.md` §0.3, row by row. Checked on this machine (Linux 6.18, Landlock ABI 7)
+unless the row says otherwise.
+
+| Row | State |
+|---|---|
+| Every named test exists and passes | **Yes, but one.** All 23 rows, 14.1–14.23, under their names, plus 32 additions (`docs/TEST_MATRIX.md`). **14.16 exists behind `--features isartor` and is unverified here:** `xtask/isartor.lock` is not pinned (the source is unreachable from this machine). 14.13–14.15 run as properties in the suite; the 15-minute nightly campaigns are unverified here (120 s per target run here: 1 692 734 / 2 632 543 / 21 243 runs, 0 crashes). |
+| `cargo nextest run --workspace` green | **Yes** on the merge commit: 794 tests (47 new in the default suite). eval: 6 pytest tests added. Desktop: 1 test added. |
+| Green on Linux/macOS/Windows CI | **Unverified here:** GitHub Actions is disabled. macOS and Windows have no machine here; Windows is type-checked (`--target x86_64-pc-windows-msvc`). |
+| clippy `-D warnings` clean | **Yes**, workspace, all targets, all features. |
+| `cargo fmt --check` clean | **Yes.** ruff, ruff format and mypy clean on `eval/`. |
+| `cargo deny check` clean | **Yes.** One new crate in the lock, `landlock` (MIT OR Apache-2.0); `ciborium` (Apache-2.0) was already in the graph and is now also an `xtask` dependency; `rustix`/`win32job` as Phase 12 pinned them. `fuzz/` is its own workspace with its own lock. |
+| `cargo xtask thresholds-lint` clean | **Yes.** Three new entries (`limits.max_page_glyphs`, `limits.max_object_nesting`, `net.audit_log_rotate_bytes`). |
+| Every Given/When/Then demonstrated | **A14.1, A14.2, A14.3, A14.4 yes** (14.19a, 14.19b, 14.9, 14.10/14.10a). **A14.5 yes through the recorded-skip path** (`OC_LANDLOCK=off`); a real kernel older than 5.13 is unverified here. **A14.6 partial:** the mutated corpus yes (14.17); Isartor unverified here. **A14.7 yes here** under `unshare -n` (14.20); the CI job unverified here. **A14.8 partial:** zero crashes in 120 s per target here; the nightly job unverified here. |
+| `docs/CHANGELOG.md` entry | **Yes.** |
+| No `TODO`/`FIXME` without an issue number | **Yes**, `xtask ci-lint` clean (`TODO_ISARTOR_COMMIT` is a named lock slot, as `models.toml`'s are). |
+| `--isolate-parser` go/no-go recorded | **Yes: NO-GO**, `docs/DECISIONS_LOG.md` 2026-09-23 (reading PROVISIONAL). |
+
 ## Phase 13 — on branch `phase/13-ocr`
 
 Work items, in order, with the plan's test rows against each:
@@ -366,8 +492,9 @@ What a fresh session needs:
   code 3 on a signal), `endpoint` (`LlmEndpoint::choose`: an external endpoint spawns nothing).
   The lifecycle tests are in `crates/oc-testkit/tests/sidecar.rs` with two dev-only binaries,
   `oc-stub-llama-server` and `oc-sidecar-engine`. PDEATHSIG and Windows job objects need `unsafe`
-  and are deferred to Phase 14 (PROVISIONAL, DECISIONS_LOG 2026-09-23). The idle-kill *loop* is
-  Phase 10's.
+  and are deferred to Phase 14 (PROVISIONAL, DECISIONS_LOG 2026-09-23) — *done in Phase 14 without
+  `unsafe`: a PDEATHSIG trampoline (Linux) and a job object (Windows, unverified).* The idle-kill
+  *loop* is Phase 10's.
 - **`openconvert model`** is `crates/openconvert/src/cmd_model.rs`, with the registry compiled
   in. The bundled `models.toml` still has `TODO_` pins, so on it `list`/`pull` exit 2. That is
   correct until the fill (Blocked).
@@ -411,7 +538,8 @@ What a fresh session needs:
 - **A9.4** — exit, panic and SIGTERM each leave no server within 2 s **on Linux**
   (`owned_server_is_killed_on_engine_{exit,panic,sigterm}`, mutation-checked, 25 runs green).
   **Unverified here:** macOS and Windows. **Deferred to Phase 14 (PROVISIONAL):** an engine killed
-  outright (SIGKILL, segfault), which needs PDEATHSIG or a job object.
+  outright (SIGKILL, segfault), which needs PDEATHSIG or a job object — *done in Phase 14 on Linux
+  (`owned_server_does_not_outlive_a_sigkilled_engine`).*
 - **A9.5** — **unverified here:** no machine L, no model, no server. The harness is tested
   (`test_every_gate_passes_against_a_well_behaved_server`,
   `test_one_failing_gate_fails_the_verdict_and_the_exit_code`).
@@ -421,8 +549,7 @@ What a fresh session needs:
 
 ## Current work item
 
-**Phase 14 — Security hardening.** Phase 12 is merged; Settings › Network log waits for PHASE 14
-detail 12's `oc-net` audit log (`apps/desktop/src-tauri/src/netlog.rs`, `read()`).
+**Phase 15 — Packaging & release.** Phase 14 is merged. Phase 7.5 is still parked.
 
 ## Phase 11 — built on `phase/11-byo-providers`, merged 2026-09-23
 
@@ -1632,6 +1759,7 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
   11 and 13", item 2). Conservative, and R-15 is silent on AI and OCR.
 - **Part B2 — not a decision, a Phase 14 dependency:** Settings › Network log is a hook
   (`netlog::read()` answers `NotRecorded`) until PHASE 14 detail 12's `oc-net` audit log exists.
+  *Resolved in Phase 14: the app installs the log and the screen reads it.*
 
 The NFC question raised on 2026-09-20 was ruled the same day — `C(·)` is taken after
 canonical **de**composition — and is implemented. `docs/DECISIONS_LOG.md` 2026-09-20 and the
@@ -1658,7 +1786,7 @@ ratification**, and worked around. None of them blocks Phase 11's work.
 4. **The allowlist's CDN hosts** are the plan's three, and today's redirect target could not be
    observed. An off-list redirect fails closed and names the host.
 5. **PDEATHSIG and Windows job objects** (crash and SIGKILL teardown) need `unsafe` and are
-   deferred to Phase 14.
+   deferred to Phase 14. *Resolved in Phase 14 without `unsafe` (rustix, win32job).*
 6. **G3/G7/G9 inputs, and G7's numbers** — no reference tokenizations, no paired answers, no own
    conversion. `model_gate.g7_alpha = 0.05` and `g7_noninferiority_margin = 0.02` are invented.
 7. **`apps/desktop/src-tauri/src/llm.rs`** is deferred to Phase 12, which owns the desktop app and
@@ -1709,6 +1837,26 @@ Phase 11's, each logged in `docs/DECISIONS_LOG.md` (2026-09-23):
 - **P13-b re-OCR's `OcrLayerDuplicate` removal is not budget-charged.** `ingest` budgets are deferred
   to `text` (PIPELINE §3) and re-OCR replaces a whole layer by design; decide whether it needs its
   own budget.
+
+### Blocked — Phase 14 (each PROVISIONAL, logged in `docs/DECISIONS_LOG.md` 2026-09-23)
+
+- **P14-a The Isartor pins are empty.** The PDF Association's site is refused by this sandbox and
+  the veraPDF-corpus mirror could not be read here. Fill `xtask/isartor.lock` (a veraPDF-corpus
+  commit and one `[[file]]` per Isartor PDF with its SHA-256) on a machine that can; until then
+  `fetch-isartor` refuses, the nightly `isartor` job fails at the fetch, and row 14.16 is unverified.
+- **P14-b No Windows memory cap.** `win32job` does not expose `JOB_OBJECT_LIMIT_PROCESS_MEMORY`, and
+  setting it ourselves is `unsafe` FFI outside the declared modules. The engine's job object kills
+  children on close; `--max-memory` is recorded as unsupported on Windows. Ratify, or allow the FFI
+  in `sandbox/jobobject.rs`.
+- **P14-c `OC_LANDLOCK=off`.** An operator's switch that skips self-restriction and records it in
+  the report; the plan names no such switch. It is how A14.5 is exercised on a kernel that has
+  Landlock.
+- **P14-d `limits.max_page_glyphs = 1 000 000`.** SECURITY §4's 40 M-glyph test needs a cap that
+  fires before PDFium loads the page; D13.2 lists no glyph cap. The number is invented.
+- **P14-e `limits.max_object_nesting = 64`.** The pre-walk's parser must bound its recursion; 64 is
+  the depth PDFium is understood to allow, not verified here.
+- **P14-f `--isolate-parser` NO-GO reading.** The fast-corpus aggregate alone (7.7 %) would read GO;
+  the verdict follows the text fixtures (24–100 %) and the 300-page book (+60.8 %).
 
 ## Phase 7 — Definition of Done
 
@@ -2241,3 +2389,20 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P11.8     openconvert: provider detect, check and probe (+ 3)  4450002
 2026-09-23  P11.9     openconvert: A11.1 live behind live-llm; CHANGELOG; the DoD  b8184e1
 2026-09-23  PHASE 11  COMPLETE on phase/11-byo-providers - DoD checked; live Ollama/remote endpoint, macOS/Windows and CI unverified here
+2026-09-23  P14.1     oc-pdf: refuse an image by its dictionary before any decoder is entered (14.1)  5b41e8d
+2026-09-23  P14.2     oc-pdf: BoundedInflate and our own filter chain, whatever /Length says (14.2, 14.3 + 3)  95012e7
+2026-09-23  P14.3/4   oc-pdf: the xref/ObjStm pre-walk and /Count before any parser opens (14.4-14.6 + 1)  0691a0d
+2026-09-23  P14.5     oc-core: stage deadlines on the cancel flag, one cleanup (14.8 + 1)  88e8bd0
+2026-09-23  P14.6     oc-core: RLIMIT_AS and the engine's job object (+ 2)  ac06837
+2026-09-23  P14.7     oc-core: children end when the engine is killed outright (+ 4)  9edc07a
+2026-09-23  P14.8     oc-core: Landlock self-restriction (14.10, 14.12)  5cd5ad0
+2026-09-23  P14.9     oc-net: the network audit log (14.21 + 3)  9f4e3f6
+2026-09-23  P14.10    openconvert: convert under its caps, memory limit and Landlock (14.7, 14.9, 14.11, 14.19 + 9)  cfb3bce
+2026-09-23  P14.11    eval: the crash-regression corpus, keyed by sha256 (14.16-14.18 + 6)  05e93fc
+2026-09-23  P14.12    oc-testkit: three fuzz targets; job specs refuse relative paths (14.13-14.15 + 2)  8cca591
+2026-09-23  P14.13    openconvert: the --ai path under unshare -n (14.20 + 1)  0ddb83f
+2026-09-23  P14.14    xtask: unsafe confined to declared modules (14.22)  67e6af2
+2026-09-23  P14.15    xtask: the --isolate-parser spike, NO-GO (14.23)  ba2572e
+2026-09-23  P14.16a   desktop: Settings › Network log reads the audit log  d8845b2
+2026-09-23  P14.16    docs: SECURITY_TESTING, CHANGELOG, TEST_MATRIX, the DoD  (the commit that adds this line)
+2026-09-23  PHASE 14  COMPLETE on phase/14-security-hardening - DoD checked; Isartor, macOS/Windows, kernels < 5.13, nightly fuzz and CI unverified here

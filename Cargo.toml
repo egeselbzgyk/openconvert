@@ -6,6 +6,8 @@ members = [
   "crates/oc-net", "crates/oc-core", "crates/oc-testkit", "crates/openconvert",
   "apps/desktop/src-tauri", "xtask",
 ]
+# The cargo-fuzz targets are a workspace of their own (nightly and libFuzzer, PHASE 14 detail 8).
+exclude = ["fuzz"]
 
 [workspace.package]
 version      = "0.1.0"
@@ -37,6 +39,14 @@ pdfium-render = { version = "0.9.4", default-features = false, features = ["pdfi
 # `pdfium_latest`, so the bindings and the vendored library cannot drift; `xtask vendor-pdfium`
 # refuses to run when this feature and `xtask/pdfium.lock` disagree. See docs/DECISIONS_LOG.md.
 lopdf         = { version = "0.45", default-features = false, features = ["serde"] }
+# Our own filter chain, decoded through `BoundedInflate` (PHASE 14 detail 2). Both are already in
+# the graph at these versions as `lopdf`'s own decoders.
+flate2        = "1.1"
+weezl         = "0.2"
+# --- sandbox (oc-core::sandbox, PHASE 14) ---
+# Landlock's safe API over its three syscalls (Apache-2.0 OR MIT): the engine restricts itself
+# without an `unsafe` block of our own (CLAUDE.md, ARCHITECTURE §5).
+landlock      = "0.4"
 # --- text ---
 unicode-normalization = "0.1"
 unicode-properties    = "0.1"
@@ -121,6 +131,15 @@ trybuild  = "1.0"
 # full symbols for profiling, and `release` already strips.
 [profile.dev]
 debug = "line-tables-only"
+
+# The inflate backend at full speed in test builds: the ceiling tests decode a quarter of a gigabyte
+# (PHASE 14 rows 14.2, 14.3), which unoptimised takes most of a minute and optimised takes a second.
+# Code generation only; what these crates compute does not depend on it.
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+
+[profile.dev.package.adler2]
+opt-level = 3
 
 [profile.release]
 lto = "thin"

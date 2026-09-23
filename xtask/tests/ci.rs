@@ -119,3 +119,88 @@ fn thresholds_pass_their_own_provenance_rule() {
         "expected today's date in {stdout:?}"
     );
 }
+
+/// PHASE 14 row 14.22: `unsafe` is confined to the declared modules — the PDFium binding and the
+/// sandbox's three syscall modules — and every crate root forbids it. The repository passes, and
+/// the rule fires on the shapes it exists for: an `unsafe` block anywhere else, an allow of the
+/// lint, a crate root that does not forbid it. Prose about `unsafe` in a comment is not a use.
+#[test]
+fn unsafe_is_confined_to_declared_modules() {
+    let output = xtask("ci-lint");
+    assert!(
+        output.status.success(),
+        "ci-lint: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let block = format!("fn f() {{ {} {{ }} }}\n", "unsafe");
+    let allow = format!("#[allow({}_code)]\nmod ffi;\n", "unsafe");
+    let forbid = format!("#![forbid({}_code)]\n", "unsafe");
+    let fires = |path: &str, text: &str| !ci_lint::unsafe_findings_in(path, text).is_empty();
+
+    assert!(fires("crates/oc-text/src/norm.rs", &block));
+    assert!(
+        fires("crates/oc-core/src/sandbox/mod.rs", &block),
+        "the module, not its siblings"
+    );
+    assert!(fires("crates/oc-epub/src/zip.rs", &allow));
+    assert!(!fires("crates/oc-pdf/src/pdfium/bind.rs", &block));
+    for declared in ["landlock", "rlimit", "jobobject"] {
+        assert!(!fires(
+            &format!("crates/oc-core/src/sandbox/{declared}.rs"),
+            &block
+        ));
+    }
+    assert!(!fires(
+        "crates/oc-core/src/sidecar/orphan.rs",
+        "//! no `unsafe` block of ours, and no unsafe fn either\n"
+    ));
+
+    assert!(fires("crates/oc-new/src/lib.rs", "pub fn f() {}\n"));
+    assert!(fires("crates/oc-testkit/src/bin/tool.rs", "fn main() {}\n"));
+    assert!(!fires("crates/oc-new/src/lib.rs", &forbid));
+    assert!(!fires("fuzz/fuzz_targets/job_spec.rs", "#![no_main]\n"));
+}
+
+/// PHASE 14 row 14.23: the `--isolate-parser` spike's measured overhead and its explicit go/no-go
+/// are in `docs/DECISIONS_LOG.md`, and the harness that produced them still runs — isolated
+/// extraction still identical to in-process on a fixture — so the entry can be re-measured.
+#[test]
+fn isolate_parser_spike_overhead_is_recorded() {
+    let log = std::fs::read_to_string(workspace_root().join("docs/DECISIONS_LOG.md"))
+        .expect("the decisions log");
+    let entry = log
+        .split("\n## ")
+        .find(|entry| entry.contains("`--isolate-parser` spike"))
+        .expect("a DECISIONS_LOG entry for the --isolate-parser spike");
+    assert!(entry.contains("overhead"), "the entry names the overhead");
+    assert!(
+        entry.match_indices('%').any(|(at, _)| entry[..at]
+            .trim_end()
+            .ends_with(|c: char| c.is_ascii_digit())),
+        "the entry records a measured percentage"
+    );
+    assert!(
+        entry.contains("**NO-GO.**") || entry.contains("**GO.**"),
+        "the entry states an explicit go/no-go"
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_xtask"))
+        .args([
+            "isolate-parser-spike",
+            "--fixture",
+            "f01_prose_single_column",
+            "--repeats",
+            "1",
+        ])
+        .current_dir(workspace_root())
+        .output()
+        .expect("xtask runs");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        output.status.success(),
+        "{stdout}\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(stdout.contains("output identical"), "{stdout}");
+}

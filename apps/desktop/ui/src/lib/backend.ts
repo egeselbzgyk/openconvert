@@ -96,7 +96,7 @@ export type ProbeResult =
   | { available: true; url: string; host: string | null; provider: string; model: string; models: string[] }
   | { available: false; url: string; reason: string };
 
-/** Settings › Network log (`src-tauri/src/netlog.rs`). `not_recorded` until PHASE 14 detail 12's audit log. */
+/** Settings › Network log (`src-tauri/src/netlog.rs`): `oc-net`'s audit log, newest first (PHASE 14 detail 12). */
 export type NetworkLog =
   | { state: "not_recorded" }
   | { state: "entries"; entries: Array<{ ts: string; host: string; purpose: string; bytes: number; outcome: string }> };

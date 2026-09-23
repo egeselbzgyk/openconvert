@@ -252,6 +252,81 @@ pub struct Report {
     /// The provenance of every threshold, so a user can see which numbers were provisional at
     /// conversion time (D17).
     pub thresholds: Vec<ThresholdProvenance>,
+    /// How the engine restricted itself for this run (PHASE 14): the memory cap in force when the
+    /// PDF was opened, and Landlock applied or skipped with why. Set by the engine; absent for a
+    /// report built without one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sandbox: Option<crate::sandbox::SandboxReport>,
+}
+
+/// The report of a conversion that stopped: exit 1, no book, and this (PHASE 14 details 9–10).
+///
+/// A hostile or broken file must end with a report that says what stopped it — which cap, with
+/// both numbers — rather than with a process that died or a partial file (D13.2: "1 failed (report
+/// written)"). The shape shares `schema`, `status` and `engine` with a conversion's report, so a
+/// reader dispatches on `status` alone.
+#[derive(Clone, Debug, Serialize)]
+pub struct FailureReport {
+    pub schema: &'static str,
+    /// Always `failed`.
+    pub status: &'static str,
+    pub engine: Engine,
+    pub input: FailedInput,
+    pub failure: Failure,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sandbox: Option<crate::sandbox::SandboxReport>,
+}
+
+/// What is known of the input when a conversion stops.
+#[derive(Clone, Debug, Serialize)]
+pub struct FailedInput {
+    pub filename: String,
+    /// Absent when the bytes were never read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+}
+
+/// Why the conversion stopped.
+#[derive(Clone, Debug, Serialize)]
+pub struct Failure {
+    /// The `fatal` event's code (`E_LIMIT_EXCEEDED`, `E_PDF`, `E_CONVERT`…).
+    pub code: &'static str,
+    pub message: String,
+    /// The cap that fired, by its `thresholds.toml` name, when one did.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cap: Option<&'static str>,
+}
+
+/// The status a [`FailureReport`] carries.
+pub const FAILED: &str = "failed";
+
+/// A failure report.
+pub fn failure_report(
+    pdfium_version: &str,
+    input: FailedInput,
+    failure: Failure,
+    sandbox: Option<crate::sandbox::SandboxReport>,
+) -> FailureReport {
+    FailureReport {
+        schema: SCHEMA,
+        status: FAILED,
+        engine: Engine {
+            version: env!("CARGO_PKG_VERSION"),
+            ir_version: oc_model::IR_VERSION,
+            pdfium_version: pdfium_version.to_owned(),
+            prompt_version: None,
+        },
+        input,
+        failure,
+        sandbox,
+    }
+}
+
+/// A failure report as the file holds it.
+pub fn failure_to_json(report: &FailureReport) -> Result<String, serde_json::Error> {
+    let mut text = serde_json::to_string_pretty(report)?;
+    text.push('\n');
+    Ok(text)
 }
 
 /// The AI step, as the report prints it: which model, how many calls, how much of the time.
@@ -427,6 +502,7 @@ pub fn report(conversion: &Conversion, input: ReportInput<'_>) -> Report {
         }),
         consent: input.consent.map(ConsentReport::from),
         thresholds: PROVENANCE.iter().map(ThresholdProvenance::from).collect(),
+        sandbox: None,
     }
 }
 

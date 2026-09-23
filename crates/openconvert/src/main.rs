@@ -25,7 +25,17 @@ use oc_core::exit::ExitCode;
 use crate::cli::{Command, Progress};
 
 fn main() -> ProcessExitCode {
+    // First, before anything else runs: when this process is the exec trampoline for a child
+    // (`tesseract`, `llama-server`), it becomes that child here and never returns (PHASE 14).
+    oc_core::sidecar::orphan::init();
+    // Every connection `oc-net` opens in this process — a model download, a question to an `--ai`
+    // endpoint, a provider probe — is a line in the audit log (PHASE 14 detail 12). Nothing is
+    // written until one is opened.
+    oc_net::audit::install(openconvert::data_dir::network_audit_log());
     let code = run();
+    // A SIGTERM that arrived while the book was converting ends the run as a cancel, however far
+    // the conversion got after its children were torn down.
+    oc_core::sidecar::supervise::settle();
     ProcessExitCode::from(u8::try_from(code.code()).unwrap_or(1))
 }
 

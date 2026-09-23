@@ -181,6 +181,20 @@ evidence = "R8 §A2 family of traversal caps. A PDF outline is a linked structur
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[limits.max_page_glyphs]
+value = 1000000
+source = "provisional"
+evidence = "PHASE 14 detail 10 and SECURITY §4 (a 3-page PDF declaring 40 million glyphs must fail cleanly). None of D13.2's caps bounds it: measured here, three such pages of one-glyph Tj operators took PDFium past 13 GB of RSS. A dense printed page has 3 000-6 000 glyphs and a small-print dictionary page a few tens of thousands; a million is two orders of magnitude past that, and at PDFium's cost per text object it stays in the hundreds of megabytes"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[limits.max_object_nesting]
+value = 64
+source = "provisional"
+evidence = "PHASE 14 detail 3: the structural pre-walk parses trailers, catalogues and page-tree roots before PDFium does, and its recursion must be bounded by us rather than by a file. 64 is the nesting depth PDFium's own syntax parser allows (kParserMaxRecursionDepth), not measured here; a trailer or catalogue needs three or four levels"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [limits.stage_deadline_secs]
 value = 300
 source = "provisional"
@@ -1163,6 +1177,13 @@ owner = "maintainer"
 review_by = "2027-06-30"
 
 # ---------- model downloads (PHASE 9 detail 6) ----------
+[net.audit_log_rotate_bytes]
+value = 1048576
+source = "provisional"
+evidence = "PHASE 14 detail 12: the network audit log is rotated at 1 MB. A line is about 150 bytes, so this keeps roughly the last 7 000 connections, and one previous generation beside it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [net.max_redirects]
 value = 5
 source = "provisional"
