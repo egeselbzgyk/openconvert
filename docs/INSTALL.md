@@ -51,8 +51,8 @@ If your system has no FUSE (some containers and minimal installs), run it with
 after the update's signature has verified.
 
 **Flatpak (Flathub).** Once Flathub has accepted it (the manifest is
-`packaging/linux/flatpak/io.openconvert.OpenConvert.yml`):
-`flatpak install flathub io.openconvert.OpenConvert`. Flathub keeps it up to date; the in-app updater is not part of this build. The Flatpak runs without network access — a
+`packaging/linux/flatpak/io.github.egeselbzgyk.OpenConvert.yml`):
+`flatpak install flathub io.github.egeselbzgyk.OpenConvert`. Flathub keeps it up to date; the in-app updater is not part of this build. The Flatpak runs without network access — a
 conversion never needs it — so inside the Flatpak the app cannot download an AI model, and
 AI assistance through Ollama on your computer is not reachable either. Use the AppImage if you want
 those.

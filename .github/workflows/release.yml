@@ -234,7 +234,7 @@ jobs:
         with: { ref: "${{ env.TAG }}" }
       - run: |
           docker run --rm -v "$PWD:/src" -w /src ghcr.io/flathub/flatpak-builder-lint:latest \
-            manifest packaging/linux/flatpak/io.openconvert.OpenConvert.yml
+            manifest packaging/linux/flatpak/io.github.egeselbzgyk.OpenConvert.yml
 
   publish:
     needs: [build, repro-compare, sbom, flatpak-lint]

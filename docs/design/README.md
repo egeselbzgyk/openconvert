@@ -43,7 +43,7 @@ All of these are placeholder values in the mockups. The right-hand column is the
 | Protocol "3" / "2", IR "3" / "4" (startup errors, stale corrections, About, report) | Today protocol `v: 1` and `ir_version = 1`. Render from the `hello` event and the overrides file. |
 | "EPUBCheck 5.1" (`report.html`) | Whatever version the installed validation pack reports. CI pins 5.3.0. |
 | Validation pack "~24 MB", licence "BSD-3-Clause" (`settings.html` Packs) | About 40–50 MB, because it bundles a jlink'd JRE plus `epubcheck.jar` (D6, LICENSE_AND_DEPENDENCIES §6). The row must show the JRE's licence (GPLv2 + Classpath Exception, per vendor; still to be verified) next to EPUBCheck's BSD-3-Clause. The row renders the pack registry, not constants. |
-| Flatpak id `org.openconvert.OpenConvert` (`firstrun.html`) | `io.openconvert.OpenConvert` (Phase 15 packaging files). |
+| Flatpak id `org.openconvert.OpenConvert` (`firstrun.html`) | `io.github.egeselbzgyk.OpenConvert` (the app ID everywhere since 2026-09-23; Phase 15 packaging files). |
 | Converter path `/opt/openconvert/oc-cli` (`firstrun.html`) | The engine binary is `openconvert` (the sidecar). Show the running install's actual path. |
 | Update host `releases.openconvert.org` (`settings.html` Network log) | The updater manifest is a static JSON on GitHub Releases (D12). Open item: the Tauri updater is not `oc-net`, so whether its requests reach the network audit log (SECURITY §8) is still to be decided in Phase 12/15. |
 | AI assistance card: "four once-per-book decisions" followed by three (`settings.html`) | D13.6's four tasks: metadata, heading roles, book structure, verse/quote. The copy must name all four. |
