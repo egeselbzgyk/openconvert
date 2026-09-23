@@ -3771,6 +3771,7 @@ dependencies = [
  "anyhow",
  "criterion",
  "insta",
+ "oc-ai",
  "oc-core",
  "oc-epub",
  "oc-layout",

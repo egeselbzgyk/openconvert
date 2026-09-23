@@ -327,8 +327,36 @@ fn collect_list(list: &List, out: &mut Vec<String>) {
     }
 }
 
+/// What the AI step may change about a `structure` run (PHASE 10): labels, levels, zones and
+/// wrappers — never text.
+///
+/// An admitted answer does not patch the output; the stage is **run again** with the edit, so the
+/// model's answer reaches the book through exactly the code the deterministic answer took, and
+/// the stage's conservation check runs over the result like any other. The default is no edit,
+/// and [`structure`] is this stage with the default.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct StructureEdits {
+    /// Task 2: heading levels and demotions by style cluster.
+    pub headings: crate::headings::levels::HeadingEdits,
+}
+
+impl StructureEdits {
+    pub fn is_empty(&self) -> bool {
+        self.headings.is_empty()
+    }
+}
+
 /// Run the stage.
 pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
+    structure_with(input, t, &StructureEdits::default())
+}
+
+/// Run the stage with the AI step's edits applied.
+pub fn structure_with(
+    input: &StructureInput,
+    t: &Thresholds,
+    edits: &StructureEdits,
+) -> StructureOutput {
     let blocks = &input.blocks;
     let inventory = cluster_styles(&input.runs, &input.fonts, t);
     let body_size = inventory.body_size_pt();
@@ -343,6 +371,8 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
         &input.lang,
         t,
     );
+    let (headings, epigraph_blocks) =
+        crate::headings::levels::apply_heading_edits(headings, &edits.headings);
     let run_ins = run_in_candidates(blocks, t);
 
     let (notes, note_refs, note_stats) = link_notes(blocks, &input.vectors, body_size, t);
@@ -689,6 +719,12 @@ pub fn structure(input: &StructureInput, t: &Thresholds) -> StructureOutput {
                 confidence: Confidence::deterministic(vec![Signal::new("monospace", 1.0)]),
             }),
             _ => Content::Paragraph(para),
+        };
+        // A heading the heading-roles task demoted to an epigraph: the same content, wrapped.
+        let content = if epigraph_blocks.contains(&block.id) {
+            Content::Epigraph(vec![content])
+        } else {
+            content
         };
         flow.push(FlowItem {
             page: block.page,

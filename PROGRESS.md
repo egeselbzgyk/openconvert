@@ -4,7 +4,7 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 10
-CURRENT_ITEM: P10.4 — `oc-ai::task::heading_roles` (rows 10.5–10.8). Phase 10 is on branch
+CURRENT_ITEM: P10.5 — `oc-ai::task::book_structure` (rows 10.9–10.11). Phase 10 is on branch
               `phase/10-ai-decisions`; Phase 7.5 is still parked.
 LAST_UPDATED: 2026-09-23
 
@@ -176,7 +176,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P10.2** `oc-structure::escalate`: the four predicates over the stage's evidence, the
       `EscalationRecord`, in `Conversion` and the report with AI off — rows 10.1, 10.2
 - [x] **P10.3** `oc-ai::task::metadata`: the verbatim-substring check — rows 10.3, 10.4
-- [ ] **P10.4** `oc-ai::task::heading_roles`: pre-gate, held-out check, label ≠ deletion — rows 10.5–10.8
+- [x] **P10.4** `oc-ai::task::heading_roles`: pre-gate, held-out check, label ≠ deletion — rows 10.5–10.8
 - [ ] **P10.5** `oc-ai::task::book_structure`: boundaries, chunking with overlap — rows 10.9–10.11
 - [ ] **P10.6** `oc-ai::task::verse_quote`: counter-evidence, the 30-block cap — rows 10.12, 10.13
 - [ ] **P10.7** the plan: degradation order, language gate, wall-clock meter — rows 10.21, 10.22
@@ -202,6 +202,11 @@ What a fresh session needs:
   written by `crates/oc-ai/tests/tasks.rs::replayed` under `OC_AI_RECORD_SEEDS=1` — record with
   `-j 1` (nextest runs tests as parallel processes and the index is read-modify-write). A cassette is
   keyed by its *question*, so two scripted answers need two different payloads.
+- **A task runs through an `Asker`** (`oc_ai::session`): `task::<name>::run` pre-gates, asks, gates
+  S, validates, and returns `TaskResult::{Refused, Unasked, Rejected, Admitted}` with the edit.
+  Admitted edits are applied by **re-running `structure`** — `oc_structure::stage::structure_with`
+  with `StructureEdits` — never by patching output. `openconvert::convert::prepare` gives a test the
+  stage's input.
 - **Task validations are gate failures with codes**: `V.verbatim`, `S.range`, `S.order`,
   `S.overlap`, `S.holdout`, `S.roles` (`oc_ai::gates::GateFailure`).
 - **The pinned llama-server is fetchable and verified** since main's `fix/phase-09-llama-pins`
@@ -1364,3 +1369,4 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P9.fix    xtask: llama.lock b10456 digests pinned, all four checked by download (+1)  2432458
 2026-09-23  P10.1     oc-structure: the verse band read through oc_core::escalation; --no-ai EPUB hashes pinned (+ 2)  33b00ce
 2026-09-23  P10.2     oc-structure: escalate.rs, EscalationRecord in Conversion and the report (10.1, 10.2 + 2)  d91276e
+2026-09-23  P10.3     oc-ai: task 1, the verbatim-substring check and apply_metadata (10.3, 10.4 + 1)  85f2e3a

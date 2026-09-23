@@ -818,6 +818,34 @@ evidence = "RT A8.2: reject the mapping above 20% disagreement on 8-10 held-out 
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[inventory.holdout_min_probes]
+value = 8
+source = "provisional"
+evidence = "RT A8.2 / ARCHITECTURE 9.6: the heading-roles call carries 8-10 held-out lines. Fewer than 8 cannot be sampled from a book, and the mapping is not asked for: a mapping nobody can check against itself is not one to trust. The range is the design's, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[inventory.holdout_max_probes]
+value = 10
+source = "provisional"
+evidence = "RT A8.2 / ARCHITECTURE 9.6: at most 10 held-out lines ride along, which is also the heading_roles grammar's bound on its \"h\" array; a test holds the two equal"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[inventory.chapter_cluster_min_count]
+value = 2
+source = "provisional"
+evidence = "ARCHITECTURE 9.6, task 2: a cluster a model calls chapter_heading must hold at least 2 runs - one chapter is not a chapter style"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[inventory.chapter_cluster_max_count]
+value = 200
+source = "provisional"
+evidence = "ARCHITECTURE 9.6, task 2: a cluster a model calls chapter_heading must hold at most 200 runs - more is a body or caption style, not chapters"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [verse.short_line_ratio_min]
 value = 0.35
 source = "provisional"

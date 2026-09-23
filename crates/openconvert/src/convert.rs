@@ -118,6 +118,70 @@ pub fn convert(
     options: &ConvertOptions,
     t: &Thresholds,
 ) -> Result<Conversion, ConvertError> {
+    let Prepared {
+        mut timings,
+        mut totals,
+        text,
+        furniture,
+        layout,
+        images,
+        language,
+        doc_info,
+        structure_input,
+    } = prepare(pdf, source_sha256, options, t)?;
+    let extracted_images = u32::try_from(images.len()).unwrap_or(u32::MAX);
+
+    let structure = timings.stage("structure", || {
+        structure_stage(&layout, &structure_input, &mut totals, t)
+    })?;
+    // Every escalation is recorded whether or not a model is ever asked: the first books
+    // converted are the calibration corpus (PHASE 10 detail 1, RT A7.2).
+    let escalations =
+        oc_structure::escalate::Escalations::gather(&structure_input, &structure.output, t);
+
+    finish(
+        pdf,
+        source_sha256,
+        options,
+        t,
+        Finishing {
+            timings,
+            totals,
+            text,
+            furniture,
+            layout,
+            images,
+            extracted_images,
+            language,
+            doc_info,
+            structure,
+            escalations,
+        },
+    )
+}
+
+/// Everything a conversion knows when `structure` is about to run: the four stages before it,
+/// checked, and the stage's input. The AI step and the tests that drive `structure` directly
+/// start here.
+pub struct Prepared {
+    pub timings: Timings,
+    pub totals: ReasonTotals,
+    pub text: crate::pipeline::TextStage,
+    pub furniture: crate::pipeline::FurnitureStage,
+    pub layout: crate::pipeline::LayoutStage,
+    pub images: Vec<oc_model::extract::ImageRef>,
+    pub language: LangTag,
+    pub doc_info: oc_pdf::inspect::DocMetadata,
+    pub structure_input: StructureInput,
+}
+
+/// `ingest`, `text`, `furniture` and `layout`, each checked, and `structure`'s input.
+pub fn prepare(
+    pdf: &dyn PdfDoc,
+    source_sha256: &str,
+    options: &ConvertOptions,
+    t: &Thresholds,
+) -> Result<Prepared, ConvertError> {
     let mut timings = Timings::default();
     let input = timings.stage("ingest", || crate::input::page_inputs(pdf))?;
     let mut totals = ReasonTotals::default();
@@ -134,7 +198,6 @@ pub fn convert(
     let layout = timings.stage("layout", || layout_stage(&text, &furniture, &mut totals, t))?;
 
     let images = document_images(&text);
-    let extracted_images = u32::try_from(images.len()).unwrap_or(u32::MAX);
     let hashes = image_hashes(pdf, &images, t);
     let vectors = (0..pdf.page_count())
         .filter_map(|page| pdf.page_vectors(page).ok())
@@ -165,13 +228,55 @@ pub fn convert(
         },
         lang: language.clone(),
     };
-    let structure = timings.stage("structure", || {
-        structure_stage(&layout, &structure_input, &mut totals, t)
-    })?;
-    // Every escalation is recorded whether or not a model is ever asked: the first books
-    // converted are the calibration corpus (PHASE 10 detail 1, RT A7.2).
-    let escalations =
-        oc_structure::escalate::Escalations::gather(&structure_input, &structure.output, t);
+    Ok(Prepared {
+        timings,
+        totals,
+        text,
+        furniture,
+        layout,
+        images,
+        language,
+        doc_info,
+        structure_input,
+    })
+}
+
+/// Everything `finish` needs: what `prepare` produced, and `structure`'s settled output.
+struct Finishing {
+    timings: Timings,
+    totals: ReasonTotals,
+    text: crate::pipeline::TextStage,
+    furniture: crate::pipeline::FurnitureStage,
+    layout: crate::pipeline::LayoutStage,
+    images: Vec<oc_model::extract::ImageRef>,
+    extracted_images: u32,
+    language: LangTag,
+    doc_info: oc_pdf::inspect::DocMetadata,
+    structure: crate::pipeline::StructureStage,
+    escalations: oc_structure::escalate::Escalations,
+}
+
+/// `document`, `epub`, `validate` and `repair`, from a settled `structure`.
+fn finish(
+    pdf: &dyn PdfDoc,
+    source_sha256: &str,
+    options: &ConvertOptions,
+    t: &Thresholds,
+    finishing: Finishing,
+) -> Result<Conversion, ConvertError> {
+    let Finishing {
+        mut timings,
+        mut totals,
+        text,
+        furniture,
+        layout,
+        images,
+        extracted_images,
+        language,
+        doc_info,
+        structure,
+        escalations,
+    } = finishing;
 
     let producer_family = oc_pdf::producer::producer_family(
         doc_info.producer.as_deref(),

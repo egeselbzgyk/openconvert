@@ -3828,6 +3828,7 @@ Evidence: `the_shipped_lock_pins_all_four_assets_by_sha256_and_size` (asserts fo
 lower-case SHA-256s and non-zero sizes, all accepted by `pinned`), and the `sha256sum` / `stat`
 output above.
 Affects: D8, D9, PHASE 9 detail 1, `xtask/llama.lock`, PROGRESS.md Blocked items 2 and 3.
+
 ## 2026-09-23 · The verse band has one definition, and the classifier reads it · Phase 10
 Context: the open finding of 2026-09-22 — `oc-structure::quotes::classify_indented` compared the
 `f32` short-line ratio widened to `f64` against the band's bounds, so a block exactly on
@@ -3842,3 +3843,33 @@ Evidence: `quotes::tests::a_block_exactly_on_the_lower_bound_is_ambiguous_not_a_
 the widening (`left: BlockQuote, right: Ambiguous`) and passes on the fix; the ten fixtures'
 `--no-ai` EPUB hashes, pinned before the change in `ai__no_ai_epub_sha256.snap`, did not move.
 Affects: `oc-core::escalation`, `oc-structure::quotes` (the finding is closed).
+
+## 2026-09-23 · Task 2: what a heading mapping may change, and what the pre-gate cannot check · Phase 10
+Context: PHASE 10 detail 3 and ARCHITECTURE §9.6 say what the heading-roles call is shown and how
+its answer is checked; they do not say what an admitted role *does* to a book, and two of the
+checks they name have no input in this codebase.
+Decisions, each **PROVISIONAL — needs maintainer ratification**:
+1. **Only size-rank levels are touched.** A heading whose level the outline or the printed contents
+   page bound, or a numbering pattern refined, keeps it: size rank is the fallback the task stands
+   in for (ARCHITECTURE §6.1). The Typst fixtures all carry outlines, which is why test 10.8 clears
+   the outline first — without that the property held vacuously, and a mutation that emptied every
+   demoted block passed (checked).
+2. **Roles to levels:** part 1; chapter 1, or 2 when a heading cluster is a part; section chapter+1;
+   subsection chapter+2; the skip repair runs again afterwards. `body` demotes a heading to a
+   paragraph and `epigraph` to an epigraph wrapper. **`other`, `caption` and `running_head` change
+   nothing**: `other` is the prompt's own abstention (Appendix A.1 rule 3), and `running_head` is a
+   proposal furniture has already declined (D13.5). The edit type has no removal variant.
+3. **One rule beyond ARCHITECTURE's two:** a mapping that demotes every cluster holding a heading
+   is refused (`S.roles`). One answer should not be able to take a book's whole navigation away.
+4. **The silhouette floor is not checked.** Phase 4's clustering computes no silhouette and
+   `thresholds.toml` has no floor, so the pre-gate is the two measured conditions.
+5. **Fewer than `inventory.holdout_min_probes` (8) held-out lines → no call** (`pregate.holdout`):
+   "send 8–10" read as a minimum, since an unchecked mapping is not one to ask for.
+6. **Run-in candidates do not ride along.** PIPELINE §8.2 has them in the heading-roles call, but
+   the frozen v1 payload has no slot for them; that needs a v2 prompt.
+New thresholds: `inventory.holdout_{min,max}_probes` (8, 10 — the max held equal to the grammar's
+`"h"` bound by a test), `inventory.chapter_cluster_{min,max}_count` (2, 200).
+Evidence: rows 10.5–10.8 and `role_rules_refuse_what_the_design_forbids` in `crates/oc-ai/tests/tasks.rs`;
+`running_head_label_never_deletes_text` in `crates/openconvert/tests/ai.rs`.
+Affects: ARCHITECTURE §9.6 task 2, PIPELINE §8.2, `oc-ai::task::heading_roles`,
+`oc-structure::headings::levels`, `oc-structure::stage::structure_with`.

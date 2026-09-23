@@ -40,6 +40,8 @@ oc-epub = { path = "../oc-epub", version = "0.1.0" }
 oc-validate = { path = "../oc-validate", version = "0.1.0" }
 oc-text = { path = "../oc-text", version = "0.1.0" }
 oc-net = { path = "../oc-net", version = "0.1.0" }
+# The AI step drives the four tasks (PHASE 10). `oc-ai` opens no socket; `oc-net` is the transport.
+oc-ai = { path = "../oc-ai", version = "0.1.0" }
 anyhow.workspace = true
 thiserror.workspace = true
 serde.workspace = true
