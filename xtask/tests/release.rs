@@ -981,3 +981,112 @@ fn sbom_lists_every_vendored_native() {
         }
     }
 }
+
+/// An EPUB-shaped zip whose `OEBPS/ch1.xhtml` is `chapter`.
+fn tiny_epub(chapter: &str) -> Vec<u8> {
+    use std::io::Write;
+    let mut out = std::io::Cursor::new(Vec::new());
+    {
+        let mut zip = zip::ZipWriter::new(&mut out);
+        let stored = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        zip.start_file("mimetype", stored).expect("entry");
+        zip.write_all(b"application/epub+zip").expect("write");
+        zip.start_file("OEBPS/ch1.xhtml", stored).expect("entry");
+        zip.write_all(chapter.as_bytes()).expect("write");
+        zip.finish().expect("finish");
+    }
+    out.into_inner()
+}
+
+/// The comparison under row 15.13: all three tables must agree, and a disagreement names the
+/// fixture, the two operating systems, and the first differing zip entry with the byte offset in
+/// it — not only "hashes differ".
+#[test]
+fn repro_check_names_the_first_differing_zip_entry() {
+    use std::collections::BTreeMap;
+    use xtask::release::Os;
+    use xtask::repro::{first_difference, repro_check, ReproMismatch, ZipDifference};
+
+    let same = tiny_epub("<p>one two three</p>");
+    let other = tiny_epub("<p>one two thre\u{0065}\u{0301}</p>");
+    assert_eq!(
+        first_difference(&same, &other).expect("zips"),
+        Some(ZipDifference {
+            entry: "OEBPS/ch1.xhtml".to_owned(),
+            offset: 16,
+        })
+    );
+    assert_eq!(first_difference(&same, &same).expect("zips"), None);
+
+    let scratch = std::env::temp_dir().join(format!("oc-repro-{}", std::process::id()));
+    let mut epubs = BTreeMap::new();
+    let mut tables = BTreeMap::new();
+    for os in [Os::Linux, Os::Macos, Os::Windows] {
+        let dir = scratch.join(format!("{os:?}"));
+        std::fs::create_dir_all(&dir).expect("dir");
+        let bytes = if os == Os::Windows { &other } else { &same };
+        std::fs::write(dir.join("f01.epub"), bytes).expect("write");
+        epubs.insert(os, dir);
+        tables.insert(
+            os,
+            BTreeMap::from([
+                ("f01".to_owned(), format!("sha256:{}", sha256_hex(bytes))),
+                ("h11_pixel_bomb".to_owned(), "exit:1".to_owned()),
+            ]),
+        );
+    }
+    let error = repro_check(&tables, &epubs).expect_err("windows differs");
+    let text = error.to_string();
+    assert!(
+        matches!(&error, ReproMismatch::Differs { fixture, right: Os::Windows, difference: Some(d), .. }
+            if fixture == "f01" && d.entry == "OEBPS/ch1.xhtml" && d.offset == 16),
+        "{text}"
+    );
+    assert!(
+        text.contains("first difference in `OEBPS/ch1.xhtml` at byte 16"),
+        "{text}"
+    );
+
+    // Agreement passes; two tables are not three; a fixture missing on one OS is a failure.
+    let mut agree = tables.clone();
+    let linux = agree[&Os::Linux].clone();
+    agree.insert(Os::Windows, linux);
+    assert_eq!(repro_check(&agree, &epubs), Ok(()));
+    let mut two = agree.clone();
+    two.remove(&Os::Macos);
+    assert_eq!(repro_check(&two, &epubs), Err(ReproMismatch::MissingOs(2)));
+    let mut short = agree.clone();
+    short
+        .get_mut(&Os::Macos)
+        .expect("macos")
+        .remove("h11_pixel_bomb");
+    assert!(matches!(
+        repro_check(&short, &epubs),
+        Err(ReproMismatch::DifferentCorpus { .. })
+    ));
+    let _ = std::fs::remove_dir_all(scratch);
+}
+
+/// Row 15.13 in the release job: the three OS jobs' tables (and EPUBs) in `OC_REPRO_DIR` as
+/// `<os>.json` and `<os>/`, byte-identical across ubuntu, macOS and Windows (D13.8).
+#[cfg(feature = "release-artifacts")]
+#[test]
+fn reproducible_no_ai_output_across_os() {
+    use std::collections::BTreeMap;
+    use xtask::release::Os;
+    use xtask::repro::{repro_check, HashTable};
+
+    let dir = required_env("OC_REPRO_DIR");
+    let mut tables = BTreeMap::new();
+    let mut epubs = BTreeMap::new();
+    for os in ["linux", "macos", "windows"] {
+        let table: HashTable =
+            serde_json::from_str(&read(&dir.join(format!("{os}.json")))).expect("a hash table");
+        epubs.insert(Os::parse(os).expect("os"), dir.join(os));
+        tables.insert(table.os, table.fixtures);
+    }
+    if let Err(error) = repro_check(&tables, &epubs) {
+        panic!("{error} — a release blocker (D13.8)");
+    }
+}

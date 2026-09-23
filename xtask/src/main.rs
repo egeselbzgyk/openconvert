@@ -4,8 +4,8 @@
 
 use xtask::{
     ci_lint, dom_fixtures, epubcheck_parity, fetch_epubcheck, fetch_epubcheck_corpus,
-    fetch_llama_server, fixtures, handmade_fixtures, mutations, release, sbom, stage_sidecars,
-    thresholds_lint, vendor_pdfium,
+    fetch_llama_server, fixtures, handmade_fixtures, mutations, release, repro, sbom,
+    stage_sidecars, thresholds_lint, vendor_pdfium,
 };
 
 use std::path::{Path, PathBuf};
@@ -42,6 +42,10 @@ tasks:
                     PDFium and the server's libraries in native/, the natives' licences,
                     and a build stamp (needs vendor-pdfium and fetch-llama-server first)
                       --release           stage the release build instead of debug
+  repro             the reproducibility gate (D13.8): convert the fast corpus --no-ai and hash
+                    it, then require every OS's table to agree
+                      hash --engine <path> --os <os> --out <table.json> --epubs <dir>
+                      compare <table.json>... [--epubs <os>=<dir>...]
   sbom --out <file> the release SBOM: cargo cyclonedx over the engine and the shell, npm sbom
                     over the UI, the vendored natives; merged into CycloneDX 1.6, validated
                     offline against xtask/schemas/cyclonedx (needs cargo-cyclonedx, npm)
@@ -77,6 +81,10 @@ fn main() -> Result<()> {
         }
         Some("thresholds-lint") => thresholds_lint::run(&root),
         Some("dom-fixtures") => dom_fixtures::run(&root),
+        Some("repro") => {
+            let args: Vec<String> = std::env::args().skip(2).collect();
+            repro::run(&root, &args)
+        }
         Some("sbom") => {
             let args: Vec<String> = std::env::args().skip(2).collect();
             sbom::run(&root, &args)

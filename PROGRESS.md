@@ -132,7 +132,12 @@ Work items, in order, with the plan's test rows against each:
       reproducible, validated offline against the vendored 1.6.1 schema — rows 15.11
       `sbom_is_valid_cyclonedx_1_6`, 15.12 `sbom_lists_every_vendored_native` (release-artifacts,
       **pass here** on the generated SBOM: 776 components), plus three default-suite logic tests
-- [ ] **P15.9** reproducibility gate (`xtask repro`) — row 15.13 (Linux half here)
+- [x] **P15.9** `xtask repro {hash,compare}` over the fast corpus (52 PDFs: Typst + hand-made +
+      mutations), `--no-ai --ocr never`, `dcterms:modified` pinned; a mismatch names the first zip
+      entry and byte offset — `repro_check_names_the_first_differing_zip_entry`; row 15.13
+      `reproducible_no_ai_output_across_os` (release-artifacts) needs the three OS tables —
+      **unverified here**; the Linux half ran: three runs (other cwd, TZ, tr_TR locale, debug vs
+      release engine) gave identical tables
 - [ ] **P15.10** version bump rules (`xtask bump-rules-check`), `docs/VERSIONING.md` — rows 15.16, 15.17
 - [ ] **P15.11** release gates and `release.yml`: placeholders, no Python — rows 15.14, 15.18
 - [ ] **P15.12** `docs/RELEASE_CHECKLIST.md`, `docs/INSTALL.md`, the part-B hand-off

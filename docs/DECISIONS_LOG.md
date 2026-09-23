@@ -5097,3 +5097,24 @@ Evidence: `sbom_is_valid_cyclonedx_1_6`, `sbom_lists_every_vendored_native` (rel
 `the_sbom_schema_check_rejects_an_invalid_document`,
 `a_pinned_pack_joins_the_sbom_and_a_placeholder_does_not`.
 Affects: `xtask/src/sbom.rs`, `xtask/schemas/cyclonedx/`, `xtask/Cargo.toml`.
+
+## 2026-09-23 · The reproducibility gate, and its Linux half run here · Phase 15 (P15.9)
+Context: detail 7 and row 15.13 — the fast corpus converted `--no-ai` on ubuntu, macOS and Windows,
+every EPUB's SHA-256 equal, a mismatch reported as the first differing zip entry and byte offset.
+Decision: `xtask repro hash` converts the **fast corpus** — every PDF the repository produces or
+holds without a download: the Typst fixtures in `target/fixtures`, and the committed hand-made and
+mutation fixtures (52 PDFs today) — with `--no-ai --ocr never --modified 2026-01-01T00:00:00Z` and
+the vendored PDFium named by `OC_PDFIUM_PATH` (so the working directory cannot change which library
+is bound), and records `sha256:<hex>`, or `exit:<code>` for a PDF the engine refuses (refusing alike
+is part of the contract). `xtask repro compare` requires exactly three tables that agree, and on a
+mismatch reads both EPUBs and names the first entry and offset (`repro_check`, as the plan's
+Architecture sketches it). The scanned fixtures are out: their text is the OCR engine's, which is not
+what the gate measures. Run here (Linux half): the release engine from this directory, and again from
+`/tmp` with `TZ=Pacific/Kiritimati` and `LC_ALL=tr_TR.UTF-8`, and the debug engine, produced three
+identical tables — 48 EPUBs and 4 refusals. The first attempt found one thing worth writing down: run
+from `/tmp` without `OC_PDFIUM_PATH`, every conversion failed (exit 2 — PDFium is found by walking up
+from the working directory), which is why the gate names the library outright. The cross-OS half is
+the release job's, **unverified here**.
+Evidence: `repro_check_names_the_first_differing_zip_entry`; `reproducible_no_ai_output_across_os`
+(release-artifacts, `OC_REPRO_DIR`; needs all three OS tables — unverified here).
+Affects: `xtask/src/repro.rs`, `xtask/tests/release.rs`.
