@@ -276,7 +276,7 @@
  "settings.language.note": "Dil adları kendi dillerinde yazılır.",
  "settings.network.hint": "Uygulamanın kurduğu her bağlantı, bu bilgisayarda kaydedilir. Özel bir uç nokta seçmedikçe dönüştürmeler burada hiç görünmez.",
  "settings.network.none": "Henüz kaydedilmiyor",
- "settings.network.noneLine": "Bu sürüm bağlantılarını henüz kaydetmiyor. Yalnızca bir model ya da paket indirdiğinizde ve yalnızca kaydın sabitlediği sunucuya bağlantı açar.",
+ "settings.network.noneLine": "Bu sürüm bağlantılarını henüz kaydetmiyor. Yalnızca bir model veya paket indirdiğinizde, kayıt defterinin sabitlediği ana makineye ve — yapay zekâ desteği açıkken — seçtiğiniz sağlayıcıya bağlantı açar: bu bilgisayardaki model sunucusu veya Ollama ya da izin verdiğiniz özel bir uç nokta.",
  "settings.about.report": "Sorun bildir",
  "settings.about.reportHelp": "Önce sizin incelediğiniz bir tanılama paketi oluşturur. Hiçbir şey gönderilmez.",
  "settings.about.reportAction": "Sorun bildir…",
@@ -433,5 +433,9 @@
  "report.aiProvider": "Yanıtlayan",
  "report.aiCalls": "Model çağrıları",
  "report.aiCallsLine": "{n} soruldu, {cached} önbellekten",
- "report.consent": "Bu kitaptan metin, onayınızla {host} adresine gönderildi ({at})."
+ "report.consent": "Bu kitaptan metin, onayınızla {host} adresine gönderildi ({at}).",
+ "settings.network.when": "Ne zaman",
+ "settings.network.host": "Ana makine",
+ "settings.network.why": "Neden",
+ "settings.network.data": "Veri"
 }

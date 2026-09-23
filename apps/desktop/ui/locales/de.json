@@ -276,7 +276,7 @@
  "settings.language.note": "Sprachnamen stehen in ihrer eigenen Sprache.",
  "settings.network.hint": "Jede Verbindung, die die App hergestellt hat, auf diesem Computer aufgezeichnet. Konvertierungen erscheinen hier nie, außer Sie haben einen eigenen Endpunkt gewählt.",
  "settings.network.none": "Noch nicht aufgezeichnet",
- "settings.network.noneLine": "Diese Version zeichnet ihre Verbindungen noch nicht auf. Sie öffnet nur eine, wenn Sie ein Modell oder ein Paket herunterladen, und nur zu dem Host, den das Verzeichnis festlegt.",
+ "settings.network.noneLine": "Diese Version zeichnet ihre Verbindungen noch nicht auf. Sie öffnet eine, wenn Sie ein Modell oder ein Paket herunterladen, nur zu dem Host, den ihr Verzeichnis festlegt, und – mit eingeschalteter KI-Unterstützung – zu dem Anbieter, den Sie gewählt haben: dem Modellserver oder Ollama auf diesem Computer oder einem eigenen Endpunkt, den Sie erlaubt haben.",
  "settings.about.report": "Problem melden",
  "settings.about.reportHelp": "Erstellt ein Diagnosepaket, das Sie zuerst prüfen. Nichts wird gesendet.",
  "settings.about.reportAction": "Problem melden…",
@@ -433,5 +433,9 @@
  "report.aiProvider": "Beantwortet von",
  "report.aiCalls": "Modellaufrufe",
  "report.aiCallsLine": "{n} gefragt, {cached} aus dem Zwischenspeicher",
- "report.consent": "Text aus diesem Buch wurde mit Ihrer Zustimmung an {host} gesendet ({at})."
+ "report.consent": "Text aus diesem Buch wurde mit Ihrer Zustimmung an {host} gesendet ({at}).",
+ "settings.network.when": "Wann",
+ "settings.network.host": "Host",
+ "settings.network.why": "Warum",
+ "settings.network.data": "Daten"
 }

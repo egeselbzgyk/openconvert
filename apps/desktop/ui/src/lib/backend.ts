@@ -94,6 +94,11 @@ export type ProbeResult =
   | { available: true; url: string; host: string | null; provider: string; model: string; models: string[] }
   | { available: false; url: string; reason: string };
 
+/** Settings › Network log (`src-tauri/src/netlog.rs`). `not_recorded` until PHASE 14 detail 12's audit log. */
+export type NetworkLog =
+  | { state: "not_recorded" }
+  | { state: "entries"; entries: Array<{ ts: string; host: string; purpose: string; bytes: number; outcome: string }> };
+
 /** The book's navigation, read from its nav document (`src-tauri/src/preview.rs`). */
 export interface PreviewIndex {
   chapters: Array<{ title: string; href: string; level: number }>;
@@ -264,6 +269,8 @@ export interface Backend {
   clearKeyFile(): Promise<Settings>;
   /** The consent dialog's Allow: consent to the saved custom endpoint's own host, now (D10). */
   grantConsent(): Promise<Settings>;
+  /** Settings › Network log: the audit log's lines, or that this build keeps none. */
+  networkLog(): Promise<NetworkLog>;
 }
 
 /** The Rust commands and event of each catalog (`src-tauri/src/main.rs`). */
@@ -347,5 +354,6 @@ export function tauriBackend(): Backend {
     pickKeyFile: () => invoke<Settings>("pick_key_file"),
     clearKeyFile: () => invoke<Settings>("clear_key_file"),
     grantConsent: () => invoke<Settings>("grant_consent"),
+    networkLog: () => invoke<NetworkLog>("network_log"),
   };
 }

@@ -18,6 +18,7 @@
     CatalogKind,
     Detected,
     EndpointCheck,
+    NetworkLog,
     Preset,
     ProbeResult,
     Provider,
@@ -74,7 +75,10 @@
         model download (settings.html, "Turning it on opens the model download"). */
     onsetup?: (() => void) | null;
     /** Settings › Provider asks the engine through these (`openconvert provider …`). */
-    providers?: Pick<Backend, "providerDetect" | "providerCheck" | "providerProbe" | "pickKeyFile" | "clearKeyFile" | "grantConsent"> | null;
+    providers?: Pick<
+      Backend,
+      "providerDetect" | "providerCheck" | "providerProbe" | "pickKeyFile" | "clearKeyFile" | "grantConsent" | "networkLog"
+    > | null;
     /** Settings the Rust side already saved (a key file picked, a consent granted). */
     onsaved?: (next: Settings) => void;
     /** The consent dialog, open for this endpoint check; set by the app when a job needed consent. */
@@ -235,6 +239,17 @@
   async function clearKey() {
     if (providers !== null) onsaved(await providers.clearKeyFile());
   }
+
+  // Settings › Network log (design decision 6; SECURITY §8). What it lists is `oc-net`'s audit log,
+  // which PHASE 14 detail 12 adds; until then the Rust side answers `not_recorded` and the page says
+  // so, and which connections the app makes — never a row nobody wrote down.
+  let network = $state<NetworkLog | null>(null);
+  $effect(() => {
+    if (section !== "network" || providers === null || network !== null) return;
+    void providers.networkLog().then((log) => (network = log));
+  });
+  const when = (ts: string) =>
+    new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(ts));
 
   const aiState = $derived(
     settings.aiEnabled ? t("settings.ai.on", { provider: t(`provider.name.${settings.provider}`) }) : t("settings.ai.off"),
@@ -492,7 +507,20 @@
       <p class="oc-settings__hint">{t("settings.language.note")}</p>
     {:else if section === "network"}
       <p class="oc-settings__hint">{t("settings.network.hint")}</p>
-      <div class="oc-empty"><span class="oc-empty__title">{t("settings.network.none")}</span><span>{t("settings.network.noneLine")}</span></div>
+      {#if network?.state === "entries" && network.entries.length > 0}
+        <table class="oc-table">
+          <thead>
+            <tr><th>{t("settings.network.when")}</th><th>{t("settings.network.host")}</th><th>{t("settings.network.why")}</th><th class="is-num">{t("settings.network.data")}</th></tr>
+          </thead>
+          <tbody>
+            {#each network.entries as entry, index (index)}
+              <tr><td class="oc-num">{when(entry.ts)}</td><td class="oc-mono">{entry.host}</td><td>{entry.purpose}</td><td class="is-num">{formatBytes(entry.bytes, i18n.locale)}</td></tr>
+            {/each}
+          </tbody>
+        </table>
+      {:else}
+        <div class="oc-empty"><span class="oc-empty__title">{t("settings.network.none")}</span><span>{t("settings.network.noneLine")}</span></div>
+      {/if}
     {:else}
       <div class="oc-setting">
         <div class="oc-setting__text">

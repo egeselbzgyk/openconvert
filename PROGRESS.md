@@ -798,6 +798,11 @@ Part B2 work items:
       model), the calls (asked / cached), and "Text from this book was sent to {host} ({time}), with
       your consent." from the report's `ai` and `consent`; `W_LLM_UNCONSTRAINED` and
       `W_LLM_UNAVAILABLE` render in en/de/tr from the engine's templates (+ 2 Vitest)
+- [x] **P12.21** Settings › Network log: a clearly marked hook for PHASE 14 detail 12's audit log
+      (`netlog.rs`: `read()` answers `NotRecorded`; command `network_log`; the page already renders
+      `Entries` as a table). It says this build records nothing yet and names the connections it can
+      make — downloads, and with AI on the chosen provider — never a row nobody wrote down
+      (+ 1 Rust, 1 Vitest)
 
 1. **The AI toggle** (Settings › AI assistance and the first-run route's "installed" step): it is
    drawn disabled, saying the converter has no AI support in this build. Enabling it needs Phase

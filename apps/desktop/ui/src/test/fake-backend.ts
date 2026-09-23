@@ -14,6 +14,7 @@ import type {
   Detected,
   DropEvent,
   EndpointCheck,
+  NetworkLog,
   Enqueued,
   LicenseView,
   ModelReadiness,
@@ -313,6 +314,12 @@ export class FakeBackend implements Backend {
     this.calls.push(["grantConsent", check.host]);
     this.saved = { ...this.saved, custom: { ...this.saved.custom, consent: { host: check.host, grantedAt: "2026-09-23T10:00:00Z" } } };
     return this.saved;
+  }
+
+  /** What the network log reads: nothing, until PHASE 14 detail 12's audit log exists. */
+  network: NetworkLog = { state: "not_recorded" };
+  async networkLog(): Promise<NetworkLog> {
+    return this.network;
   }
 
   /** The Rust side announces a changed model row. */

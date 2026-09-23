@@ -15,6 +15,7 @@ pub mod fs_scope;
 pub mod jobqueue;
 pub mod llm;
 pub mod models;
+pub mod netlog;
 pub mod packs;
 pub mod preview;
 pub mod providers;

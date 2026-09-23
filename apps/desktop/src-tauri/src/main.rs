@@ -32,6 +32,7 @@ use openconvert_desktop::fs_scope::{partition_drop, AppDirs, CacheUsage};
 use openconvert_desktop::jobqueue::{JobQueue, JobView, QueueSink, Rebuild};
 use openconvert_desktop::llm::{self, AppModelServer, LlmHost};
 use openconvert_desktop::models::{self, LicenseView, ModelManager, ModelsView, Row, RowSink};
+use openconvert_desktop::netlog::{self, NetworkLog};
 use openconvert_desktop::packs::{self, PackManager, PackReadiness, PacksView};
 use openconvert_desktop::preview::{self, PreviewIndex};
 use openconvert_desktop::providers::ProviderCli;
@@ -597,6 +598,12 @@ fn grant_consent(prefs: tauri::State<'_, Prefs>) -> Result<Settings, UiError> {
     store_settings(&prefs, next)
 }
 
+/// Settings › Network log. The hook PHASE 14 detail 12's audit log fills (`netlog.rs`).
+#[tauri::command]
+fn network_log() -> NetworkLog {
+    netlog::read()
+}
+
 /// "Quit" on the blocking startup screen.
 #[tauri::command]
 fn quit(app: AppHandle) {
@@ -767,7 +774,8 @@ fn main() {
             provider_probe,
             pick_key_file,
             clear_key_file,
-            grant_consent
+            grant_consent,
+            network_log
         ])
         .build(tauri::generate_context!())
         .expect("the Tauri application starts")

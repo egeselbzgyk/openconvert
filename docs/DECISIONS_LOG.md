@@ -4909,3 +4909,20 @@ provider-screen tests and the two consent tests in `queue.svelte.test.ts`.
 Affects: `apps/desktop/src-tauri/src/{providers,main}.rs`, `apps/desktop/ui/src/{routes/settings/
 Settings.svelte,components/{ConsentDialog,QueueRow}.svelte,App.svelte,lib/{backend,jobstate}.ts}`,
 `locales/*.json`, `tests/dom/ui/tauri-mock.ts`.
+
+## 2026-09-23 · Settings › Network log: a hook for PHASE 14's audit log, not a stand-in · Phase 12 (P12.21)
+Context: the Network log section is the design's own decision (`docs/design/handoff/docs/
+decisions.md` 6, PHASE 12 "Visual design" 6) and SECURITY §8's auditability promise; the log it lists
+is `oc-net`'s audit log, `{ts, host, purpose, bytes, outcome}` per connection — PHASE 14 detail 12,
+not built. Phase 11 added no event for it (§2.3 is closed). Part B1's wording said the app connects
+only for downloads; with Phase 11 wired it also connects, when AI is on, to the chosen provider.
+Decision: `netlog::read()` answers `NotRecorded`, always, behind a command (`network_log`) and a page
+already wired for `Entries` (a table: when, host, why, data). The page says this build records
+nothing yet and names every connection it can make: a model or pack download (only to the
+registry's pinned host), and with AI on the provider chosen (the model server or Ollama on this
+computer, or a custom endpoint the user allowed). No row is invented and nothing is counted. PHASE 14
+replaces `read()`'s body with a reader of `<data_dir>/network-audit.log`.
+Evidence: `the_network_log_says_it_is_not_recorded_until_there_is_an_audit_log`; UI: the network
+log says this build records nothing yet, and lists what the audit log holds.
+Affects: `apps/desktop/src-tauri/src/{netlog,main}.rs`, `Settings.svelte`, `locales/*.json`,
+PHASE 14 detail 12 (fills the hook).
