@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata for Flathub and software centres (PHASE 15 detail 4). -->
+<component type="desktop-application">
+  <id>io.openconvert.OpenConvert</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <name>OpenConvert</name>
+  <summary>Convert PDF books to reflowable EPUB, on this computer</summary>
+  <description>
+    <p>
+      OpenConvert turns a PDF book into a reflowable EPUB 3.3 that reads well on any e-reader:
+      paragraphs, headings, chapters, footnotes and images are recovered from the page layout,
+      and every character of the text is accounted for.
+    </p>
+    <p>
+      Everything happens on your computer. Nothing is uploaded, there is no telemetry, and a
+      conversion never uses the network. Optional AI assistance runs a small local model that you
+      choose to install.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.openconvert.OpenConvert.desktop</launchable>
+  <url type="homepage">https://github.com/openconvert/openconvert</url>
+  <url type="bugtracker">https://github.com/openconvert/openconvert/issues</url>
+  <developer id="io.openconvert">
+    <name>OpenConvert contributors</name>
+  </developer>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <provides>
+    <mediatype>application/pdf</mediatype>
+  </provides>
+  <releases>
+    <release version="0.1.0" date="2026-09-23" type="development"/>
+  </releases>
+</component>

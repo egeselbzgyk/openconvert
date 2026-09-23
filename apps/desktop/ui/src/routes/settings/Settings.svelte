@@ -25,6 +25,7 @@
     Settings,
     UiConfig,
     UiError,
+    UpdateCheck,
   } from "../../lib/backend";
   import { formatBytes } from "../../lib/bytes";
   import { defaultModel, type Catalog } from "../../lib/catalog.svelte";
@@ -77,7 +78,15 @@
     /** Settings › Provider asks the engine through these (`openconvert provider …`). */
     providers?: Pick<
       Backend,
-      "providerDetect" | "providerCheck" | "providerProbe" | "pickKeyFile" | "clearKeyFile" | "grantConsent" | "networkLog"
+      | "providerDetect"
+      | "providerCheck"
+      | "providerProbe"
+      | "pickKeyFile"
+      | "clearKeyFile"
+      | "grantConsent"
+      | "networkLog"
+      | "updateCheck"
+      | "updateInstall"
     > | null;
     /** Settings the Rust side already saved (a key file picked, a consent granted). */
     onsaved?: (next: Settings) => void;
@@ -257,6 +266,36 @@
   };
   const when = (ts: string) =>
     new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(ts));
+
+  // Settings › About & updates (PHASE 15 detail 5; the design's "update available" banner). A check
+  // is a network request, so it is made only when the button is pressed (SECURITY §8); `ready` means
+  // the Rust side downloaded the update and verified its signature, and installing is asked again.
+  let update = $state<{ state: "checking" } | UpdateCheck | null>(null);
+  let offerDismissed = $state(false);
+  let installing = $state(false);
+  let installFailed = $state(false);
+  async function checkForUpdates() {
+    if (providers === null) return;
+    offerDismissed = false;
+    installFailed = false;
+    update = { state: "checking" };
+    try {
+      update = await providers.updateCheck();
+    } catch {
+      update = { state: "failed", code: "network" };
+    }
+  }
+  async function installUpdate() {
+    if (providers === null) return;
+    installing = true;
+    try {
+      await providers.updateInstall();
+    } catch {
+      installFailed = true;
+    } finally {
+      installing = false;
+    }
+  }
 
   const aiState = $derived(
     settings.aiEnabled ? t("settings.ai.on", { provider: t(`provider.name.${settings.provider}`) }) : t("settings.ai.off"),
@@ -551,12 +590,27 @@
         </div>
         <button class="oc-btn oc-btn--quiet oc-btn--sm" onclick={() => (licenses = true)}>{t("settings.about.licenses")}</button>
       </div>
-      <div class="oc-setting">
-        <div class="oc-setting__text">
-          <div class="oc-setting__label">{t("settings.about.updates")}</div>
-          <div class="oc-setting__help">{t("settings.about.updatesHelp")}</div>
+      {#if config.updater}
+        {#if update?.state === "ready" && !offerDismissed}
+          <div class="oc-banner oc-banner--info" role="status">
+            <span class="oc-banner__text">{t("settings.about.updateReady", { version: update.version })}</span>
+            <button class="oc-btn oc-btn--primary oc-btn--sm" disabled={installing} onclick={() => void installUpdate()}>{t("settings.about.install")}</button>
+            <button class="oc-btn oc-btn--quiet oc-btn--sm" onclick={() => (offerDismissed = true)}>{t("settings.about.later")}</button>
+          </div>
+        {/if}
+        <div class="oc-setting">
+          <div class="oc-setting__text">
+            <div class="oc-setting__label">{t("settings.about.updates")}</div>
+            <div class="oc-setting__help" role="status">
+              {#if installFailed}{t("settings.about.installFailed")}{:else if update?.state === "checking"}{t("settings.about.checking")}{:else if update?.state === "up_to_date"}{t(
+                  "settings.about.upToDate",
+                  { version: config.appVersion },
+                )}{:else if update?.state === "failed"}{t(`update.failed.${update.code}`)}{:else}{t("settings.about.updatesHelp")}{/if}
+            </div>
+          </div>
+          <button class="oc-btn oc-btn--sm" disabled={update?.state === "checking" || providers === null} onclick={() => void checkForUpdates()}>{t("settings.about.check")}</button>
         </div>
-      </div>
+      {/if}
     {/if}
   </div>
 </main>

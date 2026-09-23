@@ -6,7 +6,8 @@
 use xtask::{
     ci_lint, dom_fixtures, epubcheck_parity, fetch_epubcheck, fetch_epubcheck_corpus,
     fetch_isartor, fetch_llama_server, fixtures, fuzz_seeds, handmade_fixtures, isolate_parser,
-    mutations, stage_sidecars, thresholds_lint, vendor_pdfium,
+    mutations, notices, release, repro, sbom, stage_sidecars, thresholds_lint, vendor_pdfium,
+    versions,
 };
 
 use std::path::{Path, PathBuf};
@@ -47,9 +48,35 @@ tasks:
                     review_by that has not passed
   dom-fixtures      convert every fixture and unpack its container to target/dom/ for the
                     Playwright DOM checks, with a manifest of spine, nav order and noterefs
-  stage-sidecars    copy the built engine to apps/desktop/src-tauri/bin/ with the
-                    target-triple suffix Tauri expects, plus a build stamp
+  stage-sidecars    stage what the app bundles in apps/desktop/src-tauri/bin/: the built
+                    engine and llama-server with the target-triple suffix Tauri expects,
+                    PDFium and the server's libraries in native/, the natives' licences,
+                    and a build stamp (needs vendor-pdfium and fetch-llama-server first)
                       --release           stage the release build instead of debug
+  bump-rules-check  docs/VERSIONING.md, enforced: a changed IR layout, event protocol, prompt or
+                    job-spec schema without its version bumped since the last release fails
+                      --tag <vX.Y.Z>      also require the tag to be the tree's version
+                      --record <tag>      write docs/releases/baseline.toml for a new release
+  notices           write licenses/third-party-rust.txt: the licence texts of every crate the
+                    app and the engine are built from, from cargo metadata
+                      --check             fail when the committed file does not match Cargo.lock
+  repro             the reproducibility gate (D13.8): convert the fast corpus --no-ai and hash
+                    it, then require every OS's table to agree
+                      hash --engine <path> --os <os> --out <table.json> --epubs <dir>
+                      compare <table.json>... [--epubs <os>=<dir>...]
+  sbom --out <file> the release SBOM: cargo cyclonedx over the engine and the shell, npm sbom
+                    over the UI, the vendored natives; merged into CycloneDX 1.6, validated
+                    offline against xtask/schemas/cyclonedx (needs cargo-cyclonedx, npm)
+  release           the release artefacts and their gates (PHASE 15):
+                      manifest --os <os> --bundle-dir <dir> --out <file>
+                      notes <manifest>...              the release body's SHA-256 section
+                      verify-published --body <file> --assets <dir>
+                      size-check --os <os> --bundle-dir <dir>
+                      changelog --version <tag> --out <file>
+                      hash-dir --dir <dir>
+                      latest-json --dir <dir> --version <v> --notes <file> --pub-date <date>
+                                  --base-url <url> --out <file>
+                      verify-latest --latest <file> --assets <dir>
 ";
 
 fn main() -> Result<()> {
@@ -106,6 +133,26 @@ fn main() -> Result<()> {
         }
         Some("thresholds-lint") => thresholds_lint::run(&root),
         Some("dom-fixtures") => dom_fixtures::run(&root),
+        Some("bump-rules-check") => {
+            let args: Vec<String> = std::env::args().skip(2).collect();
+            versions::run(&root, &args)
+        }
+        Some("notices") => {
+            let args: Vec<String> = std::env::args().skip(2).collect();
+            notices::run(&root, &args)
+        }
+        Some("repro") => {
+            let args: Vec<String> = std::env::args().skip(2).collect();
+            repro::run(&root, &args)
+        }
+        Some("sbom") => {
+            let args: Vec<String> = std::env::args().skip(2).collect();
+            sbom::run(&root, &args)
+        }
+        Some("release") => {
+            let args: Vec<String> = std::env::args().skip(2).collect();
+            release::run(&root, &args)
+        }
         Some("stage-sidecars") => {
             let release = std::env::args().any(|a| a == "--release");
             stage_sidecars::run(&root, release)

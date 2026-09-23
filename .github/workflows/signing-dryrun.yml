@@ -15,9 +15,9 @@ name: signing-dryrun
 #   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD, TAURI_UPDATER_PUBKEY.
 # A missing secret fails the job that needs it by name, before anything is built.
 #
-# What it cannot cover yet: the bundle does not carry `libpdfium` (packaged in Phase 15) or
-# `llama-server` (Phase 9), so the nested-signature check sees the app and the engine sidecar only.
-# It walks every Mach-O in the bundle, so it covers them unchanged once they are packaged.
+# Since PHASE 15 the bundle carries `libpdfium` and `llama-server` with its libraries beside the
+# sidecars (`Contents/MacOS`); the nested-signature check walks every Mach-O in the bundle, so it
+# covers them unchanged. The release itself is `release.yml`.
 on:
   workflow_dispatch:
     inputs:
@@ -79,6 +79,7 @@ jobs:
         with: { node-version: 22 }
       - run: npm ci --prefix apps/desktop/ui
       - run: cargo run -p xtask -- vendor-pdfium
+      - run: cargo run -p xtask -- fetch-llama-server
       - run: cargo build -p openconvert --release --locked
       - run: cargo run -p xtask -- stage-sidecars --release
       - run: cargo install tauri-cli --version "^2" --locked

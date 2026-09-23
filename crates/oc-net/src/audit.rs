@@ -34,6 +34,9 @@ pub enum Purpose {
     /// Asking an endpoint what it is, or whether it is there (`provider detect|probe`, a health
     /// check).
     LlmProbe,
+    /// The desktop app's update check: `latest.json` and, when there is a newer version, its
+    /// payload (PHASE 15 detail 5). Made only when the user asks.
+    Update,
 }
 
 /// One line of the log.

@@ -2,8 +2,9 @@ OpenConvert desktop app: third-party notices for the user interface bundle
 ==========================================================================
 
 The window's HTML, CSS and JavaScript (apps/desktop/ui) include the following third-party
-works. The notices for the Rust side of the app and the engine are generated at packaging
-time (IMPLEMENTATION_PLAN Phase 15).
+works. The notices for the Rust side of the app and the converter are in
+licenses/third-party-rust.txt, PDFium's and llama.cpp's beside it, and OpenConvert's own in
+LICENSE and NOTICE, all installed with the app.
 
 
 Lucide icons (ISC)

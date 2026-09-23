@@ -17,6 +17,7 @@ pub mod packs;
 pub mod registry;
 pub mod store;
 pub mod transport;
+pub mod update;
 pub mod verify;
 
 /// Why a download, or a change to the model store, did not happen.

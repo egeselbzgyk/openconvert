@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened Runtime entitlements for the outer OpenConvert.app only (PHASE 15 detail 2). Nested
+  binaries (the engine, llama-server, libpdfium and llama.cpp's libraries) are signed without any.
+
+  Empty by design, and short by design if it ever grows. In particular it must never contain
+    com.apple.security.cs.disable-library-validation  (SECURITY 5: weakening library validation on
+        the process tree that parses untrusted PDFs is exactly the wrong trade; libpdfium is signed
+        with our own Team ID instead),
+    com.apple.security.cs.allow-jit,
+    com.apple.security.cs.allow-unsigned-executable-memory,
+    com.apple.security.cs.allow-dyld-environment-variables,
+    com.apple.security.cs.disable-executable-page-protection,
+    com.apple.security.get-task-allow.
+  The web view's JavaScript JIT runs in WebKit's own WebContent process, which carries Apple's
+  entitlements, not ours. `entitlements_do_not_disable_library_validation` (row 15.5) enforces this.
+-->
+<plist version="1.0">
+<dict>
+</dict>
+</plist>

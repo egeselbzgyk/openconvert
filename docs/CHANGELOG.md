@@ -3,6 +3,99 @@
 One section per completed phase, listing new CLI flags, new IR fields, new warning codes and new
 `thresholds.toml` entries. Required by the Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3 item 8).
 
+## [1.0.0] — unreleased (draft)
+
+OpenConvert turns a PDF book into a reflowable EPUB 3.3 on your own computer. This is the first
+release.
+
+### What it does
+
+- **Converts born-digital PDFs** into EPUB 3.3 that reflows on any reader: paragraphs rejoined across
+  lines and pages, running headers, footers and page numbers removed, headings and chapters recovered
+  (one file per chapter, a table of contents and a page list that point at them), footnotes linked both
+  ways, verse, quotations, lists, tables and figures kept as what they are, and images re-encoded
+  within sensible limits.
+- **Accounts for every character.** Each stage of the conversion must keep or explain every character
+  of the book's text; the report says what was removed and why (running headers, soft hyphens, …) and
+  how much of the text made it into the EPUB.
+- **Checks what it writes.** Every EPUB is validated as it is made, and anything the checks find is
+  repaired before the file is saved; the report says so when that happens.
+- **Reads scanned pages** with the Tesseract OCR engine when your system has it installed (English,
+  German and Turkish tested), and scanned regions of otherwise digital pages too.
+- **Optional AI assistance, off by default.** With a small local model you choose to download (Qwen3
+  1.7B by default), or Ollama, or an OpenAI-compatible server you run, the converter can
+  ask four narrow questions per book — title and author, heading levels, front and back matter, verse
+  or quotation — and every answer is checked before it is used. Nothing is sent off your computer unless
+  you point it at a server elsewhere and consent to that host.
+- **A desktop app** for Windows, macOS and Linux: drop PDFs on the window, watch each book's progress,
+  read the report, fix the title, author or chapter list and rebuild, preview the result. In English,
+  German and Turkish. Every conversion also runs from the command line (`openconvert convert`).
+
+### Privacy
+
+- No telemetry and no crash reporting, anywhere.
+- A conversion never uses the network. The app connects only when you download a model or a pack
+  (only to the host its registry pins), when you check for updates (only to GitHub's release servers),
+  and — with AI assistance on — to the provider you chose.
+
+### Security
+
+The threat OpenConvert defends against is a hostile PDF. What this release does about it, each
+claim with where it is tested (`docs/SECURITY_TESTING.md` has the full map):
+
+- **These resource limits are checked before the work they bound**, from what the file declares:
+  image size (100 megapixels) before any decoding, decompressed stream size (256 MiB, one budget for a
+  whole filter chain), the cross-reference chain's depth and cycles and the page count (3 000) before
+  PDFium opens the file, the text on a page (1 000 000 glyph bytes) before the page loads, and a
+  deadline on every stage (300 s). A limit ends the conversion with exit code 1 and a report, and never
+  leaves a file at the output path. *(SECURITY_TESTING §1; the `hardening` suite injects 1 000
+  violations across every limit.)*
+- **Memory:** on Linux the converter caps its own address space (4 GiB by default, `--max-memory`)
+  before the PDF opens, and the report records it. *(row 14.7)*
+- **Linux sandbox:** on Linux 5.13 and later the converter confines itself with Landlock before it
+  reads the PDF — it can read its input, the models and the system's program directories, write only
+  the output and temporary directories, and (on kernels with Landlock network rules) connect only to
+  the local AI server it started. *(rows 14.10, 14.12; verified on Linux 6.18)*
+- **Child processes:** on Linux, `llama-server` and `tesseract` started by the converter end with it,
+  even if the converter is killed. *(`ocr_child_does_not_outlive_a_sigkilled_engine`,
+  `owned_server_does_not_outlive_a_sigkilled_engine`)*
+- **No network on the conversion path:** the converter's core has no code that can open a socket
+  (enforced by `cargo deny` and a dependency test), conversions — including AI assistance replayed from
+  recordings — pass inside an empty network namespace, and every connection the app or the converter
+  does make is recorded in a log you can read in Settings › Network log; a conversion without AI
+  records none. *(rows 14.20, 14.21)*
+- **The parsers OpenConvert writes** (the document model, the job file, the EPUB builder) are fuzzed,
+  and damaged PDFs made to break parsers — cyclic cross-references, truncated streams, nested object
+  streams, looping page trees; 29 today — are permanent regression tests: each must end with exit 0 or
+  1, a report and no partial output. *(rows 14.13–14.15, 14.17)*
+- **Updates** are signed with the project's Ed25519 key and installed only after the signature over
+  the downloaded file has been verified; a check happens only when you ask. *(rows 15.9, 15.10)*
+
+**Known gaps in this release, stated rather than hidden:**
+
+- **Windows has no memory cap** (the job object ends the converter's children with it, but does not
+  limit memory), and the Windows and macOS containment has not been verified on those systems.
+- **No cap on the size of the EPUB written.** A book over 50 MiB is reported with a warning, not
+  refused; `docs/SECURITY.md` §4's "max output size" has no value yet.
+- **No sandbox below Linux 5.13, and none on macOS or Windows.** On an older kernel, or with
+  `OC_LANDLOCK=off`, the conversion runs unconfined and the report says so.
+- **The desktop app's own children** — the converters it runs and its model server — are ended when
+  the app quits or crashes, but not yet guaranteed to end if the app itself is killed outright.
+- The fuzzing campaigns ran for two minutes per target (no crashes), not yet continuously, and the
+  public Isartor test suite has not been run against this release.
+- The Windows installers are not code-signed (below).
+
+### Installing and verifying
+
+- Windows: the NSIS installer or the MSI. **They are not code-signed in this release**, so Microsoft
+  Defender SmartScreen warns on first run ("More info" → "Run anyway"); `docs/INSTALL.md` explains why.
+- macOS: the `.dmg` for Apple silicon or Intel, signed with a Developer ID and notarized.
+- Linux: the AppImage, which updates itself when you ask it to; or the Flatpak on Flathub, which runs
+  without network access (so it cannot download an AI model) and is updated by Flathub.
+- Every file's SHA-256 is listed at the end of these notes, and the release carries a CycloneDX 1.6
+  SBOM listing every component, PDFium and llama.cpp included.
+- Updates are signed; the app installs one only after its signature has been verified.
+
 ## Phase 0 — Repo, workspace, CI, thresholds, hello-Tauri, first Typst fixtures
 
 *(in progress)*
@@ -1506,3 +1599,87 @@ unverified here. Built on `phase/14-security-hardening`.
   Linux kernel older than 5.13 (A14.5 is shown through `OC_LANDLOCK=off`), row 14.16 (Isartor pins
   empty), the nightly 15-minute fuzz campaigns (120 s per target here, zero crashes), every CI job.
 - PROVISIONAL decisions awaiting ratification are listed in `PROGRESS.md` › Blocked (Phase 14).
+
+## Phase 15 — Packaging & release
+
+What turns the workspace into something a person can install: one bundle layout on every OS, the
+release workflow and its gates, a signed updater, an SBOM, reproducibility and version-bump checks,
+licence notices, the 1.0.0 release notes and a release checklist. Built and checked on Linux: the
+AppImage is built here and converts a book headless with Landlock and `RLIMIT_AS` in force. macOS
+signing and notarization, the Windows installers, fresh-VM smoke runs, `flatpak-builder-lint`, a
+published release and every CI job are unverified here. **v1.0 is not releasable from this state**:
+Appendix D does not pass (`PROGRESS.md`). Built on `phase/15-packaging-release`.
+
+### Bundle and installers (`apps/desktop`, `packaging/`)
+
+- The engine is bundled as the sidecar **`openconvert-engine`** (was `openconvert`), so building the
+  app can never overwrite the workspace's own engine binary (PROVISIONAL).
+- One layout everywhere: `openconvert-engine` and `llama-server` as `externalBin`; PDFium and the
+  server's libraries in `bin/native/` beside them; `models.toml`, `thresholds.toml`, the licences,
+  `NOTICE` and `licenses/third-party-rust.txt` as resources. `tauri.{linux,macos,windows}.conf.json`.
+- Bundle identifier `io.openconvert.OpenConvert` (was `dev.openconvert.app`; PROVISIONAL).
+- Linux: AppImage (primary); Flatpak manifest `packaging/linux/flatpak/io.openconvert.OpenConvert.yml`
+  with **no network permission** and no updater (PROVISIONAL: no model or pack download inside it),
+  `.desktop` file and AppStream metainfo. No `.deb`/`.rpm` (PROVISIONAL).
+- macOS: `packaging/macos/{entitlements.plist,sign_nested.sh,notarize.sh}` — every nested Mach-O
+  signed inside out, libraries before executables, the app last; no entitlement disables library
+  validation.
+- Windows: per-user NSIS (EN/DE/TR) and MSI; unsigned, SmartScreen explained in `docs/INSTALL.md`.
+- The app's hidden mode `--smoke-convert <pdf>` converts one book headless and exits with the
+  engine's code; `packaging/smoke/fresh-install.{sh,ps1}` check the hash, install, smoke-convert and
+  check the EPUB.
+
+### Updater (`oc-net`, `apps/desktop`)
+
+- `oc_net::update`: Tauri's `latest.json` and minisign Ed25519 signatures, fetched through `oc-net`
+  from GitHub's release hosts only (`UPDATE_HOST_ALLOWLIST`), size-capped, and verified with
+  `minisign-verify` before anything is offered; `VerifiedUpdate` is the only thing that can be
+  installed. `tauri-plugin-updater` is not used (it needs the banned `reqwest`; PROVISIONAL).
+- Desktop commands `update_check` / `update_install` behind the default-on `updater` feature (off in
+  the Flatpak). Settings › About & updates: "Check for updates" (only when asked), then "Install and
+  restart" / "Later"; failures localised in EN/DE/TR.
+- The update check is recorded in the network audit log under the new purpose **`update`**
+  (`HttpFetch::with_purpose`); Settings › Network log names it "Update check".
+
+### Release tooling (`xtask`, `.github/workflows/release.yml`)
+
+- New subcommands: `stage-sidecars` (engine, `llama-server`, natives, licences), `sbom --out <file>`
+  (CycloneDX 1.6 from `cargo cyclonedx`, `npm sbom` and the natives' locks, validated offline against
+  the vendored schema), `repro {hash,compare}`, `bump-rules-check [--tag|--record]` against
+  `docs/releases/baseline.toml`, `notices [--check]`, and `release {manifest, notes, changelog,
+  hash-dir, latest-json, verify-latest, verify-published, size-check}`. `ci-lint --release-branch`
+  also refuses `TODO_` in `packs.toml`, `thresholds.toml` and `tauri.conf.json`.
+- `release.yml`: a draft release built on the three OSes; every gate row is a step named
+  `row 15.N <test>`; the release notes come from this file's `## [x.y.z]` section, and the job
+  refuses a missing or placeholder-carrying one. The `release-artifacts` xtask feature holds the
+  gates that read real artefacts (`OC_BUNDLE_DIR`, `OC_SBOM`, `OC_REPRO_DIR`, `OC_RELEASE_BODY`,
+  `OC_RELEASE_ASSETS`).
+- `licenses/third-party-rust.txt` (every shipped crate's licence text) and the root `NOTICE`, both in
+  every bundle.
+
+### thresholds.toml
+
+- `release.max_installer_bytes` (45 000 000, PROVISIONAL — D12's estimate; the AppImage is
+  112 953 848 bytes and fails it), `net.update_manifest_max_bytes` (65 536). The report snapshot's
+  redacted threshold count is 229.
+
+### Dependencies
+
+- `minisign-verify` 0.2 and `base64` 0.22 (`oc-net`); `jsonschema` 0.57 without default features,
+  `syn`/`quote`/`proc-macro2` (`xtask`); `minisign` 0.9 and `serde_yaml` 0.9 in dev-dependencies
+  only. All on the `deny.toml` allow-list.
+
+### Documents
+
+- `docs/VERSIONING.md`, `docs/RELEASE_CHECKLIST.md` (with a dated checklist run), `docs/INSTALL.md`,
+  `docs/releases/baseline.toml`, the `## [1.0.0]` release notes above (Security written from what
+  Phase 14 verified, with its gaps), and the Appendix D evaluation in `PROGRESS.md`.
+
+### Known gaps, carried forward
+
+- **Release blockers:** 15 `TODO_` pins (`models.toml` 8, `packs.toml` 6, the updater key 1); the
+  AppImage over the installer budget; VD-f open; Phase 7.5 parked; no max-output-size cap and no
+  Windows memory cap. The full list is `PROGRESS.md` › Blocked › "v1.0 — Appendix D".
+- **Unverified here:** rows 15.1–15.4, 15.6, 15.13's cross-OS half, 15.14's container run, 15.19,
+  15.20, the real-key half of 15.9, `flatpak-builder-lint`, the Windows and macOS update install paths.
+- PROVISIONAL decisions awaiting ratification are listed in `PROGRESS.md` › Blocked (Phase 15).

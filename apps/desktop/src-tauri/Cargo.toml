@@ -17,6 +17,10 @@ name = "openconvert-desktop"
 path = "src/main.rs"
 
 [features]
+default = ["updater"]
+# The in-app updater (PHASE 15 detail 5): on in every build but the Flatpak's, which Flathub updates
+# and which is built with `--no-default-features`, so there is one update path per install (row 15.8).
+updater = []
 # Tests that drive real sidecar binaries: they need `cargo build -p openconvert -p oc-testkit --bins`
 # (the engine, and the stub llama-server the model-server tests start), the vendored PDFium
 # (`cargo run -p xtask -- vendor-pdfium`) and nothing else. Gated rather than skipped

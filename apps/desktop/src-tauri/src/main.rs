@@ -37,7 +37,9 @@ use openconvert_desktop::packs::{self, PackManager, PackReadiness, PacksView};
 use openconvert_desktop::preview::{self, PreviewIndex};
 use openconvert_desktop::providers::ProviderCli;
 use openconvert_desktop::settings::{self, Settings};
-use openconvert_desktop::tree;
+#[cfg(feature = "updater")]
+use openconvert_desktop::updater;
+use openconvert_desktop::{smoke, tree};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
@@ -604,6 +606,51 @@ fn network_log() -> NetworkLog {
     netlog::read()
 }
 
+/// Check for an update, when the user asks (PHASE 15 detail 5). Downloaded and verified against the
+/// key in `tauri.conf.json` before it is offered; held until [`update_install`].
+#[cfg(feature = "updater")]
+#[tauri::command]
+async fn update_check(app: AppHandle) -> Result<updater::Checked, UiError> {
+    let setup = updater::Setup::from_plugin_config(app.config().plugins.0.get(updater::CONFIG_KEY));
+    let Some(setup) = setup else {
+        return Ok(updater::Checked::Failed {
+            code: "no_key".to_owned(),
+        });
+    };
+    let handle = app.clone();
+    off_main(move || {
+        let connect =
+            Duration::from_secs(u64::try_from(T.net.connect_timeout_secs).unwrap_or_default());
+        // Recorded in the network audit log as `update` (Settings › Network log).
+        let fetch =
+            oc_net::download::HttpFetch::new(connect).with_purpose(oc_net::audit::Purpose::Update);
+        let (checked, verified) = updater::check(&setup, env!("CARGO_PKG_VERSION"), &fetch);
+        *handle
+            .state::<updater::Pending>()
+            .0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = verified;
+        Ok(checked)
+    })
+    .await
+}
+
+/// Install the update [`update_check`] verified, and restart into it.
+#[cfg(feature = "updater")]
+#[tauri::command]
+async fn update_install(app: AppHandle) -> Result<(), UiError> {
+    let pending = app
+        .state::<updater::Pending>()
+        .0
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take()
+        .ok_or_else(|| UiError::Io("no verified update is waiting".to_owned()))?;
+    let scratch = app.state::<AppDirs>().run.clone();
+    off_main(move || updater::install(&pending, &scratch).map_err(UiError::Io)).await?;
+    app.restart()
+}
+
 /// "Quit" on the blocking startup screen.
 #[tauri::command]
 fn quit(app: AppHandle) {
@@ -621,6 +668,49 @@ fn with_queue<R>(
     work(queue)
 }
 
+/// Queue `pdf` as a drop would, wait for its row to finish, report it and exit with the engine's
+/// code ([`smoke`]). The supervisor's clock, started beside this, runs the job.
+fn smoke_convert(handle: AppHandle, pdf: PathBuf, tick: Duration) {
+    std::thread::spawn(move || {
+        if let Err(error) = &handle.state::<Startup>().0 {
+            eprintln!("smoke: the app did not start its engine: {error}");
+            handle.exit(smoke::EXIT_NOT_STARTED);
+            return;
+        }
+        let preset = handle
+            .state::<Prefs>()
+            .current
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .preset;
+        let queue = handle.state::<Queue>();
+        let Ok(ids) = with_queue(&queue, |queue| Ok(queue.enqueue(&[pdf], preset))) else {
+            eprintln!("smoke: the queue is not ready");
+            handle.exit(smoke::EXIT_NOT_STARTED);
+            return;
+        };
+        loop {
+            std::thread::sleep(tick);
+            let finished = with_queue(&queue, |queue| {
+                Ok(queue
+                    .views()
+                    .into_iter()
+                    .find(|view| ids.contains(&view.id))
+                    .and_then(|view| smoke::finished(&view).map(|code| (view, code))))
+            });
+            if let Ok(Some((view, code))) = finished {
+                println!(
+                    "smoke: {} -> {} (exit {code})",
+                    view.input.display(),
+                    view.output.display()
+                );
+                handle.exit(code);
+                return;
+            }
+        }
+    });
+}
+
 fn main() {
     // The app's own connections — its model manager's downloads — go in the same audit log the
     // engine writes, and Settings › Network log reads it (PHASE 14 detail 12).
@@ -628,6 +718,15 @@ fn main() {
     // Every engine's process tree ends with the app, however it ends: this teardown runs from the
     // panic hook and the signal handler `supervise` installs (D13.2), and at `RunEvent::Exit`.
     oc_core::sidecar::supervise::on_teardown(tree::end_all);
+    // `--smoke-convert <pdf>` (rows 15.7, 15.19): everything below runs as it always does, and the
+    // book is dropped from the command line instead of on the window.
+    let smoke_pdf = match smoke::requested(std::env::args_os()) {
+        Ok(pdf) => pdf,
+        Err(message) => {
+            eprintln!("{message}");
+            std::process::exit(smoke::EXIT_NOT_STARTED);
+        }
+    };
     let engine = sidecar_path();
     let startup = engine
         .clone()
@@ -635,7 +734,7 @@ fn main() {
     let tick =
         Duration::from_millis(u64::try_from(T.desktop.supervisor_tick_ms).unwrap_or(u64::MAX));
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .register_uri_scheme_protocol("ocpreview", |context, request| {
@@ -651,6 +750,8 @@ fn main() {
             current: Mutex::new(Settings::default()),
         })
         .setup(move |app| {
+            #[cfg(feature = "updater")]
+            app.manage(updater::Pending::default());
             let dirs = AppDirs::under(&app.path().app_data_dir()?)?;
             let config_dir = app.path().app_config_dir()?;
             let settings_file = settings::settings_path(&config_dir);
@@ -709,6 +810,9 @@ fn main() {
                     .0
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner) = Some(queue);
+            }
+            if let Some(pdf) = smoke_pdf.clone() {
+                smoke_convert(app.handle().clone(), pdf, tick);
             }
             // The supervisor's clock: notice exits, enforce the kill deadline, start the next job,
             // and stop the model server once no job has used it for `llm.idle_kill_secs`.
@@ -778,30 +882,37 @@ fn main() {
             pick_key_file,
             clear_key_file,
             grant_consent,
-            network_log
+            network_log,
+            #[cfg(feature = "updater")]
+            update_check,
+            #[cfg(feature = "updater")]
+            update_install
         ])
         .build(tauri::generate_context!())
-        .expect("the Tauri application starts")
-        .run(|app, event| {
-            if let tauri::RunEvent::Exit = event {
-                // Nothing the app started outlives it: every engine's tree, then the model server
-                // and its key.
-                tree::end_all();
-                let llm = Arc::clone(&app.state::<Llm>().0);
-                let stopped = match llm.try_lock() {
-                    Ok(mut guard) => {
-                        if let Some(host) = guard.as_mut() {
-                            host.shutdown();
-                        }
-                        true
+        .expect("the Tauri application starts");
+    // `run_return`, so the code `AppHandle::exit` was given is the process's: a smoke conversion
+    // that failed must not look like one that passed.
+    let code = app.run_return(|app, event| {
+        if let tauri::RunEvent::Exit = event {
+            // Nothing the app started outlives it: every engine's tree, then the model server
+            // and its key.
+            tree::end_all();
+            let llm = Arc::clone(&app.state::<Llm>().0);
+            let stopped = match llm.try_lock() {
+                Ok(mut guard) => {
+                    if let Some(host) = guard.as_mut() {
+                        host.shutdown();
                     }
-                    Err(_) => false,
-                };
-                if !stopped {
-                    // A model is still loading for a job: end the server the way the panic hook
-                    // would. Its key file goes with the run directory at the next start.
-                    oc_core::sidecar::supervise::kill_all();
+                    true
                 }
+                Err(_) => false,
+            };
+            if !stopped {
+                // A model is still loading for a job: end the server the way the panic hook
+                // would. Its key file goes with the run directory at the next start.
+                oc_core::sidecar::supervise::kill_all();
             }
-        });
+        }
+    });
+    std::process::exit(code);
 }

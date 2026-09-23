@@ -242,13 +242,18 @@ describe("settings route", () => {
     const body = () => document.querySelector(".oc-settings__body")?.textContent ?? "";
     expect(body()).toContain("No connections yet");
     expect(body()).toContain("with AI assistance on — each time a conversion asks the provider you chose");
+    expect(body()).toContain("when you check for updates");
     expect(document.querySelector(".oc-table")).toBeNull();
     unmount(app!);
     app = null;
 
     backend.network = {
       state: "entries",
-      entries: [{ ts: "2026-09-22T10:14:00Z", host: "huggingface.co", purpose: "download", bytes: 1_181_116_006, outcome: "ok" }],
+      entries: [
+        { ts: "2026-09-22T10:14:00Z", host: "huggingface.co", purpose: "download", bytes: 1_181_116_006, outcome: "ok" },
+        // PHASE 15: an update check the user asked for is a line of its own kind.
+        { ts: "2026-09-22T11:00:00Z", host: "github.com", purpose: "update", bytes: 2_048, outcome: "ok" },
+      ],
     };
     await openSettings(backend);
     nav("Network log")?.click();
@@ -257,5 +262,70 @@ describe("settings route", () => {
     const cells = [...document.querySelectorAll(".oc-table td")].map((cell) => cell.textContent);
     expect(cells).toContain("huggingface.co");
     expect(cells).toContain("Model or pack download");
+    expect(cells).toContain("github.com");
+    expect(cells).toContain("Update check");
+  });
+});
+
+// PHASE 15 detail 5 (part B): Settings › About & updates. A check is a network request, so it is
+// made only when asked (SECURITY §8); an update is offered only once the Rust side has verified its
+// signature, and installed only when asked again. The Flatpak build, which Flathub updates, has no
+// updater at all, and the row is not there.
+describe("about & updates", () => {
+  it("checks only when asked, offers a verified update, and installs it on request", async () => {
+    const fake = new FakeBackend();
+    fake.update = { state: "ready", version: "1.0.1" };
+    const backend = await openSettings(fake);
+    nav("About & updates")?.click();
+    flushSync();
+    expect(backend.calls.filter(([name]) => name === "updateCheck"), "nothing is asked before the button").toEqual([]);
+
+    button("Check for updates")?.click();
+    await settle();
+    flushSync();
+    expect(backend.calls.filter(([name]) => name === "updateCheck")).toHaveLength(1);
+    const banner = document.querySelector(".oc-banner");
+    expect(banner?.textContent).toContain("OpenConvert 1.0.1 is available. Its signature has been verified.");
+
+    button("Later")?.click();
+    flushSync();
+    expect(document.querySelector(".oc-banner"), "Later dismisses the offer").toBeNull();
+
+    button("Check for updates")?.click();
+    await settle();
+    flushSync();
+    button("Install and restart")?.click();
+    await settle();
+    expect(backend.calls.filter(([name]) => name === "updateInstall")).toHaveLength(1);
+  });
+
+  it("says why no update is offered, in the user's language", async () => {
+    const fake = new FakeBackend();
+    fake.update = { state: "failed", code: "bad_signature" };
+    await openSettings(fake);
+    nav("About & updates")?.click();
+    flushSync();
+    button("Check for updates")?.click();
+    await settle();
+    flushSync();
+    expect(document.querySelector('[role="status"].oc-setting__help, .oc-setting [role="status"]')?.textContent).toContain(
+      "its signature did not verify, so it was not installed",
+    );
+
+    fake.update = { state: "up_to_date" };
+    button("Check for updates")?.click();
+    await settle();
+    flushSync();
+    expect(document.body.textContent).toContain("OpenConvert 0.1.0 is the newest version.");
+  });
+
+  it("is not there in a build without the updater (the Flatpak)", async () => {
+    const fake = new FakeBackend();
+    fake.configured = { ...CONFIG, updater: false };
+    await openSettings(fake);
+    nav("About & updates")?.click();
+    flushSync();
+    expect(button("Check for updates")).toBeUndefined();
+    expect(document.body.textContent).not.toContain("Updates");
   });
 });

@@ -25,6 +25,10 @@ pub struct UiConfig {
     /// (`ai.task.<task>.languages`, PHASE 10 detail 7). Zero means turning AI assistance on changes
     /// no book, and Settings says so rather than let the switch promise what it does not do.
     pub ai_tasks_enabled: u64,
+    /// This build has the in-app updater (PHASE 15 detail 5): every build but the Flatpak's, which
+    /// Flathub updates and which is built without the `updater` feature. Settings shows the
+    /// "Check for updates" row only when it is there.
+    pub updater: bool,
 }
 
 /// Seconds as milliseconds, saturating; a negative threshold is a malformed file, not a runtime
@@ -59,6 +63,7 @@ impl UiConfig {
             .iter()
             .filter(|languages| !languages.is_empty())
             .count() as u64,
+            updater: cfg!(feature = "updater"),
         }
     }
 }
@@ -66,6 +71,19 @@ impl UiConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The UI's updater row follows the build, not a setting: a build compiled without the
+    /// `updater` feature (the Flatpak) has no command to call, and the row is not shown.
+    #[test]
+    fn the_ui_is_told_whether_this_build_has_an_updater() {
+        let config = UiConfig::from_thresholds("0.1.0");
+        assert_eq!(config.updater, cfg!(feature = "updater"));
+        let json = serde_json::to_value(&config).expect("json");
+        assert_eq!(
+            json["updater"],
+            serde_json::Value::Bool(cfg!(feature = "updater"))
+        );
+    }
 
     #[test]
     fn every_number_the_ui_shows_comes_from_thresholds() {

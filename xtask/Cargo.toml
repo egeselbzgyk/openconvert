@@ -16,6 +16,13 @@ path = "src/lib.rs"
 name = "xtask"
 path = "src/main.rs"
 
+[features]
+# The release job's gates over real artefacts (PHASE 15 rows 15.6, 15.7, 15.15, 15.20). They read
+# the bundle directory from `OC_BUNDLE_DIR` (and the published release from `OC_RELEASE_BODY` and
+# `OC_RELEASE_ASSETS`); with the feature on and a variable unset, they fail. Gated rather than
+# skipped (IMPLEMENTATION_PLAN §0.2): `release.yml` turns it on after bundling.
+release-artifacts = []
+
 [dependencies]
 oc-core = { path = "../crates/oc-core", version = "0.1.0" }
 oc-testkit = { path = "../crates/oc-testkit", version = "0.1.0" }
@@ -27,7 +34,10 @@ oc-pdf = { path = "../crates/oc-pdf", version = "0.1.0" }
 # shelling out to the binary or building a second driver — the DOM checks assert things about the
 # markup a user gets, so they have to be given exactly that markup (D13.1).
 openconvert = { path = "../crates/openconvert", version = "0.1.0" }
+# `release verify-latest` checks the published `latest.json` with the updater's own verifier.
+oc-net = { path = "../crates/oc-net", version = "0.1.0" }
 anyhow.workspace = true
+thiserror.workspace = true
 # The `--isolate-parser` spike's wire format: length-prefixed CBOR, as PHASE 14 detail 13 names it.
 # Already in the graph through `criterion`.
 ciborium = "0.2"
@@ -41,3 +51,22 @@ typst.workspace = true
 typst-pdf.workspace = true
 typst-layout.workspace = true
 typst-assets.workspace = true
+# `xtask sbom` validates the release SBOM against the vendored CycloneDX 1.6 schema (row 15.11).
+# Without its default features, which resolve remote schemas over HTTP: everything is offline.
+jsonschema = { version = "0.57", default-features = false }
+uuid.workspace = true
+# `bump-rules-check` digests the IR's and the protocol's code as the compiler sees it: parsed, with
+# comments, docs and tests left out (PHASE 15 detail 8). All three already build every derive.
+syn = { version = "2", features = ["full"] }
+quote = "1"
+proc-macro2 = "1"
+
+[dev-dependencies]
+# The release tests read the macOS entitlements plist (PHASE 15 row 15.5).
+quick-xml.workspace = true
+# ...and the Flatpak manifest and the release workflow (rows 15.8, 15.14). Already in the tree
+# through `typst`; deprecated upstream but complete for reading YAML, and never shipped.
+serde_yaml = "0.9"
+# ...and sign a test `latest.json` with a keypair made in the test (never a committed key).
+minisign.workspace = true
+base64.workspace = true

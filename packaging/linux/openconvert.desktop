@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=OpenConvert
+GenericName=PDF to EPUB converter
+Comment=Convert PDF books to reflowable EPUB, on this computer
+Comment[de]=PDF-Bücher in umbrechbares EPUB umwandeln, auf diesem Computer
+Comment[tr]=PDF kitapları bu bilgisayarda yeniden akışlı EPUB'a dönüştürün
+Exec=openconvert-desktop
+Icon=io.openconvert.OpenConvert
+Terminal=false
+Categories=Office;Publishing;
+MimeType=application/pdf;
+Keywords=PDF;EPUB;ebook;convert;
+StartupWMClass=openconvert-desktop

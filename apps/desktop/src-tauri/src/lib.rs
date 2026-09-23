@@ -20,4 +20,7 @@ pub mod packs;
 pub mod preview;
 pub mod providers;
 pub mod settings;
+pub mod smoke;
 pub mod tree;
+#[cfg(feature = "updater")]
+pub mod updater;

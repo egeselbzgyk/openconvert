@@ -94,6 +94,13 @@ ureq   = { version = "3", default-features = false, features = ["rustls-no-provi
 # redacted from `Debug`, so it cannot reach a log line by accident (PHASE 9 detail 3).
 secrecy = "0.10"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+# The updater (PHASE 15 detail 5): Tauri's update format — a static `latest.json` and minisign
+# Ed25519 signatures, base64-wrapped — verified with the verifier `tauri-plugin-updater` itself uses,
+# and fetched through `oc-net` (the plugin needs `reqwest`, which `deny.toml` bans; DECISIONS_LOG
+# 2026-09-23). `minisign` signs, and only in tests, with a keypair made there.
+minisign-verify = "0.2"
+base64 = "0.22"
+minisign = "0.9"
 # --- fixtures (xtask only; never shipped) ---
 # Typst-sourced fixtures are compiled in-process so regeneration needs no external tool
 # (DECISIONS.md Appendix A, TEST_CORPUS 6.1). Pinned exactly: a Typst bump changes fixture

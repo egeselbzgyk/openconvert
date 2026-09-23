@@ -260,6 +260,14 @@ evidence = "docs/design/handoff/docs/motion.md 'Copy -> Copied ... reverts after
 owner = "maintainer"
 review_by = "2028-01-01"
 
+# ---------- release (PHASE 15) ----------
+[release.max_installer_bytes]             # every installer a release ships (AppImage, dmg, NSIS, MSI), each
+value = 45000000
+source = "provisional"
+evidence = "D12: base install ~35-45 MB (shell + engine + libpdfium + llama-server); A15.6 is anchored on that estimate, read as decimal megabytes, the stricter reading; the Linux AppImage is measured by row 15.15"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 # ---------- word/line/layout (R2 §B.3, §D.3) ----------
 [words.nn_manhattan_threshold]
 value = 0.20
@@ -1187,6 +1195,13 @@ review_by = "2027-06-30"
 value = 30
 source = "provisional"
 evidence = "PHASE 9 detail 6: how long `model pull` waits for a TCP and TLS connection before it gives up. Only the connection is bounded: a 1-3 GB transfer on a slow line legitimately takes longer than any fixed total would allow. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[net.update_manifest_max_bytes]           # the largest `latest.json` the updater reads
+value = 65536
+source = "provisional"
+evidence = "PHASE 15 detail 5: Tauri's static update manifest is a version, notes and one URL + signature per platform - about 2 KB for three OSes with release notes; 64 KiB leaves room for long notes and stops a hostile or broken endpoint from streaming without end. Invented, not measured"
 owner = "maintainer"
 review_by = "2027-06-30"
 

@@ -3,9 +3,10 @@
 <!-- Machine-readable state. Claude Code reads this first and rewrites it after every completed work item. -->
 
 STATUS: IN_PROGRESS
-CURRENT_PHASE: 15
-CURRENT_ITEM: Phase 15 — Packaging & release. Phase 14 is complete and merged (2026-09-23).
-              Phase 7.5 is still parked.
+CURRENT_PHASE: 7.5
+CURRENT_ITEM: Phase 7.5 — parked by the maintainer's decision (2026-09-23); do not start it until the
+              maintainer resumes it. Every other phase, 0–15, is ticked. v1.0 is NOT done: Appendix D
+              fails (see "Appendix D — Definition of Done for v1.0, evaluated" and `## Blocked`).
 LAST_UPDATED: 2026-09-23
 
 ---
@@ -93,7 +94,274 @@ LAST_UPDATED: 2026-09-23
       (120 s each here, zero crashes), 29 mutated crash files. `--isolate-parser` is NO-GO. macOS,
       Windows, old kernels, the nightly campaigns and every CI job are unverified here; the
       provisional decisions are in the Blocked section.)*
-- [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
+- [x] **Phase 15** — Packaging & release  *(all 20 named tests exist; the logic of every gate passes
+      in the default suite. Against real artefacts here: 15.7, 15.11, 15.12 green; **15.15 red, correctly**
+      (the AppImage is 112 953 848 bytes against 45 000 000) and **15.18 red on the real tree,
+      correctly** (15 `TODO_` pins). 15.1–15.4, 15.6, 15.13's cross-OS half, 15.14's container run,
+      15.19 and 15.20 need macOS, Windows, certificates, VMs or a published release and are unverified
+      here. Built on `phase/15-packaging-release` in parts A and B and merged into `main` 2026-09-23:
+      one bundle layout, macOS signing scripts, NSIS/MSI config, the AppImage (built and smoke-tested
+      here with Landlock and `RLIMIT_AS` in force), a network-free Flatpak, a signed updater over
+      `oc-net`, the SBOM, the reproducibility and version-bump gates, the release workflow, notices,
+      the 1.0.0 release notes and the release checklist. **Appendix D (v1.0) does not pass** — its
+      evaluation is below the Phase 15 section and every open item is in `## Blocked`.)*
+
+## Phase 15 — built on `phase/15-packaging-release` (parts A and B), merged 2026-09-23
+
+Work items, in order, with the plan's test rows against each:
+
+- [x] **P15.1** carry-over: the engine sidecar is `openconvert-engine`, so `tauri-build` can never
+      overwrite `target/<profile>/openconvert` with a stale staged engine —
+      `no_sidecar_shares_a_name_with_a_workspace_binary`, `the_sidecar_the_app_runs_is_the_one_tauri_bundles`
+- [x] **P15.2** bundle layout (detail 1): engine + `llama-server` as `externalBin`, PDFium and the
+      server's libraries in `bin/native/` beside them, `models.toml`, `thresholds.toml`, licences as
+      resources; `tauri.{linux,macos,windows}.conf.json`; `stage-sidecars` stages all of it (needs
+      `vendor-pdfium` and `fetch-llama-server` first) — `the_bundle_layout_is_the_same_on_every_os`
+- [x] **P15.3** macOS: `packaging/macos/{entitlements.plist,sign_nested.sh,notarize.sh}` — row 15.5
+      `entitlements_do_not_disable_library_validation`, plus `sign_nested_signs_every_macho_inside_out`
+      (the script run on Linux with a recording `codesign`); rows 15.1–15.4 are `release.yml` steps on
+      macOS — **unverified here**
+- [x] **P15.4** Windows NSIS + MSI (`tauri.windows.conf.json`, per-user NSIS in EN/DE/TR) and
+      `xtask release {manifest,notes,verify-published,size-check}`; `[release.max_installer_bytes]`
+      in `thresholds.toml` (45 000 000, provisional, D12) — logic tests
+      `release_manifest_requires_every_declared_installer`, `a_release_body_missing_one_hash_is_refused`,
+      `the_installer_budget_counts_installers_only`; the gates themselves (15.6 on Windows, 15.15,
+      15.20) are `release-artifacts`-feature tests the release job runs — **unverified here** except
+      15.15 on Linux (P15.5)
+- [x] **P15.5** Linux AppImage built here (tauri-cli 2.11.5): `--smoke-convert <pdf>` in the app;
+      row 15.7 `appimage_launches_and_converts_headless` **passes here** (xvfb-run, clean HOME, no
+      vendor/), plus `appimage_carries_the_bundle_layout`; row 15.15 `installer_size_within_budget`
+      **fails here, correctly: 112 695 800 bytes > 45 000 000** (WebKitGTK alone compresses to ~58 MB)
+      — a release blocker for the maintainer (Blocked). Fixed on the way: the UI build hooks' paths,
+      the `.app`-suffixed identifier (now `io.openconvert.OpenConvert`, provisional)
+- [x] **P15.6** `packaging/linux/{openconvert.desktop,io.openconvert.OpenConvert.metainfo.xml,
+      flatpak/io.openconvert.OpenConvert.yml}`: no `--share=network`, the shell built with
+      `--no-default-features` (no updater), natives pinned by the locks' SHA-256s — row 15.8
+      `flatpak_manifest_has_no_network_finish_arg`; `flatpak-builder-lint` in CI **unverified here**
+- [x] **P15.7** updater (done before P15.6, which compiles it out): Tauri's format and keys, fetched
+      through `oc_net::update` (GitHub release hosts only), `minisign-verify` before install; desktop
+      `update_check`/`update_install` behind the default-on `updater` feature — rows 15.9
+      `updater_manifest_signature_verifies`, 15.10 `updater_rejects_tampered_payload` (test keypair
+      made in-test). Provisional: no `tauri-plugin-updater` (it needs the banned `reqwest`). No UI row
+      yet (part B)
+- [x] **P15.8** `xtask sbom --out <file>`: `cargo cyclonedx` (0.5.9, 1.5) over the engine and the
+      shell + `npm sbom` over the UI + the natives from the locks, merged into CycloneDX 1.6,
+      reproducible, validated offline against the vendored 1.6.1 schema — rows 15.11
+      `sbom_is_valid_cyclonedx_1_6`, 15.12 `sbom_lists_every_vendored_native` (release-artifacts,
+      **pass here** on the generated SBOM: 776 components), plus three default-suite logic tests
+- [x] **P15.9** `xtask repro {hash,compare}` over the fast corpus (52 PDFs: Typst + hand-made +
+      mutations), `--no-ai --ocr never`, `dcterms:modified` pinned; a mismatch names the first zip
+      entry and byte offset — `repro_check_names_the_first_differing_zip_entry`; row 15.13
+      `reproducible_no_ai_output_across_os` (release-artifacts) needs the three OS tables —
+      **unverified here**; the Linux half ran: three runs (other cwd, TZ, tr_TR locale, debug vs
+      release engine) gave identical tables
+- [x] **P15.10** `xtask bump-rules-check [--tag|--record]` against `docs/releases/baseline.toml`
+      (`released = "none"` until v1.0.0: drift is a note), `docs/VERSIONING.md`, a step in CI's lint
+      job — rows 15.16 `ir_version_bump_is_enforced`, 15.17 `protocol_bump_is_enforced` (rehearsals on
+      a copy of the tree), plus `prompt_and_job_spec_changes_follow_their_rules`,
+      `the_committed_baseline_describes_this_tree`
+- [x] **P15.11** `.github/workflows/release.yml` (draft release; every CI-gate row a step named
+      `row 15.N <test>`); the tag gate over `models.toml`, `packs.toml`, `thresholds.toml`,
+      `tauri.conf.json` — row 15.18 `no_todo_placeholders_on_a_release_tag` (**the real tree fails it
+      today with 15 findings, correctly**: release blockers), row 15.14 `release_job_needs_no_python`
+      (YAML; the container run is unverified here), `every_release_gate_row_is_a_named_release_step`,
+      `xtask release {latest-json,verify-latest,hash-dir}` — `the_release_latest_json_is_what_the_updater_verifies`
+- [x] **P15.12** `docs/RELEASE_CHECKLIST.md` (binary items, which job checks each, the key-rotation
+      consequence, Azure Artifact Signing = one secret + one step), `docs/INSTALL.md` (SmartScreen in
+      plain words, checksums, the Flatpak's no-network cost), `docs/VERSIONING.md` (P15.10),
+      `docs/TEST_MATRIX.md` Phase 15 section, this hand-off
+
+**Part B, the items that do not need Phase 14 (done on the same branch while Phase 14 finished):**
+
+- [x] **P15.13** Settings › About & updates: "Check for updates" (a button, no automatic check —
+      provisional), the verified-update banner with "Install and restart" / "Later", failures
+      localised in EN/DE/TR, the row absent without the `updater` feature (`UiConfig.updater`); the
+      Network log names the update check — 3 UI tests, `the_ui_is_told_whether_this_build_has_an_updater`
+- [x] **P15.14** `xtask notices [--check]` → `licenses/third-party-rust.txt` (601 crates, 351 texts,
+      1.0 MB, every shipped target, no dev-deps), the root `NOTICE`, both bundled as resources (and in
+      the Flatpak) — `the_rust_notices_are_up_to_date`, `every_shipped_crate_and_only_those_has_a_licence_text`.
+      After any dependency change: `cargo run -p xtask -- notices` and commit the file
+- [x] **P15.15** `docs/CHANGELOG.md` `## [1.0.0] — unreleased (draft)`: what 1.0 does, privacy,
+      installing and verifying, and a **Security** section that is only the placeholder
+      `TODO_PHASE14_SECURITY_CLAIMS`; `xtask release changelog` (used by `release.yml`) refuses a
+      missing, empty or placeholder-carrying section — `release_notes_come_from_the_changelog_and_refuse_a_placeholder`
+- [x] **P15.17** (after Phase 14's merge) the update check in the network audit log: purpose `update`,
+      `HttpFetch::with_purpose`, "Update check" in Settings › Network log —
+      `every_update_connection_is_in_the_network_audit_log`, the network-log UI test
+- [x] **P15.18** (after the merge) the Phase 14 follow-ups: `licenses/third-party-rust.txt` regenerated
+      (602 crates, 354 texts — `landlock` joined); the version baseline re-recorded (`--record none`,
+      unchanged: Phase 14 moved no IR or protocol digest); the report snapshot counts 229 thresholds
+      (Phase 14's `limits.max_object_nesting`… plus Phase 15's two)
+- [x] **P15.19** (after the merge) the 1.0.0 release notes' Security section: only what Phase 14
+      verified, each claim with its row, and the gaps (no Windows memory cap, no sandbox below Linux
+      5.13 or on macOS/Windows, the desktop app's children if the app is killed, fuzzing not
+      continuous, Isartor not run, Windows unsigned); `release changelog --version v1.0.0` passes
+- [x] **P15.16** row 15.19's scripted half: `packaging/smoke/fresh-install.{sh,ps1}` (hash check,
+      install, `--smoke-convert`, EPUB check), referenced by RELEASE_CHECKLIST.md —
+      `fresh_install_script_checks_the_hash_and_the_epub` (Linux, stand-in AppImage); the `.ps1` and
+      the macOS branch are **unverified here**. Re-verified on a rebuilt AppImage (with P15.13/P15.14 in
+      it): `fresh-install.sh` against the real AppImage passes (hash, smoke conversion, EPUB) — on
+      this machine, not a fresh VM; 15.7 and the layout test (now with `NOTICE` and
+      `licenses/third-party-rust.txt`) pass; 15.15 still fails at 112 859 640 bytes
+- [x] **P15.20** (after the merge) the AppImage rebuilt with Phase 14 in it and the release checklist
+      run: 15.7 and the layout test pass; `fresh-install.sh` passes against it, and the smoke report
+      shows Landlock applied (ABI 7), `net_restricted: true` and `RLIMIT_AS` 4 294 967 296 in force;
+      15.15 fails at 112 953 848 bytes. `docs/RELEASE_CHECKLIST.md` gains a dated "Checklist run"
+      section — each item `[x]` only where seen here, the rest `[ ]` with the reason — and the known
+      release blockers are updated
+- [x] **P15.21** Appendix D evaluated item by item (below): **v1.0 does not pass**. On the way: a
+      first-run test for Appendix D's Product item (row 15.27); SECURITY §4's "max output size" found to
+      be no cap at all (a warning at 50 MiB), so the release notes now say "these resource limits",
+      not "every", and list it as a gap; VD-c/VD-e explicitly deferred past v1 (PROVISIONAL); VD-f
+      open. `docs/SECURITY_TESTING.md` lists the `update` purpose. DECISIONS_LOG 2026-09-23,
+      "Appendix D evaluated"
+
+**Part B (independent items) gates (2026-09-23):** fmt clean; workspace clippy clean; nextest per
+package **779 tests, all green** (xtask 44, openconvert 202, the rest as below); desktop clippy (all
+features / no default features) clean and 63 tests green with `engine-integration`; UI Vitest 56,
+lint, check clean; `ci-lint`, `thresholds-lint`, `bump-rules-check`, `notices --check`, `cargo deny`
+(shipped and tooling) clean.
+
+**Part A gates (2026-09-23, branch head before the hand-off commit):** `cargo fmt --check` clean;
+workspace clippy (`--exclude openconvert-desktop --all-targets --all-features -D warnings`) clean;
+`cargo nextest` per package **775 tests, all green** (oc-model 22, oc-core 66, oc-pdf 65, oc-text 70,
+oc-layout 39, oc-structure 45, oc-epub 38, oc-validate 44, oc-ai 98, oc-net 30, oc-testkit 16,
+openconvert 202, xtask 40); `openconvert-desktop` clippy (all features, and `--no-default-features`)
+clean and 62 tests green with `engine-integration`; UI Vitest 53, `lint`, `check` clean; `ci-lint`,
+`thresholds-lint`, `bump-rules-check` clean; `cargo deny --all-features check` and the tooling policy
+clean. The `release-artifacts` gates that could run here: 15.7 + layout green, 15.11/15.12 green,
+15.15 red (measured).
+
+### Phase 15 — Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3)
+
+Checked on this machine (Linux 6.18, Landlock ABI 7) unless the row says otherwise.
+
+| Row | State |
+|---|---|
+| Every named test exists and passes | **Yes, with the release gates stated.** All 20 rows exist under their names: 15.1–15.4 as `release.yml` steps on macOS, 15.19 as `packaging/smoke/fresh-install.{sh,ps1}`, the rest as tests (`docs/TEST_MATRIX.md`), plus about 35 additions (the lettered rows and 15.21–15.27). Every default-suite test passes. Against real artefacts here: 15.7, 15.7a, 15.11, 15.12 green; **15.15 red, correctly** (AppImage 112 953 848 B > 45 000 000) and **15.18 red on the real tree, correctly** (15 `TODO_` pins) — release blockers, not test defects. **Unverified here:** 15.1–15.4, 15.6, 15.13 (cross-OS half), 15.14 (container run), 15.19 (VMs), 15.20 (a published release). |
+| `cargo nextest run --workspace` green | **Yes**, per package on the branch after Phase 14's merge: **827 tests, all green** (oc-model 22, oc-core 72, oc-pdf 77, oc-text 70, oc-layout 39, oc-structure 45, oc-epub 38, oc-validate 44, oc-ai 98, oc-net 34, oc-testkit 23, openconvert 217, xtask 48). Desktop: 64 green with `engine-integration`. UI: Vitest 57. Playwright `chromium-ui`: 4 of 4. Under `unshare -n`: the `--ai` cassette path (10) and the conversion filter (7) green. |
+| Green on Linux/macOS/Windows CI | **Unverified here:** GitHub Actions is disabled; no macOS or Windows machine. |
+| clippy `-D warnings` clean | **Yes** — workspace (all targets, all features) and the desktop crate (all features, and `--no-default-features`). |
+| `cargo fmt --check` clean | **Yes.** UI lint and `svelte-check` clean. |
+| `cargo deny check` clean | **Yes**, shipped and tooling policies. New crates: `minisign-verify`, `base64` (shipped); `jsonschema`, `syn`/`quote`/`proc-macro2`, `minisign`, `serde_yaml` (tooling/dev only). |
+| `cargo xtask thresholds-lint` clean | **Yes.** Two new entries (`release.max_installer_bytes`, provisional; `net.update_manifest_max_bytes`). Also clean: `ci-lint`, `bump-rules-check`, `notices --check`. |
+| Every Given/When/Then demonstrated | **A15.4 yes** (15.10). **A15.5 yes** (15.11/15.12 on the SBOM generated here). **A15.7 yes** (15.16/15.17, rehearsed on a copy of the tree). **A15.8 yes** (15.8, and the desktop crate builds and lints with `--no-default-features`, which removes the updater). **A15.3 partial:** the Linux half (P15.9); cross-OS unverified. **A15.1, A15.2 unverified here** (no Mac, no Developer ID; the signing script's order is tested on Linux). **A15.6 fails** (the AppImage, 112 953 848 B; the threshold is provisional — Blocked). |
+| `docs/CHANGELOG.md` entry | **Yes** — the Phase 15 entry, and the `## [1.0.0]` release notes (`xtask release changelog --version v1.0.0` accepts them). |
+| No `TODO`/`FIXME` without an issue number | **Yes**, `xtask ci-lint` clean (the 15 `TODO_` pins are named placeholders that `--release-branch` refuses on a tag). |
+| Appendix D checked | **Yes — and it fails** (below). |
+
+### Appendix D — Definition of Done for v1.0, evaluated (2026-09-23)
+
+`IMPLEMENTATION_PLAN.md` Appendix D, item by item, on the merged tree (Phases 0–15, 7.5 parked), on
+this Linux machine. **Verdict: v1.0 is not done.** `STATUS` stays `IN_PROGRESS`; every item that is
+not **Yes** is in `## Blocked` › "v1.0 — Appendix D".
+
+**Process**
+
+| Item | State |
+|---|---|
+| VD-a … VD-g closed or deferred past v1 with the reason | **No.** VD-a, VD-b, VD-d, VD-g closed. VD-c, VD-e deferred past v1 (they block only the post-v1 dictionary pack; PROVISIONAL, DECISIONS_LOG 2026-09-23 "Appendix D evaluated"). **VD-f open:** deferred to Phase 15 (2026-09-18) and Phase 15 built no validation pack (`packs.toml` `TODO_`), so there is no chosen vendor whose licence could be read. |
+
+**Correctness and conservation**
+
+| Item | State |
+|---|---|
+| I-1 … I-7 on 100 % of the corpus | **No.** Phase 7.5 is parked at 79 of 104 clean: 13 documents lose 2 869 characters, 11 do not finish in 90 s, `dergipark-1113748` is refused by I-4. I-7 holds on the ten fixtures. |
+| Retention ≥ `validate.min_char_retention` per non-scanned stratum | **No.** Not yet a gate (Phase 7, "What Phase 7 was asked to settle" item 1) and not measured per stratum on the corpus. |
+| Repair-fire rate zero on the corpus | **Unmeasured.** Zero on the ten fixtures (Phase 6); `oc-eval run` records `repairs_fired` per file, and the corpus run is the nightly's — unverified here. |
+| Zero EPUBCheck errors on the corpus; zero Ace serious | **Unverified here.** EPUBCheck 0/0 on the fixtures (Phase 5); the corpus and Ace runs are CI/nightly jobs that have not run on this tree. |
+| Structural digest snapshots current; no pending `insta` snapshots | **Yes** — the suite is green and there is no `.snap.new`/`.pending-snap` in the tree. |
+
+**Determinism and privacy**
+
+| Item | State |
+|---|---|
+| `--no-ai` byte-identical across ubuntu/macos/windows | **Unverified.** The Linux half only (P15.9: working directory, time zone, locale, build profile); row 15.13 needs the three OS tables. |
+| Conversion suite green under `unshare -n`, with `--ai` on cassettes | **Yes here** (row 14.20, re-run on this branch); the CI job unverified. |
+| `cargo tree -p oc-core -i ureq` empty; `cargo deny check` clean | **Yes** — `ureq` is in no part of the graph; both deny policies clean. |
+| Webview grants no `http`; CSP `connect-src 'none'` | **Yes** — `webview_has_no_network_permission` (12.13). |
+| No telemetry, no crash reporting | **Yes, by inspection:** no such crate in `Cargo.lock`, the UI has no runtime dependencies, the only "telemetry" in the tree is vitest's optional dev peer. There is no dedicated machine check. |
+
+**Security**
+
+| Item | State |
+|---|---|
+| Every cap in SECURITY §4 enforced before the operation, ordering tested | **No.** Before the work, with tests (SECURITY_TESTING §1, `hardening`): pages, image pixels, decompressed bytes, xref depth/cycles, stage deadlines, glyphs, `RLIMIT_AS` on Unix. **Missing:** a Windows memory cap (P14-b) and any max-output-size cap (only a 50 MiB warning). |
+| Isartor + mutated crash corpora: 100 % clean | **No.** The 29 mutated files: yes (14.17). Isartor: not run — no pins (P14-a). |
+| Three fuzz targets green in nightly, corpora committed | **Unverified.** Targets and seed corpora committed; 120 s per target here, zero crashes; the nightly has not run. |
+| Landlock on Linux ≥ 5.13; recorded skip below | **Partly.** Applied here (6.18, ABI 7; rows 14.10/14.12; in the AppImage's smoke run too). The skip is exercised through `OC_LANDLOCK=off` (P14-c); a real kernel below 5.13 is unverified. |
+| 3-page / 40 M-glyph PDF fails cleanly | **Yes** — row 14.9 (the cap, `limits.max_page_glyphs`, is P14-d, PROVISIONAL). |
+
+**AI**
+
+| Item | State |
+|---|---|
+| `ai.enabled = false`; zero LLM calls by default | **Yes** — `ai_default_is_off` (A10.1). |
+| Every enabled task McNemar non-inferior, false repair ≤ 1 %; language map committed | **Holds only vacuously:** no task is enabled for any language (the maps are committed, empty); A10.4/A10.5 are unmeasured (no model here). |
+| G1–G9 recorded for the default model; `docs/MODEL_GATE.md` regenerated | **No** — no model can be downloaded here (huggingface.co refused). |
+| Cassettes complete for every task × fixture; canaries green | **No** — 12 scripted cassettes through the stub plus the four seeds; one per task × gold fixture needs a real model's answers. |
+| No task promoted on fewer than 200 gold instances | **Yes** — no task is promoted; each gold set holds its seed items only, and the eval report says how far each is from `calibration.min_gold_instances_per_task`. |
+
+**Product**
+
+| Item | State |
+|---|---|
+| EN/DE/TR: every `WarningCode` has a template in every locale | **Yes** — 6.11, 12.9. |
+| axe: zero serious/critical on queue, result, report, settings | **Yes on Chromium** — `axe_has_no_serious_violations` (12.15), run on this branch; WebKit (nightly) unverified. |
+| Keyboard-only conversion end to end | **Yes on Chromium** — `keyboard_only_flow_completes_a_conversion` (Playwright `chromium-ui`, run on this branch). |
+| Cancel → `done{cancelled}` ≤ 2 s, no temp file | **Yes** — `cancel_reaches_done_cancelled_and_cleans_temp` (12.6, the real engine). |
+| First run states no telemetry, no network while converting, and the costs | **Yes** — row 15.27 and the first-run cost test. |
+
+**Release**
+
+| Item | State |
+|---|---|
+| macOS: every nested Mach-O signed, notarized, stapled; `spctl` accepts | **No / unverified** — `sign_nested.sh` and `notarize.sh` tested on Linux with a recording `codesign`; no Mac, no Developer ID. |
+| Windows: NSIS + MSI; SmartScreen documented | **Partly** — SmartScreen documented (`docs/INSTALL.md`); the installers have not been built (no Windows). |
+| Linux: AppImage headless; Flatpak manifest validated, no network | **Partly** — the AppImage converts headless (15.7, here); the manifest has no network finish-arg (15.8); `flatpak-builder-lint` unverified. |
+| Updater manifest signed; tampered payload refused | **No** — the verifier accepts a signed manifest and refuses a tampered payload (15.9/15.10, in-test key), but there is no release key (`TODO_UPDATER_PUBKEY`) and so no signed manifest. |
+| SBOM (CycloneDX 1.6) attached, every vendored native | **No** — generated and validated here (15.11/15.12, 776 components); there is no release to attach it to. |
+| No `TODO_` in `models.toml`; no expired `review_by` | **No** — 8 `TODO_` model pins (and 6 in `packs.toml`, 1 updater key: `ci-lint --release-branch` finds 15). No expired `review_by` (`thresholds-lint` clean). |
+| `docs/CHANGELOG.md` complete; every artefact's SHA-256 published | **No** — the `## [1.0.0]` notes are complete and `xtask release changelog` accepts them; no release, so no published hashes. |
+
+Also outside Appendix D's list but a release gate: row 15.15 / A15.6, the installer budget — the
+AppImage is 112 953 848 bytes against 45 000 000.
+
+### Phase 15 — release blockers (need the maintainer)
+
+- `ci-lint --release-branch` (row 15.18) **fails today with 15 findings**: 8 `TODO_` model pins in
+  `models.toml` (huggingface.co unreachable here), 6 in `packs.toml` (validation pack unbuilt, VD-f),
+  1 `TODO_UPDATER_PUBKEY` in `tauri.conf.json` (the maintainer generates the keypair; private half only
+  into CI secrets; record the fingerprint in RELEASE_CHECKLIST.md).
+- Row 15.15 **fails on Linux**: the AppImage is 112 953 848 bytes (rebuilt after Phase 14) against
+  45 000 000 — WebKitGTK alone compresses to ~58 MB. Needs a decision: a Linux-specific budget, or
+  another primary Linux format.
+- The engine sidecar name `openconvert-engine`, the `io.openconvert.OpenConvert` identifier, the updater
+  built on `oc-net` instead of `tauri-plugin-updater`, no `.deb`/`.rpm`, the Flatpak's no-network
+  consequences, and the coarse bump-rule digests are provisional (Blocked section, DECISIONS_LOG).
+
+### Phase 15 — unverified here (no Actions, macOS, Windows, certificates or VMs)
+
+Rows 15.1–15.4 (macOS signing/notarization/Gatekeeper/stapling), 15.6 (Windows installers), 15.13's
+cross-OS half, 15.14's container run, 15.19 (fresh VMs), 15.20 (a published release), the real-key half
+of 15.9, `flatpak-builder-lint`, the Windows and macOS updater install paths, and the whole of
+`release.yml` beyond its unit tests. **Verified here:** 15.5, 15.7 (the real AppImage, xvfb-run), 15.8,
+15.9/15.10 (in-test keypair), 15.11/15.12 (the real merged SBOM, 776 components), 15.13's Linux half,
+15.15 measured (red), 15.16, 15.17, 15.18 (logic green; the tree red).
+
+### Phase 15 — what a fresh session needs
+
+- Tools installed here for part A: `cargo-cyclonedx` 0.5.9 (`~/.cargo/bin`), the Tauri CLI 2.11.5 from npm
+  at `scratchpad/p15/tauricli/node_modules/.bin/tauri`, `xdg-utils` (apt). `vendor/llama-server` is a
+  symlink to the main checkout's (read-only use).
+- Rebuild the AppImage: `cargo build -p openconvert --release && cargo run -p xtask -- stage-sidecars
+  --release`, then in `apps/desktop/src-tauri`: `tauri build --bundles appimage --config
+  '{"bundle":{"createUpdaterArtifacts":false}}'` (no key here), then
+  `OC_BUNDLE_DIR=$PWD/target/release/bundle cargo nextest run -p xtask --features release-artifacts
+  --test release -E 'test(appimage) or test(installer_size)'`. `target/release` is ~2.5 GB: delete it
+  afterwards. A stale `target/release/bundle/appimage_deb` makes the bundler fail with "File exists".
+- Disk is tight: run the suite per package (`scratchpad/p15/test_all.sh` deletes each package's test
+  binaries after it runs).
 
 ## Phase 14 — on branch `phase/14-security-hardening`
 
@@ -372,7 +640,9 @@ What a fresh session needs:
 
 ## Current work item
 
-**Phase 15 — Packaging & release.** Phase 14 is merged. Phase 7.5 is still parked.
+**Phase 7.5 — parked; do not start it** until the maintainer resumes it. Phases 0–15 (all but 7.5)
+are ticked and merged. v1.0 is not done: Appendix D fails — the evaluation is in the Phase 15 section
+and every open item is in `## Blocked` › "v1.0 — Appendix D".
 
 ## Phase 11 — built on `phase/11-byo-providers`, merged 2026-09-23
 
@@ -1536,6 +1806,54 @@ Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 
 ## Blocked
 
+**Phase 15 part A — provisional decisions awaiting maintainer ratification** (each in
+`docs/DECISIONS_LOG.md` 2026-09-23; work continued on the conservative reading):
+
+- The engine is bundled as `openconvert-engine` (not `openconvert`), so `tauri-build` can never
+  overwrite the workspace's engine (P15.1).
+- `.deb`/`.rpm` are not built: Tauri would install `llama-server` and its libraries into the system
+  `/usr/bin` (P15.2).
+- The bundle identifier is `io.openconvert.OpenConvert` (was `dev.openconvert.app`) (P15.5).
+- The updater uses Tauri's format, keys and verifier but fetches through `oc-net`, because
+  `tauri-plugin-updater` needs the banned `reqwest`; the alternative is a `deny.toml` wrapper exception
+  (P15.7). A check happens only when the user asks.
+- The Flatpak has no network: no model/pack download and no host Ollama inside it (P15.6).
+- Bump-rule digests are coarse (a behaviour-preserving refactor of `canonical.rs` or an `emit` call asks
+  for a bump); before v1.0.0 drift is a note (P15.10).
+- `release.max_installer_bytes` = 45 000 000 (decimal MB, the stricter reading of D12); the AppImage
+  exceeds it — **release blocker**, see the Phase 15 section.
+
+**Phase 15 part B — provisional decision awaiting maintainer ratification** (`docs/DECISIONS_LOG.md`
+2026-09-23, "Appendix D evaluated"):
+
+- VD-c (`zspell`) and VD-e (igerman98/Turkish hunspell) are deferred past v1.0: they block only the
+  optional dictionary pack (Appendix E item 9), and no v1 code depends on either.
+
+**v1.0 — Appendix D (the Definition of Done for v1.0) does not pass.** Each item below is open; the
+evaluation is in the Phase 15 section. None is an architectural question `DECISIONS.md` leaves open,
+so `STATUS` stays `IN_PROGRESS`; most need a maintainer, a machine this one is not, or Phase 7.5.
+
+1. **VD-f is open** — the validation pack is unbuilt and no JRE vendor is chosen. Either build the
+   pack and close VD-f from that vendor's own licence text, or move D6's in-app validation pack past
+   v1.0 (a scope change to an ADR decision: the maintainer's).
+2. **Phase 7.5 is parked** — so I-1…I-7 do not hold on the whole corpus (79/104), per-stratum
+   retention is not a gate and is unmeasured, and the corpus repair-fire rate, EPUBCheck and Ace runs
+   have not happened (nightly/CI).
+3. **Caps:** no Windows memory cap (P14-b) and **no max-output-size cap** (SECURITY §4 / D13.2 list
+   one with no value; the tree only warns at 50 MiB, `epub.warn_total_bytes`). Needs a value and an
+   owner phase.
+4. **Isartor not run** (P14-a pins); **nightly fuzzing** not yet run; Landlock's skip below 5.13 seen
+   only through `OC_LANDLOCK=off`, never on a real old kernel.
+5. **AI:** no model reachable here — G1–G9 and `docs/MODEL_GATE.md` not produced; cassettes per task ×
+   gold fixture not recorded; McNemar holds only because nothing is enabled.
+6. **Release:** macOS signing/notarization (no Mac, no Developer ID); Windows installers never built;
+   `flatpak-builder-lint` not run; no updater keypair (`TODO_UPDATER_PUBKEY`) and so no signed
+   manifest; 8 `TODO_` pins in `models.toml` (and 6 in `packs.toml`); no release, so no attached SBOM
+   and no published hashes; `--no-ai` byte identity across three OSes unverified.
+7. **Installer budget** (row 15.15, A15.6): the AppImage is 112 953 848 bytes against 45 000 000.
+8. **CI** — GitHub Actions is disabled here (Phases 12 and 14 record it); every row that Phases 7–15
+   record as "unverified here" because it is a CI, nightly or release job stays so until those run.
+
 **Phase 12 part A — provisional decisions awaiting maintainer ratification** (each in
 `docs/DECISIONS_LOG.md` 2026-09-23; work continued on the conservative reading):
 
@@ -2212,3 +2530,26 @@ Checked against `IMPLEMENTATION_PLAN.md` §0.3 on 2026-09-09:
 2026-09-23  P14.16a   desktop: Settings › Network log reads the audit log  d8845b2
 2026-09-23  P14.16    docs: SECURITY_TESTING, CHANGELOG, TEST_MATRIX, the DoD  (the commit that adds this line)
 2026-09-23  PHASE 14  COMPLETE on phase/14-security-hardening - DoD checked; Isartor, macOS/Windows, kernels < 5.13, nightly fuzz and CI unverified here
+2026-09-23  P15.1     desktop: stage the engine sidecar as openconvert-engine (15.21 + 1)  3f74b85
+2026-09-23  P15.2     desktop: bundle the engine, llama-server and their natives alike on every OS (15.22 + 2)  4fce2eb
+2026-09-23  P15.3     packaging: sign every nested Mach-O inside out, notarize, staple (15.5 + 1)  f0475ea
+2026-09-23  P15.4     xtask: collect, hash and gate the release artefacts (15.6a, 15.15a, 15.20a)  0dc902a
+2026-09-23  P15.5     desktop: an AppImage that converts headless, and measured (15.7 + 2)  d909158
+2026-09-23  P15.7     oc-net: verify Tauri-format updates before anything installs them (15.9, 15.10 + 5)  6d149eb
+2026-09-23  P15.6     packaging: the Flathub manifest, desktop entry and AppStream data (15.8)  4623434
+2026-09-23  P15.8     xtask: one validated CycloneDX 1.6 SBOM (15.11, 15.12 + 3)  d86530a
+2026-09-23  P15.9     xtask: the --no-ai reproducibility gate (15.13 + 1)  2d29f32
+2026-09-23  P15.10    xtask: the version-bump rules against the last release (15.16, 15.17 + 2)  48e4a0c
+2026-09-23  P15.11    ci: the release workflow and the tag gate (15.14, 15.18 + 2)  04cea0e
+2026-09-23  P15.12    docs: release checklist, install guide, part A hand-off  51e0a1a, 2d8d6e7, 612d2e8
+2026-09-23  P15.13    desktop: check for updates from Settings, only when asked (15.23 + 1)  7476449
+2026-09-23  P15.14    xtask: Rust licence notices and the NOTICE (15.24)  e261621
+2026-09-23  P15.15    docs: the 1.0.0 release notes, refused while a placeholder remains (15.25)  5903079
+2026-09-23  P15.16    packaging: the fresh-install smoke scripts (15.19a)  97b4773, e5da155
+2026-09-23  MERGE     origin/main (Phase 14) into phase/15-packaging-release  1afaa6b
+2026-09-23  P15.17    oc-net: the update check in the network audit log (15.26, 15.26a)  668b3e1
+2026-09-23  P15.18    xtask: notices regenerated; baseline re-recorded; snapshot at 229  896853f
+2026-09-23  P15.19    docs: the 1.0.0 security claims from what Phase 14 proved  71a9e2b
+2026-09-23  P15.20    docs: the release checklist run against the post-Phase-14 AppImage  1e6111d
+2026-09-23  P15.21    docs: Appendix D evaluated; first-run test (15.27); CHANGELOG; the DoD  (the commit that adds this line)
+2026-09-23  PHASE 15  COMPLETE on phase/15-packaging-release - DoD checked; macOS/Windows, VMs, certificates, a published release and CI unverified here. v1.0 (Appendix D) NOT met

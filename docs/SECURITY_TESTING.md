@@ -66,9 +66,10 @@ its later threads). On macOS there is no self-restriction in v1 (SECURITY §11).
 - **Audit log.** Every outbound connection made by `oc-net` appends one JSON line
   `{ts, host, purpose, bytes, outcome, loopback}` to `<data_dir>/openconvert/network-audit.log`,
   rotated at `net.audit_log_rotate_bytes` (1 MiB; one previous generation, `.1`). Purposes:
-  `download`, `llm-request`, `llm-probe`. `model pull` appends exactly one line; a conversion
-  appends none (14.21, `a_conversion_appends_nothing_to_the_network_audit_log`). The desktop app
-  installs the same log and shows it in Settings › Network log.
+  `download`, `llm-request`, `llm-probe`, and `update` for the desktop app's update check (Phase 15,
+  `every_update_connection_is_in_the_network_audit_log`). `model pull` appends exactly one line; a
+  conversion appends none (14.21, `a_conversion_appends_nothing_to_the_network_audit_log`). The
+  desktop app installs the same log and shows it in Settings › Network log.
 
 ## 4. Crash-regression corpus
 
