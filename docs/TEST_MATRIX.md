@@ -644,3 +644,8 @@ it has not run anywhere yet.
 | 15.21a | `engine::tests::the_sidecar_the_app_runs_is_the_one_tauri_bundles` | `openconvert-desktop` | unit | `desktop` | green |
 | 15.22 | `the_bundle_layout_is_the_same_on_every_os` | `xtask` | unit (merged Tauri configs) | `test` | green |
 | 15.22a | `stage_sidecars::tests::{the_llama_runtime_is_the_server_and_what_it_loads_on_every_os, the_rpc_backend_and_other_tools_are_never_bundled}` | `xtask` | unit | `test` | green |
+| 15.19a | `fresh_install_script_checks_the_hash_and_the_epub` | `xtask` | the Linux script against a stand-in AppImage (Unix) | `test` | green |
+| 15.23 | `about & updates` × 3 (`settings.svelte.test.ts`) | `apps/desktop/ui` | component (Vitest) | `ui` | green |
+| 15.23a | `config::tests::the_ui_is_told_whether_this_build_has_an_updater` | `openconvert-desktop` | unit (with and without `updater`) | `desktop` | green |
+| 15.24 | `the_rust_notices_are_up_to_date`, `every_shipped_crate_and_only_those_has_a_licence_text` | `xtask` | generated file vs `cargo metadata` | `test` | green |
+| 15.25 | `release_notes_come_from_the_changelog_and_refuse_a_placeholder` | `xtask` | unit | `test` | green |

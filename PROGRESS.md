@@ -168,7 +168,10 @@ Work items, in order, with the plan's test rows against each:
       installing and verifying, and a **Security** section that is only the placeholder
       `TODO_PHASE14_SECURITY_CLAIMS`; `xtask release changelog` (used by `release.yml`) refuses a
       missing, empty or placeholder-carrying section — `release_notes_come_from_the_changelog_and_refuse_a_placeholder`
-- [ ] **P15.16** row 15.19's scripted half: `packaging/smoke/fresh-install.{sh,ps1}`
+- [x] **P15.16** row 15.19's scripted half: `packaging/smoke/fresh-install.{sh,ps1}` (hash check,
+      install, `--smoke-convert`, EPUB check), referenced by RELEASE_CHECKLIST.md —
+      `fresh_install_script_checks_the_hash_and_the_epub` (Linux, stand-in AppImage); the `.ps1` and
+      the macOS branch are **unverified here**
 
 **Part A gates (2026-09-23, branch head before the hand-off commit):** `cargo fmt --check` clean;
 workspace clippy (`--exclude openconvert-desktop --all-targets --all-features -D warnings`) clean;

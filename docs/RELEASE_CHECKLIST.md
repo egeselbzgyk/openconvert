@@ -45,11 +45,13 @@ Run top to bottom for every release. A red item blocks the release; it is fixed,
 
 ## After the job, before publishing the draft
 
-- [ ] **A fresh-VM install-and-convert smoke on all three OSes** (row 15.19): install from the draft's
-      assets, run `OpenConvert --smoke-convert <a PDF>` (on Linux: the AppImage; on macOS:
-      `OpenConvert.app/Contents/MacOS/OpenConvert`; on Windows: the installed `OpenConvert.exe`),
-      get a valid EPUB beside the PDF, exit code 0 — and, on Windows, no console window flashes.
-      Then drop a PDF on the window by hand once. *(manual)*
+- [ ] **A fresh-VM install-and-convert smoke on all three OSes** (row 15.19): on a clean VM per OS,
+      download the draft's asset and run `packaging/smoke/fresh-install.sh <AppImage|dmg> <book.pdf>
+      <sha256 from the notes>` (Linux, macOS) or `packaging\smoke\fresh-install.ps1 -Installer …
+      -Pdf … -Sha256 …` (Windows): it checks the hash, installs, converts through the installed app's
+      `--smoke-convert` and checks the EPUB. Watch the Windows run for a console window flashing (there
+      must be none), run the Windows installer by hand once to record what SmartScreen shows, and drop
+      a PDF on the window by hand once on each OS. *(manual + scripted)*
 - [ ] **A fresh install accepts the update**: install the *previous* release, let it find this one
       (Settings → check for updates), and see it verify, install and restart. *(manual)*
 - [ ] **Publish the draft.**

@@ -1749,3 +1749,67 @@ fn release_notes_come_from_the_changelog_and_refuse_a_placeholder() {
         "the 1.0.0 draft is in docs/CHANGELOG.md"
     );
 }
+
+/// Row 15.19's scripted half, `packaging/smoke/fresh-install.sh`, run on Linux against a stand-in
+/// AppImage (a shell script that writes the EPUB it is given): the published SHA-256 is checked
+/// before anything runs, an existing EPUB is refused rather than trusted, and the result must be an
+/// EPUB. The real run — a clean VM per OS, the real installers — is the release checklist's.
+#[cfg(unix)]
+#[test]
+fn fresh_install_script_checks_the_hash_and_the_epub() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let epub = tiny_epub("<p>book</p>");
+    assert_eq!(&epub[38..58], b"application/epub+zip", "mimetype stored first");
+    let scratch = std::env::temp_dir().join(format!("oc-fresh-install-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&scratch);
+    std::fs::create_dir_all(&scratch).expect("dir");
+    std::fs::write(scratch.join("good.epub.bin"), &epub).expect("epub");
+    std::fs::write(scratch.join("bad.epub.bin"), b"PK not an epub at all, no").expect("bad");
+    let appimage = scratch.join("OpenConvert_1.0.0_amd64.AppImage");
+    std::fs::write(
+        &appimage,
+        "#!/bin/sh\n[ \"$1\" = --smoke-convert ] || exit 2\ncp \"$FAKE_EPUB\" \"${2%.*}.epub\"\n",
+    )
+    .expect("fake");
+    std::fs::set_permissions(&appimage, std::fs::Permissions::from_mode(0o755)).expect("mode");
+    let pdf = scratch.join("book.pdf");
+    std::fs::write(&pdf, b"%PDF-1.7").expect("pdf");
+    let sha = xtask::release::sha256_file(&appimage).expect("hash");
+
+    let run = |expected: &str, fake: &str| {
+        let _ = std::fs::remove_file(scratch.join("book.epub"));
+        std::process::Command::new("sh")
+            .arg(workspace_root().join("packaging/smoke/fresh-install.sh"))
+            .arg(&appimage)
+            .arg(&pdf)
+            .arg(expected)
+            .env("FAKE_EPUB", scratch.join(fake))
+            .env("DISPLAY", ":0")
+            .output()
+            .expect("sh runs")
+    };
+    let ok = run(&sha, "good.epub.bin");
+    assert!(ok.status.success(), "{}", String::from_utf8_lossy(&ok.stderr));
+
+    let wrong = run(&"0".repeat(64), "good.epub.bin");
+    assert!(!wrong.status.success());
+    assert!(String::from_utf8_lossy(&wrong.stderr).contains("SHA-256 mismatch"));
+    assert!(!scratch.join("book.epub").exists(), "nothing ran after a bad hash");
+
+    let not_epub = run(&sha, "bad.epub.bin");
+    assert!(!not_epub.status.success());
+    assert!(String::from_utf8_lossy(&not_epub.stderr).contains("is not an EPUB"));
+
+    std::fs::write(scratch.join("book.epub"), &epub).expect("existing");
+    let existing = std::process::Command::new("sh")
+        .arg(workspace_root().join("packaging/smoke/fresh-install.sh"))
+        .arg(&appimage)
+        .arg(&pdf)
+        .env("FAKE_EPUB", scratch.join("good.epub.bin"))
+        .env("DISPLAY", ":0")
+        .output()
+        .expect("sh runs");
+    assert!(!existing.status.success(), "an existing EPUB would make the check void");
+    let _ = std::fs::remove_dir_all(scratch);
+}
