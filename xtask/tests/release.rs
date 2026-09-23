@@ -208,3 +208,180 @@ fn the_bundle_layout_is_the_same_on_every_os() {
         }
     }
 }
+
+/// Every `<key>` in a property list, in document order.
+fn plist_keys(text: &str) -> Vec<String> {
+    use quick_xml::events::Event;
+    let mut reader = quick_xml::Reader::from_str(text);
+    let mut keys = Vec::new();
+    let mut in_key = false;
+    let mut saw_plist_dict = false;
+    loop {
+        match reader.read_event().expect("well-formed XML") {
+            Event::Start(tag) if tag.local_name().as_ref() == "key" => in_key = true,
+            Event::End(tag) if tag.local_name().as_ref() == "key" => in_key = false,
+            Event::Start(tag) if tag.local_name().as_ref() == "dict" => saw_plist_dict = true,
+            Event::Text(text) if in_key => {
+                let text: &str = text.as_ref();
+                keys.push(text.trim().to_owned());
+            }
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+    assert!(saw_plist_dict, "the plist's root is a dictionary");
+    keys
+}
+
+/// Row 15.5 (SECURITY §5): the outer app's entitlements never weaken library validation or allow
+/// JIT, nor anything else that would let unsigned or injected code into the process tree that
+/// parses untrusted PDFs. And the macOS bundle config applies exactly this file.
+#[test]
+fn entitlements_do_not_disable_library_validation() {
+    let root = workspace_root();
+    let path = root.join("packaging/macos/entitlements.plist");
+    let keys = plist_keys(&read(&path));
+    for banned in [
+        "com.apple.security.cs.disable-library-validation",
+        "com.apple.security.cs.allow-jit",
+        "com.apple.security.cs.allow-unsigned-executable-memory",
+        "com.apple.security.cs.allow-dyld-environment-variables",
+        "com.apple.security.cs.disable-executable-page-protection",
+        "com.apple.security.get-task-allow",
+    ] {
+        assert!(
+            !keys.iter().any(|k| k == banned),
+            "{banned} is granted: {keys:?}"
+        );
+    }
+
+    let config = merged_config(&root, "macos");
+    let mac = &config["bundle"]["macOS"];
+    assert_eq!(
+        mac["entitlements"].as_str(),
+        Some("../../../packaging/macos/entitlements.plist")
+    );
+    assert_ne!(mac["hardenedRuntime"], serde_json::Value::Bool(false));
+    // The file the config names is the file this test read.
+    let named = root
+        .join("apps/desktop/src-tauri")
+        .join(mac["entitlements"].as_str().expect("a path"));
+    assert_eq!(
+        std::fs::canonicalize(named).expect("exists"),
+        std::fs::canonicalize(&path).expect("exists")
+    );
+}
+
+/// A minimal 64-bit Mach-O header — enough for `file` to call it one — of `filetype` 2
+/// (`MH_EXECUTE`) or 6 (`MH_DYLIB`).
+#[cfg(unix)]
+fn fake_macho(filetype: u8) -> Vec<u8> {
+    let mut bytes = vec![
+        0xcf, 0xfa, 0xed, 0xfe, 0x07, 0x00, 0x00, 0x01, 0x03, 0, 0, 0,
+    ];
+    bytes.extend([filetype, 0, 0, 0]);
+    bytes.extend([0u8; 16]);
+    bytes
+}
+
+/// PHASE 15 detail 2 and the Failure-modes paragraph: `sign_nested.sh` finds every Mach-O by
+/// looking (a dylib without the executable bit included), signs libraries before executables and
+/// the app last, each with the Hardened Runtime, a timestamp and `--force`, and gives entitlements
+/// to the app alone. Run on Linux with `codesign` replaced by a recorder; the real signature and
+/// its verification are rows 15.1–15.4, on macOS in `release.yml`.
+#[cfg(unix)]
+#[test]
+fn sign_nested_signs_every_macho_inside_out() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = workspace_root();
+    let scratch = std::env::temp_dir().join(format!("oc-sign-nested-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&scratch);
+    let app = scratch.join("OpenConvert.app");
+    let macos = app.join("Contents/MacOS");
+    let deep = app.join("Contents/Frameworks/Helper.framework/Versions/A");
+    std::fs::create_dir_all(&macos).expect("dirs");
+    std::fs::create_dir_all(&deep).expect("dirs");
+    std::fs::create_dir_all(app.join("Contents/Resources")).expect("dirs");
+    std::fs::write(
+        app.join("Contents/Info.plist"),
+        "<plist><dict>\n<key>CFBundleExecutable</key>\n<string>OpenConvert</string>\n</dict></plist>\n",
+    )
+    .expect("plist");
+    let write = |path: PathBuf, bytes: Vec<u8>, mode: u32| {
+        std::fs::write(&path, bytes).expect("write");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).expect("mode");
+    };
+    write(macos.join("OpenConvert"), fake_macho(2), 0o755);
+    write(macos.join("openconvert-engine"), fake_macho(2), 0o755);
+    write(macos.join("llama-server"), fake_macho(2), 0o755);
+    // Not executable, as PDFium ships it: a `-perm +111` search would miss it.
+    write(macos.join("libpdfium.dylib"), fake_macho(6), 0o644);
+    write(macos.join("libllama.0.1.0.dylib"), fake_macho(6), 0o755);
+    write(deep.join("Helper"), fake_macho(6), 0o755);
+    std::os::unix::fs::symlink("libllama.0.1.0.dylib", macos.join("libllama.0.dylib"))
+        .expect("link");
+    write(
+        app.join("Contents/Resources/models.toml"),
+        b"x = 1\n".to_vec(),
+        0o644,
+    );
+
+    let log = scratch.join("codesign.log");
+    let stub = scratch.join("codesign");
+    write(
+        stub.clone(),
+        format!("#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\n", log.display()).into_bytes(),
+        0o755,
+    );
+
+    let status = std::process::Command::new("sh")
+        .arg(root.join("packaging/macos/sign_nested.sh"))
+        .arg(&app)
+        .env(
+            "APPLE_SIGNING_IDENTITY",
+            "Developer ID Application: Test (TEAMID1234)",
+        )
+        .env("CODESIGN", &stub)
+        .status()
+        .expect("sh runs");
+    assert!(status.success());
+
+    let calls: Vec<String> = read(&log).lines().map(str::to_owned).collect();
+    let signed: Vec<String> = calls
+        .iter()
+        .map(|c| c.rsplit(' ').next().expect("a path").to_owned())
+        .collect();
+    let name = |p: &str| {
+        Path::new(p)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(str::to_owned)
+    };
+    let names: Vec<Option<String>> = signed.iter().map(|s| name(s)).collect();
+    assert_eq!(
+        names,
+        [
+            Some("Helper".to_owned()),
+            Some("libllama.0.1.0.dylib".to_owned()),
+            Some("libpdfium.dylib".to_owned()),
+            Some("llama-server".to_owned()),
+            Some("openconvert-engine".to_owned()),
+            Some("OpenConvert.app".to_owned()),
+        ],
+        "libraries deepest first, then executables, then the app: {calls:#?}"
+    );
+    for call in &calls {
+        assert!(
+            call.starts_with("--force --options runtime --timestamp"),
+            "{call}"
+        );
+        assert!(call.contains("--sign Developer ID Application: Test (TEAMID1234)"));
+        assert_eq!(
+            call.contains("--entitlements"),
+            call.ends_with("OpenConvert.app"),
+            "entitlements on the app alone: {call}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&scratch);
+}

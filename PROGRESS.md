@@ -100,8 +100,10 @@ Work items, in order, with the plan's test rows against each:
       server's libraries in `bin/native/` beside them, `models.toml`, `thresholds.toml`, licences as
       resources; `tauri.{linux,macos,windows}.conf.json`; `stage-sidecars` stages all of it (needs
       `vendor-pdfium` and `fetch-llama-server` first) — `the_bundle_layout_is_the_same_on_every_os`
-- [ ] **P15.3** macOS: `entitlements.plist`, `sign_nested.sh`, `notarize.sh` — row 15.5 (15.1–15.4 are
-      release-job steps, unverified here)
+- [x] **P15.3** macOS: `packaging/macos/{entitlements.plist,sign_nested.sh,notarize.sh}` — row 15.5
+      `entitlements_do_not_disable_library_validation`, plus `sign_nested_signs_every_macho_inside_out`
+      (the script run on Linux with a recording `codesign`); rows 15.1–15.4 are `release.yml` steps on
+      macOS — **unverified here**
 - [ ] **P15.4** Windows NSIS + MSI config, the release manifest and its hashes — row 15.6 (CI step), 15.20
 - [ ] **P15.5** Linux AppImage, headless smoke conversion, installer size — rows 15.7, 15.15
 - [ ] **P15.6** Flatpak manifest, updater compiled out there — row 15.8
