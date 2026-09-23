@@ -3728,3 +3728,28 @@ timings), `a_save_that_does_not_fit_is_a_full_run`, `replaying_a_ledger_charges_
 `a_histogram_reads_back_as_written`, `a_block_id_reads_back_from_its_text_and_only_from_it`.
 Affects: UI_UX §2.3, IMPLEMENTATION_PLAN Phase 12 detail 8 / A12.4b, SECURITY §10 (a second on-disk
 store of document text, in the app's cache directory).
+
+## 2026-09-23 · The editors keep corrections in the app's data directory and propose nothing · Phase 12
+Context: result.html §2–3 draws the metadata and TOC editors, the partial rebuild, the updated
+result and the stale-corrections refusal. Its stale frame shows the corrections file beside the
+book (`~/Books/.openconvert/<book>/overrides.ir3.json`) with a "Show file" button, and its TOC frame
+says merge, move and delete "are saved as proposals for the report" — but draws no control that
+makes one.
+Decision: corrections live in the app's own data directory, `overrides/<source_sha256>.json`, one
+file per book, never beside the user's files; an editor sends only what differs from the report it
+shows, and the Rust side merges it into the book's file (a second correction keeps the first,
+because each rebuild starts from the book as `structure` left it). "Fix and rebuild" replaces the
+row with a rebuild job that names the corrections and the digest they were made for (a PDF changed
+since is refused, `E_INPUT_CHANGED`) and replaces the EPUB the queue wrote. The rebuild row shows
+only the steps it runs (Reconstructing, Building, Checking) and says "from cache" when the engine
+resumed after `structure`; the finished row says what was applied, from the rebuilt report's
+`method: user` decisions. A refused corrections file is the engine's warning sentence in a banner —
+no "Show file", since the file is the app's, not the user's. The TOC editor renames and re-levels
+only; no proposals are made or promised (the help text says what the editor does). The language
+list is the book's current tag plus en/de/tr, named by `Intl.DisplayNames` in the UI's language,
+"detected" only when no correction set it. The engine's cache (`OC_CACHE_DIR`) is the app's
+`cache/`, emptied at every start.
+Evidence: `editor.svelte.test.ts` (3), `a_second_correction_keeps_the_first`,
+`a_rebuild_replaces_the_row_with_the_corrections_named`, `the_engine_is_told_where_the_cache_is`,
+`the_cache_is_cleared_and_corrections_are_kept_by_digest`.
+Affects: result.html §2–3 (design decision 6: a small overturn, recorded here), UI_UX §2.3.

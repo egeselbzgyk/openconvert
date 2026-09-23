@@ -12,14 +12,48 @@ use std::path::{Component, Path, PathBuf};
 pub struct AppDirs {
     /// Where job specs are written, one file per job. Nothing else writes here.
     pub jobs: PathBuf,
+    /// The engine's cache (`OC_CACHE_DIR`): what each full run's `structure` settled, for "Fix and
+    /// rebuild". It holds the text of the books converted, so it is the app's alone and cleared
+    /// with [`AppDirs::clear_cache`].
+    pub cache: PathBuf,
+    /// The user's corrections, one `overrides.json` per book, named by its digest.
+    pub overrides: PathBuf,
 }
 
 impl AppDirs {
     /// The directories under `data_dir`, created if missing.
     pub fn under(data_dir: &Path) -> std::io::Result<Self> {
-        let jobs = data_dir.join("jobs");
-        std::fs::create_dir_all(&jobs)?;
-        Ok(Self { jobs })
+        let dirs = Self {
+            jobs: data_dir.join("jobs"),
+            cache: data_dir.join("cache"),
+            overrides: data_dir.join("overrides"),
+        };
+        for dir in [&dirs.jobs, &dirs.cache, &dirs.overrides] {
+            std::fs::create_dir_all(dir)?;
+        }
+        Ok(dirs)
+    }
+
+    /// Empty the engine's cache. The app does this at start: a rebuild is offered only on a row of
+    /// this session's queue, so a save outliving the session would be the text of a book kept on
+    /// disk for nothing (SECURITY §10).
+    pub fn clear_cache(&self) -> std::io::Result<()> {
+        match std::fs::remove_dir_all(&self.cache) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+        std::fs::create_dir_all(&self.cache)
+    }
+
+    /// Where the corrections for the book whose digest is `sha256` are kept. `None` unless the
+    /// digest is lowercase hex, which is the only thing that becomes part of the name.
+    pub fn overrides_for(&self, sha256: &str) -> Option<PathBuf> {
+        let hex = !sha256.is_empty()
+            && sha256
+                .chars()
+                .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c));
+        hex.then(|| self.overrides.join(format!("{sha256}.json")))
     }
 }
 
@@ -140,6 +174,30 @@ mod tests {
             !is_inside(&dirs.jobs, &dirs.jobs),
             "the directory is not a spec"
         );
+    }
+
+    #[test]
+    fn the_cache_is_cleared_and_corrections_are_kept_by_digest() {
+        let root = scratch("cache");
+        let dirs = AppDirs::under(&root).expect("made");
+        std::fs::create_dir_all(dirs.cache.join("structure")).expect("made");
+        std::fs::write(dirs.cache.join("structure/abc.json"), "{}").expect("written");
+        dirs.clear_cache().expect("cleared");
+        assert!(dirs.cache.is_dir(), "the directory stays");
+        assert_eq!(
+            std::fs::read_dir(&dirs.cache).expect("reads").count(),
+            0,
+            "and nothing in it"
+        );
+
+        let sha = "0123456789abcdef".repeat(4);
+        assert_eq!(
+            dirs.overrides_for(&sha),
+            Some(dirs.overrides.join(format!("{sha}.json")))
+        );
+        for bad in ["", "../x", "ABC", "12/34"] {
+            assert_eq!(dirs.overrides_for(bad), None, "{bad:?} names no file");
+        }
     }
 
     #[test]

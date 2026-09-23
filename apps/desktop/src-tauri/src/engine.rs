@@ -152,7 +152,13 @@ fn write_spec(jobs_dir: &Path, job_id: &str, spec: &JobSpec) -> Result<PathBuf, 
 pub struct ProcessLauncher {
     program: PathBuf,
     jobs_dir: PathBuf,
+    /// The app's cache directory, named to every engine as `OC_CACHE_DIR`: where a full run saves
+    /// what `structure` settled and a "Fix and rebuild" resumes from it (A12.4b).
+    cache_dir: Option<PathBuf>,
 }
+
+/// The environment variable the engine reads its cache directory from.
+pub const CACHE_VAR: &str = "OC_CACHE_DIR";
 
 /// Win32's `CREATE_NO_WINDOW` process-creation flag, from `winbase.h`: without it a console window
 /// flashes on every conversion (D13.2). An operating-system constant, not a tunable.
@@ -161,7 +167,17 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 impl ProcessLauncher {
     pub fn new(program: PathBuf, jobs_dir: PathBuf) -> Self {
-        Self { program, jobs_dir }
+        Self {
+            program,
+            jobs_dir,
+            cache_dir: None,
+        }
+    }
+
+    /// Name `dir` to every engine this starts as its cache directory.
+    pub fn with_cache(mut self, dir: PathBuf) -> Self {
+        self.cache_dir = Some(dir);
+        self
     }
 
     /// The command that runs `spec`: the engine and **one argument**, the spec's path, which must
@@ -181,6 +197,10 @@ impl ProcessLauncher {
         match password {
             Some(password) => command.env(PASSWORD_VAR, password),
             None => command.env_remove(PASSWORD_VAR),
+        };
+        match &self.cache_dir {
+            Some(dir) => command.env(CACHE_VAR, dir),
+            None => command.env_remove(CACHE_VAR),
         };
         #[cfg(unix)]
         {
@@ -506,6 +526,33 @@ mod tests {
                 .any(|(key, value)| key == PASSWORD_VAR && value.is_none()),
             "an inherited password is removed from every other job"
         );
+    }
+
+    /// Every engine is told where the app's cache is, so a full run saves what `structure`
+    /// settled and a "Fix and rebuild" resumes from it (A12.4b) — and an engine started without a
+    /// cache directory gets none, not one inherited from wherever the app was launched.
+    #[test]
+    fn the_engine_is_told_where_the_cache_is() {
+        let dirs = scratch("cache");
+        let spec = JobSpec::new("/in/book.pdf".into(), "/out/book.epub".into());
+        let path = write_spec(&dirs.jobs, "job-1", &spec).expect("written");
+
+        let cached = ProcessLauncher::new("/opt/openconvert/openconvert".into(), dirs.jobs.clone())
+            .with_cache(dirs.cache.clone())
+            .command(&path, None)
+            .expect("a command");
+        assert_eq!(cached.get_args().count(), 1, "still exactly one argument");
+        assert!(cached
+            .get_envs()
+            .any(|(key, value)| key == CACHE_VAR && value == Some(dirs.cache.as_os_str())));
+
+        let uncached =
+            ProcessLauncher::new("/opt/openconvert/openconvert".into(), dirs.jobs.clone())
+                .command(&path, None)
+                .expect("a command");
+        assert!(uncached
+            .get_envs()
+            .any(|(key, value)| key == CACHE_VAR && value.is_none()));
     }
 
     #[test]

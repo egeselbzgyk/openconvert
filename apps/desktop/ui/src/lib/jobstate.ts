@@ -50,6 +50,8 @@ export type JobView = {
   renamed: boolean;
   /** This run was given the password typed on the row (never the password itself). */
   unlocked: boolean;
+  /** This run applies the user's corrections to a book already converted ("Fix and rebuild"). */
+  rebuild: boolean;
 } & QueueState;
 
 export type Phase = "queued" | "running" | "cancelling" | "cancelled" | "complete" | "failed";
@@ -69,6 +71,8 @@ export interface Row {
   renamed: boolean;
   /** This run was given a password, so a password failure means that password was wrong. */
   unlocked: boolean;
+  /** "Fix and rebuild": the user's corrections, applied to a book already converted. */
+  rebuild: boolean;
   phase: Phase;
   /** Waiting position, the running job counted as #1 (design decision 6). */
   position: number | null;
@@ -108,6 +112,7 @@ export function newRow(view: JobView): Row {
       output: view.output,
       renamed: view.renamed,
       unlocked: view.unlocked,
+      rebuild: view.rebuild,
       phase: "queued",
       position: null,
       current: null,
@@ -138,6 +143,7 @@ export function applyView(row: Row, view: JobView): Row {
     output: view.output,
     renamed: view.renamed,
     unlocked: view.unlocked,
+    rebuild: view.rebuild,
   };
   switch (view.state) {
     case "queued":
@@ -257,9 +263,20 @@ export function checkHeartbeat(row: Row, now: number, timeoutMs: number): Row {
   return stalled === row.stalled ? row : { ...row, stalled };
 }
 
-/** The steps a row shows, in order: the five, plus "Repairing" when it ran. */
+/** The steps a rebuild runs when it resumes after `structure` (A12.4b). */
+const REBUILD_STEPS: readonly Step[] = ["reconstructing", "building", "checking"];
+
+/**
+ * The steps a row shows, in order: the five, plus "Repairing" when it ran. A rebuild shows only
+ * the steps it runs (result.html §2, "only the stages that run") — unless the engine had to start
+ * from the PDF after all, which its first stage says.
+ */
 export function visibleSteps(row: Row): Step[] {
-  return row.repaired ? [...STEPS, "repairing"] : [...STEPS];
+  const upstream = [row.current, ...row.finished].some(
+    (step) => step === "analyzing" || step === "extracting",
+  );
+  const steps = row.rebuild && !upstream ? [...REBUILD_STEPS] : [...STEPS];
+  return row.repaired ? [...steps, "repairing"] : steps;
 }
 
 /** A step's state in the StageList. */

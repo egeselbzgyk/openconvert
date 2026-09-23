@@ -10,6 +10,7 @@
     tauriBackend,
     type Backend,
     type Bundle,
+    type CorrectionPatch,
     type DropEvent,
     type Settings as UserSettings,
     type UiConfig,
@@ -21,6 +22,8 @@
   import type { Row } from "./lib/jobstate";
   import { i18n, setLanguage, t, tn } from "./lib/locale.svelte";
   import BundleReview from "./routes/bundle/Bundle.svelte";
+  import MetadataEditor from "./routes/editor/MetadataEditor.svelte";
+  import TocEditor from "./routes/editor/TocEditor.svelte";
   import Queue from "./routes/queue/Queue.svelte";
   import Preview from "./routes/preview/Preview.svelte";
   import Report from "./routes/report/Report.svelte";
@@ -34,7 +37,9 @@
     | { name: "queue" }
     | { name: "settings" }
     | { name: "report"; job: string }
-    | { name: "preview"; job: string; page: string | null; from: "queue" | "report" };
+    | { name: "preview"; job: string; page: string | null; from: "queue" | "report" }
+    | { name: "editmeta"; job: string }
+    | { name: "edittoc"; job: string };
 
   let config = $state<UiConfig | null>(null);
   let settings = $state<UserSettings | null>(null);
@@ -183,6 +188,15 @@
     await tick();
     document.querySelector<HTMLElement>(`.oc-queue > li[data-job="${again}"]`)?.focus();
   }
+  /** "Fix and rebuild" from an editor: the corrections go to the Rust side, which keeps them with
+      the book's others and replaces the row with the rebuild; focus follows the row. */
+  async function rebuild(job: string, patch: CorrectionPatch) {
+    const again = await backend.saveOverrides(job, patch);
+    store?.load(await backend.rows());
+    route = { name: "queue" };
+    await tick();
+    document.querySelector<HTMLElement>(`.oc-queue > li[data-job="${again}"]`)?.focus();
+  }
   async function retry(row: Row) {
     await backend.enqueue([row.input]);
     await remove(row.id);
@@ -222,6 +236,8 @@
         onpage={(id, page) => (route = { name: "preview", job: id, page, from: "queue" })}
         onexport={(id) => void exportBundle(id, { name: "queue" })}
         onunlock={(id, password) => void unlock(id, password)}
+        oneditmeta={(id) => (route = { name: "editmeta", job: id })}
+        onedittoc={(id) => (route = { name: "edittoc", job: id })}
       />
       <AppHeader onsettings={() => (route = { name: "settings" })} />
     {:else if route.name === "report"}
@@ -250,6 +266,20 @@
           onclick: () => (route = target.from === "report" ? { name: "report", job: target.job } : { name: "queue" }),
         }}
       />
+    {:else if route.name === "editmeta" || route.name === "edittoc"}
+      {@const target = route}
+      {@const row = store.rows.find((candidate) => candidate.id === target.job)}
+      {@const report = row?.report !== null && row?.report !== "unavailable" ? row?.report : undefined}
+      {@const back = { label: t("queue.title"), onclick: () => (route = { name: "queue" }) }}
+      {#if row !== undefined && report !== undefined}
+        {@const file = fileName(row.output)}
+        {#if target.name === "editmeta"}
+          <MetadataEditor {report} {file} oncancel={back.onclick} onsave={(metadata) => void rebuild(target.job, { metadata, toc: [] })} />
+        {:else}
+          <TocEditor {report} {file} oncancel={back.onclick} onsave={(toc) => void rebuild(target.job, { toc })} />
+        {/if}
+      {/if}
+      <AppHeader title={target.name === "editmeta" ? t("action.editMeta") : t("action.reviewToc")} {back} />
     {:else if settings !== null && config !== null}
       <Settings
         {settings}

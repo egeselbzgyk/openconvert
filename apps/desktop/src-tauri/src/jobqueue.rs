@@ -58,6 +58,9 @@ pub struct JobView {
     /// This run was given the password the user typed on the row; a password failure now means
     /// that password was wrong, not that none was tried.
     pub unlocked: bool,
+    /// This run applies the user's corrections to a book the queue already converted ("Fix and
+    /// rebuild"): it replaces that output, and resumes after `structure` when it can (A12.4b).
+    pub rebuild: bool,
     #[serde(flatten)]
     pub state: JobState,
 }
@@ -82,7 +85,18 @@ struct Job {
     password: Option<String>,
     /// Started from [`JobQueue::unlock`]. Only the fact is kept, never the password.
     unlocked: bool,
+    /// Set by [`JobQueue::rebuild`]: the corrections to apply.
+    rebuild: Option<Rebuild>,
     phase: Phase,
+}
+
+/// A "Fix and rebuild": the corrections file, and the digest of the PDF they were made for — which
+/// the job spec carries, so a PDF changed since is refused (`E_INPUT_CHANGED`) rather than
+/// corrected with ids that name other headings.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Rebuild {
+    pub overrides: PathBuf,
+    pub sha256: String,
 }
 
 enum Phase {
@@ -155,6 +169,7 @@ impl<L: Launch> JobQueue<L> {
                 limits,
                 password: None,
                 unlocked: false,
+                rebuild: None,
                 phase: Phase::Queued,
             });
             ids.push(id);
@@ -190,6 +205,42 @@ impl<L: Launch> JobQueue<L> {
             limits: old.limits,
             password: Some(password),
             unlocked: true,
+            // A locked book being rebuilt keeps its corrections through the unlock.
+            rebuild: old.rebuild,
+            phase: Phase::Queued,
+        });
+        self.pump();
+        self.announce_all();
+        Ok(new_id)
+    }
+
+    /// Convert job `id`'s book again with the user's corrections ("Fix and rebuild"), replacing
+    /// its output. The row is replaced by the new job, as for [`JobQueue::unlock`].
+    pub fn rebuild(&mut self, id: &str, rebuild: Rebuild) -> Result<String, UiError> {
+        let index = self
+            .jobs
+            .iter()
+            .position(|job| job.id == id)
+            .ok_or_else(|| UiError::UnknownJob(id.to_owned()))?;
+        if !matches!(self.jobs[index].phase, Phase::Done(_)) {
+            return Err(UiError::JobBusy(id.to_owned()));
+        }
+        let old = self
+            .jobs
+            .remove(index)
+            .ok_or_else(|| UiError::UnknownJob(id.to_owned()))?;
+        self.next += 1;
+        let new_id = format!("job-{}", self.next);
+        self.jobs.push_back(Job {
+            id: new_id.clone(),
+            input: old.input,
+            output: old.output,
+            renamed: old.renamed,
+            preset: old.preset,
+            limits: old.limits,
+            password: None,
+            unlocked: false,
+            rebuild: Some(rebuild),
             phase: Phase::Queued,
         });
         self.pump();
@@ -320,6 +371,12 @@ impl<L: Launch> JobQueue<L> {
             spec.job_id = Some(job.id.clone());
             spec.preset = Some(job.preset);
             spec.limits = job.limits;
+            if let Some(rebuild) = &job.rebuild {
+                // The rebuild replaces the book this queue wrote, the one the user corrected.
+                spec.output.overwrite = true;
+                spec.input.sha256 = Some(rebuild.sha256.clone());
+                spec.overrides_path = Some(rebuild.overrides.clone());
+            }
             let sink = Arc::clone(&self.sink);
             let logs = Arc::clone(&self.logs);
             let id = job.id.clone();
@@ -391,6 +448,7 @@ impl<L: Launch> JobQueue<L> {
                     output: job.output.clone(),
                     renamed: job.renamed,
                     unlocked: job.unlocked,
+                    rebuild: job.rebuild.is_some(),
                     state,
                 }
             })
@@ -618,6 +676,47 @@ mod tests {
             queue.jobs.iter().all(|job| job.password.is_none()),
             "the password is dropped once the engine has it"
         );
+    }
+
+    /// "Fix and rebuild" replaces the row with a job that names the corrections, the digest they
+    /// were made for, and permission to replace the book it wrote — and only once that book is
+    /// written.
+    #[test]
+    fn a_rebuild_replaces_the_row_with_the_corrections_named() {
+        let (mut queue, launcher) = queue("rebuild");
+        let ids = queue.enqueue(&[PathBuf::from("/b/novel.pdf")], PresetName::Novel);
+        let rebuild = Rebuild {
+            overrides: PathBuf::from("/data/overrides/abc.json"),
+            sha256: "ab".repeat(32),
+        };
+        assert_eq!(
+            queue.rebuild(&ids[0], rebuild.clone()),
+            Err(UiError::JobBusy(ids[0].clone())),
+            "not while it is still converting"
+        );
+        launcher.0.lock().expect("not poisoned").exited[0] = Some(Some(0));
+        queue.tick(Instant::now());
+
+        let again = queue.rebuild(&ids[0], rebuild.clone()).expect("rebuilt");
+        let views = queue.views();
+        assert_eq!(views.len(), 1, "the row is replaced, not duplicated");
+        assert_eq!(views[0].id, again);
+        assert!(views[0].rebuild);
+        assert_eq!(views[0].output, PathBuf::from("/b/novel.epub"));
+
+        let script = launcher.0.lock().expect("not poisoned");
+        let spec: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(&script.launched[1]).expect("the spec is on disk"),
+        )
+        .expect("JSON");
+        assert_eq!(spec["overrides_path"], "/data/overrides/abc.json");
+        assert_eq!(spec["input"]["sha256"], rebuild.sha256);
+        assert_eq!(spec["output"]["path"], "/b/novel.epub");
+        assert_eq!(
+            spec["output"]["overwrite"], true,
+            "it replaces the book it wrote"
+        );
+        assert_eq!(spec["preset"], "novel");
     }
 
     #[test]

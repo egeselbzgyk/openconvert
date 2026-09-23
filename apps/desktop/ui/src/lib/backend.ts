@@ -63,6 +63,26 @@ export interface Bundle {
   entries: Array<{ name: string; bytes: number }>;
 }
 
+/** What the metadata editor changed. A field left out keeps what the book has. */
+export interface MetadataPatch {
+  title?: string;
+  authors?: string[];
+  language?: string;
+}
+
+/** One heading renamed or moved to another level, by its block id. */
+export interface TocPatch {
+  heading: string;
+  title?: string;
+  level?: number;
+}
+
+/** What an editor sends to "Fix and rebuild" (`src-tauri/src/corrections.rs`). */
+export interface CorrectionPatch {
+  metadata?: MetadataPatch;
+  toc: TocPatch[];
+}
+
 export interface Enqueued {
   jobs: string[];
   skipped: string[];
@@ -100,6 +120,11 @@ export interface Backend {
    * until the engine starts and is never written anywhere (design decision 13).
    */
   unlock(job: string, password: string): Promise<string>;
+  /**
+   * "Fix and rebuild": keep these corrections with the book's others and convert it again with
+   * them, replacing its EPUB. The row is replaced by the new job, whose id is returned.
+   */
+  saveOverrides(job: string, patch: CorrectionPatch): Promise<string>;
   onLine(handler: (job: string, line: string) => void): Promise<Unlisten>;
   onJobChanged(handler: (view: JobView) => void): Promise<Unlisten>;
   onDragDrop(handler: (event: DropEvent) => void): Promise<Unlisten>;
@@ -126,6 +151,7 @@ export function tauriBackend(): Backend {
     cancel: (job) => invoke<void>("cancel", { job }),
     remove: (job) => invoke<void>("remove", { job }),
     unlock: (job, password) => invoke<string>("unlock", { job, password }),
+    saveOverrides: (job, patch) => invoke<string>("save_overrides", { job, patch }),
     onLine: (handler) =>
       listen<{ job: string; line: string }>("engine-line", (event) =>
         handler(event.payload.job, event.payload.line),

@@ -254,7 +254,7 @@ Work items, in order, with the plan's test rows against each:
         (`OC_PDF_PASSWORD`) — never in the spec, on the command line or on disk; a second failure
         says the password did not open it. The engine's job-spec form reads the password from
         `password_file` or that variable (+ 1 engine, 2 Rust, 1 UI test)
-- [ ] **P12.9** metadata and TOC overrides — rows 12.10, 12.11, in three commits:
+- [x] **P12.9** metadata and TOC overrides — rows 12.10, 12.11, A12.4, A12.4b, in three commits:
   - [x] **P12.9a** the engine applies `overrides.json`: `oc_model::overrides` (`Overrides`,
         `ir_version` first, refused when stale / for another PDF / with block entries — row
         **12.11**); `document` applies metadata (title, authors, language) and TOC (rename, level →
@@ -268,7 +268,13 @@ Work items, in order, with the plan's test rows against each:
         replayed from the saved ledger. The rebuilt EPUB is byte-identical to a full run with the
         same corrections. IR types gained `Deserialize` (PROVISIONAL location/trigger, see
         Blocked) (+ 5 tests)
-  - [ ] **P12.9c** the editors: MetadataEditor, TocEditor, `save_overrides`, "Fix and rebuild"
+  - [x] **P12.9c** the editors (result.html §2–3): MetadataEditor (title, authors list, language),
+        TocEditor (rename, level, changed marked, "Fix and rebuild (n changes)"), sending only
+        differences; `save_overrides` merges them into `<data>/overrides/<sha256>.json` and replaces
+        the row with a rebuild job (`overrides_path`, `input.sha256`, `overwrite`); every engine gets
+        `OC_CACHE_DIR=<data>/cache`, emptied at start; the rebuild row shows only the steps it runs,
+        "from cache"; the result says what was applied, or that saved corrections were refused
+        (+ 4 Rust, 3 UI tests; report fixtures regenerated from the engine)
 - [ ] **P12.10** Playwright under the shipped CSP — rows 12.14 (keyboard), 12.15, 12.16
 - [ ] **P12.11** CI wiring, the signing dry-run workflow (row 12.14 signing, unverified here)
 

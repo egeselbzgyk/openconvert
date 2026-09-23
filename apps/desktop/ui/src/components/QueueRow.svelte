@@ -2,10 +2,13 @@
   // One job (components.md, QueueRow): queued(pos) · running determinate · running indeterminate
   // + pulse · not responding · cancelling · cancelled · failed · complete. Every state is read off
   // the row, which is read off the engine's events; nothing here keeps time of its own.
+  import { applied, refusedCorrections } from "../lib/corrections";
+  import { formatValue } from "../lib/i18n";
   import type { Row } from "../lib/jobstate";
-  import { silentSeconds } from "../lib/jobstate";
+  import { silentSeconds, visibleSteps } from "../lib/jobstate";
+  import { totalMs } from "../lib/report";
   import { countText, stepLabel, stepOf } from "../lib/labels";
-  import { t } from "../lib/locale.svelte";
+  import { i18n, t } from "../lib/locale.svelte";
   import { pulse } from "../lib/motion";
   import Icon from "./Icon.svelte";
   import Spinner from "./Spinner.svelte";
@@ -26,6 +29,8 @@
     onpreview = () => undefined,
     onexport = () => undefined,
     onunlock = () => undefined,
+    oneditmeta = () => undefined,
+    onedittoc = () => undefined,
     onpage = null,
   }: {
     row: Row;
@@ -43,10 +48,23 @@
     onexport?: (id: string) => void;
     /** Convert again with the password typed on this row (design decision 13). */
     onunlock?: (id: string, password: string) => void;
+    /** "Edit metadata" / "Review TOC" on the result (result.html §2–3). */
+    oneditmeta?: (id: string) => void;
+    onedittoc?: (id: string) => void;
     onpage?: ((id: string, page: string) => void) | null;
   } = $props();
 
   const report = $derived(row.report !== null && row.report !== "unavailable" ? row.report : null);
+  /** A rebuild that resumed after `structure` shows only the steps it runs. */
+  const fromCache = $derived(row.rebuild && !visibleSteps(row).includes("analyzing"));
+  /** What a finished rebuild says after "Complete". */
+  const rebuilt = $derived.by(() => {
+    if (report === null || !row.rebuild) return null;
+    if (refusedCorrections(report) !== null) return t("result.withoutCorrections");
+    if (applied(report) === null) return null;
+    const seconds = formatValue(Math.round(totalMs(report) / 100) / 10, i18n.locale);
+    return t("result.rebuilt", { s: seconds });
+  });
   const invalid = $derived(report?.status === "invalid");
 
   const tab = $derived(active ? 0 : -1);
@@ -146,7 +164,7 @@
     {:else if row.phase === "running" && row.stalled}
       <span class="oc-tile oc-tile--warn"><Icon name="alert" size="md" /></span>
     {:else if row.phase === "running"}
-      <span class="oc-tile oc-tile--accent oc-pulse" use:pulse={row.beats}><Icon name="file" size="md" /></span>
+      <span class="oc-tile oc-tile--accent oc-pulse" use:pulse={row.beats}><Icon name={row.rebuild ? "refresh" : "file"} size="md" /></span>
     {:else if row.phase === "cancelling"}
       <span class="oc-tile"><Spinner stopped={row.stalled} /></span>
     {:else if row.phase === "cancelled"}
@@ -168,6 +186,8 @@
           <span class="oc-row__position">{status}</span>{#if row.position === 2}<span>· {t("queue.startsAfter")}</span>{/if}
         {:else if row.phase === "running" && row.stalled}
           <b>{status}</b><span>· {t("queue.notRespondingDetail", { s: silentSeconds(row, now) })}</span>
+        {:else if row.phase === "running" && row.rebuild}
+          <b>{t("action.fixRebuild")}</b><span>· {row.current === null ? t("queue.converting") : stepLabel(row.current)}{#if fromCache}, {t("queue.rebuilding")}{/if}</span>
         {:else if row.phase === "running" && row.progress !== null && row.progress.step === row.current}
           <b>{status}</b><span class="oc-num">{countText(row.progress)}</span>
         {:else if row.phase === "running"}
@@ -178,6 +198,8 @@
           <b>{status}</b><span>{failure.note}</span>
         {:else if row.phase === "complete" && invalid}
           <b>{status}</b><span>· {t("result.savedInvalid")}</span>
+        {:else if row.phase === "complete" && rebuilt !== null}
+          <b>{status}</b><span>· {rebuilt}</span>
         {:else}
           <b>{status}</b>
         {/if}
@@ -246,6 +268,8 @@
         ondetails={() => ondetails(row.id)}
         onpreview={() => onpreview(row.id)}
         onexport={() => onexport(row.id)}
+        oneditmeta={() => oneditmeta(row.id)}
+        onedittoc={() => onedittoc(row.id)}
         onpage={onpage === null ? null : (page) => onpage(row.id, page)}
       />
     {:else if row.report === "unavailable"}

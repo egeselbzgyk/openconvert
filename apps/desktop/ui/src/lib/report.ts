@@ -27,8 +27,19 @@ export interface ReasonTotal {
   measured: number;
 }
 
+/** One heading as the TOC editor lists it. */
+export interface TocEntry {
+  heading: string;
+  title: string;
+  level: number;
+  /** The printed page label, or the page's one-based number. */
+  page: string;
+}
+
 export interface Decision {
   stage: string;
+  /** The block the choice was about, when it was about one. */
+  subject: string | null;
   kind: string;
   chosen: string;
   alternatives: string[];
@@ -51,6 +62,10 @@ export interface Report {
     tables: number;
     notes: number;
     images_extracted: number;
+    /** `dc:creator`, in order. */
+    authors: string[];
+    /** Every heading, in reading order, by the block id a correction names it by. */
+    toc: TocEntry[];
   };
   timings_ms: Array<[string, number]>;
   conservation: {

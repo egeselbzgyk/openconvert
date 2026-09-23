@@ -6,6 +6,7 @@
 import type {
   Backend,
   Bundle,
+  CorrectionPatch,
   DropEvent,
   Enqueued,
   PreviewIndex,
@@ -147,6 +148,18 @@ export class FakeBackend implements Backend {
     const id = `${job}-unlocked`;
     if (old !== undefined) {
       this.views = [...this.views, { ...old, id, unlocked: true, state: "running" }];
+    }
+    return id;
+  }
+  /** "Fix and rebuild" calls, with what the editor sent. */
+  corrected: Array<[string, CorrectionPatch]> = [];
+  async saveOverrides(job: string, patch: CorrectionPatch): Promise<string> {
+    this.corrected.push([job, patch]);
+    const old = this.views.find((view) => view.id === job);
+    this.views = this.views.filter((view) => view.id !== job);
+    const id = `${job}-rebuilt`;
+    if (old !== undefined) {
+      this.views = [...this.views, { ...old, id, rebuild: true, unlocked: false, state: "running" }];
     }
     return id;
   }

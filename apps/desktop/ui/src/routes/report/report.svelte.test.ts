@@ -19,7 +19,7 @@ describe("report route", () => {
     backend.reports.set("job-1", f03 as unknown as Report);
     app = mount(App, { target: document.body, props: { backend, clock: () => 0 } });
     await settle();
-    backend.change({ id: "job-1", input: "/b/f03_image_only.pdf", output: "/b/f03_image_only.epub", renamed: false, unlocked: false, state: "running" });
+    backend.change({ id: "job-1", input: "/b/f03_image_only.pdf", output: "/b/f03_image_only.epub", renamed: false, unlocked: false, rebuild: false, state: "running" });
     backend.line("job-1", { t: "done", status: "ok", report_path: "/b/f03_image_only.epub.report.json" });
     await settle();
     flushSync();

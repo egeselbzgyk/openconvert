@@ -17,7 +17,7 @@ describe("app", () => {
     const backend = new FakeBackend();
     app = mount(App, { target: document.body, props: { backend, clock: () => 0 } });
     await settle();
-    backend.change({ id: "job-1", input: "/b/a.pdf", output: "/b/a.epub", renamed: false, unlocked: false, state: "running" });
+    backend.change({ id: "job-1", input: "/b/a.pdf", output: "/b/a.epub", renamed: false, unlocked: false, rebuild: false, state: "running" });
     flushSync();
     expect(document.querySelector(".oc-queue")).not.toBeNull();
 

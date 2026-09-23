@@ -470,3 +470,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
    max-width on the handoff's field). */
 .oc-row__unlock { flex-wrap: wrap; }
 .oc-row__unlock .oc-input { max-width: 16rem; }
+
+/* Editors (result.html §2–3): the help sits flush, "Add author" hugs the left, the language
+   select keeps the mockup's width (were inline styles). */
+.oc-editor__form { display: contents; }
+.oc-editor__help { margin: 0; }
+.oc-editor__add { align-self: flex-start; }
+.oc-editor__select { max-width: 20rem; }

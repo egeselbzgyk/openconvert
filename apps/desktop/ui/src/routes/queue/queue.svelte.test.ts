@@ -62,6 +62,7 @@ describe("queue route", () => {
         output: `/b/${name}.epub`,
         renamed: false,
         unlocked: false,
+        rebuild: false,
         ...(index === 0 ? { state: "running" as const } : { state: "queued" as const, position: index + 1 }),
       });
     }
@@ -81,7 +82,7 @@ describe("queue route", () => {
     expect(backend.calls).toContainEqual(["remove", "job-2"]);
     expect(status()).toContain("b.pdf removed.");
 
-    backend.change({ id: "job-4", input: "/b/d.pdf", output: "/b/d.epub", renamed: false, unlocked: false, state: "queued", position: 3 });
+    backend.change({ id: "job-4", input: "/b/d.pdf", output: "/b/d.epub", renamed: false, unlocked: false, rebuild: false, state: "queued", position: 3 });
     flushSync();
     const bulk = [...document.querySelectorAll("button")].find((b) => b.textContent === "Remove all waiting…");
     bulk?.click();
@@ -94,9 +95,9 @@ describe("queue route", () => {
   it("a locked PDF asks for its password on the row, hands it over once, and says when it was wrong", async () => {
     const backend = await start();
     const locked = { id: "job-1", input: "/b/annual-report-locked.pdf", output: "/b/annual-report-locked.epub", renamed: false };
-    backend.change({ ...locked, unlocked: false, state: "running" });
+    backend.change({ ...locked, unlocked: false, rebuild: false, state: "running" });
     backend.line("job-1", { t: "fatal", code: "E_PASSWORD_REQUIRED", message: "the PDF needs a password" });
-    backend.change({ ...locked, unlocked: false, state: "exited", code: 2 });
+    backend.change({ ...locked, unlocked: false, rebuild: false, state: "exited", code: 2 });
     flushSync();
 
     const row = () => document.querySelector<HTMLElement>(".oc-queue > li");
@@ -128,7 +129,7 @@ describe("queue route", () => {
 
     // The typed password did not open it either: the field comes back, marked, with the reason.
     backend.line("job-1-unlocked", { t: "fatal", code: "E_PASSWORD_REQUIRED", message: "the PDF needs a password" });
-    backend.change({ ...locked, id: "job-1-unlocked", unlocked: true, state: "exited", code: 2 });
+    backend.change({ ...locked, id: "job-1-unlocked", unlocked: true, rebuild: false, state: "exited", code: 2 });
     flushSync();
     expect(field()?.value, "nothing typed is kept").toBe("");
     expect(field()?.getAttribute("aria-invalid")).toBe("true");

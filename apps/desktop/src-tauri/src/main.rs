@@ -21,12 +21,13 @@ use std::time::{Duration, Instant};
 
 use oc_core::thresholds::T;
 use openconvert_desktop::config::UiConfig;
+use openconvert_desktop::corrections::{self, Patch};
 use openconvert_desktop::diagnostics::{self, Bundle};
 use openconvert_desktop::engine::{
     handshake, sidecar_path, Engine, Hello, ProcessLauncher, UiError,
 };
 use openconvert_desktop::fs_scope::{partition_drop, AppDirs};
-use openconvert_desktop::jobqueue::{JobQueue, JobView, QueueSink};
+use openconvert_desktop::jobqueue::{JobQueue, JobView, QueueSink, Rebuild};
 use openconvert_desktop::preview::{self, PreviewIndex};
 use openconvert_desktop::settings::{self, Settings};
 use serde::Serialize;
@@ -132,6 +133,36 @@ fn unlock(
     queue: tauri::State<'_, Queue>,
 ) -> Result<String, UiError> {
     with_queue(&queue, |queue| queue.unlock(&job, password))
+}
+
+/// "Fix and rebuild": keep the corrections an editor made to job `job`'s book, merged into the ones
+/// already kept for it, and convert it again with them in place of its output (Phase 12 detail 8).
+/// The digest and IR version come from the report the editor showed, so the corrections name the
+/// bytes and the block ids that report did.
+#[tauri::command]
+fn save_overrides(
+    job: String,
+    patch: Patch,
+    dirs: tauri::State<'_, AppDirs>,
+    queue: tauri::State<'_, Queue>,
+) -> Result<String, UiError> {
+    let (_, report) = with_queue(&queue, |queue| queue.outputs(&job))?;
+    let report: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&report)?)
+        .map_err(|error| UiError::Io(error.to_string()))?;
+    let (sha256, ir_version) = corrections::keyed_by(&report)?;
+    let path = dirs
+        .overrides_for(&sha256)
+        .ok_or_else(|| UiError::Io(format!("{sha256} is not a digest")))?;
+    corrections::save(&path, &sha256, ir_version, patch)?;
+    with_queue(&queue, |queue| {
+        queue.rebuild(
+            &job,
+            Rebuild {
+                overrides: path,
+                sha256,
+            },
+        )
+    })
 }
 
 #[tauri::command]
@@ -381,8 +412,15 @@ fn main() {
                 settings::load(&settings_file);
             *prefs.path.lock().unwrap_or_else(PoisonError::into_inner) = Some(settings_file);
 
+            // A rebuild is offered only on this session's rows, so last session's saves are the
+            // text of books kept on disk for nothing (SECURITY §10). A failure here costs a later
+            // rebuild nothing: every save is keyed and checked before it is resumed from.
+            let _ = dirs.clear_cache();
+            app.manage(dirs.clone());
+
             if let Ok(engine) = engine {
-                let launcher = ProcessLauncher::new(engine, dirs.jobs.clone());
+                let launcher =
+                    ProcessLauncher::new(engine, dirs.jobs.clone()).with_cache(dirs.cache.clone());
                 let sink = Arc::new(WebviewSink(app.handle().clone()));
                 let queue = JobQueue::new(Engine::new(dirs.jobs, launcher), sink);
                 *app.state::<Queue>()
@@ -411,6 +449,7 @@ fn main() {
             enqueue,
             pick_pdfs,
             unlock,
+            save_overrides,
             cancel,
             remove,
             queue_rows,
