@@ -1177,6 +1177,13 @@ evidence = "PHASE 9 detail 6: how long `model pull` waits for a TCP and TLS conn
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[net.update_manifest_max_bytes]           # the largest `latest.json` the updater reads
+value = 65536
+source = "provisional"
+evidence = "PHASE 15 detail 5: Tauri's static update manifest is a version, notes and one URL + signature per platform - about 2 KB for three OSes with release notes; 64 KiB leaves room for long notes and stops a hostile or broken endpoint from streaming without end. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 # ---------- model promotion gate (D9 G1-G9) ----------
 [model_gate.g4_max_seconds_on_l]           # "L" = D9 reference machine L (4c/8t AVX2 x86, 16 GB)
 value = 50

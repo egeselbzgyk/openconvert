@@ -118,7 +118,12 @@ Work items, in order, with the plan's test rows against each:
       — a release blocker for the maintainer (Blocked). Fixed on the way: the UI build hooks' paths,
       the `.app`-suffixed identifier (now `io.openconvert.OpenConvert`, provisional)
 - [ ] **P15.6** Flatpak manifest, updater compiled out there — row 15.8
-- [ ] **P15.7** updater: signed `latest.json`, verified before install — rows 15.9, 15.10
+- [x] **P15.7** updater (done before P15.6, which compiles it out): Tauri's format and keys, fetched
+      through `oc_net::update` (GitHub release hosts only), `minisign-verify` before install; desktop
+      `update_check`/`update_install` behind the default-on `updater` feature — rows 15.9
+      `updater_manifest_signature_verifies`, 15.10 `updater_rejects_tampered_payload` (test keypair
+      made in-test). Provisional: no `tauri-plugin-updater` (it needs the banned `reqwest`). No UI row
+      yet (part B)
 - [ ] **P15.8** SBOM: `cargo cyclonedx` + `npm sbom`, merged by `xtask sbom` — rows 15.11, 15.12
 - [ ] **P15.9** reproducibility gate (`xtask repro`) — row 15.13 (Linux half here)
 - [ ] **P15.10** version bump rules (`xtask bump-rules-check`), `docs/VERSIONING.md` — rows 15.16, 15.17

@@ -5018,3 +5018,37 @@ Evidence: `appimage_launches_and_converts_headless`, `appimage_carries_the_bundl
 2026-09-23; `only_the_smoke_flag_asks_for_a_smoke_conversion`,
 `a_smoke_job_ends_with_the_engines_exit_code`.
 Affects: `apps/desktop/src-tauri/{tauri.conf.json,src/main.rs,src/smoke.rs}`, `xtask/tests/release.rs`.
+
+## 2026-09-23 · The updater: Tauri's format and keys, `oc-net`'s client · Phase 15 (P15.7)
+Context: D12 and detail 5 name the Tauri updater — Ed25519, a static `latest.json` on GitHub
+Releases, the plugin verifying before it installs. `tauri-plugin-updater` downloads with `reqwest`,
+which `deny.toml` bans outright (`{ name = "reqwest", wrappers = [] }`), and CLAUDE.md makes "no HTTP
+client outside `oc-net`" a hard rule (D13.9). Adding the plugin means widening the ban for a second
+socket-opening crate in the app; neither DECISIONS.md nor the plan settles that trade.
+Decision (the conservative reading that keeps both D12 and D13.9 whole): **Tauri's update format,
+keys and signing, `oc-net`'s client.** The release is made with Tauri's own tooling
+(`createUpdaterArtifacts`, `tauri signer`, `latest.json`); the key sits where the plugin reads it
+(`plugins.updater.pubkey`, base64-wrapped); verification is `minisign-verify`, the crate the plugin
+verifies with. The download is `oc_net::update::fetch_update`, through `Fetch`, every hop checked
+against a separate `UPDATE_HOST_ALLOWLIST` (`github.com` and GitHub's two release-asset CDNs — not
+the model hosts, and the model allowlist does not gain GitHub), the manifest bounded by
+`net.update_manifest_max_bytes` and the payload by `release.max_installer_bytes`. `VerifiedUpdate`
+has no public constructor, so no code path installs bytes whose signature did not verify; there is no
+switch that skips the check; the placeholder key refuses before any request. A check is made only
+when the user asks (`update_check`), never at startup: the app makes no network request nobody asked
+for (SECURITY §8). Install: the AppImage replaces itself (written beside, synced, renamed) — tested;
+Windows (the NSIS installer in passive mode) and macOS (unpack the `.app.tar.gz`, swap the bundle)
+are written but **unverified here**. The desktop module and its two commands are behind the
+`updater` feature (default on; the Flatpak builds without it, row 15.8). **PROVISIONAL — needs
+maintainer ratification**, with the alternative stated: a `wrappers = ["tauri-plugin-updater"]`
+exception for `reqwest`/`hyper` in `deny.toml`. Not in part A: a Settings row that calls the two
+commands (UI + EN/DE/TR strings), and a line in Settings › Network log / PHASE 14's audit log for an
+update check.
+Evidence: `updater_manifest_signature_verifies` (15.9), `updater_rejects_tampered_payload` (15.10),
+`an_update_off_the_release_hosts_or_over_the_budget_is_refused`, `versions_order_as_semver_does`,
+`the_placeholder_key_verifies_nothing`, `this_build_looks_itself_up_most_specific_first`,
+`the_updater_reads_the_key_and_endpoint_tauri_conf_carries`. The test keypair is generated inside
+the test with the `minisign` crate (the one `tauri signer` uses) and exists only in memory.
+Affects: `crates/oc-net/{Cargo.toml,src/update.rs,tests/updater.rs}`,
+`apps/desktop/src-tauri/{Cargo.toml,src/updater.rs,src/main.rs,src/lib.rs}`, `Cargo.toml`
+(`minisign-verify`, `base64`, dev `minisign` — all MIT/Apache, `cargo deny` clean), `thresholds.toml`.

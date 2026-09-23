@@ -20,3 +20,11 @@ serde_json.workspace = true
 thiserror.workspace = true
 # The consent record's timestamp (PHASE 11 detail 4); already a workspace dependency.
 time.workspace = true
+# The updater's signature check and the base64 wrapping Tauri puts around keys and signatures.
+minisign-verify.workspace = true
+base64.workspace = true
+
+[dev-dependencies]
+# Signs test payloads with a keypair made inside the test (PHASE 15 rows 15.9, 15.10): the format
+# `tauri signer` writes, and no private key is ever committed.
+minisign.workspace = true

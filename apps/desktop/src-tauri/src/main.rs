@@ -37,6 +37,8 @@ use openconvert_desktop::packs::{self, PackManager, PackReadiness, PacksView};
 use openconvert_desktop::preview::{self, PreviewIndex};
 use openconvert_desktop::providers::ProviderCli;
 use openconvert_desktop::settings::{self, Settings};
+#[cfg(feature = "updater")]
+use openconvert_desktop::updater;
 use openconvert_desktop::{smoke, tree};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -604,6 +606,49 @@ fn network_log() -> NetworkLog {
     netlog::read()
 }
 
+/// Check for an update, when the user asks (PHASE 15 detail 5). Downloaded and verified against the
+/// key in `tauri.conf.json` before it is offered; held until [`update_install`].
+#[cfg(feature = "updater")]
+#[tauri::command]
+async fn update_check(app: AppHandle) -> Result<updater::Checked, UiError> {
+    let setup = updater::Setup::from_plugin_config(app.config().plugins.0.get(updater::CONFIG_KEY));
+    let Some(setup) = setup else {
+        return Ok(updater::Checked::Failed {
+            code: "no_key".to_owned(),
+        });
+    };
+    let handle = app.clone();
+    off_main(move || {
+        let connect =
+            Duration::from_secs(u64::try_from(T.net.connect_timeout_secs).unwrap_or_default());
+        let fetch = oc_net::download::HttpFetch::new(connect);
+        let (checked, verified) = updater::check(&setup, env!("CARGO_PKG_VERSION"), &fetch);
+        *handle
+            .state::<updater::Pending>()
+            .0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = verified;
+        Ok(checked)
+    })
+    .await
+}
+
+/// Install the update [`update_check`] verified, and restart into it.
+#[cfg(feature = "updater")]
+#[tauri::command]
+async fn update_install(app: AppHandle) -> Result<(), UiError> {
+    let pending = app
+        .state::<updater::Pending>()
+        .0
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take()
+        .ok_or_else(|| UiError::Io("no verified update is waiting".to_owned()))?;
+    let scratch = app.state::<AppDirs>().run.clone();
+    off_main(move || updater::install(&pending, &scratch).map_err(UiError::Io)).await?;
+    app.restart()
+}
+
 /// "Quit" on the blocking startup screen.
 #[tauri::command]
 fn quit(app: AppHandle) {
@@ -700,6 +745,8 @@ fn main() {
             current: Mutex::new(Settings::default()),
         })
         .setup(move |app| {
+            #[cfg(feature = "updater")]
+            app.manage(updater::Pending::default());
             let dirs = AppDirs::under(&app.path().app_data_dir()?)?;
             let config_dir = app.path().app_config_dir()?;
             let settings_file = settings::settings_path(&config_dir);
@@ -830,7 +877,11 @@ fn main() {
             pick_key_file,
             clear_key_file,
             grant_consent,
-            network_log
+            network_log,
+            #[cfg(feature = "updater")]
+            update_check,
+            #[cfg(feature = "updater")]
+            update_install
         ])
         .build(tauri::generate_context!())
         .expect("the Tauri application starts");
