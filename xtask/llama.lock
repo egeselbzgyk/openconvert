@@ -7,9 +7,10 @@
 # that made one model 17x slower between consecutive builds).
 #
 # The tag and asset names are V1 §3's (github.com/ggml-org/llama.cpp/releases/tag/b10456, read
-# 2026-08-17). The digests are placeholders: this repository's Phase 9 was built where github.com
-# release assets could not be downloaded, so nobody here has hashed them. `fetch-llama-server`
-# refuses to run until they are filled. See docs/DECISIONS_LOG.md, 2026-09-23.
+# 2026-08-17). The digests and sizes are the `digest` and `size` fields GitHub's releases API
+# reports for each asset (read twice, matching, 2026-09-23). All four assets were then downloaded
+# and hashed, and each matched. Until a maintainer ratifies the pin it is provisional. See
+# docs/DECISIONS_LOG.md, 2026-09-23, "llama.cpp `b10456` digests filled, then checked by download".
 
 schema_version = 1
 repo = "ggml-org/llama.cpp"
@@ -18,23 +19,23 @@ tag = "b10456"
 [[asset]]
 target = "x86_64-unknown-linux-gnu"
 name = "llama-b10456-bin-ubuntu-x64.tar.gz"
-sha256 = "TODO_SHA256"
-size_bytes = 0
+sha256 = "d07b3f80f3a1ed1de46bfba5671b4af40a87417e1dbf35d0603ad2d623ddc577"
+size_bytes = 16645205
 
 [[asset]]
 target = "aarch64-apple-darwin"
 name = "llama-b10456-bin-macos-arm64.tar.gz"
-sha256 = "TODO_SHA256"
-size_bytes = 0
+sha256 = "5ab514e2b1c8b0276af2536ea2b58643952b6fe79c9bc83bb2e1a336b4ddeb6f"
+size_bytes = 11072436
 
 [[asset]]
 target = "x86_64-apple-darwin"
 name = "llama-b10456-bin-macos-x64.tar.gz"
-sha256 = "TODO_SHA256"
-size_bytes = 0
+sha256 = "5913d3975299438980ea932b3538954e0c99a42ceae497dfb5085677ed21f489"
+size_bytes = 11379321
 
 [[asset]]
 target = "x86_64-pc-windows-msvc"
 name = "llama-b10456-bin-win-cpu-x64.zip"
-sha256 = "TODO_SHA256"
-size_bytes = 0
+sha256 = "52ea16a7c5de7230638fbd2e90a4f78185f6c47d06d65a328e3522823fbf2a2d"
+size_bytes = 18464144

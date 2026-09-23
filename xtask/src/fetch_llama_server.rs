@@ -200,6 +200,36 @@ fn the_lock_names_the_pinned_build_for_every_shipped_target() {
 }
 
 #[test]
+fn the_shipped_lock_pins_all_four_assets_by_sha256_and_size() {
+    let lock = lock().expect("the lock parses");
+    assert_eq!(lock.assets.len(), 4, "one CPU build per shipped target");
+    for target in [
+        "x86_64-unknown-linux-gnu",
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+        "x86_64-pc-windows-msvc",
+    ] {
+        let asset = pinned(&lock, target).unwrap_or_else(|error| panic!("{target}: {error}"));
+        // `verify` compares against a lower-case hex rendering, so an upper-case pin never matches.
+        assert!(
+            asset.sha256.len() == 64
+                && asset
+                    .sha256
+                    .chars()
+                    .all(|c| matches!(c, '0'..='9' | 'a'..='f')),
+            "{} is pinned to {:?}, not a lower-case SHA-256",
+            asset.name,
+            asset.sha256
+        );
+        assert!(asset.size_bytes > 0, "{} has no size", asset.name);
+    }
+    let mut digests: Vec<&str> = lock.assets.iter().map(|a| a.sha256.as_str()).collect();
+    digests.sort_unstable();
+    digests.dedup();
+    assert_eq!(digests.len(), 4, "a digest was copied onto two assets");
+}
+
+#[test]
 fn an_unfilled_digest_is_refused_before_anything_is_fetched() {
     let lock = parse(
         r#"schema_version = 1
