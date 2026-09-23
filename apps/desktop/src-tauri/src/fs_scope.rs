@@ -46,6 +46,23 @@ impl AppDirs {
         std::fs::create_dir_all(&self.cache)
     }
 
+    /// What the cache holds: its size on disk, and how many books have a saved `structure` in it
+    /// — what Settings › Advanced says before offering to clear it (SECURITY §10).
+    pub fn cache_usage(&self) -> CacheUsage {
+        let books = std::fs::read_dir(self.cache.join("structure"))
+            .map(|entries| {
+                entries
+                    .filter_map(Result::ok)
+                    .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "json"))
+                    .count()
+            })
+            .unwrap_or_default();
+        CacheUsage {
+            bytes: size_of_tree(&self.cache),
+            books: u32::try_from(books).unwrap_or(u32::MAX),
+        }
+    }
+
     /// Where the corrections for the book whose digest is `sha256` are kept. `None` unless the
     /// digest is lowercase hex, which is the only thing that becomes part of the name.
     pub fn overrides_for(&self, sha256: &str) -> Option<PathBuf> {
@@ -55,6 +72,28 @@ impl AppDirs {
                 .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c));
         hex.then(|| self.overrides.join(format!("{sha256}.json")))
     }
+}
+
+/// The cache's size and contents, as Settings shows them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
+pub struct CacheUsage {
+    pub bytes: u64,
+    pub books: u32,
+}
+
+/// The bytes of every file under `dir`, not following links.
+fn size_of_tree(dir: &Path) -> u64 {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    entries
+        .filter_map(Result::ok)
+        .map(|entry| match entry.file_type() {
+            Ok(kind) if kind.is_dir() => size_of_tree(&entry.path()),
+            Ok(kind) if kind.is_file() => entry.metadata().map(|meta| meta.len()).unwrap_or(0),
+            _ => 0,
+        })
+        .sum()
 }
 
 /// Whether `path` is inside `dir`, after both are made canonical.
@@ -182,7 +221,10 @@ mod tests {
         let dirs = AppDirs::under(&root).expect("made");
         std::fs::create_dir_all(dirs.cache.join("structure")).expect("made");
         std::fs::write(dirs.cache.join("structure/abc.json"), "{}").expect("written");
+        std::fs::write(dirs.cache.join("structure/def.json"), "[1]").expect("written");
+        assert_eq!(dirs.cache_usage(), CacheUsage { bytes: 5, books: 2 });
         dirs.clear_cache().expect("cleared");
+        assert_eq!(dirs.cache_usage(), CacheUsage::default());
         assert!(dirs.cache.is_dir(), "the directory stays");
         assert_eq!(
             std::fs::read_dir(&dirs.cache).expect("reads").count(),

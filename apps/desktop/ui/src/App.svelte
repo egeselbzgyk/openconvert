@@ -287,6 +287,8 @@
         {hello}
         bind:section={settingsSection}
         onreport={() => void exportBundle(null, { name: "settings" })}
+        cacheUsage={() => backend.cacheUsage()}
+        onclearcache={() => backend.clearCache()}
         onsave={(next) => {
           settings = next;
           void backend.saveSettings(next);

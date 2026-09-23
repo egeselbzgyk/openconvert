@@ -335,5 +335,15 @@
  "result.appliedAuthors.one": "1 Autor·in",
  "result.appliedAuthors.other": "{n} Autor·innen",
  "result.appliedHeadings.one": "1 Überschrift",
- "result.appliedHeadings.other": "{n} Überschriften"
+ "result.appliedHeadings.other": "{n} Überschriften",
+ "settings.advanced.cache": "Cache",
+ "settings.advanced.cacheHelp.one": "{size} für 1 Buch. Er enthält Text aus Ihren Dokumenten, damit Neuerstellungen Sekunden dauern.",
+ "settings.advanced.cacheHelp.other": "{size} für {n} Bücher. Er enthält Text aus Ihren Dokumenten, damit Neuerstellungen Sekunden dauern.",
+ "settings.advanced.cacheEmpty": "Leer. Solange die App geöffnet ist, enthält er Text aus den umgewandelten Büchern, damit Neuerstellungen Sekunden dauern; er wird bei jedem Start geleert.",
+ "settings.advanced.clear": "Cache leeren…",
+ "settings.cache.title": "Den Cache leeren?",
+ "settings.cache.body.one": "Der Cache enthält Text aus den umgewandelten Dokumenten ({size}, 1 Buch). Leeren löscht diesen Text von diesem Computer.",
+ "settings.cache.body.other": "Der Cache enthält Text aus den umgewandelten Dokumenten ({size}, {n} Bücher). Leeren löscht diesen Text von diesem Computer.",
+ "settings.cache.small": "Ihre EPUB-Dateien bleiben unberührt. Danach liest „Korrigieren und neu erstellen“ die PDF erneut, was beim ersten Mal länger dauert.",
+ "settings.cache.confirm": "Cache leeren"
 }

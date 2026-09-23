@@ -83,6 +83,12 @@ export interface CorrectionPatch {
   toc: TocPatch[];
 }
 
+/** What the engine's cache holds (Settings › Advanced). */
+export interface CacheUsage {
+  bytes: number;
+  books: number;
+}
+
 export interface Enqueued {
   jobs: string[];
   skipped: string[];
@@ -125,6 +131,9 @@ export interface Backend {
    * them, replacing its EPUB. The row is replaced by the new job, whose id is returned.
    */
   saveOverrides(job: string, patch: CorrectionPatch): Promise<string>;
+  cacheUsage(): Promise<CacheUsage>;
+  /** Delete the cached text of every converted book; EPUBs and corrections stay. */
+  clearCache(): Promise<void>;
   onLine(handler: (job: string, line: string) => void): Promise<Unlisten>;
   onJobChanged(handler: (view: JobView) => void): Promise<Unlisten>;
   onDragDrop(handler: (event: DropEvent) => void): Promise<Unlisten>;
@@ -152,6 +161,8 @@ export function tauriBackend(): Backend {
     remove: (job) => invoke<void>("remove", { job }),
     unlock: (job, password) => invoke<string>("unlock", { job, password }),
     saveOverrides: (job, patch) => invoke<string>("save_overrides", { job, patch }),
+    cacheUsage: () => invoke<CacheUsage>("cache_usage"),
+    clearCache: () => invoke<void>("clear_cache"),
     onLine: (handler) =>
       listen<{ job: string; line: string }>("engine-line", (event) =>
         handler(event.payload.job, event.payload.line),

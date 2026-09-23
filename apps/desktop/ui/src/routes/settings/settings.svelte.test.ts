@@ -87,4 +87,26 @@ describe("settings route", () => {
     expect(document.querySelector('[role="dialog"] .oc-license')?.textContent).toContain("Lucide");
     expect(document.activeElement?.textContent).toBe("Close");
   });
+
+  it("the cache says what it holds, and clearing it asks once and deletes it", async () => {
+    const backend = await openSettings();
+    nav("Advanced")?.click();
+    await settle();
+    flushSync();
+    const body = () => document.querySelector(".oc-settings__body")?.textContent ?? "";
+    expect(body()).toContain("312 MB for 14 books. It holds text from your documents so rebuilds take seconds.");
+
+    button("Clear cache…")?.click();
+    flushSync();
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog?.textContent).toContain("Clear the cache?");
+    expect(dialog?.textContent).toContain("(312 MB, 14 books)");
+    expect(document.activeElement?.textContent, "opens on the safe button").toBe("Cancel");
+    [...(dialog?.querySelectorAll("button") ?? [])].find((b) => b.textContent === "Clear cache")?.click();
+    await settle();
+    flushSync();
+    expect(backend.calls).toContainEqual(["clearCache", null]);
+    expect(body()).toContain("Empty.");
+    expect(button("Clear cache…")?.disabled, "nothing left to clear").toBe(true);
+  });
 });

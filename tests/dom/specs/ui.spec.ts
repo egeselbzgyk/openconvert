@@ -105,6 +105,12 @@ const SCREENS: Record<string, (page: Page) => Promise<void>> = {
     await page.getByRole("button", { name: EN["settings.title"] }).click();
     await expect(page.locator(".oc-header__title")).toHaveText(EN["settings.title"]!);
   },
+  // The one settings section with live controls of every kind: numbers, units, a danger button.
+  "settings-advanced": async (page) => {
+    await SCREENS.settings!(page);
+    await page.locator(".oc-nav__item", { hasText: EN["settings.nav.advanced"] }).click();
+    await expect(page.getByRole("button", { name: EN["settings.advanced.clear"] })).toBeVisible();
+  },
 };
 
 /** 12.14 — tab to the drop zone → open a file → convert → open the report, no mouse. */

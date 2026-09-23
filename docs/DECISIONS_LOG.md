@@ -3753,3 +3753,20 @@ Evidence: `editor.svelte.test.ts` (3), `a_second_correction_keeps_the_first`,
 `a_rebuild_replaces_the_row_with_the_corrections_named`, `the_engine_is_told_where_the_cache_is`,
 `the_cache_is_cleared_and_corrections_are_kept_by_digest`.
 Affects: result.html §2–3 (design decision 6: a small overturn, recorded here), UI_UX §2.3.
+
+## 2026-09-23 · Settings › Advanced offers only what the engine honours · Phase 12
+Context: UI_UX §2.4 and settings.html list, under Advanced, thread count, max pages, max memory,
+Clear cache, Dump stages, a document-language override and a one-job PDF password; UI_UX §2.4 also
+names a `fast|balanced|thorough` quality preset. The v1 job spec (`schemas/job-spec.v1.json`) has
+no thread, document-language or quality field, and the engine refuses `dump_stages` by name.
+Decision: Advanced shows max pages and max memory (→ the spec's `limits`, defaults from
+`thresholds.toml`) and the cache (size and book count, "Clear cache…" behind one confirmation,
+SECURITY §10). Omitted, each because a control the engine cannot act on would be a fake one: the
+thread count, Dump stages and the document-language override (no spec field / refused field — a
+spec change is the maintainer's call), the quality preset (no overlays in `thresholds.toml` yet),
+and the one-job password field (the locked row's inline prompt already delivers D13.11's one-job
+password, through the environment). The first-run card and route are hidden until `ModelReadiness`
+exists (Phase 9, part B).
+Evidence: `settings.svelte.test.ts` (4), `the_cache_is_cleared_and_corrections_are_kept_by_digest`,
+`axe_has_no_serious_violations` (settings and its Advanced section).
+Affects: UI_UX §2.4, settings.html §Advanced, Phase 12 part B.

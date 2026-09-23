@@ -335,5 +335,15 @@
  "result.appliedAuthors.one": "1 yazar",
  "result.appliedAuthors.other": "{n} yazar",
  "result.appliedHeadings.one": "1 başlık",
- "result.appliedHeadings.other": "{n} başlık"
+ "result.appliedHeadings.other": "{n} başlık",
+ "settings.advanced.cache": "Önbellek",
+ "settings.advanced.cacheHelp.one": "1 kitap için {size}. Yeniden oluşturmalar saniyeler sürsün diye belgelerinizden metin tutar.",
+ "settings.advanced.cacheHelp.other": "{n} kitap için {size}. Yeniden oluşturmalar saniyeler sürsün diye belgelerinizden metin tutar.",
+ "settings.advanced.cacheEmpty": "Boş. Uygulama açıkken dönüştürdüğünüz kitaplardan metin tutar, böylece yeniden oluşturmalar saniyeler sürer; her başlangıçta boşaltılır.",
+ "settings.advanced.clear": "Önbelleği temizle…",
+ "settings.cache.title": "Önbellek temizlensin mi?",
+ "settings.cache.body.one": "Önbellek dönüştürdüğünüz belgelerden metin tutar ({size}, 1 kitap). Temizlemek bu metni bu bilgisayardan siler.",
+ "settings.cache.body.other": "Önbellek dönüştürdüğünüz belgelerden metin tutar ({size}, {n} kitap). Temizlemek bu metni bu bilgisayardan siler.",
+ "settings.cache.small": "EPUB dosyalarınıza dokunulmaz. Sonrasında Düzelt ve yeniden oluştur PDF'yi yeniden okur; bu ilk seferde daha uzun sürer.",
+ "settings.cache.confirm": "Önbelleği temizle"
 }

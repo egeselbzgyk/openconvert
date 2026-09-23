@@ -9,10 +9,10 @@
   import NumberWithUnit from "../../components/NumberWithUnit.svelte";
   import RadioGroup from "../../components/RadioGroup.svelte";
   import Toggle from "../../components/Toggle.svelte";
-  import type { Preset, Settings, UiConfig } from "../../lib/backend";
+  import type { CacheUsage, Preset, Settings, UiConfig } from "../../lib/backend";
   import type { Hello } from "../../lib/events";
   import { detectLocale, LOCALES, type Locale } from "../../lib/i18n";
-  import { setLanguage, t } from "../../lib/locale.svelte";
+  import { i18n, setLanguage, t, tn } from "../../lib/locale.svelte";
   import { tesseractCommand } from "../../lib/ocr";
   import notices from "../../../THIRD-PARTY-NOTICES.txt?raw";
 
@@ -25,6 +25,8 @@
     section = $bindable("ai"),
     onsave,
     onreport = null,
+    cacheUsage = null,
+    onclearcache = null,
   }: {
     settings: Settings;
     config: UiConfig;
@@ -32,12 +34,17 @@
     section?: Section;
     onsave: (next: Settings) => void;
     onreport?: (() => void) | null;
+    /** What the engine's cache holds, asked for when Advanced opens. */
+    cacheUsage?: (() => Promise<CacheUsage>) | null;
+    onclearcache?: (() => Promise<void>) | null;
   } = $props();
 
   const SECTIONS: Section[] = ["ai", "models", "provider", "presets", "advanced", "packs", "language", "network", "about"];
   const PRESETS: Preset[] = ["auto", "novel", "academic", "textbook", "poetry", "scanned"];
   /** Bytes per GB as the Advanced field counts them (a unit, not a tunable). */
   const GIB = 1024 * 1024 * 1024;
+  /** Bytes per MB as the cache size is written (a unit, not a tunable). */
+  const MB = 1024 * 1024;
 
   let licenses = $state(false);
   const aiHelp = `oc-ai-help`;
@@ -45,6 +52,26 @@
   /** Each language named in itself (design, Settings › Language). */
   const OWN_NAME: Record<Locale, string> = { en: "English", de: "Deutsch", tr: "Türkçe" };
   const command = $derived(tesseractCommand(config.os));
+
+  let usage = $state<CacheUsage | null>(null);
+  let clearing = $state(false);
+  $effect(() => {
+    if (section === "advanced" && cacheUsage !== null) void cacheUsage().then((found) => (usage = found));
+  });
+  const cacheSize = $derived(
+    usage === null
+      ? ""
+      : new Intl.NumberFormat(i18n.locale, { style: "unit", unit: "megabyte", maximumFractionDigits: 1 }).format(
+          usage.bytes / MB,
+        ),
+  );
+
+  async function clearCache() {
+    clearing = false;
+    if (onclearcache === null) return;
+    await onclearcache();
+    if (cacheUsage !== null) usage = await cacheUsage();
+  }
 
   function save(change: Partial<Settings>) {
     onsave({ ...settings, ...change });
@@ -145,6 +172,17 @@
           onchange={(value) => save({ maxMemoryBytes: value * GIB === config.maxMemoryBytes ? null : value * GIB })}
         />
       </div>
+      {#if cacheUsage !== null}
+        <div class="oc-setting">
+          <div class="oc-setting__text">
+            <div class="oc-setting__label">{t("settings.advanced.cache")}</div>
+            <div class="oc-setting__help">
+              {#if usage !== null && usage.books > 0}{tn("settings.advanced.cacheHelp", usage.books, { size: cacheSize })}{:else}{t("settings.advanced.cacheEmpty")}{/if}
+            </div>
+          </div>
+          <button class="oc-btn oc-btn--danger oc-btn--sm" disabled={usage === null || usage.bytes === 0} onclick={() => (clearing = true)}>{t("settings.advanced.clear")}</button>
+        </div>
+      {/if}
     {:else if section === "packs"}
       <div class="oc-model oc-model--unavailable">
         <div class="oc-model__head">
@@ -220,6 +258,19 @@
   </div>
 </main>
 
+{#if clearing && usage !== null}
+  <!-- Clearing asks once (design decision 14): it deletes text, which cannot be undone. -->
+  <Dialog
+    title={t("settings.cache.title")}
+    confirm={t("settings.cache.confirm")}
+    danger
+    oncancel={() => (clearing = false)}
+    onconfirm={() => void clearCache()}
+  >
+    <p>{tn("settings.cache.body", usage.books, { size: cacheSize })}</p>
+    <p class="oc-dialog__small">{t("settings.cache.small")}</p>
+  </Dialog>
+{/if}
 {#if licenses}
   <Dialog title={t("settings.about.licensesTitle")} confirm={t("dialog.close")} cancel={null} oncancel={() => (licenses = false)} onconfirm={() => (licenses = false)} wide>
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->

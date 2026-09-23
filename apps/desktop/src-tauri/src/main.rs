@@ -26,7 +26,7 @@ use openconvert_desktop::diagnostics::{self, Bundle};
 use openconvert_desktop::engine::{
     handshake, sidecar_path, Engine, Hello, ProcessLauncher, UiError,
 };
-use openconvert_desktop::fs_scope::{partition_drop, AppDirs};
+use openconvert_desktop::fs_scope::{partition_drop, AppDirs, CacheUsage};
 use openconvert_desktop::jobqueue::{JobQueue, JobView, QueueSink, Rebuild};
 use openconvert_desktop::preview::{self, PreviewIndex};
 use openconvert_desktop::settings::{self, Settings};
@@ -163,6 +163,19 @@ fn save_overrides(
             },
         )
     })
+}
+
+/// Settings › Advanced: what the cache holds (SECURITY §10: disclosed, not hidden).
+#[tauri::command]
+fn cache_usage(dirs: tauri::State<'_, AppDirs>) -> CacheUsage {
+    dirs.cache_usage()
+}
+
+/// Settings › Advanced › "Clear cache…": delete the saved text of every converted book. EPUBs and
+/// corrections are not touched; a later "Fix and rebuild" reads the PDF again.
+#[tauri::command]
+fn clear_cache(dirs: tauri::State<'_, AppDirs>) -> Result<(), UiError> {
+    dirs.clear_cache().map_err(UiError::from)
 }
 
 #[tauri::command]
@@ -450,6 +463,8 @@ fn main() {
             pick_pdfs,
             unlock,
             save_overrides,
+            cache_usage,
+            clear_cache,
             cancel,
             remove,
             queue_rows,

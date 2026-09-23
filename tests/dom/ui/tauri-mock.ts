@@ -106,6 +106,9 @@ export function installTauriMock(fixture: MockFixture): void {
       if (index >= 0) jobs.splice(index, 1);
       return null;
     },
+    // Something to clear, so the danger button is drawn enabled and its contrast is checked.
+    cache_usage: () => ({ bytes: 5 * 1024 * 1024, books: 2 }),
+    clear_cache: () => null,
     quit: () => null,
   };
 

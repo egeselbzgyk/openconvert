@@ -6,6 +6,7 @@
 import type {
   Backend,
   Bundle,
+  CacheUsage,
   CorrectionPatch,
   DropEvent,
   Enqueued,
@@ -162,6 +163,14 @@ export class FakeBackend implements Backend {
       this.views = [...this.views, { ...old, id, rebuild: true, unlocked: false, state: "running" }];
     }
     return id;
+  }
+  cache: CacheUsage = { bytes: 312 * 1024 * 1024, books: 14 };
+  async cacheUsage(): Promise<CacheUsage> {
+    return this.cache;
+  }
+  async clearCache(): Promise<void> {
+    this.calls.push(["clearCache", null]);
+    this.cache = { bytes: 0, books: 0 };
   }
   async onLine(handler: (job: string, line: string) => void) {
     this.lines.push(handler);

@@ -211,7 +211,7 @@ Work items, in order, with the plan's test rows against each:
       `QueueRow`/`StageList`/`ProgressBar`/`Spinner`/`BlockingError`. The UI's numbers arrive
       from `thresholds.toml` through the `ui_config` command; component tests drive `App` through
       `test/fake-backend.ts`
-- [x] **P12.8** the screens, in seven commits:
+- [x] **P12.8** the screens, in eight commits:
   - [x] **P12.8a** route `queue`: DropZone (full, strip, drag-over all-PDF / mixed, "Select PDF…"
         through the native picker — `pick_pdfs`, `tauri-plugin-dialog` called from Rust only),
         PrivacyNote, QueueList (roving tabindex, ↑/↓/Home/End, Delete), "Remove all waiting…"
@@ -254,6 +254,9 @@ Work items, in order, with the plan's test rows against each:
         (`OC_PDF_PASSWORD`) — never in the spec, on the command line or on disk; a second failure
         says the password did not open it. The engine's job-spec form reads the password from
         `password_file` or that variable (+ 1 engine, 2 Rust, 1 UI test)
+  - [x] **P12.8h** Settings › Advanced › Cache (after P12.9): size and book count of the engine's
+        cache (`cache_usage`), "Clear cache…" behind one confirmation (`clear_cache`); what
+        Advanced omits and why is in `docs/DECISIONS_LOG.md` (+ 1 UI test, Rust test extended)
 - [x] **P12.9** metadata and TOC overrides — rows 12.10, 12.11, A12.4, A12.4b, in three commits:
   - [x] **P12.9a** the engine applies `overrides.json`: `oc_model::overrides` (`Overrides`,
         `ir_version` first, refused when stale / for another PDF / with block entries — row

@@ -335,5 +335,15 @@
  "result.appliedAuthors.one": "1 author",
  "result.appliedAuthors.other": "{n} authors",
  "result.appliedHeadings.one": "1 heading",
- "result.appliedHeadings.other": "{n} headings"
+ "result.appliedHeadings.other": "{n} headings",
+ "settings.advanced.cache": "Cache",
+ "settings.advanced.cacheHelp.one": "{size} for 1 book. It holds text from your documents so rebuilds take seconds.",
+ "settings.advanced.cacheHelp.other": "{size} for {n} books. It holds text from your documents so rebuilds take seconds.",
+ "settings.advanced.cacheEmpty": "Empty. While the app is open it holds text from the books you convert, so rebuilds take seconds; it is emptied at every start.",
+ "settings.advanced.clear": "Clear cache…",
+ "settings.cache.title": "Clear the cache?",
+ "settings.cache.body.one": "The cache holds text from the documents you converted ({size}, 1 book). Clearing it deletes that text from this computer.",
+ "settings.cache.body.other": "The cache holds text from the documents you converted ({size}, {n} books). Clearing it deletes that text from this computer.",
+ "settings.cache.small": "Your EPUB files are not touched. Afterwards, Fix and rebuild re-reads the PDF, which takes longer the first time.",
+ "settings.cache.confirm": "Clear cache"
 }
