@@ -1154,6 +1154,34 @@ evidence = "D9 G8: >= 95% on 100-item DE and TR flat-enum probes"
 owner = "maintainer"
 review_by = "2027-06-30"
 
+# ---------- AI evaluation (PHASE 10 detail 7, R9 C.7/C.8) ----------
+[ai_eval.alpha]
+value = 0.05
+source = "provisional"
+evidence = "PHASE 10 detail 7: the one-sided level of the non-inferiority test of deterministic+LLM against deterministic-only, per task and language. The conventional 0.05, as model_gate.g7_alpha; not chosen by power analysis"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ai_eval.noninferiority_margin]
+value = 0.02
+source = "provisional"
+evidence = "PHASE 10 detail 7: how much paired accuracy a task may lose and still count as non-inferior. As model_gate.g7_noninferiority_margin; invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ai_eval.false_repair_max]
+value = 0.01
+source = "provisional"
+evidence = "PHASE 10 detail 7 / RT C4 / R9 C.8: a task ships enabled-by-opt-in only if its false-repair rate - assertions the deterministic path passed and the LLM path failed, over all assertions - is at most 1 % in every assertion category, per language. RT C4's target"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[ai_eval.exact_below]
+value = 25
+source = "published"
+evidence = "PHASE 10 detail 7 / R9 C.7: McNemar's chi-square (b-c)^2/(b+c) is used when b+c >= 25, and the exact binomial form below it, the usual rule for when the chi-square approximation is adequate"
+owner = "maintainer"
+
 # ---------- calibration / golden-decision promotion (D17, TEST_STRATEGY §7) ----------
 [calibration.min_gold_instances_per_task]
 value = 200

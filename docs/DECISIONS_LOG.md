@@ -3993,3 +3993,30 @@ Decisions:
 Evidence: `crates/openconvert/tests/ai_cli.rs` (rows 10.16, 10.19 and two more);
 `ai_endpoint::only_this_machine_is_loopback`.
 Affects: IMPLEMENTATION_PLAN §2.1, D10, Phase 11, `openconvert::{ai_endpoint, data_dir}`, `cmd_convert`.
+
+## 2026-09-23 · The AI evaluation: what is built, what is seeded, what cannot run here · Phase 10
+Context: PHASE 10 detail 7 and rows 10.17/10.18 — run the corpus twice per task, tabulate the paired
+2×2 per assertion category and language, McNemar (χ², exact below 25), the false-repair rate
+`c / n` per category, and gate every enabled task at ≤ 1 %. No model is reachable here and the
+corpus is not downloaded.
+Decisions:
+1. **`eval/src/oc_eval/compare/`** holds the statistics (`mcnemar`, reusing G7's exact test and
+   non-inferiority), the table and gate (`false_repair`), the gold format (`gold`), the scoring of
+   gold items against both paths' answers (`score`) and the document (`render`).
+   `python -m oc_eval.compare --render | --check | --gate`; CI's eval job runs `--check` and `--gate`.
+2. **Standard library, not scipy**, for both McNemar forms (`math.comb`, `math.erfc`), as Phase 9's
+   G7 did: the plan names scipy, and it stays a declared dependency, but an untyped import would cost
+   the mypy gate for two closed-form functions.
+3. **The assertion category is the gold item's `category`** — the metadata field, the heading role,
+   the zone, the block kind. Phase 7's `.assert.json` vocabulary has no per-task AI categories; a
+   gold item is one assertion.
+4. **The four gold sets are seeds read off the Typst fixtures' sources** (`ours(typst)`, 47 items).
+   They fix the format; D18 forbids fitting or deciding on `ours(*)` alone, and the document shows
+   each set against `calibration.min_gold_instances_per_task` (200).
+5. **With nothing enabled, row 10.18's gate passes vacuously and says so**; an enabled task with no
+   outcomes fails ("a gate that did not run is never a pass", Phase 9). `docs/AI_EVALUATION.md`
+   records that no evaluation has run. **Unverified here:** A10.4 and A10.5 — every measured number.
+6. `oc_eval.model_gate.fixtures` now picks each task's **seed** cassette by its index name
+   (`<task>__a3__v1`): Phase 10 recorded more cassettes beside the seeds, and the loader assumed one.
+Evidence: `eval/tests/test_ai_evaluation.py` (rows 10.17, 10.18 and four more).
+Affects: PHASE 10 detail 7, D18, `thresholds.toml` (`ai_eval.*`), CI's eval job, `docs/AI_EVALUATION.md`.

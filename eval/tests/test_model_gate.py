@@ -306,12 +306,9 @@ def test_prompt_fixtures_are_committed_and_four_are_the_renderers_own() -> None:
 
 
 def test_semantic_assertions_accept_the_worked_answers_and_refuse_wrong_ones() -> None:
-    cassettes = REPO_ROOT / "crates" / "oc-ai" / "tests" / "cassettes"
     loaded = fixtures.load()
     for fixture in loaded[:4]:
-        [path] = [
-            p for p in (cassettes / fixture["purpose"]).glob("*.json") if p.name != "index.json"
-        ]
+        path = fixtures.seed_cassette(fixture["purpose"])
         answer = json.loads(path.read_text(encoding="utf-8"))["response"]["content"]
         assert gates.semantic_ok(fixture, answer), fixture["id"]
     metadata, roles, structure, verse = loaded[:4]
