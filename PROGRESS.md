@@ -1566,6 +1566,7 @@ that claim should not be testable only in a nightly job.
 
 Carried forward, in the order a fresh session needs them:
 
+- **CI (2026-09-23).** The repository is public, and `ci.yml` runs on pushes to `main` only (`docs/DECISIONS_LOG.md`, "CI runs on pushes to main only"). Branches are not built by CI: run the gates locally before merging. Every DoD row above that says "unverified here: GitHub Actions is disabled" stays open until the first `main` run after the maintainer re-enabled the `ci` workflow; that run's result is the evidence, not these tables.
 - **`furniture` recovers no folio from a book that changes numbering system.** `f09` paginates
   `i, ii` then `1, 2, 3`; digit masking puts the three arabic folios in one group covering 3 of 5
   pages, a repetition ratio of 0.6, inside the grey zone where the detector abstains. The folios
