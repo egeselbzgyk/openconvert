@@ -3777,3 +3777,17 @@ file from it would be a claim about a machine D9 does not recognise. `docs/MODEL
 and Qwen3-1.7B stays the default. Nothing promotes Qwen3.5-2B.
 Evidence: `eval/tests/test_model_gate.py` (19 tests), `docs/MODEL_GATE.md`.
 Affects: D9, RT C3, PHASE 9 rows 9.17, 9.20, detail 9, `thresholds.toml` (`model_gate.*`).
+
+## 2026-09-23 · The desktop app's own server (`llm.rs`) moves to Phase 12 · Phase 9
+Context: PHASE 9's file list includes `apps/desktop/src-tauri/src/llm.rs`, the app-owned,
+long-lived `llama-server` that loads a model once per batch (detail 3). The desktop app is a
+21-line hello-Tauri today. Phase 12 (Desktop UI) is being built at the same time on its own branch
+(`phase/12-desktop-ui`), which rewrites the app's `main.rs`, manifest and process model.
+**PROVISIONAL — needs maintainer ratification:** `llm.rs` is not written in Phase 9. Everything it
+needs exists and is tested: `OwnedServer`, `supervise`, `LlmEndpoint::choose`,
+`oc_net::loopback::free_port`, `HttpTransport`. Adding it to the app here would edit the files the
+concurrent Phase 12 branch is rewriting, for code nothing can exercise until the app's model
+manager exists. Phase 12 wires it, with the engine receiving the app's server through
+`--llm-endpoint` and `--llm-api-key-file`. Those two `convert` flags arrive with Phase 10's use of
+a model, not before, because a flag that does nothing is worse than no flag.
+Affects: PHASE 9 detail 3, Phase 10 (CLI flags), Phase 12 (`apps/desktop/src-tauri/src/llm.rs`).
