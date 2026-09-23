@@ -43,7 +43,9 @@
     "resources": {
       "../../../models.toml": "models.toml",
       "../../../thresholds.toml": "thresholds.toml",
-      "bin/licenses/": "licenses/"
+      "bin/licenses/": "licenses/",
+      "../../../NOTICE": "NOTICE",
+      "../../../licenses/third-party-rust.txt": "licenses/third-party-rust.txt"
     },
     "licenseFile": "../../../LICENSE",
     "icon": [

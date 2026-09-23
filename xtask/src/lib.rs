@@ -12,6 +12,7 @@ pub mod fetch_llama_server;
 pub mod fixtures;
 pub mod handmade_fixtures;
 pub mod mutations;
+pub mod notices;
 pub mod release;
 pub mod repro;
 pub mod sbom;

@@ -160,8 +160,10 @@ Work items, in order, with the plan's test rows against each:
       provisional), the verified-update banner with "Install and restart" / "Later", failures
       localised in EN/DE/TR, the row absent without the `updater` feature (`UiConfig.updater`); the
       Network log names the update check — 3 UI tests, `the_ui_is_told_whether_this_build_has_an_updater`
-- [ ] **P15.14** Rust third-party notices (`xtask notices`, committed, checked up to date) and the root
-      `NOTICE`
+- [x] **P15.14** `xtask notices [--check]` → `licenses/third-party-rust.txt` (601 crates, 351 texts,
+      1.0 MB, every shipped target, no dev-deps), the root `NOTICE`, both bundled as resources (and in
+      the Flatpak) — `the_rust_notices_are_up_to_date`, `every_shipped_crate_and_only_those_has_a_licence_text`.
+      After any dependency change: `cargo run -p xtask -- notices` and commit the file
 - [ ] **P15.15** `docs/CHANGELOG.md` `## [1.0.0]` draft with a marked placeholder for Phase 14's
       security claims, which the release job refuses while it is there
 - [ ] **P15.16** row 15.19's scripted half: `packaging/smoke/fresh-install.{sh,ps1}`
@@ -202,7 +204,8 @@ clean. The `release-artifacts` gates that could run here: 15.7 + layout green, 1
    `bad_signature`, `too_large`, `no_platform`, `bad_manifest`, `network`) localised in EN/DE/TR; a
    Vitest test; hidden when the build has no `updater` feature (the Flatpak). INSTALL.md and
    RELEASE_CHECKLIST.md already describe it.
-6. **Rust third-party notices**: `apps/desktop/ui/THIRD-PARTY-NOTICES.txt` says the Rust side's
+6. ~~**Rust third-party notices**~~ — done in P15.14 (the AppImage layout test now also expects
+   `licenses/third-party-rust.txt` and `NOTICE`; re-run it with the next AppImage build): `apps/desktop/ui/THIRD-PARTY-NOTICES.txt` says the Rust side's
    notices "are generated at packaging time (Phase 15)" — not done in part A. Generate them from the
    shipped crates' licence files (e.g. an `xtask notices` over `cargo metadata`, or cargo-about if its
    licence passes `deny.tools.toml`) into `bin/licenses/` so they ride in every bundle; also the root

@@ -5194,3 +5194,32 @@ the feature).
 Affects: `apps/desktop/ui/src/{routes/settings/Settings.svelte,lib/backend.ts,test/fake-backend.ts}`,
 `apps/desktop/ui/locales/*.json`, `apps/desktop/src-tauri/src/config.rs`, `tests/dom/{specs/ui.spec.ts,
 ui/tauri-mock.ts}`.
+
+## 2026-09-23 · Third-party notices for the Rust side, and the root NOTICE · Phase 15 (part B, P15.14)
+Context: `apps/desktop/ui/THIRD-PARTY-NOTICES.txt` promised that the Rust side's notices "are generated
+at packaging time (Phase 15)", and LICENSE_AND_DEPENDENCIES §5 names a root `NOTICE` crediting PdfPig;
+neither existed. MIT, BSD, Zlib and Apache-2.0 all require the notice to travel with a binary.
+Decision: a hand-rolled `xtask notices` over `cargo metadata` rather than `cargo-about`: nothing new
+enters even the tooling graph, and what it does is small enough to read. It walks every crate
+reachable from `openconvert` and `openconvert-desktop` (default features) through normal and build
+dependencies **for every target** — one file for all installers — never a dev-dependency or
+OpenConvert's own crates; takes every `LICENSE*`/`LICENCE*`/`COPYING*`/`NOTICE*`/`COPYRIGHT*` file each
+published crate carries (CRLF and trailing space normalised); and for the 46 crates that publish no
+licence file, writes the crate's authors as the copyright line over the standard text of the first of
+its alternatives in MIT, Apache-2.0, BSD-3-Clause, Zlib, MPL-2.0 (a crate whose licence has no text
+here fails the task). Crates sorted by name and version, identical texts printed once and referred to
+by number: 601 crates, 351 texts, 1.0 MB, committed as `licenses/third-party-rust.txt` and bundled
+beside PDFium's and llama.cpp's licences (`licenses/` in the resource directory; the Flatpak installs
+it too). `the_rust_notices_are_up_to_date` regenerates it on every test run on every OS, so a
+dependency change without its notices fails CI. The root `NOTICE` credits PdfPig for the algorithms and
+parameters `oc-layout` follows (no PdfPig code is linked) and lists what binary distributions carry;
+it is bundled as `NOTICE`. **PROVISIONAL — needs maintainer ratification**: the wording of the PdfPig
+credit (the repository implements the published algorithms and borrows parameters; "ported", the
+word §5 uses, would overstate it), and whether the 1 MB file should also be shown in the app's
+Licenses dialog (today the dialog shows the UI's notices and the file ships in the bundle).
+Evidence: `the_rust_notices_are_up_to_date` (RED before the file existed),
+`every_shipped_crate_and_only_those_has_a_licence_text`, `the_bundle_layout_is_the_same_on_every_os`
+(the two new resources), `flatpak_manifest_has_no_network_finish_arg`.
+Affects: `xtask/src/notices.rs`, `licenses/third-party-rust.txt`, `NOTICE`,
+`apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/ui/THIRD-PARTY-NOTICES.txt`,
+`packaging/linux/flatpak/io.openconvert.OpenConvert.yml`.

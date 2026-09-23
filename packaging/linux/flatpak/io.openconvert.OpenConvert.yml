@@ -83,6 +83,8 @@ modules:
       - install -Dm644 models.toml /app/lib/OpenConvert/models.toml
       - install -Dm644 thresholds.toml /app/lib/OpenConvert/thresholds.toml
       - install -Dm644 LICENSE /app/share/licenses/io.openconvert.OpenConvert/LICENSE
+      - install -Dm644 NOTICE /app/lib/OpenConvert/NOTICE
+      - install -Dm644 licenses/third-party-rust.txt /app/lib/OpenConvert/licenses/third-party-rust.txt
       - install -Dm644 packaging/linux/openconvert.desktop /app/share/applications/io.openconvert.OpenConvert.desktop
       - install -Dm644 packaging/linux/io.openconvert.OpenConvert.metainfo.xml /app/share/metainfo/io.openconvert.OpenConvert.metainfo.xml
       - install -Dm644 apps/desktop/src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/io.openconvert.OpenConvert.png

@@ -174,6 +174,11 @@ fn the_bundle_layout_is_the_same_on_every_os() {
             ("../../../models.toml", "models.toml"),
             ("../../../thresholds.toml", "thresholds.toml"),
             ("bin/licenses/", "licenses/"),
+            ("../../../NOTICE", "NOTICE"),
+            (
+                "../../../licenses/third-party-rust.txt",
+                "licenses/third-party-rust.txt",
+            ),
         ] {
             assert_eq!(
                 resources.get(source).and_then(|v| v.as_str()),
@@ -684,6 +689,8 @@ fn appimage_carries_the_bundle_layout() {
         "usr/lib/OpenConvert/thresholds.toml",
         "usr/lib/OpenConvert/licenses/pdfium.LICENSE.txt",
         "usr/lib/OpenConvert/licenses/llama.cpp.LICENSE.txt",
+        "usr/lib/OpenConvert/licenses/third-party-rust.txt",
+        "usr/lib/OpenConvert/NOTICE",
     ] {
         assert!(root.join(file).exists(), "{file} is in the AppImage");
     }
@@ -1632,4 +1639,70 @@ fn every_release_gate_row_is_a_named_release_step() {
     // Windows is unsigned in v1 and the release says so (D12), rather than half-signing it.
     assert!(!text.contains("signtool"));
     assert!(text.contains("not code-signed"));
+}
+
+/// PHASE 15 part B: the Rust side's licence notices ship in every bundle and are regenerated from
+/// `Cargo.lock`, so a dependency added without its notice fails here, on every platform.
+#[test]
+fn the_rust_notices_are_up_to_date() {
+    use xtask::notices::{collect, metadata, render, NOTICES_FILE};
+
+    let root = workspace_root();
+    let expected = render(&collect(&root, &metadata(&root).expect("metadata")).expect("notices"));
+    let committed = std::fs::read_to_string(root.join(NOTICES_FILE)).unwrap_or_default();
+    assert!(
+        committed == expected,
+        "{NOTICES_FILE} does not match Cargo.lock; run `cargo run -p xtask -- notices`"
+    );
+}
+
+/// Every crate that ships is in the notices with at least one licence text; nothing that does not
+/// ship is (a dev-dependency, the tooling, OpenConvert's own crates).
+#[test]
+fn every_shipped_crate_and_only_those_has_a_licence_text() {
+    use xtask::notices::{chosen_license, collect, metadata};
+
+    let root = workspace_root();
+    let crates = collect(&root, &metadata(&root).expect("metadata")).expect("notices");
+    let names: BTreeSet<&str> = crates.iter().map(|c| c.name.as_str()).collect();
+    for shipped in [
+        "serde",
+        "tauri",
+        "pdfium-render",
+        "quick-xml",
+        "zip",
+        "ureq",
+        "minisign-verify",
+    ] {
+        assert!(names.contains(shipped), "{shipped} ships");
+    }
+    for not_shipped in [
+        "insta",
+        "proptest",
+        "minisign",
+        "typst",
+        "jsonschema",
+        "oc-core",
+        "openconvert",
+    ] {
+        assert!(!names.contains(not_shipped), "{not_shipped} does not ship");
+    }
+    for notice in &crates {
+        assert!(
+            !notice.texts.is_empty() && notice.texts.iter().all(|t| !t.trim().is_empty()),
+            "{} {} has no licence text",
+            notice.name,
+            notice.version
+        );
+    }
+
+    assert_eq!(chosen_license("MIT OR Apache-2.0"), Some("MIT"));
+    assert_eq!(chosen_license("MIT/Apache-2.0"), Some("MIT"));
+    assert_eq!(chosen_license("Zlib OR Apache-2.0 OR MIT"), Some("MIT"));
+    assert_eq!(
+        chosen_license("(Apache-2.0 OR MIT) AND BSD-3-Clause"),
+        Some("MIT")
+    );
+    assert_eq!(chosen_license("MPL-2.0"), Some("MPL-2.0"));
+    assert_eq!(chosen_license("Unlicense"), None);
 }

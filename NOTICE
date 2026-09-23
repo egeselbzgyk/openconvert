@@ -1,0 +1,17 @@
+OpenConvert
+Copyright 2026 OpenConvert contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product includes work derived from PdfPig (https://github.com/UglyToad/PdfPig),
+Copyright UglyToad and the PdfPig contributors, licensed under the Apache License, Version 2.0.
+OpenConvert's page segmentation (crates/oc-layout: Docstrum clustering, the whitespace-rectangle
+cover, XY-cut, nearest-neighbour word extraction and reading-order detection) follows the
+published algorithms as PdfPig implements them and takes some of PdfPig's default parameters.
+No PdfPig code is linked or shipped.
+
+Binary distributions of OpenConvert also contain:
+  - PDFium (BSD-3-Clause), as built by bblanchon/pdfium-binaries; licence in licenses/pdfium.LICENSE.txt
+  - llama.cpp's llama-server and its libraries (MIT); licence in licenses/llama.cpp.LICENSE.txt
+  - the Rust crates listed, with their licence texts, in licenses/third-party-rust.txt
+  - the user interface's third-party code, whose notices the app shows under Settings, About, Licenses

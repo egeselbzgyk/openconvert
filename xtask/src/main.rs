@@ -4,7 +4,7 @@
 
 use xtask::{
     ci_lint, dom_fixtures, epubcheck_parity, fetch_epubcheck, fetch_epubcheck_corpus,
-    fetch_llama_server, fixtures, handmade_fixtures, mutations, release, repro, sbom,
+    fetch_llama_server, fixtures, handmade_fixtures, mutations, notices, release, repro, sbom,
     stage_sidecars, thresholds_lint, vendor_pdfium, versions,
 };
 
@@ -46,6 +46,9 @@ tasks:
                     job-spec schema without its version bumped since the last release fails
                       --tag <vX.Y.Z>      also require the tag to be the tree's version
                       --record <tag>      write docs/releases/baseline.toml for a new release
+  notices           write licenses/third-party-rust.txt: the licence texts of every crate the
+                    app and the engine are built from, from cargo metadata
+                      --check             fail when the committed file does not match Cargo.lock
   repro             the reproducibility gate (D13.8): convert the fast corpus --no-ai and hash
                     it, then require every OS's table to agree
                       hash --engine <path> --os <os> --out <table.json> --epubs <dir>
@@ -92,6 +95,10 @@ fn main() -> Result<()> {
         Some("bump-rules-check") => {
             let args: Vec<String> = std::env::args().skip(2).collect();
             versions::run(&root, &args)
+        }
+        Some("notices") => {
+            let args: Vec<String> = std::env::args().skip(2).collect();
+            notices::run(&root, &args)
         }
         Some("repro") => {
             let args: Vec<String> = std::env::args().skip(2).collect();
