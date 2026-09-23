@@ -85,12 +85,59 @@ why. Adding Azure Artifact Signing later is **a workflow secret plus one signing
 NSIS updater payload with `cargo tauri signer sign`), and **requires no bundler change** — which is
 recorded here so the change is not re-litigated when it comes.
 
-## Known release blockers (as of 2026-09-23, Phase 15 part A)
+## Checklist run: 2026-09-23, v1.0.0 preparation (Phase 15, Linux build machine)
+
+The list above, run once on the machine Phase 15 was built on — no GitHub Actions, no macOS or
+Windows, no certificates, no VMs. `[x]` is a pass seen here; `[ ]` is not met, or not checkable here,
+and says which. **v1.0.0 is not releasable from this state.**
+
+Before tagging:
+- [ ] Every phase's DoD ticked — **no:** Phase 7.5 is parked; Appendix D fails (PROGRESS.md).
+- [ ] No placeholder — **no:** `ci-lint --release-branch` finds 15: 8 model pins in `models.toml`
+      (huggingface.co unreachable here), 6 in `packs.toml` (validation pack unbuilt), 1 updater key.
+      No lapsed `review_by`.
+- [x] Version bumps — `bump-rules-check` clean against the unreleased baseline (re-recorded after
+      Phase 14; unchanged). The tree is still 0.1.0: bump to 1.0.0 when tagging.
+- [x] `## [1.0.0]` section — present, Security section written from Phase 14's evidence;
+      `xtask release changelog --version v1.0.0` accepts it.
+- [ ] `docs/MODEL_GATE.md` regenerated with G1–G9 — **no:** no model could be downloaded here.
+- [x] `cargo deny --all-features check` clean (and the tooling policy).
+- [ ] EPUBCheck zero errors on the corpus, Ace zero serious — **not run here on the corpus:** EPUBCheck
+      is zero on the fixtures (Phase 5); the corpus and Ace runs are CI/nightly jobs, unverified here.
+- [x] Conversion suite green under `unshare -n` — here, including the `--ai` cassette path (Phase 14,
+      row 14.20); the CI job itself unverified.
+
+The release job:
+- [ ] macOS signing, notarization, Gatekeeper, stapling (rows 15.1–15.4) — **unverified here.**
+- [ ] Windows NSIS + MSI produced and hashed (row 15.6) — **unverified here.**
+- [x] Linux AppImage converts a book headless (row 15.7) — the AppImage built here, after Phase 14's
+      merge, converts f01 under `xvfb-run` with Landlock applied (ABI 7) and `RLIMIT_AS` in force.
+- [ ] Installers within budget (row 15.15) — **no:** the AppImage is 112 953 848 bytes against
+      45 000 000.
+- [x] SBOM valid CycloneDX 1.6 with every vendored native (rows 15.11, 15.12) — generated and
+      validated here; attaching it is the release job's.
+- [ ] `--no-ai` byte-identical on three OSes (row 15.13) — **Linux half only:** identical across
+      working directory, time zone, locale and build profile; cross-OS unverified.
+- [ ] `flatpak-builder-lint` — **unverified here** (no flatpak tooling); the manifest's no-network rule
+      passes (row 15.8).
+- [ ] Updater manifest signed with the release key and verified (row 15.9, real key) — **no:** the
+      keypair has not been generated; the verification logic passes with an in-test key.
+- [ ] Every artefact's SHA-256 in the release body (row 15.20) — **no release exists.**
+
+After the job:
+- [ ] Fresh-VM smoke on three OSes (row 15.19) — **not run:** no VMs; `fresh-install.sh` passes against
+      the real AppImage on this machine.
+- [ ] A fresh install accepts the update — **not run.**
+- [ ] Publish; record what shipped — **not reached.**
+
+## Known release blockers (as of 2026-09-23, after Phase 14 and Phase 15)
 
 - `models.toml` model pins are `TODO_` (huggingface.co is unreachable from the machine that built
-  Phase 9), so `ci-lint --release-branch` fails.
+  Phase 9), so `ci-lint --release-branch` fails; `docs/MODEL_GATE.md` has no G1–G9 for the default model.
 - `packs.toml`'s validation pack is unbuilt (`TODO_`) and its JRE licence (VD-f) unverified.
 - The updater keypair has not been generated (`TODO_UPDATER_PUBKEY`).
-- The Linux AppImage is 112.7 MB against the 45 MB budget (WebKitGTK); a maintainer decision.
+- The Linux AppImage is 112.95 MB against the 45 MB budget (WebKitGTK); a maintainer decision.
 - Nothing in `release.yml` beyond its unit tests has run: GitHub Actions, macOS, Windows and the
   certificates were not available.
+- Phase 7.5 (the reading corpus and conservation defects) is parked: I-1…I-7 do not yet hold on the
+  whole corpus.
