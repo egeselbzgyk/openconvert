@@ -80,7 +80,7 @@ Work items, in order, with the plan's test rows against each:
 - [x] **P13.6** merge, the `ingest` declaration, region-scoped I-6, retention — rows 13.13, 13.15
 - [x] **P13.7** OCR routing in `ingest`, the `convert` flags, degradation — rows 13.11, 13.12, 13.14, 13.16, 13.17, 13.18, 13.22
 - [x] **P13.8** scanned fixtures, `.assert.json`, CER per stratum — rows 13.20, 13.21 *(synthetic CER 0.0007; real stratum unverified here)*
-- [ ] **P13.9** `docs/OCR_PACK_SPIKE.md`, CI job, Definition of Done, CHANGELOG, merge
+- [x] **P13.9** `docs/OCR_PACK_SPIKE.md`, CI job, Definition of Done, CHANGELOG, merge
 
 What a fresh session needs:
 
@@ -104,6 +104,24 @@ What a fresh session needs:
 - VD-g is closed: UB-Mannheim installs to `%ProgramFiles%\Tesseract-OCR` (all users) or
   `%LOCALAPPDATA%\Programs\Tesseract-OCR` (one user), does not touch `PATH`, ships 5.5.3, and prints
   `tesseract v5.5.3.20260724` — the parser reads that form.
+
+### Phase 13 — Definition of Done
+
+`IMPLEMENTATION_PLAN.md` §0.3, row by row. Checked on this machine unless the row says otherwise.
+
+| Row | State |
+|---|---|
+| Every named test exists and passes | **Yes.** All 22 rows, 13.1–13.22, under their names, plus 24 additions (`docs/TEST_MATRIX.md`). 13.20 and 13.21 and A13.1/A13.3's real-engine tests are behind `--features tesseract` and pass here against Tesseract 5.3.4. The process-level tests (13.1–13.4, 13.10, 13.18, 13.19) are `#[cfg(unix)]`. |
+| `cargo nextest run --workspace` green | **Yes** on the merge commit (count in the merge message). eval: pytest green. |
+| Green on Linux/macOS/Windows CI | **Unverified here:** GitHub Actions is disabled. Windows/macOS discovery, invocation and teardown have no machine here. |
+| clippy `-D warnings` clean | **Yes**, workspace, all targets, all features (including `tesseract`). |
+| `cargo fmt --check` clean | **Yes.** ruff, ruff format and mypy clean on `eval/`. |
+| `cargo deny check` clean | **Yes.** No new crate: `image` was already in the graph (`oc-epub`, `pdfium-render`). |
+| `cargo xtask thresholds-lint` clean | **Yes.** Seven `ocr.*` entries. |
+| Every Given/When/Then demonstrated | **A13.1, A13.2, A13.3, A13.4, A13.7 yes** (Linux). **A13.5 yes on Linux** (13.18, 13.19); an engine killed outright is Phase 14's. **A13.6 partial:** synthetic CER 0.0007 ≤ 0.03; the real stratum is unverified here (no scan with ground truth on this machine). |
+| `docs/CHANGELOG.md` entry | **Yes.** |
+| No `TODO`/`FIXME` without an issue number | **Yes**, `xtask ci-lint` clean. |
+| VD-g closed | **Yes**, `docs/DECISIONS_LOG.md` 2026-09-23. |
 
 ## Phase 9 — on branch `phase/09-local-model`
 

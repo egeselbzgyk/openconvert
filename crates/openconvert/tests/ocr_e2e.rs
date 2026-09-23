@@ -644,3 +644,55 @@ fn hello_reports_the_discovered_engine() {
         .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
 }
+
+/// A13.7: a Tesseract 4.x is refused as too old, and the book converts exactly as if there were no
+/// engine — exit 0, pages as pictures, `W_OCR_ENGINE_MISSING` saying which version was found — and
+/// the old binary is asked for its version and nothing else. Unix: the old engine is the fake script.
+#[cfg(unix)]
+#[test]
+fn an_old_tesseract_converts_as_if_none_existed() {
+    use oc_testkit::fake_tesseract::{FakeConfig, FakeTesseract};
+
+    let dir = scratch("old-engine");
+    let fake = FakeTesseract::install(
+        &dir.join("bin"),
+        &FakeConfig {
+            banner: "tesseract 4.1.1".to_owned(),
+            ..FakeConfig::default()
+        },
+    );
+    let run = Command::new(env!("CARGO_BIN_EXE_openconvert"))
+        .arg("convert")
+        .arg(typst("f03_image_only"))
+        .args(["-o", &dir.join("out.epub").display().to_string()])
+        .args(["--ocr-path", &fake.path.display().to_string()])
+        .args(["--progress", "json"])
+        .output()
+        .expect("the binary runs");
+    assert_eq!(
+        run.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let events = events_of(&run.stderr);
+    let missing: Vec<_> = events
+        .iter()
+        .filter(|event| event["code"] == W_OCR_ENGINE_MISSING)
+        .collect();
+    assert_eq!(missing.len(), 1, "{events:?}");
+    assert!(
+        missing[0]["args"]["reason"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("4.1.1")),
+        "{:?}",
+        missing[0]
+    );
+    assert_eq!(fake.invocations(), [vec!["--version".to_owned()]]);
+    let bytes = std::fs::read(dir.join("out.epub")).expect("written");
+    let entries = oc_epub::read_entries(&oc_epub::EpubBytes(bytes)).expect("reads");
+    assert_eq!(
+        entries.keys().filter(|path| path.ends_with(".jpg")).count(),
+        2
+    );
+}

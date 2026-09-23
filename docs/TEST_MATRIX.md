@@ -590,3 +590,5 @@ back on.
 | 13.26b | `ocr_scanned::scanned_fixtures_are_image_only_without_ocr` | `openconvert` | fixture | `test` | green |
 | 13.26c | `ocr_merge::ocr_line_sizes_are_word_heights_snapped_to_one_body_size` | `oc-core` | unit | `test` | green |
 | 13.26d | `tesseract::tests::every_call_caps_openmp_at_one_thread` | `oc-core` | unit | `test` | green |
+| 13.26e | `ocr_tesseract::mixed_page_with_system_tesseract_reads_only_the_plate` | `openconvert` (feature `tesseract`) | fixture (f11, real Tesseract) — A13.3 | `ocr` | green |
+| 13.26f | `ocr_e2e::an_old_tesseract_converts_as_if_none_existed` | `openconvert` | binary (a fake 4.1.1, Unix) — A13.7 | `test` | green |

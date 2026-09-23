@@ -182,3 +182,31 @@ fn cer_is_levenshtein_over_the_truths_length() {
     );
     assert_eq!(cer("", ""), 0.0);
 }
+
+/// A13.3 with the real engine: on the `mixed` page only the plate is read, the born-digital text is
+/// exactly what extraction found, and I-6 (region scope) held — the conversion would have stopped
+/// otherwise.
+#[test]
+fn mixed_page_with_system_tesseract_reads_only_the_plate() {
+    let with = common::build_path_with_ocr(
+        &common::fixture("f11_mixed_plate"),
+        system_tesseract("a13-3"),
+    );
+    let without =
+        common::build_path_with_ocr(&common::fixture("f11_mixed_plate"), OcrOptions::off());
+    let report = with.ocr.as_ref().expect("an OCR section");
+    assert_eq!(report.regions.len(), 1, "{report:?}");
+    assert_eq!(report.regions[0].scope, "image_region");
+
+    let before = oc_validate::epub_chars(&without.built.bytes).expect("reads");
+    let after = oc_validate::epub_chars(&with.built.bytes).expect("reads");
+    assert!(
+        before.difference(&after).is_empty(),
+        "nothing extracted was lost"
+    );
+    let text = common::reading_text(&with);
+    assert!(text.contains("stormy night"), "the plate was read: {text}");
+    assert!(text.contains("The facing plate reproduces"), "{text}");
+    assert!(with.structural.i7.holds(), "{:?}", with.structural.i7);
+    assert!((with.structural.retention - without.structural.retention).abs() < 1e-6);
+}
