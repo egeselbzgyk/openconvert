@@ -140,8 +140,15 @@ def pairs_file(tmp_path: Path) -> Path:
     return path
 
 
+def unpinned(text: str) -> str:
+    """The shipped registry with every pin put back to its placeholder: what `--emit-registry`
+    starts from."""
+    text = re.sub(r'(?m)^(revision\s*=\s*)"[0-9a-f]{40}"', r'\1"TODO_COMMIT_SHA"', text)
+    return re.sub(r'(?m)^(sha256\s*=\s*)"[0-9a-f]{64}"', r'\1"TODO_SHA256"', text)
+
+
 def registry_file(tmp_path: Path) -> Path:
-    text = registry.MODELS_TOML.read_text(encoding="utf-8")
+    text = unpinned(registry.MODELS_TOML.read_text(encoding="utf-8"))
     text = text.replace('"TODO_COMMIT_SHA"', f'"{COMMIT}"').replace('"TODO_SHA256"', f'"{SHA}"')
     path = tmp_path / "models.toml"
     path.write_text(text, encoding="utf-8")
@@ -410,7 +417,7 @@ class FakeHub:
 
 def test_emit_registry_fills_every_pin_with_a_hash_we_produced(tmp_path: Path) -> None:
     path = tmp_path / "models.toml"
-    path.write_text(registry.MODELS_TOML.read_text(encoding="utf-8"), encoding="utf-8")
+    path.write_text(unpinned(registry.MODELS_TOML.read_text(encoding="utf-8")), encoding="utf-8")
     names = [m["file"] for m in registry.load(path)["model"]]
     digests = {name: (f"{i:064x}", 1000 + i) for i, name in enumerate(names)}
     hub = FakeHub(digests, digests)
@@ -424,17 +431,30 @@ def test_emit_registry_fills_every_pin_with_a_hash_we_produced(tmp_path: Path) -
         assert (model["sha256"], model["size_bytes"]) == digests[model["file"]]
     assert all(u.startswith("https://huggingface.co/") for u in hub.urls)
     assert (
-        f"https://huggingface.co/Qwen/Qwen3-1.7B-GGUF/resolve/{COMMIT}/Qwen3-1.7B-Q4_K_M.gguf"
+        f"https://huggingface.co/ggml-org/Qwen3-1.7B-GGUF/resolve/{COMMIT}/Qwen3-1.7B-Q4_K_M.gguf"
         in hub.urls
     )
     # The comments that are not about the placeholder survive the rewrite.
-    assert "# official GGUF repo" in path.read_text(encoding="utf-8")
+    assert "# llama.cpp project's quant" in path.read_text(encoding="utf-8")
+
+
+def test_emit_registry_leaves_the_shipped_pins_alone(tmp_path: Path) -> None:
+    """The shipped registry is pinned (2026-09-23): a fill asks the hub nothing and rewrites
+    nothing."""
+    path = tmp_path / "models.toml"
+    shipped = registry.MODELS_TOML.read_text(encoding="utf-8")
+    assert "TODO_" not in shipped
+    path.write_text(shipped, encoding="utf-8")
+    hub = FakeHub({}, {})
+    assert registry.emit(path, hub) == []
+    assert hub.urls == []
+    assert path.read_text(encoding="utf-8") == shipped
 
 
 def test_emit_registry_refuses_a_file_absent_from_the_tree(tmp_path: Path) -> None:
     """V1 §1(g): a repository can answer and still not hold the file."""
     path = tmp_path / "models.toml"
-    path.write_text(registry.MODELS_TOML.read_text(encoding="utf-8"), encoding="utf-8")
+    path.write_text(unpinned(registry.MODELS_TOML.read_text(encoding="utf-8")), encoding="utf-8")
     before = path.read_text(encoding="utf-8")
     with pytest.raises(registry.RegistryError, match="has no"):
         registry.emit(path, FakeHub({}, {}))
@@ -443,7 +463,7 @@ def test_emit_registry_refuses_a_file_absent_from_the_tree(tmp_path: Path) -> No
 
 def test_emit_registry_refuses_a_hash_the_hub_disagrees_with(tmp_path: Path) -> None:
     path = tmp_path / "models.toml"
-    path.write_text(registry.MODELS_TOML.read_text(encoding="utf-8"), encoding="utf-8")
+    path.write_text(unpinned(registry.MODELS_TOML.read_text(encoding="utf-8")), encoding="utf-8")
     names = [m["file"] for m in registry.load(path)["model"]]
     listed = {name: ("aa" * 32, 10) for name in names}
     produced = {name: ("bb" * 32, 10) for name in names}

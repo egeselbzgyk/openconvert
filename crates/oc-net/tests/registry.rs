@@ -72,3 +72,88 @@ fn registry_rejects_non_commit_revision() {
         );
     }
 }
+
+/// The registry that ships: every pin filled, so `ModelRegistry::load` accepts the file and the
+/// engine compiled around it (`BUNDLED`) accepts the same text. D9 names the default.
+#[test]
+fn the_shipped_registry_loads_with_every_pin_filled() {
+    use oc_net::download::resolve_url;
+    use oc_net::registry::{is_commit, ModelId, BUNDLED};
+
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../models.toml");
+    assert!(
+        !BUNDLED.contains("TODO_"),
+        "a placeholder is still in models.toml"
+    );
+    let loaded = ModelRegistry::load(&path).expect("the shipped models.toml loads");
+    let bundled = ModelRegistry::parse(BUNDLED).expect("the compiled-in registry loads");
+    assert_eq!(loaded.entries(), bundled.entries());
+
+    assert_eq!(
+        loaded.default_id(),
+        &ModelId("qwen3-1.7b-q4_k_m".to_owned())
+    );
+    let default = loaded
+        .get(loaded.default_id())
+        .expect("the default is an entry");
+    assert_eq!(default.tier, "default");
+    // The maintainer's pin (D9 amendment, 2026-09-23): the official repository publishes no
+    // Q4_K_M, the llama.cpp project's does.
+    assert_eq!(default.repo, "ggml-org/Qwen3-1.7B-GGUF");
+    assert_eq!(default.file, "Qwen3-1.7B-Q4_K_M.gguf");
+
+    assert_eq!(loaded.entries().len(), 4);
+    for entry in loaded.entries() {
+        let id = &entry.id.0;
+        assert!(is_commit(&entry.revision), "{id}: {}", entry.revision);
+        assert!(
+            entry.sha256.len() == 64
+                && entry
+                    .sha256
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+            "{id}: {}",
+            entry.sha256
+        );
+        assert!(entry.size_bytes > 0, "{id}: no size");
+        assert!(
+            entry.min_ram_bytes > entry.size_bytes,
+            "{id}: the RAM estimate is below the file it loads"
+        );
+        let url = resolve_url(entry).expect("an allowlisted, pinned URL");
+        assert_eq!(
+            url,
+            format!(
+                "https://huggingface.co/{}/resolve/{}/{}",
+                entry.repo, entry.revision, entry.file
+            )
+        );
+    }
+}
+
+/// An id names the quantisation it downloads: `qwen3-0.6b-q8_0` is `Qwen3-0.6B-Q8_0.gguf`, and a
+/// community quant says whose it is after that. A registry whose id and file disagree shows a user
+/// one model and installs another.
+#[test]
+fn every_shipped_id_names_the_quantisation_it_downloads() {
+    let registry = ModelRegistry::parse(oc_net::registry::BUNDLED).expect("the shipped registry");
+    for entry in registry.entries() {
+        let stem = entry
+            .file
+            .strip_suffix(".gguf")
+            .expect("a GGUF")
+            .to_ascii_lowercase();
+        assert!(
+            entry.id.0 == stem || entry.id.0.starts_with(&format!("{stem}-")),
+            "`{}` downloads `{}`",
+            entry.id.0,
+            entry.file
+        );
+        let quant = stem.rsplit('-').next().expect("a quantisation suffix");
+        assert!(
+            entry.display_name.to_ascii_lowercase().contains(quant),
+            "`{}` does not name {quant}",
+            entry.display_name
+        );
+    }
+}

@@ -1365,10 +1365,10 @@ fn the_committed_baseline_describes_this_tree() {
 /// app's configuration (the updater key), and no threshold whose `review_by` has passed. Checked on
 /// a scratch tree built to fail each way, and clean once everything is filled.
 ///
-/// The repository itself fails this gate today, correctly: the model pins could not be fetched
-/// (huggingface.co is refused here), the validation pack is unbuilt, and the updater keypair is the
-/// maintainer's to generate. `cargo run -p xtask -- ci-lint --release-branch` lists them; PROGRESS.md
-/// carries them as release blockers.
+/// The repository itself fails this gate today, correctly: the validation pack is unbuilt, and the
+/// updater keypair is the maintainer's to generate (`models.toml` has been pinned since 2026-09-23).
+/// `cargo run -p xtask -- ci-lint --release-branch` lists them; PROGRESS.md carries them as release
+/// blockers.
 #[test]
 fn no_todo_placeholders_on_a_release_tag() {
     use xtask::ci_lint::{release_placeholders, RELEASE_PLACEHOLDER_FILES};

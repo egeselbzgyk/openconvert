@@ -5521,3 +5521,74 @@ pull requests no longer trigger the workflow); `main`'s run is still never cance
 Unchanged: `nightly.yml` (schedule + manual), `release.yml` (version tags + manual),
 `signing-dryrun.yml` (manual).
 Affects: `.github/workflows/ci.yml`.
+
+## 2026-09-23 · `models.toml` pinned: four commits and four hashes read from the Hugging Face API · Phase 9 follow-up
+Context: Phase 9 left all four `models.toml` entries with `TODO_` `revision`/`sha256` (and
+`size_bytes = 0` on three), because this sandbox could not reach huggingface.co. The maintainer has
+since allowed its API. `ModelRegistry::parse` refuses a registry with any placeholder, so until now
+`openconvert model list|pull` on the shipped registry exited 2 and the app's model manager offered
+nothing. D9 names the official `Qwen/Qwen3-1.7B-GGUF` Q4_K_M as the default, and that repository
+publishes only `Qwen3-1.7B-Q8_0.gguf` (its tree at `90862c4b9d2787eaed51d12237eafdfe7c5f6077`).
+Decision:
+1. **The default is `ggml-org/Qwen3-1.7B-GGUF`, file `Qwen3-1.7B-Q4_K_M.gguf` — the maintainer's
+   decision (2026-09-23, ratified, not provisional).** The llama.cpp project publishes it. The model
+   and the quantisation are the ones D9 chose, so D9's RAM and speed expectations stand. D9 carries a
+   dated amendment note that says so. The id stays `qwen3-1.7b-q4_k_m`, the `min_ram_bytes` stays
+   3 GiB, and `license_url` stays the base model's `Qwen/Qwen3-1.7B` LICENSE (the ggml-org repository
+   has no LICENSE file; its API tags say `license:apache-2.0`).
+2. **The 0.6B tier is the official `Qwen/Qwen3-0.6B-GGUF` `Qwen3-0.6B-Q8_0.gguf` — PROVISIONAL, needs
+   maintainer ratification.** Neither `Qwen/Qwen3-0.6B-GGUF` nor `ggml-org/Qwen3-0.6B-GGUF` publishes
+   a Q4_K_M (the official repository has Q8_0 only; ggml-org has Q4_0, Q8_0, f16 and BF16). The orchestrator
+   chose the official source over a third party's Q4_K_M. The entry's id is now `qwen3-0.6b-q8_0`
+   and its display name `Qwen3 0.6B (Q8_0)`: an id naming a quantisation the file is not would show a
+   user one model and install another. The new test `every_shipped_id_names_the_quantisation_it_downloads`
+   holds that. No code or UI referred to the old id. `min_ram_bytes` goes from 1.5 GiB to **2 GiB**
+   (2 147 483 648). This is the old estimate plus the larger file, rounded up to the half-GiB steps
+   the other entries use: Q8_0 is 639 446 688 bytes, and `unsloth/Qwen3-0.6B-GGUF`'s Q4_K_M is
+   396 705 472, so the file is 242 741 216 bytes bigger and the sum is 1 853 353 952. It also fits
+   the arithmetic from the model's `config.json`: 28 layers × 8 KV heads × 128 × K,V × 2 bytes ×
+   8 192 tokens = 896 MiB of f16 KV cache, plus 610 MiB of weights and the compute buffers, comes to
+   about 1.8 GiB. `cpu_expectation` stays "fast". It is still the smallest and fastest tier, but Q8_0
+   decodes somewhat slower than a Q4_K_M would. Nothing measured it (G4 is machine L's).
+3. **The 4B tier (`Qwen/Qwen3-4B-GGUF` Q4_K_M) and the experimental Qwen3.5-2B
+   (`unsloth/Qwen3.5-2B-GGUF` Q4_K_M) exist as registered**, and are pinned as they are. The
+   experimental entry's `size_bytes` was V1 §1's estimate (1 288 490 188) and is now the file's real
+   size.
+
+The pins, each read on 2026-09-23 from the API: the repository's current commit from
+`https://huggingface.co/api/models/<repo>` (`sha`), then that commit's tree from
+`…/api/models/<repo>/tree/<sha>` (`lfs.oid`, `lfs.size`). The file was confirmed present in that
+tree, as V1 §1(g) requires. Each value was then read a second way. A `HEAD`-style request of
+`https://huggingface.co/<repo>/resolve/<sha>/<file>` answers `302` with `X-Repo-Commit`,
+`X-Linked-Etag` and `X-Linked-Size`, and these equal the commit, the oid and the size below for all
+four.
+
+| id | repo @ commit | file | sha256 | bytes |
+|---|---|---|---|---|
+| `qwen3-1.7b-q4_k_m` (default) | `ggml-org/Qwen3-1.7B-GGUF` @ `daeb8e2d528a760970442092f6bf1e55c3b659eb` | `Qwen3-1.7B-Q4_K_M.gguf` | `d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5` | 1 282 439 264 |
+| `qwen3-0.6b-q8_0` | `Qwen/Qwen3-0.6B-GGUF` @ `23749fefcc72300e3a2ad315e1317431b06b590a` | `Qwen3-0.6B-Q8_0.gguf` | `9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031` | 639 446 688 |
+| `qwen3-4b-q4_k_m` | `Qwen/Qwen3-4B-GGUF` @ `bc640142c66e1fdd12af0bd68f40445458f3869b` | `Qwen3-4B-Q4_K_M.gguf` | `7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5` | 2 497 280 256 |
+| `qwen3.5-2b-q4_k_m-unsloth` | `unsloth/Qwen3.5-2B-GGUF` @ `f6d5376be1edb4d416d56da11e5397a961aca8ae` | `Qwen3.5-2B-Q4_K_M.gguf` | `aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223` | 1 280 835 840 |
+
+Each repository's last change according to the API: 2025-04-28 (ggml-org 1.7B), 2025-05-09 (0.6B),
+2025-05-21 (4B), 2026-03-02 (Qwen3.5-2B). All four are public, ungated and tagged `apache-2.0`.
+
+**Not the fill rule's hash — PROVISIONAL, needs maintainer ratification.** IMPLEMENTATION_PLAN §1.6
+has `--emit-registry` download each file and write the SHA-256 *we* produced. These hashes are the
+hub's own LFS object ids, read from the same host that serves the weights. SECURITY §7's circularity
+concern does not arise, because the pin is compiled in and never fetched at download time. But a file
+that was already wrong when it was uploaded would match its own oid. What is in place: the downloader
+hashes every byte while it streams and refuses a mismatch, so a wrong pin fails closed and installs
+nothing. Whether a real download matches is recorded in its own entry. No llama.cpp build was used to resolve the pins. The pinned build is `b10456`
+(`xtask/llama.lock`), and no gate has run on any of these files.
+Tests: `the_shipped_registry_loads_with_every_pin_filled`,
+`every_shipped_id_names_the_quantisation_it_downloads` (oc-net);
+`model_list_works_on_the_shipped_registry` with its snapshot, and `an_unresolved_registry_is_a_usage_error`
+now made from the shipped file with one pin put back (openconvert). That keeps it off the network,
+where the old conditional form would have started a real 1.3 GB download once the pins were filled.
+`the_shipped_registry_offers_every_model` and `an_unpinned_registry_offers_no_download` (desktop).
+`test_emit_registry_leaves_the_shipped_pins_alone` (eval), and the emit tests now start from the shipped
+file with its pins put back.
+Affects: D9 (amendment note), `models.toml`, IMPLEMENTATION_PLAN §1.6 (its sample keeps the old
+placeholders and ids; `models.toml` is authoritative), LICENSE_AND_DEPENDENCIES §5 and LLM_EVALUATION
+(both still name the official repository; the D9 amendment supersedes them).
