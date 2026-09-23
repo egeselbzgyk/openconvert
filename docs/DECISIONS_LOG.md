@@ -5857,3 +5857,100 @@ Unchanged on purpose: `corpus/manifest.json` (its `url` fields are provenance re
 fixtures) and `IMPLEMENTATION_PLAN.md` (the plan as written).
 Affects: `Cargo.toml`, `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/src/updater.rs`,
 `crates/oc-net/tests/updater.rs`, `eval/src/oc_eval/corpus/download.py`.
+
+## 2026-09-23 · The app ID is io.github.egeselbzgyk.OpenConvert · maintainer decision (ratified)
+Context: v1.0.0's first release run (35931356244) failed `flatpak-builder-lint` with
+`appid-url-not-reachable`: an ID of the form `io.openconvert.*` asserts the domain `openconvert.io`,
+which is not the project's and did not answer. The identifier `io.openconvert.OpenConvert` was
+provisional (P15.5, `## Blocked`).
+Decision (maintainer, 2026-09-23): the app ID is **`io.github.egeselbzgyk.OpenConvert`** everywhere —
+`tauri.conf.json` `identifier` (from which Tauri derives the per-OS app data, config and WebView data
+directories and the Windows installer's identifiers; nothing in the tree hard-codes those paths), the
+Flatpak manifest's `id` and file name, the AppStream metainfo and desktop entry (file names, `<id>`,
+`<launchable>`, `Icon=`, the installed names), `docs/INSTALL.md`. The metainfo's homepage and bug
+tracker are `https://github.com/egeselbzgyk/openconvert` (they named `github.com/openconvert/…`,
+which is not ours), and its developer id is `io.github.egeselbzgyk`. Flathub's linter checks an
+`io.github.<user>.<app>` ID against `https://github.com/<user>/<app>`, which is this repository. 1.0
+has never been installed, so there is no data directory to migrate.
+Evidence: `the_app_id_is_the_repositorys_code_hosting_id_everywhere`,
+`flatpak_manifest_has_no_network_finish_arg`; `flatpak-builder-lint manifest` (the Flathub linter at
+flathub-infra/flatpak-builder-lint `HEAD` of 2026-09-23, run here with its Flathub-summary lookups
+stubbed because dl.flathub.org is unreachable from this sandbox) reports no error or warning on the new
+manifest, and reproduces the release run's three errors exactly on the old one.
+Affects: `apps/desktop/src-tauri/tauri.conf.json`, `packaging/linux/`, `docs/INSTALL.md`,
+`docs/design/README.md`, `xtask/tests/release.rs`, `.github/workflows/release.yml`.
+
+## 2026-09-23 · The Flatpak's generated sources are committed; GNOME 51 · release run fix
+Context: the same run's `flatpak-builder-lint` also reported `runtime-is-eol-org.gnome.Platform-48` and
+`manifest-json-warnings: Failed to deserialize "sources" property …`. The second is flatpak-builder
+failing to open `cargo-sources.json` and `node-sources.json`, which the manifest names but which the
+P15.6 entry left to be generated at submission time and never committed (reproduced here with
+`flatpak-builder --show-manifest`: "Can't open …/cargo-sources.json").
+Decision: both files are generated with flatpak-builder-tools (commit `41c20aa`,
+`flatpak-cargo-generator.py` over `Cargo.lock`: 829 crates; `flatpak-node-generator npm` over the UI's
+`package-lock.json`: 154 packages, no SHA-1 or MD5 digests) and committed beside the manifest; the
+regeneration commands are in the manifest's header. `flatpak_sources_match_the_lockfiles` holds them to
+the lockfiles digest for digest, so a dependency change that forgets them fails every CI run rather than
+Flathub's build (checked RED by dropping one crate). Python is a developer tool here, as for `eval/`;
+nothing in the release runs it (D1). The runtime moves to **GNOME 51** (freedesktop-sdk 26.08, per
+gnome-build-meta's `gnome-51` branch, which still carries `webkit2gtk-4.1`); the `rust-stable` and
+`node22` SDK extensions both have a `26.08` branch on Flathub, and flatpak-builder picks the branch
+matching the SDK. **PROVISIONAL — needs maintainer ratification:** committing the generated sources
+(the alternative is generating them at each Flathub submission and linting only there). A real
+`flatpak-builder` build of the manifest is still unverified (no GNOME 51 SDK here).
+Evidence: `flatpak_sources_match_the_lockfiles`; the linter run above.
+Affects: `packaging/linux/flatpak/{io.github.egeselbzgyk.OpenConvert.yml,cargo-sources.json,node-sources.json}`,
+`xtask/tests/release.rs`.
+
+## 2026-09-23 · Row 15.14 on the Linux build image: Python diverted, then asserted absent · release run fix
+Context: the run's Linux build failed its own "no Python" step: `debian:bookworm` has no Python, but
+installing `libwebkit2gtk-4.1-dev`/`libgtk-3-dev` pulls in `/usr/bin/python3` (GLib's `-dev-bin` code
+generators, which a Rust build that only asks `pkg-config` never runs).
+Decision: the rule's intent — the release needs no Python — is kept in a form that can hold. The Linux
+build's first step installs the build dependencies, then moves every `/usr/bin/python*` (and
+`/usr/local/bin/python*`) out of reach with `dpkg-divert --local --rename` to `/usr/lib/oc-diverted/`,
+then asserts `command -v python3 || command -v python` finds nothing, as the step's last command. Every
+later step of the build (toolchain, npm, cargo, `cargo tauri build` with linuxdeploy and its GTK plugin,
+the AppImage smoke test) therefore runs where calling Python fails, so a green build shows it needs
+none. Checked that nothing on that path calls it: tauri-bundler 2.9.4 (what `tauri-cli` 2.11.5
+resolves) runs linuxdeploy with `APPIMAGE_EXTRACT_AND_RUN=1` and the GTK plugin
+(`tauri-apps/linuxdeploy-plugin-gtk`, a bash script: `pkg-config`, `glib-compile-schemas`,
+`gdk-pixbuf-query-loaders`), and the UI's npm tree has no install scripts. `dpkg-divert --rename`
+checked on a scratch root here (a symlinked `python3` and its target both moved, `/usr/bin` left
+without them). The other container jobs keep their assertion-first pattern, since they install nothing
+that brings Python.
+Evidence: `release_job_needs_no_python` (now also allowing the diversion line),
+`the_linux_build_diverts_python_after_installing` (install → divert → assert, the assertion last, no
+later `apt-get install`).
+Affects: `.github/workflows/release.yml`, `xtask/tests/release.rs`.
+
+## 2026-09-23 · llama.cpp's licence on Windows comes from a committed copy · release run fix
+Context: the run's Windows build failed in `xtask stage-sidecars --release`: it copies
+`vendor/llama-server/b10456/…/LICENSE`, and `llama-b10456-bin-win-cpu-x64.zip` carries no licence file.
+All four pinned assets were downloaded and listed here (each matched its `llama.lock` digest): the
+Linux and both macOS tarballs carry `llama-b10456/LICENSE`, byte-identical (SHA-256 `94f29bbe…`, MIT,
+"Copyright (c) 2023-2026 The ggml authors"); the Windows zip (51 entries) carries none.
+Decision: `licenses/llama.cpp.LICENSE.txt` is that text, copied from the Linux archive. Staging uses the
+archive's `LICENSE` where there is one and the committed copy otherwise, and where both exist refuses
+to stage unless they are the same text (line endings aside): a pin moved to a release whose licence
+changed fails on Linux, instead of shipping a stale text on Windows.
+Evidence: `the_committed_llama_licence_is_the_mit_text`,
+`the_llama_licence_is_staged_from_the_committed_copy_when_the_archive_has_none` (the Windows file
+list), `the_llama_licence_is_staged_from_the_archive_when_it_carries_one`,
+`a_pin_whose_licence_text_changed_fails_staging`; `stage-sidecars --release` run here with the Linux
+archive, with its `LICENSE` moved away (the Windows layout: the committed copy staged), and with it
+altered (refused).
+Affects: `xtask/src/stage_sidecars.rs`, `licenses/llama.cpp.LICENSE.txt`.
+
+## 2026-09-23 · Workflow shell traps under `bash -e` · release run fix
+Context: the run's Linux reproducibility leg died on
+`engine=target/release/openconvert$([ "linux" = windows ] && echo .exe)`: under `bash -e` an assignment
+whose command substitution exits non-zero ends the step.
+Decision: every such pattern is written `exe=""; if [ … ]; then exe=.exe; fi` (release.yml's `repro`
+step and the build's sidecar staging, which only survived because the substitution was an argument,
+not an assignment). All four workflows were searched for `$(…)` ending in a test and for other
+exit-status traps: `nightly.yml`'s `echo "OC_LLAMA_SERVER=$(cargo run … fetch-llama-server)"` swallowed
+a failed fetch (the status of `echo` is what counts) and now assigns first. `signing-dryrun.yml` had
+no such pattern. Every bash `run` block of every workflow passes `bash -n`.
+Evidence: `eval/tests/test_ci_workflows.py`; `every_release_gate_row_is_a_named_release_step`.
+Affects: `.github/workflows/{release,nightly}.yml`.
