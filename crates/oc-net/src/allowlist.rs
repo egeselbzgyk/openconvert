@@ -8,11 +8,15 @@
 
 use crate::NetError;
 
-/// Every host the model manager may connect to, including the CDN a download redirects to.
+/// Every host the model manager may connect to, including the CDN a download redirects to. Exact
+/// names only: a host is on the list or it is not, and no suffix or wildcard widens it.
+/// `us.aws.cdn.hf.co` is the Xet bridge that every pinned `resolve/<commit>/<file>` URL redirected
+/// to on 2026-09-23 (DECISIONS_LOG); another region's host fails closed and is named in the error.
 pub const HOST_ALLOWLIST: &[&str] = &[
     "huggingface.co",
     "cdn-lfs.huggingface.co",
     "cdn-lfs-us-1.huggingface.co",
+    "us.aws.cdn.hf.co",
 ];
 
 const HTTPS: &str = "https://";

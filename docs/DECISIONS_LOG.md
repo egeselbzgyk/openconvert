@@ -5592,3 +5592,34 @@ file with its pins put back.
 Affects: D9 (amendment note), `models.toml`, IMPLEMENTATION_PLAN §1.6 (its sample keeps the old
 placeholders and ids; `models.toml` is authoritative), LICENSE_AND_DEPENDENCIES §5 and LLM_EVALUATION
 (both still name the official repository; the D9 amendment supersedes them).
+
+## 2026-09-23 · The allowlist names `us.aws.cdn.hf.co`, the host downloads redirect to today · Phase 9 follow-up
+Context: the Phase 9 entry "The allowlist is checked on every hop; the CDN host is unverified here"
+kept the plan's three hosts (`huggingface.co`, `cdn-lfs.huggingface.co`,
+`cdn-lfs-us-1.huggingface.co`) and recorded, PROVISIONAL, that today's redirect target could not be
+observed. It can now be. On 2026-09-23 each of the four pinned URLs,
+`https://huggingface.co/<repo>/resolve/<commit>/<file>`, answered `302 Found` with
+`Location: https://us.aws.cdn.hf.co/xet-bridge-us/<id>/<hash>?X-Xet-Cas-Uid=public&…` (Hugging
+Face's Xet storage bridge, with a signed query string). With the plan's list, `model pull` would have
+failed on every model with `HostNotAllowed { host: "us.aws.cdn.hf.co" }`.
+Decision: `HOST_ALLOWLIST` gains exactly `us.aws.cdn.hf.co`. It is matched as an exact name, as every
+entry is. The design has no suffix or wildcard matching, and this change adds none: `eu.aws.cdn.hf.co`,
+`cdn.hf.co`, `hf.co`, `x.us.aws.cdn.hf.co` and `us.aws.cdn.hf.co.example.com` are all refused. The two
+`cdn-lfs` hosts stay. They are Hugging Face's LFS CDN, and removing a host a download may still be
+sent to would only turn a working pull into a refusal. The hop is checked before the fetch that would
+open a socket to it, as before (`Downloader::open`), and the body is still hashed against the
+compiled-in pin, so the CDN is trusted for bytes and never for integrity. The list now departs from
+the snippet in IMPLEMENTATION_PLAN PHASE 9. `allowlist.rs` is authoritative.
+**PROVISIONAL — needs maintainer ratification:** the redirect's host is chosen by Hugging Face per
+request, and the `-us` in both the host and the `xet-bridge-us` path suggests other regions exist (an
+`eu.aws.cdn.hf.co`, say). A user whose download is sent to one fails closed: `model pull` exits 1
+with ``error [E_MODEL_DOWNLOAD]: `<host>` is not on the download allowlist``, the app's model row
+shows the same error, and nothing is installed. Widening the list is a one-line reviewed change, and each
+added host should come from an observed redirect, as this one did. Only the US host was observed here,
+from one network location.
+Tests: `download_follows_a_redirect_to_the_xet_cdn` — a redirect of the observed shape (path and
+signed query) to `us.aws.cdn.hf.co` is followed and the file verified, and a redirect to each of the
+five hosts above is refused by name without the host being asked.
+Evidence: `curl -D -` of the four resolve URLs, 2026-09-23. Whether a real transfer through that host
+succeeds and verifies is recorded in the next entry.
+Affects: D13.9, SECURITY §8 ("huggingface.co, its CDN"), `crates/oc-net/src/allowlist.rs`.

@@ -270,3 +270,65 @@ fn a_cancelled_download_deletes_its_part() {
     let path = downloader.pull(&entry, &Quiet).expect("a clean retry");
     assert_eq!(std::fs::read(path).expect("the model"), body);
 }
+
+/// The redirect Hugging Face answers with today, observed on 2026-09-23 for all four pinned files:
+/// `huggingface.co/<repo>/resolve/<commit>/<file>` → `302` → `us.aws.cdn.hf.co/xet-bridge-us/…`,
+/// with a signed query string. That exact host is followed and the file verified. A sibling region,
+/// a look-alike suffix, the bare parent domain and a deeper subdomain are not on the list: each is
+/// refused by name, and never asked.
+#[test]
+fn download_follows_a_redirect_to_the_xet_cdn() {
+    let server = Server::start();
+    let dir = scratch();
+    let body = common::body();
+    let xet = "/xet-bridge-us/680fee30aa6428390269dfe3/\
+               0a8e661bad7f1ea5accdd078b6a2aca20ff0201100bbf128aa1cc22c643d7221\
+               ?X-Xet-Cas-Uid=public&response-content-disposition=inline%3B+filename%2A%3DUTF-8%27%27tiny.gguf%3B\
+               &Expires=1790000000";
+    server.route(
+        "huggingface.co",
+        &common::resolve_path(),
+        Answer::Redirect(format!("https://us.aws.cdn.hf.co{xet}")),
+    );
+    server.route("us.aws.cdn.hf.co", xet, Answer::Body(body.clone()));
+    let downloader = Downloader::new(ModelStore::new(&dir), server.fetch(), common::config());
+
+    let path = downloader
+        .pull(&common::entry(&body, TEMPLATE), &Quiet)
+        .expect("the CDN hop is followed and the file verified");
+    assert_eq!(std::fs::read(&path).expect("the model"), body);
+    assert_eq!(server.requests(), 2, "the resolve URL, then the CDN");
+
+    let refused = dir.join("refused");
+    let downloader = Downloader::new(ModelStore::new(&refused), server.fetch(), common::config());
+    for host in [
+        "eu.aws.cdn.hf.co",
+        "us.aws.cdn.hf.co.example.com",
+        "cdn.hf.co",
+        "hf.co",
+        "x.us.aws.cdn.hf.co",
+    ] {
+        server.route(
+            "huggingface.co",
+            &common::resolve_path(),
+            Answer::Redirect(format!("https://{host}{xet}")),
+        );
+        server.route(host, xet, Answer::Body(body.clone()));
+        let before = server.requests();
+        let error = downloader
+            .pull(&common::entry(&body, TEMPLATE), &Quiet)
+            .expect_err(host);
+        assert_eq!(
+            error,
+            NetError::HostNotAllowed {
+                host: host.to_owned()
+            }
+        );
+        assert_eq!(server.requests(), before + 1, "{host} was never asked");
+    }
+    assert!(
+        files_under(&refused).is_empty(),
+        "{:?}",
+        files_under(&refused)
+    );
+}
