@@ -11,6 +11,7 @@ pub mod fetch_epubcheck_corpus;
 pub mod fetch_isartor;
 pub mod fetch_llama_server;
 pub mod fixtures;
+pub mod fuzz_seeds;
 pub mod handmade_fixtures;
 pub mod mutations;
 pub mod stage_sidecars;

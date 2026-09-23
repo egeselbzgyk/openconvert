@@ -5072,3 +5072,31 @@ Evidence: `crash_fixtures_are_manifest_keyed`, `mutated_crash_corpus_terminates_
 `eval/tests/test_crash_corpus.py`.
 Affects: `corpus/fixtures/crash/`, `eval/src/oc_eval/mutate/`, `xtask/isartor.lock`,
 `.github/workflows/nightly.yml`.
+
+## 2026-09-23 · The fuzz targets, and the path rule they found missing · Phase 14
+Context: PHASE 14 detail 8 and rows 14.13–14.15: `cargo-fuzz` on the IR deserialiser, the job-spec
+validator and the XHTML/OPF emitter round trip; corpora seeded from the committed fixtures; a
+nightly job, 15 minutes a target.
+Decisions:
+1. **The properties live in `oc_testkit::fuzz_props`**, and each `fuzz/fuzz_targets/*.rs` is one
+   line. The ordinary suite runs the same properties over `fuzz/corpus/` and a few hundred
+   generated inputs (`crates/oc-testkit/tests/fuzz_props.rs`), so they stay compiling and green
+   between nights. `fuzz/` is a workspace of its own (`exclude = ["fuzz"]`): nightly and libFuzzer
+   stay out of the stable build and its gates.
+2. **What "the IR" is for `ir_deserialize`:** the semantic layer the engine reads back from a saved
+   run (`SemanticIr`: metadata, language, sections, notes, figures, tables, page breaks) — the
+   whole `Document` holds `&'static str` registries and is never deserialised. The property is
+   that canonical JSON is a fixed point.
+3. **`xhtml_opf_roundtrip` draws its document from the bytes with a bounded cursor**, not proptest's
+   pass-through RNG: the first version hung (proptest re-drew from exhausted input forever).
+4. **Row 14.14 found a hole: `oc_core::jobspec` accepted any path.** The schema says only
+   "string", so `"book.pdf"` and `"/in/../etc/passwd"` passed. Every path a spec names — input,
+   password file, output, report, overrides, API key file, model — must now be absolute with no
+   `..` (`check_paths`, `JobSpecError::Invalid` at the field's pointer). The engine's own job-spec
+   tests now canonicalise their fixture paths.
+5. **Run here:** 120 s each, `-rss_limit_mb=2048`, seeded: `ir_deserialize` 1 692 734 runs,
+   `job_spec` 2 632 543, `xhtml_opf_roundtrip` 21 243 — no crash, no failed property. The nightly
+   15-minute campaigns (and OSS-Fuzz-length ones) are **unverified here** (no CI).
+Evidence: rows 14.13–14.15 in the suite; `every_path_in_an_accepted_spec_is_absolute_and_never_climbs`.
+Affects: SECURITY §12, RT B15, `schemas/job-spec.v1.json` (semantics, not text), `fuzz/`,
+`xtask fuzz-seeds`, `.github/workflows/nightly.yml`.

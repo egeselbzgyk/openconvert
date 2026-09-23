@@ -6,6 +6,8 @@ members = [
   "crates/oc-net", "crates/oc-core", "crates/oc-testkit", "crates/openconvert",
   "apps/desktop/src-tauri", "xtask",
 ]
+# The cargo-fuzz targets are a workspace of their own (nightly and libFuzzer, PHASE 14 detail 8).
+exclude = ["fuzz"]
 
 [workspace.package]
 version      = "0.1.0"

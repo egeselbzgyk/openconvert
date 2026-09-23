@@ -28,3 +28,8 @@ __pycache__/
 /corpus/LOCAL_EVAL_ONLY/
 /eval/out/*.png
 /corpus/reading/accepted_*.json
+# cargo-fuzz's build output and its findings; a minimised crash is committed under
+# corpus/fixtures/crash/fuzz/ with the fix that closed it, not from here.
+/fuzz/target
+/fuzz/artifacts
+/fuzz/coverage

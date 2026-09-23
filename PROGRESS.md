@@ -105,7 +105,7 @@ items, in order, with the plan's test rows against each:
 - [x] **P14.9** `oc-net` audit log — row 14.21
 - [x] **P14.10** the engine: `--max-memory`/`--max-pages`, Landlock and deadlines wired into `convert`; caps end in exit 1 with a report and no output; the 40 M-glyph PDF — rows 14.7, 14.9, 14.11, 14.19, 14.6's exit 1
 - [x] **P14.11** crash corpus: `oc-eval mutate`, `corpus/fixtures/crash/`, Isartor fetch — rows 14.16–14.18 *(14.16 unverified here: no Isartor pins)*
-- [ ] **P14.12** `fuzz/`: three targets, seeded corpora — rows 14.13–14.15
+- [x] **P14.12** `fuzz/`: three targets, seeded corpora — rows 14.13–14.15 *(120 s each here, 0 crashes; nightly 15 min unverified here)*
 - [ ] **P14.13** `unshare -n` over the AI cassette path — row 14.20
 - [ ] **P14.14** `unsafe` confined to declared modules — row 14.22
 - [ ] **P14.15** `--isolate-parser` spike, go/no-go — row 14.23
@@ -175,6 +175,10 @@ What a fresh session needs:
   `corpus/fixtures/crash/fuzz/` and are keyed on the next run. Rust tests:
   `crates/openconvert/tests/crash_corpus.rs` (14.17, 14.18; 14.16 behind `--features isartor`).
   `xtask fetch-isartor` refuses until `xtask/isartor.lock` is pinned (Blocked).
+- **Fuzzing:** properties in `oc_testkit::fuzz_props` (run by the suite over `fuzz/corpus/`);
+  targets in `fuzz/` (own workspace; `cargo +nightly fuzz run -O <target> <corpus copy> --
+  -max_total_time=N`, with `CARGO_TARGET_DIR` in the scratchpad — the build is ~1 GB). Seeds:
+  `cargo run -p xtask -- fuzz-seeds`. Job specs now refuse relative or `..` paths.
 - `openconvert::sandbox` is the report's `sandbox` section and `--max-memory` parsing
   (`parse_bytes`, binary units only); not wired into `convert` yet (P14.10).
 

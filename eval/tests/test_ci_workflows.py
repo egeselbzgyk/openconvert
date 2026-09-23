@@ -154,3 +154,13 @@ def test_the_isartor_job_fetches_the_pinned_suite_and_turns_the_test_on() -> Non
     assert "--features isartor" in commands
     fetch = commands.index("fetch-isartor")
     assert fetch < commands.index("isartor_corpus_terminates_cleanly")
+
+
+def test_the_fuzz_job_runs_every_target_for_fifteen_minutes() -> None:
+    """Rows 14.13-14.15: the three targets, fifteen minutes each, on the nightly toolchain."""
+    job = workflow(NIGHTLY)["jobs"]["fuzz"]
+    commands = run_text(NIGHTLY, "fuzz")
+    for target in ("ir_deserialize", "job_spec", "xhtml_opf_roundtrip"):
+        assert target in commands
+    assert "-max_total_time=900" in commands
+    assert any("nightly" in str(step.get("uses", "")) for step in job["steps"])

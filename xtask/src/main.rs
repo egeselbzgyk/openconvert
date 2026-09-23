@@ -4,8 +4,8 @@
 
 use xtask::{
     ci_lint, dom_fixtures, epubcheck_parity, fetch_epubcheck, fetch_epubcheck_corpus,
-    fetch_isartor, fetch_llama_server, fixtures, handmade_fixtures, mutations, stage_sidecars,
-    thresholds_lint, vendor_pdfium,
+    fetch_isartor, fetch_llama_server, fixtures, fuzz_seeds, handmade_fixtures, mutations,
+    stage_sidecars, thresholds_lint, vendor_pdfium,
 };
 
 use std::path::{Path, PathBuf};
@@ -30,6 +30,7 @@ tasks:
   epubcheck-parity  run Tier 1 over that corpus and write docs/TIER1_PARITY.md
                       --check             compare against the committed number instead of
                                           rewriting it; fails when parity has fallen
+  fuzz-seeds        write the fuzz targets' seed corpora to fuzz/corpus/ from the fixtures
   handmade-fixtures write the hand-made PDFs to corpus/fixtures/handmade/
   mutations         apply the mutation recipes to the fixtures they belong to and
                     write the results to corpus/fixtures/mutations/
@@ -62,6 +63,7 @@ fn main() -> Result<()> {
             let check = std::env::args().any(|a| a == "--check");
             epubcheck_parity::run(&root, check)
         }
+        Some("fuzz-seeds") => fuzz_seeds::run(&root),
         Some("handmade-fixtures") => handmade_fixtures::run(&root),
         Some("mutations") => mutations::run(&root),
         Some("ci-lint") => {

@@ -267,3 +267,26 @@ jobs:
       - run: cargo run -p xtask -- vendor-pdfium
       - run: cargo run -p xtask -- fetch-isartor
       - run: cargo nextest run -p openconvert --features isartor --locked -E 'test(isartor_corpus_terminates_cleanly)'
+
+  # PHASE 14 row 14.13–14.15 (A14.8): the three cargo-fuzz targets on OpenConvert's own parsers —
+  # the IR deserialiser, the job-spec validator, the XHTML/OPF emitter round trip — fifteen minutes
+  # each, seeded from the committed `fuzz/corpus/`. Nightly toolchain in this job only. A crash
+  # fails the job and uploads the input; it is minimised with `cargo fuzz tmin` and committed under
+  # `corpus/fixtures/crash/fuzz/` in the fixing commit (the crash manifest keys it).
+  fuzz:                   # Phase 14
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo install cargo-fuzz --locked
+      - name: fuzz each target for 15 minutes
+        working-directory: fuzz
+        run: |
+          for target in ir_deserialize job_spec xhtml_opf_roundtrip; do
+            mkdir -p "../target/fuzz-corpus/$target" && cp corpus/$target/* "../target/fuzz-corpus/$target/"
+            cargo fuzz run -O "$target" "../target/fuzz-corpus/$target" -- -max_total_time=900 -rss_limit_mb=2048
+          done
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: fuzz-artifacts, path: fuzz/artifacts }

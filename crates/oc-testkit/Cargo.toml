@@ -58,4 +58,10 @@ pdf-writer.workspace = true
 lopdf.workspace = true
 # The hostile PDFs' compressed streams (PHASE 14): bombs and glyph floods are zlib.
 flate2.workspace = true
+# The fuzz properties (PHASE 14 detail 8): the emitter round trip and its Tier-1 check.
+oc-epub = { path = "../oc-epub", version = "0.1.0" }
+oc-validate = { path = "../oc-validate", version = "0.1.0" }
 image.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
