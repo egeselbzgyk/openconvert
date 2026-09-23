@@ -17,6 +17,9 @@ pub const MAX_PAGES: &str = "max_pages";
 pub const MAX_IMAGE_PIXELS: &str = "max_image_pixels";
 pub const MAX_DECOMPRESSED_STREAM_BYTES: &str = "max_decompressed_stream_bytes";
 pub const MAX_XREF_CHAIN: &str = "max_xref_chain";
+pub const MAX_PAGE_GLYPHS: &str = "max_page_glyphs";
+pub const MAX_MEMORY_BYTES: &str = "max_memory_bytes";
+pub const STAGE_DEADLINE_SECS: &str = "stage_deadline_secs";
 
 /// One limit, and what asked to exceed it.
 ///
@@ -41,6 +44,79 @@ impl std::fmt::Display for LimitExceeded {
 }
 
 impl std::error::Error for LimitExceeded {}
+
+/// Which cap fired, with what the file declared (or the run reached) and what was allowed
+/// (PHASE 14).
+///
+/// [`LimitExceeded`] is the flat record Phase 1's three checks produce; this is the structured
+/// form the Phase 14 checks produce, one variant per cap, so a caller can say *where* as well as
+/// *how much* — the page an image is on, the object a stream belongs to, the stage a deadline
+/// caught. Every variant names its cap with [`CapViolation::cap`], which is what a report and a
+/// `fatal` event print, so "which cap fired" is never a matter of parsing a message.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum CapViolation {
+    /// The catalogue's `/Count` asks for more pages than the conversion reads.
+    #[error("max_pages exceeded: the document declares {declared} pages, {limit} allowed")]
+    Pages { declared: u64, limit: u32 },
+    /// An image dictionary declares more pixels than any decoder is asked to allocate.
+    #[error(
+        "max_image_pixels exceeded on page {page}: an image declares {declared} pixels, \
+         {limit} allowed"
+    )]
+    ImagePixels {
+        declared: u64,
+        limit: u64,
+        page: u32,
+    },
+    /// A stream kept expanding past the ceiling, whatever its `/Length` said.
+    #[error(
+        "max_decompressed_stream_bytes exceeded: object {obj} expands past {limit} bytes \
+         ({produced} produced when decoding stopped)"
+    )]
+    StreamBytes { produced: u64, limit: u64, obj: u32 },
+    /// The `/Prev` chain (or a chain of object streams) is longer than a well-formed file needs.
+    #[error("max_xref_chain exceeded: the cross-reference chain is {depth} sections deep, {limit} allowed")]
+    XrefDepth { depth: u32, limit: u32 },
+    /// The `/Prev` chain returns to a section it has already visited. Separate from
+    /// [`CapViolation::XrefDepth`] because the diagnosis differs: a cycle is a malformed file at
+    /// any length, a long chain is a suspicious one.
+    #[error("max_xref_chain: the cross-reference chain returns to the section at byte {offset}, a cycle")]
+    XrefCycle { offset: u64 },
+    /// A page's content declares more glyphs than a page is allowed to draw.
+    #[error(
+        "max_page_glyphs exceeded on page {page}: the content declares {declared} glyphs, \
+         {limit} allowed"
+    )]
+    PageGlyphs {
+        declared: u64,
+        limit: u64,
+        page: u32,
+    },
+    /// An allocation beyond the memory cap was asked for.
+    #[error("max_memory_bytes exceeded: {requested} bytes requested, {limit} allowed")]
+    Memory { requested: u64, limit: u64 },
+    /// A stage ran past its wall-clock deadline.
+    #[error("stage_deadline_secs exceeded: stage `{stage}` ran past {} s", .limit.as_secs())]
+    Deadline {
+        stage: &'static str,
+        limit: std::time::Duration,
+    },
+}
+
+impl CapViolation {
+    /// The cap's name, as `thresholds.toml` spells it under `limits.` and as the report prints it.
+    pub fn cap(&self) -> &'static str {
+        match self {
+            CapViolation::Pages { .. } => MAX_PAGES,
+            CapViolation::ImagePixels { .. } => MAX_IMAGE_PIXELS,
+            CapViolation::StreamBytes { .. } => MAX_DECOMPRESSED_STREAM_BYTES,
+            CapViolation::XrefDepth { .. } | CapViolation::XrefCycle { .. } => MAX_XREF_CHAIN,
+            CapViolation::PageGlyphs { .. } => MAX_PAGE_GLYPHS,
+            CapViolation::Memory { .. } => MAX_MEMORY_BYTES,
+            CapViolation::Deadline { .. } => STAGE_DEADLINE_SECS,
+        }
+    }
+}
 
 /// What one conversion is allowed to consume.
 ///

@@ -83,6 +83,36 @@ LAST_UPDATED: 2026-09-23
 - [ ] **Phase 14** — Security hardening
 - [ ] **Phase 15** — Packaging & release  *(then check Appendix D: Definition of Done for v1.0)*
 
+## Phase 14 — on branch `phase/14-security-hardening`
+
+Built in the worktree `/home/user/wt/phase13` while Phase 12 is finished on its own branch. Work
+items, in order, with the plan's test rows against each:
+
+- [x] **P14.1** `CapViolation`; the image cap read from the dictionary, the decoder behind it — row 14.1
+- [ ] **P14.2** `BoundedInflate` and our own filter chain; `lopdf` loads bounded — rows 14.2, 14.3
+- [ ] **P14.3** the xref/ObjStm pre-walk: depth counter and visited set — rows 14.4, 14.5
+- [ ] **P14.4** the page cap from the catalogue's `/Count`, before any page object — row 14.6
+- [ ] **P14.5** one abort path: `AbortCause`, `DeadlineGuard`, one cleanup — row 14.8
+- [ ] **P14.6** `--max-memory`: `RLIMIT_AS` / nested job object before the PDF opens — row 14.7
+- [ ] **P14.7** children never outlive a killed engine: PDEATHSIG trampoline, job object (Phases 9, 13)
+- [ ] **P14.8** Landlock: `ScopeSet`, self-restriction, recorded skip — rows 14.10–14.12
+- [ ] **P14.9** `oc-net` audit log — row 14.21
+- [ ] **P14.10** caps end in exit 1 with a report and no output; the 40 M-glyph PDF — rows 14.9, 14.19
+- [ ] **P14.11** crash corpus: `oc-eval mutate`, `corpus/fixtures/crash/`, Isartor fetch — rows 14.16–14.18
+- [ ] **P14.12** `fuzz/`: three targets, seeded corpora — rows 14.13–14.15
+- [ ] **P14.13** `unshare -n` over the AI cassette path — row 14.20
+- [ ] **P14.14** `unsafe` confined to declared modules — row 14.22
+- [ ] **P14.15** `--isolate-parser` spike, go/no-go — row 14.23
+- [ ] **P14.16** `docs/SECURITY_TESTING.md`, Definition of Done, CHANGELOG, merge
+
+What a fresh session needs:
+
+- `oc_core::limits::CapViolation` is the structured Phase 14 refusal (one variant per cap, `cap()`
+  names it); Phase 1's flat `LimitExceeded` stays for the page count. `PdfError::cap()` answers
+  "was this a cap?" for both.
+- The pixel cap counts **pixels**, not pixels × components: D13.2 says "max image pixels (100 MP
+  declared)", which outranks the plan's detail 1.
+
 ## Phase 13 — on branch `phase/13-ocr`
 
 Work items, in order, with the plan's test rows against each:

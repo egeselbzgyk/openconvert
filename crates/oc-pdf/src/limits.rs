@@ -5,17 +5,84 @@
 //! a bounds check that runs once the six gigabytes are allocated has guarded nothing.
 
 use lopdf::{Document, ObjectId};
-use oc_core::limits::{Limits, MAX_DECOMPRESSED_STREAM_BYTES};
+use oc_core::limits::{CapViolation, Limits, MAX_DECOMPRESSED_STREAM_BYTES};
 
 use crate::error::PdfError;
+use crate::images::DecodedImage;
 
-/// Refuse an image by the dimensions it declares, before anything decodes it.
+/// What an image dictionary *declares*: the only input the pixel cap is allowed to read.
 ///
-/// The dimensions come from the image dictionary, which is to say from the file, which is to
-/// say from whoever wrote the file. Multiplying them costs nothing; believing them costs
-/// `width × height × bytes-per-pixel`.
-pub fn check_image(width: u32, height: u32, limits: &Limits) -> Result<(), PdfError> {
-    Ok(limits.check_image_pixels(width, height)?)
+/// Wide integers on purpose. `/Width` is whatever number the file wrote, and a check that
+/// narrows it to `u32` first has already trusted it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ImageDict {
+    pub width: u64,
+    pub height: u64,
+}
+
+impl ImageDict {
+    /// Read `/Width` and `/Height` from an image XObject's dictionary. `None` when either is
+    /// missing or not a non-negative integer — an image without dimensions is not one a
+    /// decoder can be asked to allocate for.
+    pub fn from_dictionary(dictionary: &lopdf::Dictionary) -> Option<Self> {
+        let side = |key: &[u8]| {
+            dictionary
+                .get(key)
+                .ok()
+                .and_then(|value| value.as_i64().ok())
+                .and_then(|value| u64::try_from(value).ok())
+        };
+        Some(Self {
+            width: side(b"Width")?,
+            height: side(b"Height")?,
+        })
+    }
+
+    /// The declared pixel count, saturating: a product that overflows is refused, never
+    /// wrapped to something small.
+    pub fn pixels(&self) -> u64 {
+        self.width.saturating_mul(self.height)
+    }
+}
+
+/// Refuse an image by the dimensions its dictionary declares (PHASE 14 detail 1).
+///
+/// Dictionary-only: nothing here decodes, composites or allocates for the image, so it must run
+/// before anything that does. Pixels, not pixels × components: D13.2 names the cap "max image
+/// pixels (100 MP declared)", and the threshold's evidence is Pillow's `MAX_IMAGE_PIXELS`, which
+/// is also a pixel count (the plan's detail 1 multiplies by components; D13.2 governs).
+pub fn check_image_before_decode(
+    dictionary: &ImageDict,
+    caps: &Limits,
+    page: u32,
+) -> Result<(), CapViolation> {
+    let declared = dictionary.pixels();
+    if declared > caps.max_image_pixels {
+        return Err(CapViolation::ImagePixels {
+            declared,
+            limit: caps.max_image_pixels,
+            page,
+        });
+    }
+    Ok(())
+}
+
+/// Decode an image only once its dictionary has passed the cap.
+///
+/// The decoder is a closure so that the order is a property of this function rather than of
+/// every caller's discipline: there is no way to reach `decode` without the check having
+/// returned `Ok` first. Test 14.1 hands it a spy.
+pub fn decode_image_checked<F>(
+    dictionary: &ImageDict,
+    caps: &Limits,
+    page: u32,
+    decode: F,
+) -> Result<DecodedImage, PdfError>
+where
+    F: FnOnce() -> Result<DecodedImage, PdfError>,
+{
+    check_image_before_decode(dictionary, caps, page)?;
+    decode()
 }
 
 /// Read one page's content stream with the decompression cap applied.
@@ -83,10 +150,14 @@ fn image_pixel_bomb_is_refused_before_decode() {
         .expect("the file itself is well-formed; it is the claim inside that is not");
 
     match document.page_images(0) {
-        Err(PdfError::LimitExceeded(exceeded)) => {
-            assert_eq!(exceeded.limit, oc_core::limits::MAX_IMAGE_PIXELS);
-            assert_eq!(exceeded.requested, 1_600_000_000);
-            assert_eq!(exceeded.allowed, 100_000_000);
+        Err(PdfError::Cap(CapViolation::ImagePixels {
+            declared,
+            limit,
+            page,
+        })) => {
+            assert_eq!(declared, 1_600_000_000);
+            assert_eq!(limit, 100_000_000);
+            assert_eq!(page, 0);
         }
         other => panic!("a 1.6-gigapixel claim must be refused, got {other:?}"),
     }
@@ -189,4 +260,81 @@ fn max_pages_refuses_at_the_door() {
         .open_with_limits(&at_limit, None, &limits)
         .expect("exactly the allowance must open");
     assert_eq!(document.page_count(), limits.max_pages);
+}
+
+/// Test 14.1.
+///
+/// A spy stands in for the decoder, and the assertion is on the spy: the property being bought
+/// is that the decoder is **never entered** for an image whose dictionary already says it is too
+/// big, not that an error comes back eventually. The natural "decode, then look at the size"
+/// shape returns the same error and fails this test, because the spy counts one entry.
+///
+/// The control half keeps the test honest: a small image reaches the decoder exactly once, so a
+/// guard that refused everything would fail too.
+#[test]
+fn image_pixel_cap_checked_before_decode() {
+    use oc_core::limits::CapViolation;
+    use std::cell::Cell;
+
+    let caps = Limits::default();
+    let entered = Cell::new(0_u32);
+    let spy = || {
+        entered.set(entered.get() + 1);
+        Ok(crate::images::DecodedImage {
+            width: 1,
+            height: 1,
+            rgba: vec![0; 4],
+        })
+    };
+
+    // The dictionary the file carries, read with lopdf: 40 000 × 40 000, RGB, 8 bits.
+    let mut dictionary = lopdf::Dictionary::new();
+    dictionary.set("Type", lopdf::Object::Name(b"XObject".to_vec()));
+    dictionary.set("Subtype", lopdf::Object::Name(b"Image".to_vec()));
+    dictionary.set("Width", 40_000_i64);
+    dictionary.set("Height", 40_000_i64);
+    dictionary.set("ColorSpace", lopdf::Object::Name(b"DeviceRGB".to_vec()));
+    dictionary.set("BitsPerComponent", 8_i64);
+    let bomb = ImageDict::from_dictionary(&dictionary).expect("an image dictionary");
+
+    match decode_image_checked(&bomb, &caps, 7, spy) {
+        Err(PdfError::Cap(CapViolation::ImagePixels {
+            declared,
+            limit,
+            page,
+        })) => {
+            assert_eq!(declared, 1_600_000_000);
+            assert_eq!(limit, caps.max_image_pixels);
+            assert_eq!(page, 7);
+        }
+        other => panic!("a 1.6-gigapixel dictionary must be refused, got {other:?}"),
+    }
+    assert_eq!(
+        entered.get(),
+        0,
+        "the decoder was entered for an image its dictionary already refused"
+    );
+
+    let small = ImageDict {
+        width: 100,
+        height: 100,
+    };
+    let spy = || {
+        entered.set(entered.get() + 1);
+        Ok(crate::images::DecodedImage {
+            width: 100,
+            height: 100,
+            rgba: vec![0; 40_000],
+        })
+    };
+    let decoded = decode_image_checked(&small, &caps, 7, spy).expect("a 10 kpx image decodes");
+    assert_eq!(decoded.width, 100);
+    assert_eq!(entered.get(), 1, "a legal image reaches the decoder once");
+
+    // Overflow cannot turn a refusal into a pass: u64::MAX on a side saturates.
+    let huge = ImageDict {
+        width: u64::MAX,
+        height: u64::MAX,
+    };
+    assert!(check_image_before_decode(&huge, &caps, 0).is_err());
 }

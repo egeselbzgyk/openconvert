@@ -16,7 +16,7 @@ use crate::geom::{PageGeometry, PdfRect, Rotate};
 use crate::glyphs::{family_key, PageGlyphs, STAGE};
 use crate::images::{classify_image, effective_dpi};
 use crate::inspect::{DocMetadata, PdfDoc};
-use crate::limits::check_image;
+use crate::limits::{check_image_before_decode, decode_image_checked, ImageDict};
 use oc_core::limits::Limits;
 use oc_model::extract::{FontId, FontInfo, Glyph, ImageId, ImageRef, PageRef, VecId, VectorRegion};
 use oc_model::ledger::{LedgerEntry, Reason};
@@ -213,7 +213,14 @@ impl PdfDoc for PdfiumDoc {
         // at 300 dpi is exactly the pixel bomb `max_image_pixels` exists for.
         let width = (page.width().value * scale).ceil().max(1.0) as u32;
         let height = (page.height().value * scale).ceil().max(1.0) as u32;
-        crate::limits::check_image(width, height, &self.limits)?;
+        check_image_before_decode(
+            &ImageDict {
+                width: u64::from(width),
+                height: u64::from(height),
+            },
+            &self.limits,
+            index,
+        )?;
 
         let config = pdfium_render::prelude::PdfRenderConfig::new()
             .scale_page_by_factor(scale)
@@ -337,7 +344,11 @@ impl PdfiumDoc {
 
             let intrinsic_px = (pixels(image.width()), pixels(image.height()));
             // Before anything decodes, composites or allocates for this image.
-            check_image(intrinsic_px.0, intrinsic_px.1, &self.limits)?;
+            check_image_before_decode(
+                &declared(image.width(), image.height()),
+                &self.limits,
+                index,
+            )?;
             let fact = facts
                 .as_ref()
                 .and_then(|facts| facts.get(position))
@@ -430,23 +441,22 @@ impl PdfiumDoc {
             .ok_or_else(missing)?;
         let object = object.as_image_object().ok_or_else(missing)?;
 
-        check_image(
-            pixels(object.width()),
-            pixels(object.height()),
-            &self.limits,
-        )?;
-
-        let decoded = object
-            .get_processed_image(&self.document)
-            .map_err(|source| PdfError::Page {
-                index: page,
-                message: format!("image {} could not be decoded: {source}", image.0),
-            })?;
-        let rgba = decoded.to_rgba8();
-        Ok(crate::images::DecodedImage {
-            width: rgba.width(),
-            height: rgba.height(),
-            rgba: rgba.into_raw(),
+        // PDFium reads both sides from the image's stream dictionary without decoding it; the
+        // decoder is behind the check, not beside it (PHASE 14 detail 1).
+        let dictionary = declared(object.width(), object.height());
+        decode_image_checked(&dictionary, &self.limits, page, || {
+            let decoded = object
+                .get_processed_image(&self.document)
+                .map_err(|source| PdfError::Page {
+                    index: page,
+                    message: format!("image {} could not be decoded: {source}", image.0),
+                })?;
+            let rgba = decoded.to_rgba8();
+            Ok(crate::images::DecodedImage {
+                width: rgba.width(),
+                height: rgba.height(),
+                rgba: rgba.into_raw(),
+            })
         })
     }
 
@@ -694,6 +704,18 @@ fn is_private_use(c: char) -> bool {
 
 /// An image dimension in pixels. A negative one is not a thing, so it reads as zero and the
 /// derived DPI reads as zero with it - visibly wrong rather than quietly plausible.
+/// An image's declared dimensions as the pixel cap reads them. A side PDFium cannot report is 0,
+/// which the cap passes: PDFium then has nothing it could be asked to allocate for either.
+fn declared(
+    width: Result<pdfium_render::prelude::Pixels, pdfium_render::prelude::PdfiumError>,
+    height: Result<pdfium_render::prelude::Pixels, pdfium_render::prelude::PdfiumError>,
+) -> ImageDict {
+    ImageDict {
+        width: u64::from(pixels(width)),
+        height: u64::from(pixels(height)),
+    }
+}
+
 fn pixels(
     value: Result<pdfium_render::prelude::Pixels, pdfium_render::prelude::PdfiumError>,
 ) -> u32 {

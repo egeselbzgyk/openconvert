@@ -84,8 +84,10 @@ pub fn run<W: Write>(
 
     let document = match backend.open_with_limits(&bytes, args.password.as_deref(), &args.limits) {
         Ok(document) => document,
-        Err(oc_pdf::error::PdfError::LimitExceeded(exceeded)) => {
-            events.fatal(E_LIMIT, &exceeded.to_string());
+        Err(
+            error @ (oc_pdf::error::PdfError::LimitExceeded(_) | oc_pdf::error::PdfError::Cap(_)),
+        ) => {
+            events.fatal(E_LIMIT, &error.to_string());
             return ExitCode::Usage;
         }
         Err(error @ oc_pdf::error::PdfError::PasswordRequired) => {
