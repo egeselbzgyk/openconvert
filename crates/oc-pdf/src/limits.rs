@@ -5,7 +5,7 @@
 //! a bounds check that runs once the six gigabytes are allocated has guarded nothing.
 
 use lopdf::{Document, ObjectId};
-use oc_core::limits::{CapViolation, Limits, MAX_DECOMPRESSED_STREAM_BYTES};
+use oc_core::limits::{CapViolation, Limits};
 
 use crate::error::PdfError;
 use crate::images::DecodedImage;
@@ -85,33 +85,143 @@ where
     decode()
 }
 
-/// Read one page's content stream with the decompression cap applied.
+/// A `Read` adapter that fails past a byte ceiling, whatever the stream's `/Length` declared
+/// (PHASE 14 detail 2).
 ///
-/// The cap is on the *sink*, not on a declared size, because a compressed stream does not
-/// declare its expanded size — that is precisely the attack. `lopdf` bounds each filter layer
-/// individually, so a stream with nested filters cannot expand past the cap once per layer
-/// either.
+/// It hands out at most `limit` bytes. Once they are gone it asks the inner reader for one more:
+/// none means the data really ended at the ceiling, and any means it did not, which is an error
+/// carrying [`CeilingReached`] — never a short read that a caller could mistake for the end.
+/// Nothing is buffered here, so the caller's buffer bounds the memory and the counter bounds the
+/// work.
+pub struct BoundedInflate<R: std::io::Read> {
+    inner: R,
+    produced: u64,
+    limit: u64,
+}
+
+impl<R: std::io::Read> BoundedInflate<R> {
+    pub fn new(inner: R, limit: u64) -> Self {
+        Self {
+            inner,
+            produced: 0,
+            limit,
+        }
+    }
+
+    /// Bytes handed out so far. Never more than the limit.
+    pub fn produced(&self) -> u64 {
+        self.produced
+    }
+
+    /// Bytes that may still be handed out.
+    pub fn remaining(&self) -> u64 {
+        self.limit.saturating_sub(self.produced)
+    }
+}
+
+impl<R: std::io::Read> std::io::Read for BoundedInflate<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+        let remaining = self.remaining();
+        if remaining == 0 {
+            let mut probe = [0_u8; 1];
+            return match self.inner.read(&mut probe)? {
+                0 => Ok(0),
+                _ => Err(std::io::Error::other(CeilingReached {
+                    produced: self.produced,
+                    limit: self.limit,
+                })),
+            };
+        }
+        let window = usize::try_from(remaining)
+            .unwrap_or(usize::MAX)
+            .min(buf.len());
+        let read = self.inner.read(&mut buf[..window])?;
+        self.produced = self
+            .produced
+            .saturating_add(u64::try_from(read).unwrap_or(u64::MAX));
+        Ok(read)
+    }
+}
+
+/// The error a [`BoundedInflate`] fails with at its ceiling.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("stream expanded past its {limit}-byte ceiling")]
+pub struct CeilingReached {
+    pub produced: u64,
+    pub limit: u64,
+}
+
+impl CeilingReached {
+    /// The ceiling error inside an I/O error, if that is what it is — however many adapters
+    /// wrapped it on the way out.
+    pub fn find(error: &std::io::Error) -> Option<CeilingReached> {
+        let mut source: Option<&(dyn std::error::Error + 'static)> =
+            error.get_ref().map(|e| e as _);
+        while let Some(current) = source {
+            if let Some(reached) = current.downcast_ref::<CeilingReached>() {
+                return Some(*reached);
+            }
+            if let Some(io) = current.downcast_ref::<std::io::Error>() {
+                source = io.get_ref().map(|e| e as _);
+                continue;
+            }
+            source = current.source();
+        }
+        None
+    }
+}
+
+/// Read one page's content with the decompression cap applied, through our own filter chain.
+///
+/// Every content stream is decoded by [`crate::filters::decode_stream`], and the page shares one
+/// budget of `limits.max_decompressed_stream_bytes` across its streams. A stream that cannot be
+/// decoded for any reason *other* than the cap contributes its raw bytes, as `lopdf` and PDFium
+/// both do, and those count against the budget too; the cap is never lenient.
 pub fn read_page_content(
     document: &Document,
     page: ObjectId,
     limits: &Limits,
 ) -> Result<Vec<u8>, PdfError> {
-    let cap = usize::try_from(limits.max_decompressed_stream_bytes).unwrap_or(usize::MAX);
-    document
-        .get_page_content_with_limit(page, cap)
-        .map_err(|error| match error {
-            lopdf::Error::Decompress(_) => oc_core::limits::LimitExceeded {
-                limit: MAX_DECOMPRESSED_STREAM_BYTES,
-                allowed: limits.max_decompressed_stream_bytes,
-                // The expanded size is never learned — refusing it is the point — so what is
-                // reported is that it passed the cap, which is the only honest number here.
-                requested: limits.max_decompressed_stream_bytes.saturating_add(1),
+    use crate::filters::{decode_with_budget, StreamError};
+
+    let ceiling = limits.max_decompressed_stream_bytes;
+    let mut content = Vec::new();
+    for id in document.get_page_contents(page) {
+        let Ok(stream) = document.get_object(id).and_then(lopdf::Object::as_stream) else {
+            continue;
+        };
+        let spent = u64::try_from(content.len()).unwrap_or(u64::MAX);
+        let remaining = ceiling.saturating_sub(spent);
+        let decoded = match decode_with_budget(stream, remaining, id.0) {
+            Ok(decoded) => decoded,
+            Err(StreamError::Cap(CapViolation::StreamBytes { produced, .. })) => {
+                return Err(CapViolation::StreamBytes {
+                    produced: spent.saturating_add(produced),
+                    limit: ceiling,
+                    obj: id.0,
+                }
+                .into());
             }
-            .into(),
-            other => PdfError::Open {
-                message: other.to_string(),
-            },
-        })
+            Err(_) => {
+                let raw = u64::try_from(stream.content.len()).unwrap_or(u64::MAX);
+                if raw > remaining {
+                    return Err(CapViolation::StreamBytes {
+                        produced: spent.saturating_add(raw),
+                        limit: ceiling,
+                        obj: id.0,
+                    }
+                    .into());
+                }
+                stream.content.clone()
+            }
+        };
+        content.extend_from_slice(&decoded);
+        content.push(b'\n');
+    }
+    Ok(content)
 }
 
 // ---------------------------------------------------------------------------
@@ -194,9 +304,11 @@ fn decompression_bomb_is_bounded() {
         ..Limits::default()
     };
     match read_page_content(&document, page, &tight) {
-        Err(PdfError::LimitExceeded(exceeded)) => {
-            assert_eq!(exceeded.limit, MAX_DECOMPRESSED_STREAM_BYTES);
-            assert_eq!(exceeded.allowed, ONE_MIB);
+        Err(PdfError::Cap(CapViolation::StreamBytes {
+            produced, limit, ..
+        })) => {
+            assert_eq!(limit, ONE_MIB);
+            assert_eq!(produced, ONE_MIB, "decoding stops exactly at the ceiling");
         }
         other => panic!("an 8 MiB expansion past a 1 MiB cap must be refused, got {other:?}"),
     }
@@ -218,8 +330,11 @@ fn decompression_bomb_is_bounded() {
         .open_with_limits(&bytes, None, &tight)
         .expect("the document itself is small; it is the stream inside that is not");
     match opened.page_images(0) {
-        Err(PdfError::LimitExceeded(exceeded)) => {
-            assert_eq!(exceeded.limit, MAX_DECOMPRESSED_STREAM_BYTES);
+        Err(error @ PdfError::Cap(_)) => {
+            assert_eq!(
+                error.cap(),
+                Some(oc_core::limits::MAX_DECOMPRESSED_STREAM_BYTES)
+            );
         }
         other => panic!("the cap must apply where the content is actually read, got {other:?}"),
     }
@@ -337,4 +452,186 @@ fn image_pixel_cap_checked_before_decode() {
         height: u64::MAX,
     };
     assert!(check_image_before_decode(&huge, &caps, 0).is_err());
+}
+
+/// A zlib stream of `size` zero bytes: the classic bomb, about a thousand to one.
+#[cfg(test)]
+fn zlib_zeros(size: u64) -> Vec<u8> {
+    use std::io::Write;
+    let chunk = vec![0_u8; 1 << 20];
+    let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::best());
+    let mut written = 0_u64;
+    while written < size {
+        let take = usize::try_from((size - written).min(chunk.len() as u64)).unwrap_or(0);
+        encoder.write_all(&chunk[..take]).expect("in-memory write");
+        written += take as u64;
+    }
+    encoder.finish().expect("in-memory finish")
+}
+
+/// Test 14.2.
+///
+/// The ceiling is the shipped one, 256 MiB, and the bomb expands to 300 MiB. The reader is
+/// drained by hand so the test sees every byte handed out: exactly the ceiling arrives, then an
+/// error that says it is the ceiling — not a short read that looks like the end, and not a
+/// 300 MiB buffer that is refused after the fact.
+#[test]
+fn bounded_inflate_stops_at_ceiling() {
+    use std::io::Read;
+
+    const MIB: u64 = 1 << 20;
+    let caps = Limits::default();
+    let ceiling = caps.max_decompressed_stream_bytes;
+    assert_eq!(ceiling, 256 * MIB, "the shipped ceiling is 256 MiB");
+    let bomb = zlib_zeros(300 * MIB);
+    assert!(
+        bomb.len() < 1 << 20,
+        "a bomb is small: {} bytes",
+        bomb.len()
+    );
+
+    let mut reader = BoundedInflate::new(flate2::read::ZlibDecoder::new(bomb.as_slice()), ceiling);
+    let mut buffer = vec![0_u8; 1 << 16];
+    let mut handed_out = 0_u64;
+    let error = loop {
+        match reader.read(&mut buffer) {
+            Ok(0) => panic!("a 300 MiB bomb decoded to its end under a 256 MiB ceiling"),
+            Ok(read) => {
+                handed_out += read as u64;
+                assert!(
+                    handed_out <= ceiling,
+                    "{handed_out} bytes past a {ceiling} ceiling"
+                );
+            }
+            Err(error) => break error,
+        }
+    };
+    assert_eq!(
+        handed_out, ceiling,
+        "everything up to the ceiling, and nothing past it"
+    );
+    assert_eq!(reader.produced(), ceiling);
+    assert_eq!(
+        CeilingReached::find(&error),
+        Some(CeilingReached {
+            produced: ceiling,
+            limit: ceiling
+        })
+    );
+
+    // Through the filter chain as production uses it: the same refusal, as a cap.
+    let mut dictionary = lopdf::Dictionary::new();
+    dictionary.set("Filter", lopdf::Object::Name(b"FlateDecode".to_vec()));
+    let stream = lopdf::Stream::new(dictionary, bomb);
+    match crate::filters::decode_stream(&stream, &caps, 12) {
+        Err(crate::filters::StreamError::Cap(CapViolation::StreamBytes {
+            produced,
+            limit,
+            obj,
+        })) => {
+            assert_eq!((produced, limit, obj), (ceiling, ceiling, 12));
+        }
+        other => panic!(
+            "expected the stream cap, got {:?}",
+            other.map(|bytes| bytes.len())
+        ),
+    }
+
+    // And a legal stream just under the ceiling still decodes, so the refusal above is the
+    // ceiling acting and not the decoder failing.
+    let small = zlib_zeros(MIB);
+    let mut dictionary = lopdf::Dictionary::new();
+    dictionary.set("Filter", lopdf::Object::Name(b"FlateDecode".to_vec()));
+    let tight = Limits {
+        max_decompressed_stream_bytes: MIB,
+        ..Limits::default()
+    };
+    let decoded = crate::filters::decode_stream(&lopdf::Stream::new(dictionary, small), &tight, 1)
+        .expect("exactly the ceiling is allowed");
+    assert_eq!(decoded.len() as u64, MIB);
+}
+
+/// Test 14.3.
+///
+/// The stream says `/Length 10`. It holds a bomb that expands to 300 MiB. A decoder that sized
+/// its buffer from `/Length`, or that trusted it to mean "small", gets this wrong one way or the
+/// other; the ceiling does not read `/Length` at all. Checked twice: on the stream as the
+/// dictionary claims it, and on a whole file written with the lie, which `lopdf` parses by the
+/// object's real boundary.
+#[test]
+fn declared_length_is_not_trusted() {
+    const MIB: u64 = 1 << 20;
+    let caps = Limits::default();
+    let ceiling = caps.max_decompressed_stream_bytes;
+    let bomb = zlib_zeros(300 * MIB);
+
+    let mut dictionary = lopdf::Dictionary::new();
+    dictionary.set("Filter", lopdf::Object::Name(b"FlateDecode".to_vec()));
+    let mut stream = lopdf::Stream::new(dictionary, bomb.clone());
+    stream.dict.set("Length", 10_i64);
+    match crate::filters::decode_stream(&stream, &caps, 4) {
+        Err(crate::filters::StreamError::Cap(CapViolation::StreamBytes {
+            produced,
+            limit,
+            ..
+        })) => {
+            assert_eq!(limit, ceiling);
+            assert_eq!(produced, ceiling);
+        }
+        other => panic!(
+            "/Length 10 must not bound or size anything, got {:?}",
+            other.map(|b| b.len())
+        ),
+    }
+
+    // The same lie in a file: one page whose content stream declares ten bytes.
+    let mut pdf = Vec::new();
+    pdf.extend_from_slice(b"%PDF-1.7\n");
+    let mut offsets = Vec::new();
+    let mut object = |pdf: &mut Vec<u8>, body: &[u8]| {
+        offsets.push(pdf.len());
+        pdf.extend_from_slice(format!("{} 0 obj\n", offsets.len()).as_bytes());
+        pdf.extend_from_slice(body);
+        pdf.extend_from_slice(b"\nendobj\n");
+    };
+    object(&mut pdf, b"<< /Type /Catalog /Pages 2 0 R >>");
+    object(&mut pdf, b"<< /Type /Pages /Count 1 /Kids [3 0 R] >>");
+    object(
+        &mut pdf,
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+    );
+    let mut content = b"<< /Length 10 /Filter /FlateDecode >>\nstream\n".to_vec();
+    content.extend_from_slice(&bomb);
+    content.extend_from_slice(b"\nendstream");
+    object(&mut pdf, &content);
+    let xref = pdf.len();
+    pdf.extend_from_slice(
+        format!("xref\n0 {}\n0000000000 65535 f \n", offsets.len() + 1).as_bytes(),
+    );
+    for offset in &offsets {
+        pdf.extend_from_slice(format!("{offset:010} 00000 n \n").as_bytes());
+    }
+    pdf.extend_from_slice(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+            offsets.len() + 1
+        )
+        .as_bytes(),
+    );
+
+    let document = lopdf::Document::load_mem(&pdf).expect("lopdf recovers the real boundary");
+    let page = document.get_pages().into_values().next().expect("one page");
+    match read_page_content(&document, page, &caps) {
+        Err(PdfError::Cap(CapViolation::StreamBytes {
+            produced,
+            limit,
+            obj,
+        })) => {
+            assert_eq!((produced, limit, obj), (ceiling, ceiling, 4));
+        }
+        other => panic!(
+            "the page's content must stop at the ceiling, got {:?}",
+            other.map(|b| b.len())
+        ),
+    }
 }

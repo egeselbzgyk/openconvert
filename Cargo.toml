@@ -37,6 +37,10 @@ pdfium-render = { version = "0.9.4", default-features = false, features = ["pdfi
 # `pdfium_latest`, so the bindings and the vendored library cannot drift; `xtask vendor-pdfium`
 # refuses to run when this feature and `xtask/pdfium.lock` disagree. See docs/DECISIONS_LOG.md.
 lopdf         = { version = "0.45", default-features = false, features = ["serde"] }
+# Our own filter chain, decoded through `BoundedInflate` (PHASE 14 detail 2). Both are already in
+# the graph at these versions as `lopdf`'s own decoders.
+flate2        = "1.1"
+weezl         = "0.2"
 # --- text ---
 unicode-normalization = "0.1"
 unicode-properties    = "0.1"
@@ -106,6 +110,15 @@ trybuild  = "1.0"
 # full symbols for profiling, and `release` already strips.
 [profile.dev]
 debug = "line-tables-only"
+
+# The inflate backend at full speed in test builds: the ceiling tests decode a quarter of a gigabyte
+# (PHASE 14 rows 14.2, 14.3), which unoptimised takes most of a minute and optimised takes a second.
+# Code generation only; what these crates compute does not depend on it.
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+
+[profile.dev.package.adler2]
+opt-level = 3
 
 [profile.release]
 lto = "thin"

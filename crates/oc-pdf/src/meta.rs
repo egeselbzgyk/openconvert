@@ -59,10 +59,9 @@ pub fn xmp_packet(document: &Document, limits: &oc_core::limits::Limits) -> Opti
         .and_then(|object| resolve(document, object))?
         .as_stream()
         .ok()?;
-    let cap = usize::try_from(limits.max_decompressed_stream_bytes).unwrap_or(usize::MAX);
     // XMP is usually stored uncompressed, but "usually" is not a decoder, and the cap applies
-    // to this stream exactly as it does to a page's.
-    stream.decompressed_content_with_limit(cap).ok()
+    // to this stream exactly as it does to a page's — through the same bounded chain.
+    crate::filters::decode_stream(stream, limits, 0).ok()
 }
 
 /// The three Dublin Core fields, read out of an XMP packet.

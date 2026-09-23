@@ -3660,6 +3660,7 @@ dependencies = [
 name = "oc-pdf"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "image",
  "insta",
  "lopdf",
@@ -3677,6 +3678,7 @@ dependencies = [
  "thiserror 2.0.20",
  "tracing",
  "unicode-normalization",
+ "weezl 0.2.1",
 ]
 
 [[package]]

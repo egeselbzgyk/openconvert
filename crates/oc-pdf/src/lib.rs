@@ -10,6 +10,7 @@ pub mod classify;
 pub mod dump;
 pub mod encrypt;
 pub mod error;
+pub mod filters;
 pub mod geom;
 pub mod glyphs;
 pub mod images;

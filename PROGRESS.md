@@ -89,7 +89,7 @@ Built in the worktree `/home/user/wt/phase13` while Phase 12 is finished on its 
 items, in order, with the plan's test rows against each:
 
 - [x] **P14.1** `CapViolation`; the image cap read from the dictionary, the decoder behind it — row 14.1
-- [ ] **P14.2** `BoundedInflate` and our own filter chain; `lopdf` loads bounded — rows 14.2, 14.3
+- [x] **P14.2** `BoundedInflate` and our own filter chain; `lopdf` loads bounded — rows 14.2, 14.3
 - [ ] **P14.3** the xref/ObjStm pre-walk: depth counter and visited set — rows 14.4, 14.5
 - [ ] **P14.4** the page cap from the catalogue's `/Count`, before any page object — row 14.6
 - [ ] **P14.5** one abort path: `AbortCause`, `DeadlineGuard`, one cleanup — row 14.8
@@ -112,6 +112,12 @@ What a fresh session needs:
   "was this a cap?" for both.
 - The pixel cap counts **pixels**, not pixels × components: D13.2 says "max image pixels (100 MP
   declared)", which outranks the plan's detail 1.
+- `oc_pdf::filters::decode_stream` is our own chain (Flate, LZW, RunLength, ASCII85, ASCIIHex,
+  PNG/TIFF predictors), every layer read through `limits::BoundedInflate`, **one budget shared by
+  the whole chain**. Page content and XMP go through it; `lopdf` now loads with
+  `max_decompressed_size` (it decodes ObjStm/xref streams itself, and its default was unbounded).
+  `our_filter_chain_agrees_with_lopdf_on_every_fixture` holds it to `lopdf`'s answers. The dev
+  profile builds `miniz_oxide`/`adler2` at `opt-level = 3` so the 256 MiB ceiling tests take ~2 s.
 
 ## Phase 13 — on branch `phase/13-ocr`
 

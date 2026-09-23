@@ -71,7 +71,7 @@ impl PdfiumDoc {
         let pages = u32::try_from(document.pages().len()).unwrap_or(u32::MAX);
         limits.check_pages(pages)?;
 
-        let structure = lopdf::Document::load_mem(bytes).ok();
+        let structure = load_structure(bytes, &limits);
         let page_ids = structure
             .as_ref()
             .map(crate::pdfium::page_ids)
@@ -704,6 +704,19 @@ fn is_private_use(c: char) -> bool {
 
 /// An image dimension in pixels. A negative one is not a thing, so it reads as zero and the
 /// derived DPI reads as zero with it - visibly wrong rather than quietly plausible.
+/// The same file, parsed as PDF objects, with `lopdf`'s own decoding of object and
+/// cross-reference streams bounded by the stream ceiling. `lopdf` decodes those eagerly while it
+/// loads, before any of this crate's code sees a byte of them, and its default is unbounded — so
+/// the bound has to be handed in here (PHASE 14 detail 2).
+fn load_structure(bytes: &[u8], limits: &Limits) -> Option<lopdf::Document> {
+    let ceiling = usize::try_from(limits.max_decompressed_stream_bytes).unwrap_or(usize::MAX);
+    lopdf::Document::load_mem_with_options(
+        bytes,
+        lopdf::LoadOptions::with_max_decompressed_size(ceiling),
+    )
+    .ok()
+}
+
 /// An image's declared dimensions as the pixel cap reads them. A side PDFium cannot report is 0,
 /// which the cap passes: PDFium then has nothing it could be asked to allocate for either.
 fn declared(
