@@ -1567,6 +1567,16 @@ that claim should not be testable only in a nightly job.
 Carried forward, in the order a fresh session needs them:
 
 - **CI (2026-09-23).** The repository is public, and `ci.yml` runs on pushes to `main` only (`docs/DECISIONS_LOG.md`, "CI runs on pushes to main only"). Branches are not built by CI: run the gates locally before merging. Every DoD row above that says "unverified here: GitHub Actions is disabled" stays open until the first `main` run after the maintainer re-enabled the `ci` workflow; that run's result is the evidence, not these tables.
+- **Cross-OS test build (2026-09-23).** CI run 35896250574 failed to *compile* on macOS and Windows
+  (`-D dead-code` on Linux-only helpers). Fixed on `fix/ci-cross-os`, checked locally with
+  `cargo check --target {x86_64-pc-windows-gnu,aarch64-apple-darwin} --all-targets` under
+  `RUSTFLAGS=-D warnings`, and the Windows suite run under Wine (774 of 804 pass; every other failure
+  was traced to Wine or to the local setup, except the next point). **Open, likely red on the next
+  `main` run:** `ai::no_ai_output_is_byte_identical_to_the_pre_phase_snapshot` — `f10`'s EPUB differs
+  on Windows in one image, `images/i0002.jpg`: `oc_epub::images::downscale` uses `image`'s
+  `Lanczos3`, whose weights call `f32::sin`, i.e. the platform libm, and Windows' `sinf` does not
+  round like glibc's (checked: a sweep of 17.8 M inputs hashes differently). A D13.8 byte-identity
+  defect, not a test defect; macOS's libm is a suspect too. `docs/DECISIONS_LOG.md`, 2026-09-23.
 - **`furniture` recovers no folio from a book that changes numbering system.** `f09` paginates
   `i, ii` then `1, 2, 3`; digit masking puts the three arabic folios in one group covering 3 of 5
   pages, a repetition ratio of 0.6, inside the grey zone where the detector abstains. The folios
@@ -1806,6 +1816,13 @@ sampled floor is printed as a floor.
 Six new thresholds: the five per-stage budgets and `perf.bench_reference_pages`.
 
 ## Blocked
+
+**Cross-OS byte identity — found 2026-09-23, PROVISIONAL, needs maintainer ratification**
+(`docs/DECISIONS_LOG.md` 2026-09-23, "Cross-OS test build"): `f10`'s EPUB differs on Windows in one
+downscaled image, because `image`'s `Lanczos3` resampler calls the platform libm's `sinf`. Expected
+to turn `ai::no_ai_output_is_byte_identical_to_the_pre_phase_snapshot` red on Windows (macOS
+possibly). The fix changes output bytes and snapshots, so it waits for a decision: a libm-free
+resampler, a pure-Rust `sin`, or narrowing D13.8's claim.
 
 **Phase 15 part A — provisional decisions awaiting maintainer ratification** (each in
 `docs/DECISIONS_LOG.md` 2026-09-23; work continued on the conservative reading):

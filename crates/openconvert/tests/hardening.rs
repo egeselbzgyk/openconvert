@@ -181,9 +181,10 @@ fn run_measuring_peak(mut command: Command) -> (Output, u64) {
 
 /// Row 14.7. `RLIMIT_AS` is what `--max-memory` said, read back from the kernel at the moment the
 /// PDF was opened — not the flag echoed — and the job spec's `limits.max_memory_bytes` reaches it
-/// the same way. Without the flag it is the shipped 4 GiB. (Unix; the Windows job-object limit is
-/// not implemented, see DECISIONS_LOG.)
-#[cfg(unix)]
+/// the same way. Without the flag it is the shipped 4 GiB. (Linux. The Windows job-object limit is
+/// not implemented, see DECISIONS_LOG; macOS refuses an `RLIMIT_AS` below the task's current
+/// address-space size, which on arm64 is far above any cap — see `oc_core::sandbox::rlimit`.)
+#[cfg(target_os = "linux")]
 #[test]
 fn memory_cap_is_applied_before_the_pdf_opens() {
     const GIB: u64 = 1 << 30;

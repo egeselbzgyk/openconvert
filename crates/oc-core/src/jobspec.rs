@@ -445,11 +445,21 @@ fn looks_like_uri(text: &str) -> bool {
 mod tests {
     use super::*;
 
+    /// `unix` as an absolute path on this host. A spec's paths must be absolute (`check_paths`),
+    /// and on Windows `/tmp/in.pdf` is only rooted: absolute needs a drive, so it gets one.
+    fn absolute(unix: &str) -> PathBuf {
+        if cfg!(windows) {
+            PathBuf::from(format!("C:{unix}"))
+        } else {
+            PathBuf::from(unix)
+        }
+    }
+
     fn minimal() -> Value {
         serde_json::json!({
             "schema": "openconvert.job/1",
-            "input": {"path": "/tmp/in.pdf"},
-            "output": {"path": "/tmp/out.epub"}
+            "input": {"path": absolute("/tmp/in.pdf")},
+            "output": {"path": absolute("/tmp/out.epub")}
         })
     }
 
@@ -458,6 +468,8 @@ mod tests {
     }
 
     /// `minimal()` with `value` at the JSON pointer `field`, creating the objects on the way.
+    /// Its one user is the Unix-only path test below.
+    #[cfg(unix)]
     fn with(field: &str, value: Value) -> Value {
         let mut spec = minimal();
         let parts: Vec<&str> = field.trim_start_matches('/').split('/').collect();
@@ -508,13 +520,13 @@ mod tests {
     fn a_minimal_spec_parses() {
         let spec = parse(&minimal().to_string()).expect("the minimal spec is valid");
         assert_eq!(spec.schema, SCHEMA_TAG);
-        assert_eq!(spec.input.path, PathBuf::from("/tmp/in.pdf"));
+        assert_eq!(spec.input.path, absolute("/tmp/in.pdf"));
         assert!(!spec.output.overwrite, "overwrite defaults to false");
     }
 
     #[test]
     fn a_full_spec_round_trips() {
-        let mut spec = JobSpec::new("/a/in.pdf".into(), "/b/out.epub".into());
+        let mut spec = JobSpec::new(absolute("/a/in.pdf"), absolute("/b/out.epub"));
         spec.job_id = Some("job_01-A".to_owned());
         spec.preset = Some(PresetName::Academic);
         spec.limits = Some(LimitsSpec {

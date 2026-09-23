@@ -9,6 +9,9 @@
 //! report says which cap was in force and which flag sets it. Children inherit it — a `tesseract`
 //! or `llama-server` the engine starts is bounded by the same number.
 //!
+//! macOS: XNU accepts an `RLIMIT_AS` only at or above the task's current address-space size, which
+//! on arm64 is hundreds of GiB before `main`, so the call fails and the report says `failed`.
+//!
 //! Windows: the job object that would carry `JOB_OBJECT_LIMIT_PROCESS_MEMORY` is reached through
 //! `win32job`, which does not expose that limit, and setting it ourselves is an `unsafe` FFI call
 //! this project does not make (see `jobobject`). The desktop app's job object is the Windows cap
@@ -76,7 +79,12 @@ pub fn memory_cap_in_force() -> Option<u64> {
 
 /// The cap is in force after it is applied, and it is a real limit: an allocation past it fails
 /// (as an error here, because `try_reserve` asks; an ordinary allocation would end the process).
-#[cfg(unix)]
+///
+/// Linux only. macOS refuses the call: XNU's `setrlimit(RLIMIT_AS)` fails with `EINVAL` for any
+/// limit below the task's current address-space size (`vm_map_set_size_limit`), and an arm64
+/// process has hundreds of GiB mapped before `main`, so no cap this engine would set is accepted.
+/// The engine records that as `status: "failed"` in the report and converts anyway.
+#[cfg(target_os = "linux")]
 #[test]
 fn the_memory_cap_limits_the_address_space() {
     const GIB: u64 = 1 << 30;
