@@ -9,8 +9,8 @@ description  = "Normalization N, folding keys, word/line assembly, dehyphenation
 publish      = false
 
 [dependencies]
-oc-core = { path = "../oc-core", version = "0.1.0" }
-oc-model = { path = "../oc-model", version = "0.1.0" }
+oc-core = { path = "../oc-core", version = "1.0.0" }
+oc-model = { path = "../oc-model", version = "1.0.0" }
 serde.workspace = true
 compact_str.workspace = true
 unicode-normalization.workspace = true

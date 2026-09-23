@@ -9,7 +9,7 @@ description  = "The only socket-opening crate: model/pack downloads and BYO endp
 publish      = false
 
 [dependencies]
-oc-ai = { path = "../oc-ai", version = "0.1.0" }
+oc-ai = { path = "../oc-ai", version = "1.0.0" }
 ureq.workspace = true
 rustls.workspace = true
 secrecy.workspace = true

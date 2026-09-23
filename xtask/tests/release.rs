@@ -1380,6 +1380,31 @@ fn no_todo_placeholders_on_a_release_tag() {
     let threshold = |review_by: &str| {
         format!(
             "[demo.entry]\nvalue = 1\nsource = \"provisional\"\nevidence = \"x\"\nowner = \
+/// Rows 15.16/15.17's tag half: `bump-rules-check --tag vX.Y.Z` accepts the tag only when both
+/// `Cargo.toml` and `tauri.conf.json` declare `X.Y.Z`. The tree itself passes for its own version.
+#[test]
+fn the_tag_is_the_version_both_manifests_declare() {
+    use xtask::versions::{declared_versions, tag_check, TAURI_CONF};
+
+    let root = workspace_root();
+    let declared = declared_versions(&root).expect("versions");
+    tag_check(&root, &format!("v{}", declared.app)).expect("the tree's own tag");
+    assert!(tag_check(&root, "v0.0.1").is_err(), "a tag the tree is not");
+
+    let copy = rehearsal("tag", "none");
+    let conf = copy.join(TAURI_CONF);
+    std::fs::create_dir_all(conf.parent().expect("a parent")).expect("dir");
+    std::fs::write(&conf, "{\"version\": \"0.9.0\"}").expect("written");
+    let error = tag_check(&copy, &format!("v{}", declared.app)).expect_err("tauri.conf.json lags");
+    assert!(
+        format!("{error:#}").contains("tauri.conf.json"),
+        "{error:#}"
+    );
+    std::fs::write(&conf, format!("{{\"version\": \"{}\"}}", declared.app)).expect("written");
+    tag_check(&copy, &format!("v{}", declared.app)).expect("both agree");
+    let _ = std::fs::remove_dir_all(copy);
+}
+
              \"maintainer\"\nreview_by = \"{review_by}\"\n"
         )
     };

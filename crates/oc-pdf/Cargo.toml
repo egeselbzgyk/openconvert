@@ -9,8 +9,8 @@ description  = "PdfBackend trait, PDFium implementation, lopdf object access, pa
 publish      = false
 
 [dependencies]
-oc-model = { path = "../oc-model", version = "0.1.0" }
-oc-core = { path = "../oc-core", version = "0.1.0" }
+oc-model = { path = "../oc-model", version = "1.0.0" }
+oc-core = { path = "../oc-core", version = "1.0.0" }
 pdfium-render.workspace = true
 lopdf.workspace = true
 flate2.workspace = true
@@ -33,7 +33,7 @@ thiserror.workspace = true
 poppler-oracle = []
 
 [dev-dependencies]
-oc-testkit = { path = "../oc-testkit", version = "0.1.0" }
+oc-testkit = { path = "../oc-testkit", version = "1.0.0" }
 insta.workspace = true
 proptest.workspace = true
 pdf-writer.workspace = true
