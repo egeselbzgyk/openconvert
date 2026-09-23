@@ -164,33 +164,36 @@ Work items, in order, with the plan's test rows against each:
    `run_return`), `.github/workflows/ci.yml` (desktop job stages natives; lint job runs
    `bump-rules-check`). Then re-run `cargo run -p xtask -- vendor-pdfium`, `fetch-llama-server`,
    `stage-sidecars` (the desktop crate needs `bin/llama-server-<triple>` and `bin/native/` now).
-2. **`bump-rules-check` after the merge**: Phase 14 may change oc-model/events; the baseline says
+2. **`crates/openconvert/tests/snapshots/report__report_f07.snap`** redacts the thresholds as a count
+   (`[226 entries, redacted]` after part A's two new entries); if Phase 14 adds thresholds, update the
+   count on the merge (a reviewed one-line snapshot change).
+3. **`bump-rules-check` after the merge**: Phase 14 may change oc-model/events; the baseline says
    `released = "none"`, so it only notes drift. Re-record it (`--record none`) so the committed digests
    describe the merged tree (`the_committed_baseline_describes_this_tree` checks versions only).
-3. **Wire Phase 14 into Phase 15's pieces**: (a) the updater's connections (`oc_net::update`, GitHub
+4. **Wire Phase 14 into Phase 15's pieces**: (a) the updater's connections (`oc_net::update`, GitHub
    release hosts) into PHASE 14's network audit log and Settings › Network log's list of the
    connections the app can make; (b) if Phase 14 adds Landlock/sandboxing or new caps to the engine,
    run the AppImage smoke (`--smoke-convert`, row 15.7) again — rebuild the AppImage (see "What a fresh
    session needs"); (c) the Flatpak's finish-args against whatever Phase 14 decides about sandboxing.
-4. **Settings row for the updater** (not in part A): "Check for updates" → `update_check`, then
+5. **Settings row for the updater** (not in part A): "Check for updates" → `update_check`, then
    "Install and restart" → `update_install`; the `Checked` codes (`up_to_date`, `ready`, `no_key`,
    `bad_signature`, `too_large`, `no_platform`, `bad_manifest`, `network`) localised in EN/DE/TR; a
    Vitest test; hidden when the build has no `updater` feature (the Flatpak). INSTALL.md and
    RELEASE_CHECKLIST.md already describe it.
-5. **Rust third-party notices**: `apps/desktop/ui/THIRD-PARTY-NOTICES.txt` says the Rust side's
+6. **Rust third-party notices**: `apps/desktop/ui/THIRD-PARTY-NOTICES.txt` says the Rust side's
    notices "are generated at packaging time (Phase 15)" — not done in part A. Generate them from the
    shipped crates' licence files (e.g. an `xtask notices` over `cargo metadata`, or cargo-about if its
    licence passes `deny.tools.toml`) into `bin/licenses/` so they ride in every bundle; also the root
    `NOTICE` LICENSE_AND_DEPENDENCIES §5 names (PdfPig credit) does not exist yet.
-6. **Release notes' security claims**: write the `## [1.0.0]` section of `docs/CHANGELOG.md` (the release
+7. **Release notes' security claims**: write the `## [1.0.0]` section of `docs/CHANGELOG.md` (the release
    job refuses an empty one) with the security properties Phase 14 actually delivered, each claim
    pointing at the test/CI job that proves it; plus the Windows-unsigned disclosure.
-7. **The checklist**: tick `docs/RELEASE_CHECKLIST.md` items that can be ticked on this machine and
+8. **The checklist**: tick `docs/RELEASE_CHECKLIST.md` items that can be ticked on this machine and
    mark the rest unverified; update "Known release blockers".
-8. **Appendix D (v1.0 DoD) evaluation**, item by item, in PROGRESS — including VD-f (validation-pack
+9. **Appendix D (v1.0 DoD) evaluation**, item by item, in PROGRESS — including VD-f (validation-pack
    JRE licence, deferred to Phase 15: still open; the pack is not built, so it must be deferred past v1
    with the reason, or closed) and Phase 7.5 (parked).
-9. **Phase 15 Definition of Done** table (§0.3), CHANGELOG Phase 15 entry, gates on the merge commit,
+10. **Phase 15 Definition of Done** table (§0.3), CHANGELOG Phase 15 entry, gates on the merge commit,
    merge into `main`. Do **not** tick Phase 15 unless the DoD holds; with the blockers below it cannot
    be `STATUS: COMPLETE`.
 
