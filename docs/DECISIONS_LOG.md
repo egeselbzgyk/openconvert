@@ -5475,3 +5475,32 @@ Isartor not run (P14-a); Windows installers unsigned. `xtask release changelog -
 extracts the notes (87 lines) without refusing.
 Evidence: `release_notes_come_from_the_changelog_and_refuse_a_placeholder`; the command above.
 Affects: `docs/CHANGELOG.md`.
+
+## 2026-09-23 · Appendix D evaluated: v1.0 is not done, and what stands between · Phase 15 (part B)
+Context: Phase 15's last item is to check `IMPLEMENTATION_PLAN.md` Appendix D (Definition of Done for
+v1.0) item by item. The full evaluation is in `PROGRESS.md` ("Appendix D — Definition of Done for
+v1.0, evaluated"); this entry records the three things it decided or found.
+Decision:
+1. **VD-c and VD-e are deferred past v1.0 — PROVISIONAL, needs maintainer ratification** (every VD row
+   is the maintainer's). Both rows block only the optional dictionary pack, which is post-v1
+   (Appendix E item 9), and D15 already keeps every shipped word list off GPL dictionaries; no v1
+   code depends on either answer (`zspell` is not a dependency, and `deny.toml` would refuse it). This
+   entry is the "explicitly deferred past v1 with the reason recorded" Appendix D asks for.
+2. **VD-f stays open, and is a v1.0 blocker.** It was deferred to Phase 15 (2026-09-18) because there
+   was nothing to redistribute; Phase 15 did not build the validation pack either (`packs.toml` is
+   `TODO_`, Phase 12 part B1), and no JRE vendor has been chosen, so there is no vendor's licence
+   text to read. Not decided here: either the maintainer builds the pack and closes VD-f from the
+   chosen vendor's own licence, or D6's in-app validation pack moves past v1.0 — a scope change to an
+   ADR decision, so it is the maintainer's.
+3. **Found: SECURITY §4's "max output size" is not a cap.** D13.2 lists "max output size" among the
+   limits that are always on, and SECURITY §4 gives it no value ("—"); the tree has only
+   `epub.warn_total_bytes` (50 MiB), which adds `W_EPUB_LARGE` and does not refuse. With the missing
+   Windows memory cap (P14-b), Appendix D's "every cap in SECURITY §4 enforced before the operation it
+   bounds" does not hold. Not fixed here: it needs a value SECURITY does not give and belongs to
+   Phase 14's hardening. The 1.0.0 release notes said "every resource limit is checked before the
+   work it bounds"; that is now "these resource limits …", and the output size is listed among the
+   known gaps.
+Evidence: `grep` of `thresholds.toml` and `crates/` for an output cap (only `epub.warn_total_bytes`);
+the VD entries of 2026-09-09 and 2026-09-18; `packs.toml`.
+Affects: `PROGRESS.md` (Appendix D evaluation, `## Blocked`), `docs/CHANGELOG.md` (the 1.0.0 Security
+section), `docs/RELEASE_CHECKLIST.md`.

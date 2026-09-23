@@ -141,3 +141,6 @@ After the job:
   certificates were not available.
 - Phase 7.5 (the reading corpus and conservation defects) is parked: I-1…I-7 do not yet hold on the
   whole corpus.
+- Two of SECURITY §4's caps are not enforced: there is no Windows memory cap (P14-b), and "max output
+  size" has no value and no cap (a 50 MiB warning only).
+- The whole list, against Appendix D of the plan, is in `PROGRESS.md` › Blocked › "v1.0 — Appendix D".

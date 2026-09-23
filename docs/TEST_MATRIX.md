@@ -698,7 +698,7 @@ it has not run anywhere yet.
 | 15.13a | `repro_check_names_the_first_differing_zip_entry` | `xtask` | unit | `test` | green |
 | 15.14 | `release_job_needs_no_python` | `xtask` | unit (YAML parse) + the containers' own assertion | `test`, `release` | green (YAML); release job |
 | 15.14a | `every_release_gate_row_is_a_named_release_step` | `xtask` | unit (YAML parse) | `test` | green |
-| 15.15 | `installer_size_within_budget` | `xtask` (`release-artifacts`) | CI gate | `release`/`build` | **red here, correctly: AppImage 112 695 800 B > 45 000 000** |
+| 15.15 | `installer_size_within_budget` | `xtask` (`release-artifacts`) | CI gate | `release`/`build` | **red here, correctly: AppImage 112 953 848 B > 45 000 000** (rebuilt after Phase 14's merge) |
 | 15.15a | `the_installer_budget_counts_installers_only` | `xtask` | unit | `test` | green |
 | 15.16 | `ir_version_bump_is_enforced` | `xtask` | rehearsal on a copy of the tree | `test` | green |
 | 15.17 | `protocol_bump_is_enforced` | `xtask` | rehearsal on a copy of the tree | `test` | green |
@@ -716,3 +716,6 @@ it has not run anywhere yet.
 | 15.23a | `config::tests::the_ui_is_told_whether_this_build_has_an_updater` | `openconvert-desktop` | unit (with and without `updater`) | `desktop` | green |
 | 15.24 | `the_rust_notices_are_up_to_date`, `every_shipped_crate_and_only_those_has_a_licence_text` | `xtask` | generated file vs `cargo metadata` | `test` | green |
 | 15.25 | `release_notes_come_from_the_changelog_and_refuse_a_placeholder` | `xtask` | unit | `test` | green |
+| 15.26 | `every_update_connection_is_in_the_network_audit_log` | `oc-net` | integration (loopback server, the real `HttpFetch`) | `test` | green |
+| 15.26a | "the network log says when nothing has connected, and lists what the audit log holds" (now with the `update` purpose and "when you check for updates") in `settings.svelte.test.ts` | `apps/desktop/ui` | component (Vitest) | `ui` | green |
+| 15.27 | first run › "the first screen states no telemetry and no network while converting, beside the costs" (`models.svelte.test.ts`) — Appendix D, Product | `apps/desktop/ui` | component (Vitest) | `ui` | green |

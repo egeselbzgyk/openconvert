@@ -43,7 +43,7 @@ release.
 The threat OpenConvert defends against is a hostile PDF. What this release does about it, each
 claim with where it is tested (`docs/SECURITY_TESTING.md` has the full map):
 
-- **Every resource limit is checked before the work it bounds**, from what the file declares:
+- **These resource limits are checked before the work they bound**, from what the file declares:
   image size (100 megapixels) before any decoding, decompressed stream size (256 MiB, one budget for a
   whole filter chain), the cross-reference chain's depth and cycles and the page count (3 000) before
   PDFium opens the file, the text on a page (1 000 000 glyph bytes) before the page loads, and a
@@ -75,6 +75,8 @@ claim with where it is tested (`docs/SECURITY_TESTING.md` has the full map):
 
 - **Windows has no memory cap** (the job object ends the converter's children with it, but does not
   limit memory), and the Windows and macOS containment has not been verified on those systems.
+- **No cap on the size of the EPUB written.** A book over 50 MiB is reported with a warning, not
+  refused; `docs/SECURITY.md` §4's "max output size" has no value yet.
 - **No sandbox below Linux 5.13, and none on macOS or Windows.** On an older kernel, or with
   `OC_LANDLOCK=off`, the conversion runs unconfined and the report says so.
 - **The desktop app's own children** — the converters it runs and its model server — are ended when
@@ -1597,3 +1599,87 @@ unverified here. Built on `phase/14-security-hardening`.
   Linux kernel older than 5.13 (A14.5 is shown through `OC_LANDLOCK=off`), row 14.16 (Isartor pins
   empty), the nightly 15-minute fuzz campaigns (120 s per target here, zero crashes), every CI job.
 - PROVISIONAL decisions awaiting ratification are listed in `PROGRESS.md` › Blocked (Phase 14).
+
+## Phase 15 — Packaging & release
+
+What turns the workspace into something a person can install: one bundle layout on every OS, the
+release workflow and its gates, a signed updater, an SBOM, reproducibility and version-bump checks,
+licence notices, the 1.0.0 release notes and a release checklist. Built and checked on Linux: the
+AppImage is built here and converts a book headless with Landlock and `RLIMIT_AS` in force. macOS
+signing and notarization, the Windows installers, fresh-VM smoke runs, `flatpak-builder-lint`, a
+published release and every CI job are unverified here. **v1.0 is not releasable from this state**:
+Appendix D does not pass (`PROGRESS.md`). Built on `phase/15-packaging-release`.
+
+### Bundle and installers (`apps/desktop`, `packaging/`)
+
+- The engine is bundled as the sidecar **`openconvert-engine`** (was `openconvert`), so building the
+  app can never overwrite the workspace's own engine binary (PROVISIONAL).
+- One layout everywhere: `openconvert-engine` and `llama-server` as `externalBin`; PDFium and the
+  server's libraries in `bin/native/` beside them; `models.toml`, `thresholds.toml`, the licences,
+  `NOTICE` and `licenses/third-party-rust.txt` as resources. `tauri.{linux,macos,windows}.conf.json`.
+- Bundle identifier `io.openconvert.OpenConvert` (was `dev.openconvert.app`; PROVISIONAL).
+- Linux: AppImage (primary); Flatpak manifest `packaging/linux/flatpak/io.openconvert.OpenConvert.yml`
+  with **no network permission** and no updater (PROVISIONAL: no model or pack download inside it),
+  `.desktop` file and AppStream metainfo. No `.deb`/`.rpm` (PROVISIONAL).
+- macOS: `packaging/macos/{entitlements.plist,sign_nested.sh,notarize.sh}` — every nested Mach-O
+  signed inside out, libraries before executables, the app last; no entitlement disables library
+  validation.
+- Windows: per-user NSIS (EN/DE/TR) and MSI; unsigned, SmartScreen explained in `docs/INSTALL.md`.
+- The app's hidden mode `--smoke-convert <pdf>` converts one book headless and exits with the
+  engine's code; `packaging/smoke/fresh-install.{sh,ps1}` check the hash, install, smoke-convert and
+  check the EPUB.
+
+### Updater (`oc-net`, `apps/desktop`)
+
+- `oc_net::update`: Tauri's `latest.json` and minisign Ed25519 signatures, fetched through `oc-net`
+  from GitHub's release hosts only (`UPDATE_HOST_ALLOWLIST`), size-capped, and verified with
+  `minisign-verify` before anything is offered; `VerifiedUpdate` is the only thing that can be
+  installed. `tauri-plugin-updater` is not used (it needs the banned `reqwest`; PROVISIONAL).
+- Desktop commands `update_check` / `update_install` behind the default-on `updater` feature (off in
+  the Flatpak). Settings › About & updates: "Check for updates" (only when asked), then "Install and
+  restart" / "Later"; failures localised in EN/DE/TR.
+- The update check is recorded in the network audit log under the new purpose **`update`**
+  (`HttpFetch::with_purpose`); Settings › Network log names it "Update check".
+
+### Release tooling (`xtask`, `.github/workflows/release.yml`)
+
+- New subcommands: `stage-sidecars` (engine, `llama-server`, natives, licences), `sbom --out <file>`
+  (CycloneDX 1.6 from `cargo cyclonedx`, `npm sbom` and the natives' locks, validated offline against
+  the vendored schema), `repro {hash,compare}`, `bump-rules-check [--tag|--record]` against
+  `docs/releases/baseline.toml`, `notices [--check]`, and `release {manifest, notes, changelog,
+  hash-dir, latest-json, verify-latest, verify-published, size-check}`. `ci-lint --release-branch`
+  also refuses `TODO_` in `packs.toml`, `thresholds.toml` and `tauri.conf.json`.
+- `release.yml`: a draft release built on the three OSes; every gate row is a step named
+  `row 15.N <test>`; the release notes come from this file's `## [x.y.z]` section, and the job
+  refuses a missing or placeholder-carrying one. The `release-artifacts` xtask feature holds the
+  gates that read real artefacts (`OC_BUNDLE_DIR`, `OC_SBOM`, `OC_REPRO_DIR`, `OC_RELEASE_BODY`,
+  `OC_RELEASE_ASSETS`).
+- `licenses/third-party-rust.txt` (every shipped crate's licence text) and the root `NOTICE`, both in
+  every bundle.
+
+### thresholds.toml
+
+- `release.max_installer_bytes` (45 000 000, PROVISIONAL — D12's estimate; the AppImage is
+  112 953 848 bytes and fails it), `net.update_manifest_max_bytes` (65 536). The report snapshot's
+  redacted threshold count is 229.
+
+### Dependencies
+
+- `minisign-verify` 0.2 and `base64` 0.22 (`oc-net`); `jsonschema` 0.57 without default features,
+  `syn`/`quote`/`proc-macro2` (`xtask`); `minisign` 0.9 and `serde_yaml` 0.9 in dev-dependencies
+  only. All on the `deny.toml` allow-list.
+
+### Documents
+
+- `docs/VERSIONING.md`, `docs/RELEASE_CHECKLIST.md` (with a dated checklist run), `docs/INSTALL.md`,
+  `docs/releases/baseline.toml`, the `## [1.0.0]` release notes above (Security written from what
+  Phase 14 verified, with its gaps), and the Appendix D evaluation in `PROGRESS.md`.
+
+### Known gaps, carried forward
+
+- **Release blockers:** 15 `TODO_` pins (`models.toml` 8, `packs.toml` 6, the updater key 1); the
+  AppImage over the installer budget; VD-f open; Phase 7.5 parked; no max-output-size cap and no
+  Windows memory cap. The full list is `PROGRESS.md` › Blocked › "v1.0 — Appendix D".
+- **Unverified here:** rows 15.1–15.4, 15.6, 15.13's cross-OS half, 15.14's container run, 15.19,
+  15.20, the real-key half of 15.9, `flatpak-builder-lint`, the Windows and macOS update install paths.
+- PROVISIONAL decisions awaiting ratification are listed in `PROGRESS.md` › Blocked (Phase 15).

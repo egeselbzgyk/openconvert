@@ -207,4 +207,14 @@ describe("first run", () => {
     await start(backend);
     expect(document.querySelector(".oc-card--firstrun"), "not on the next launch either").toBeNull();
   });
+
+  // Appendix D, Product: the first run states plainly that there is no telemetry and no network
+  // on the conversion path, next to what the optional download costs.
+  it("the first screen states no telemetry and no network while converting, beside the costs", async () => {
+    await start();
+    expect(document.querySelector(".oc-card--firstrun"), "the costs are on the first screen").not.toBeNull();
+    const privacy = document.querySelector(".oc-privacy")?.textContent ?? "";
+    expect(privacy).toContain("no telemetry");
+    expect(privacy).toContain("no network use while converting");
+  });
 });
