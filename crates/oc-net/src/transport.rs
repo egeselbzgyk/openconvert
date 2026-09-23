@@ -15,6 +15,7 @@ use std::time::Duration;
 use oc_ai::transport::{Transport, TransportError};
 use secrecy::{ExposeSecret, SecretString};
 
+use crate::audit::Purpose;
 use crate::consent::{authorize, ConsentRecord};
 use crate::NetError;
 
@@ -89,7 +90,13 @@ impl HttpTransport {
         if let Some(key) = &self.api_key {
             request = request.header("Authorization", format!("Bearer {}", key.expose_secret()));
         }
-        read_reply(request.call(), timeout)
+        let url = format!("{}{path}", self.base);
+        audited(
+            &url,
+            Purpose::LlmProbe,
+            0,
+            read_reply(request.call(), timeout),
+        )
     }
 }
 
@@ -114,8 +121,33 @@ impl Transport for HttpTransport {
         if let Some(key) = &self.api_key {
             request = request.header("Authorization", format!("Bearer {}", key.expose_secret()));
         }
-        read_reply(request.send(body), timeout)
+        let url = format!("{}{path}", self.base);
+        let sent = u64::try_from(body.len()).unwrap_or(u64::MAX);
+        audited(
+            &url,
+            Purpose::LlmRequest,
+            sent,
+            read_reply(request.send(body), timeout),
+        )
     }
+}
+
+/// Record one request in the audit log (PHASE 14 detail 12) and pass its reply on.
+fn audited(
+    url: &str,
+    purpose: Purpose,
+    sent: u64,
+    reply: Result<String, TransportError>,
+) -> Result<String, TransportError> {
+    let (bytes, outcome) = match &reply {
+        Ok(body) => (
+            sent.saturating_add(u64::try_from(body.len()).unwrap_or(u64::MAX)),
+            "ok".to_owned(),
+        ),
+        Err(error) => (sent, error.to_string()),
+    };
+    crate::audit::record(crate::audit::Entry::now(url, purpose, bytes, outcome));
+    reply
 }
 
 /// The body of a 2xx reply; any other status, a timeout or a dead connection as an error.

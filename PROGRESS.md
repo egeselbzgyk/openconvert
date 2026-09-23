@@ -96,7 +96,7 @@ items, in order, with the plan's test rows against each:
 - [x] **P14.6** `oc_core::sandbox::{rlimit, jobobject}`: `RLIMIT_AS`, the engine's job object *(row 14.7, the CLI half, is P14.10)*
 - [x] **P14.7** children never outlive a killed engine: PDEATHSIG trampoline, job object (Phases 9, 13)
 - [x] **P14.8** Landlock: `ScopeSet`, self-restriction — rows 14.10, 14.12 *(14.11, the engine's recorded skip, is P14.10)*
-- [ ] **P14.9** `oc-net` audit log — row 14.21
+- [x] **P14.9** `oc-net` audit log — row 14.21
 - [ ] **P14.10** the engine: `--max-memory`/`--max-pages`, Landlock and deadlines wired into `convert`; caps end in exit 1 with a report and no output; the 40 M-glyph PDF — rows 14.7, 14.9, 14.19, 14.6's exit 1
 - [ ] **P14.11** crash corpus: `oc-eval mutate`, `corpus/fixtures/crash/`, Isartor fetch — rows 14.16–14.18
 - [ ] **P14.12** `fuzz/`: three targets, seeded corpora — rows 14.13–14.15
@@ -149,6 +149,13 @@ What a fresh session needs:
   (≥ 5.13). Rows 14.10/14.12 run `oc-sandbox-probe` (oc-testkit), which restricts itself with the
   engine's call and reports what the kernel said. Landlock binds the calling thread and its later
   threads (ABI < 8), so the engine must apply it before starting any thread.
+- **Network audit log** (`oc_net::audit`): `openconvert` `main` installs
+  `<data>/openconvert/network-audit.log` (`data_dir::network_audit_log()`, rotated at
+  `net.audit_log_rotate_bytes`); `HttpFetch::get` (one line per connection: a body's line is written
+  when it is dropped, with its size) and `HttpTransport` (`llm-probe` for GET, `llm-request` for
+  POST) record `{ts, host, purpose, bytes, outcome, loopback}`. **For Phase 12:** the desktop app
+  downloads models and packs in its own process, so its `main` must `oc_net::audit::install(...)`
+  too, and Settings › Network log reads that file (JSON lines; `.1` is the previous generation).
 - `openconvert::sandbox` is the report's `sandbox` section and `--max-memory` parsing
   (`parse_bytes`, binary units only); not wired into `convert` yet (P14.10).
 

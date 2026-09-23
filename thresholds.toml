@@ -1104,6 +1104,13 @@ owner = "maintainer"
 review_by = "2027-06-30"
 
 # ---------- model downloads (PHASE 9 detail 6) ----------
+[net.audit_log_rotate_bytes]
+value = 1048576
+source = "provisional"
+evidence = "PHASE 14 detail 12: the network audit log is rotated at 1 MB. A line is about 150 bytes, so this keeps roughly the last 7 000 connections, and one previous generation beside it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [net.max_redirects]
 value = 5
 source = "provisional"
