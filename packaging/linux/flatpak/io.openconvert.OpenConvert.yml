@@ -1,0 +1,94 @@
+# Flathub manifest for OpenConvert (PHASE 15 detail 4). Flathub builds from this; the release job
+# only validates it (`flatpak-builder-lint`), and `flatpak_manifest_has_no_network_finish_arg`
+# (row 15.8) holds it to the two rules below on every CI run.
+#
+# 1. **No `--share=network`.** A conversion needs none (D13.9): the engine never touches the network,
+#    and the sandbox then makes that a kernel fact rather than a promise. The price is paid knowingly:
+#    inside the sandbox the app cannot download a model or a pack, and a provider can only be the
+#    app's own model server; INSTALL.md says so.
+# 2. **The in-app updater is compiled out** (`--no-default-features` drops the desktop crate's
+#    `updater` feature): Flathub updates this install, and two update paths in one binary is a bug
+#    waiting to happen.
+#
+# The bundle has the layout of every other build (PHASE 15 detail 1): the engine as
+# `openconvert-engine` and `llama-server` beside the app in /app/bin with PDFium and the server's
+# libraries, `models.toml`, `thresholds.toml` and the natives' licences in /app/lib/OpenConvert.
+# The two native archives are pinned by the same SHA-256s as `xtask/pdfium.lock` and
+# `xtask/llama.lock` (a test compares them).
+#
+# `cargo-sources.json` and `node-sources.json` are generated at submission time by
+# flatpak-builder-tools (`flatpak-cargo-generator.py Cargo.lock`, `flatpak-node-generator npm
+# apps/desktop/ui/package-lock.json`), because Flathub builds offline; they are not committed.
+id: io.openconvert.OpenConvert
+runtime: org.gnome.Platform
+runtime-version: '48'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node22
+command: openconvert-desktop
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # PDFs are opened, and EPUBs saved, through the file-chooser portal: no filesystem permission.
+modules:
+  - name: pdfium
+    buildsystem: simple
+    build-commands:
+      - install -Dm644 lib/libpdfium.so /app/bin/libpdfium.so
+      - install -Dm644 LICENSE /app/lib/OpenConvert/licenses/pdfium.LICENSE.txt
+    sources:
+      - type: archive
+        url: https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F7881/pdfium-linux-x64.tgz
+        sha256: 1470e21b8b4a3b4ad7f85684e2da11d94f3b69a86d81dee11b9b6709d927ac1d
+        strip-components: 0
+
+  - name: llama-server
+    buildsystem: simple
+    build-commands:
+      # The server and the runtime `xtask stage-sidecars` selects: its linked libraries and every
+      # CPU backend, never the RPC backend or another tool's library.
+      - install -Dm755 llama-server /app/bin/llama-server
+      - cp -P libllama-server-impl.so libllama-common.so* libllama.so* libmtmd.so* libggml.so* libggml-base.so* libggml-cpu-*.so /app/bin/
+      - install -Dm644 LICENSE /app/lib/OpenConvert/licenses/llama.cpp.LICENSE.txt
+    sources:
+      - type: archive
+        url: https://github.com/ggml-org/llama.cpp/releases/download/b10456/llama-b10456-bin-ubuntu-x64.tar.gz
+        sha256: d07b3f80f3a1ed1de46bfba5671b4af40a87417e1dbf35d0603ad2d623ddc577
+
+  - name: openconvert
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node22/bin
+      env:
+        CARGO_HOME: /run/build/openconvert/cargo
+        CARGO_NET_OFFLINE: 'true'
+        npm_config_offline: 'true'
+        npm_config_cache: /run/build/openconvert/flatpak-node/npm-cache
+    build-commands:
+      - npm ci --offline --prefix apps/desktop/ui
+      - npm --prefix apps/desktop/ui run build
+      - cargo --offline build --release --locked -p openconvert
+      # What `tauri-build` needs to find before the shell compiles: the sidecars under their
+      # target-triple names and the resources `tauri.conf.json` names.
+      - mkdir -p apps/desktop/src-tauri/bin/native apps/desktop/src-tauri/bin/licenses
+      - cp target/release/openconvert apps/desktop/src-tauri/bin/openconvert-engine-x86_64-unknown-linux-gnu
+      - cp /app/bin/llama-server apps/desktop/src-tauri/bin/llama-server-x86_64-unknown-linux-gnu
+      - cp /app/lib/OpenConvert/licenses/* apps/desktop/src-tauri/bin/licenses/
+      - cargo --offline build --release --locked -p openconvert-desktop --no-default-features --features tauri/custom-protocol
+      - install -Dm755 target/release/openconvert /app/bin/openconvert-engine
+      - install -Dm755 target/release/openconvert-desktop /app/bin/openconvert-desktop
+      - install -Dm644 models.toml /app/lib/OpenConvert/models.toml
+      - install -Dm644 thresholds.toml /app/lib/OpenConvert/thresholds.toml
+      - install -Dm644 LICENSE /app/share/licenses/io.openconvert.OpenConvert/LICENSE
+      - install -Dm644 packaging/linux/openconvert.desktop /app/share/applications/io.openconvert.OpenConvert.desktop
+      - install -Dm644 packaging/linux/io.openconvert.OpenConvert.metainfo.xml /app/share/metainfo/io.openconvert.OpenConvert.metainfo.xml
+      - install -Dm644 apps/desktop/src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/io.openconvert.OpenConvert.png
+      - install -Dm644 apps/desktop/src-tauri/icons/256x256.png /app/share/icons/hicolor/256x256/apps/io.openconvert.OpenConvert.png
+    sources:
+      - type: dir
+        path: ../../..
+      - cargo-sources.json
+      - node-sources.json

@@ -117,7 +117,10 @@ Work items, in order, with the plan's test rows against each:
       **fails here, correctly: 112 695 800 bytes > 45 000 000** (WebKitGTK alone compresses to ~58 MB)
       — a release blocker for the maintainer (Blocked). Fixed on the way: the UI build hooks' paths,
       the `.app`-suffixed identifier (now `io.openconvert.OpenConvert`, provisional)
-- [ ] **P15.6** Flatpak manifest, updater compiled out there — row 15.8
+- [x] **P15.6** `packaging/linux/{openconvert.desktop,io.openconvert.OpenConvert.metainfo.xml,
+      flatpak/io.openconvert.OpenConvert.yml}`: no `--share=network`, the shell built with
+      `--no-default-features` (no updater), natives pinned by the locks' SHA-256s — row 15.8
+      `flatpak_manifest_has_no_network_finish_arg`; `flatpak-builder-lint` in CI **unverified here**
 - [x] **P15.7** updater (done before P15.6, which compiles it out): Tauri's format and keys, fetched
       through `oc_net::update` (GitHub release hosts only), `minisign-verify` before install; desktop
       `update_check`/`update_install` behind the default-on `updater` feature — rows 15.9

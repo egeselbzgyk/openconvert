@@ -717,3 +717,91 @@ fn appimage_carries_the_bundle_layout() {
     assert!(text.contains("build 10456"), "{text}");
     let _ = std::fs::remove_dir_all(scratch);
 }
+
+fn yaml(path: &Path) -> serde_yaml::Value {
+    serde_yaml::from_str(&read(path)).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+}
+
+fn yaml_strings(value: &serde_yaml::Value) -> Vec<String> {
+    value
+        .as_sequence()
+        .map(|s| {
+            s.iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Row 15.8 (A15.8, detail 4): the Flatpak asks for no network, and builds the app without its
+/// updater — the one crate feature the default build has and the Flatpak must not. Also: it is the
+/// app the other builds are (same identifier), with the natives the locks pin.
+#[test]
+fn flatpak_manifest_has_no_network_finish_arg() {
+    let root = workspace_root();
+    let manifest = yaml(&root.join("packaging/linux/flatpak/io.openconvert.OpenConvert.yml"));
+
+    let finish_args = yaml_strings(&manifest["finish-args"]);
+    assert!(!finish_args.is_empty(), "the manifest has finish-args");
+    for arg in &finish_args {
+        assert!(
+            !arg.starts_with("--share=network"),
+            "the Flatpak asks for the network: {arg}"
+        );
+        // Nor anything that would let the sandbox reach outside itself some other way.
+        assert!(!arg.starts_with("--filesystem=host") && !arg.starts_with("--filesystem=home"));
+        assert!(!arg.contains("org.freedesktop.Flatpak"), "{arg}");
+    }
+
+    let config = json(&root.join("apps/desktop/src-tauri/tauri.conf.json"));
+    assert_eq!(manifest["id"].as_str(), config["identifier"].as_str());
+
+    // The desktop crate's default build has the updater; so the flag below is what removes it.
+    let desktop: toml::Table =
+        toml::from_str(&read(&root.join("apps/desktop/src-tauri/Cargo.toml"))).expect("toml");
+    let default = desktop["features"]["default"].as_array().expect("defaults");
+    assert!(default.iter().any(|f| f.as_str() == Some("updater")));
+
+    let mut desktop_builds = 0;
+    let mut pins = BTreeSet::new();
+    for module in manifest["modules"].as_sequence().expect("modules") {
+        for command in yaml_strings(&module["build-commands"]) {
+            if command.contains("cargo") && command.contains("-p openconvert-desktop") {
+                desktop_builds += 1;
+                assert!(command.contains("--no-default-features"), "{command}");
+                assert!(!command.contains("updater"), "{command}");
+            }
+        }
+        for source in module["sources"].as_sequence().into_iter().flatten() {
+            if let Some(sha) = source["sha256"].as_str() {
+                pins.insert(sha.to_owned());
+            }
+        }
+    }
+    assert_eq!(
+        desktop_builds, 1,
+        "one build of the shell, without the updater"
+    );
+
+    let pdfium = xtask::vendor_pdfium::lock().expect("pdfium.lock");
+    let pdfium_linux = pdfium
+        .assets
+        .iter()
+        .find(|a| a.triple == "x86_64-unknown-linux-gnu")
+        .expect("a Linux pin");
+    let llama = xtask::fetch_llama_server::lock().expect("llama.lock");
+    let llama_linux =
+        xtask::fetch_llama_server::pinned(&llama, "x86_64-unknown-linux-gnu").expect("a Linux pin");
+    assert_eq!(
+        pins,
+        BTreeSet::from([pdfium_linux.sha256.clone(), llama_linux.sha256.clone()]),
+        "the Flatpak's natives are the ones the locks pin"
+    );
+
+    // The desktop entry and the AppStream data name the same app.
+    let metainfo = read(&root.join("packaging/linux/io.openconvert.OpenConvert.metainfo.xml"));
+    assert!(metainfo.contains("<id>io.openconvert.OpenConvert</id>"));
+    assert!(metainfo.contains("<project_license>Apache-2.0</project_license>"));
+    let entry = read(&root.join("packaging/linux/openconvert.desktop"));
+    assert!(entry.contains("Icon=io.openconvert.OpenConvert"));
+}

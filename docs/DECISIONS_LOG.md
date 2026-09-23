@@ -5052,3 +5052,23 @@ the test with the `minisign` crate (the one `tauri signer` uses) and exists only
 Affects: `crates/oc-net/{Cargo.toml,src/update.rs,tests/updater.rs}`,
 `apps/desktop/src-tauri/{Cargo.toml,src/updater.rs,src/main.rs,src/lib.rs}`, `Cargo.toml`
 (`minisign-verify`, `base64`, dev `minisign` — all MIT/Apache, `cargo deny` clean), `thresholds.toml`.
+
+## 2026-09-23 · The Flatpak: no network, no updater, and what that costs · Phase 15 (P15.6)
+Context: detail 4 — a Flathub manifest with no `--share=network` and the in-app updater compiled out.
+Decision: `packaging/linux/flatpak/io.openconvert.OpenConvert.yml` (GNOME 48 runtime; Wayland,
+fallback X11, IPC, DRI; files only through the portal) builds the engine and the shell from source
+offline, the shell with `--no-default-features` (drops `updater`), and lays the bundle out as every
+other build does: `/app/bin/{openconvert-desktop,openconvert-engine,llama-server,libpdfium.so,…}`,
+`/app/lib/OpenConvert/{models.toml,thresholds.toml,licenses/}` (Tauri's Linux resource directory).
+PDFium and llama.cpp come from the archives the locks pin, by the same SHA-256s, which a test checks.
+`cargo-sources.json`/`node-sources.json` are generated at Flathub submission by flatpak-builder-tools
+and are not committed. **What no network costs, stated rather than hidden** (INSTALL.md): inside the
+sandbox the model manager cannot download a model or a pack, and AI assistance can use only the
+app's own model server (a model file the user brings is post-v1: there is no import path yet); an
+Ollama on the host is outside the sandbox's network namespace. **PROVISIONAL — needs maintainer
+ratification** of those consequences, which the plan's "the model download runs … via portals" does
+not describe as built. Validation (`flatpak-builder-lint`, a real `flatpak-builder` run) is a CI job,
+**unverified here** (no flatpak tooling on this machine).
+Evidence: `flatpak_manifest_has_no_network_finish_arg` (RED with `--share=network` added, and with
+`--no-default-features` removed).
+Affects: `packaging/linux/{openconvert.desktop,io.openconvert.OpenConvert.metainfo.xml,flatpak/}`.

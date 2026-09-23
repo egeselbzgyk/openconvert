@@ -49,3 +49,6 @@ typst-assets.workspace = true
 [dev-dependencies]
 # The release tests read the macOS entitlements plist (PHASE 15 row 15.5).
 quick-xml.workspace = true
+# ...and the Flatpak manifest and the release workflow (rows 15.8, 15.14). Already in the tree
+# through `typst`; deprecated upstream but complete for reading YAML, and never shipped.
+serde_yaml = "0.9"
