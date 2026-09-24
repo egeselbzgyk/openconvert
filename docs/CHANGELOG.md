@@ -89,7 +89,7 @@ claim with where it is tested (`docs/SECURITY_TESTING.md` has the full map):
 
 - Windows: the NSIS installer or the MSI. **They are not code-signed in this release**, so Microsoft
   Defender SmartScreen warns on first run ("More info" → "Run anyway"); `docs/INSTALL.md` explains why.
-- Linux: the AppImage (about 113 MB: it carries its own WebKitGTK), which updates itself when you ask
+- Linux: the AppImage (about 133 MB: it carries its own WebKitGTK), which updates itself when you ask
   it to. The Flatpak manifest for Flathub (app ID `io.github.egeselbzgyk.OpenConvert`) is ready; on
   Flathub it runs without network access (so it cannot download an AI model) and is updated by Flathub.
 - macOS: not in this release. A signed and notarized app comes in a later 1.x release; until then

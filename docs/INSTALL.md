@@ -57,7 +57,7 @@ conversion never needs it — so inside the Flatpak the app cannot download an A
 AI assistance through Ollama on your computer is not reachable either. Use the AppImage if you want
 those.
 
-The AppImage is larger than the Windows installer (about 113 MB) because it carries its own copy of
+The AppImage is larger than the Windows installer (about 133 MB) because it carries its own copy of
 the WebKitGTK web engine, so it runs the same on every distribution.
 
 `.deb` and `.rpm` packages are not provided for this version.
