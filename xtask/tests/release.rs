@@ -513,10 +513,10 @@ fn the_installer_budget_counts_installers_only() {
         45_000_000,
         "D12's upper estimate"
     );
-    // The AppImage carries WebKitGTK: 112 953 848 bytes measured after Phase 14, and a budget of
-    // its own (maintainer decision 2026-09-23).
-    assert_eq!(installer_budget(Os::Linux), 120_000_000);
-    assert!(112_953_848 <= installer_budget(Os::Linux));
+    // The AppImage carries WebKitGTK: 132 852 216 bytes as the release job builds it on Debian
+    // bookworm (v1.0.0 run), and a budget of its own (maintainer decisions 2026-09-23, 2026-09-24).
+    assert_eq!(installer_budget(Os::Linux), 140_000_000);
+    assert!(132_852_216 <= installer_budget(Os::Linux));
     let bundle = fake_bundle(
         "macos",
         &[

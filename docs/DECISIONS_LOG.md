@@ -5954,3 +5954,17 @@ a failed fetch (the status of `echo` is what counts) and now assigns first. `sig
 no such pattern. Every bash `run` block of every workflow passes `bash -n`.
 Evidence: `eval/tests/test_ci_workflows.py`; `every_release_gate_row_is_a_named_release_step`.
 Affects: `.github/workflows/{release,nightly}.yml`.
+
+## 2026-09-24 · The AppImage's budget is 140 MB · maintainer decision (D12 amendment)
+Context: the v1.0.0 release run (35969590562) built the AppImage on Debian bookworm (the release
+job's base since 2026-09-23) and row 15.15 `installer_size_within_budget` failed: 132 852 216 bytes
+against 120 000 000. The same bundle passed row 15.7 (launches and converts headless). The 112 953 848
+bytes the 120 MB budget was set on were measured after Phase 14 on an older base; bookworm's
+WebKitGTK 2.50, which the AppImage bundles, is the likely difference.
+Decision (maintainer, 2026-09-24): `release.max_linux_installer_bytes` = 140 000 000 (decimal). It is
+also the most an AppImage update may download (the updater's payload cap reads the same threshold).
+Every other installer keeps the 45 MB budget.
+Evidence: release run 35969590562, job "build (ubuntu-22.04, linux, …)", step "row 15.15";
+`the_installer_budget_counts_installers_only`, `an_update_payload_may_be_as_large_as_this_os_installer`.
+Affects: `thresholds.toml`, `docs/DECISIONS.md` D12 amendment, `xtask/tests/release.rs`,
+`apps/desktop/src-tauri/src/updater.rs` (tests only).
