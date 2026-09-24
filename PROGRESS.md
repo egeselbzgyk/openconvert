@@ -5,11 +5,14 @@
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 7.5
 CURRENT_ITEM: Phase 7.5 — parked by the maintainer's decision (2026-09-23); do not start it until the
-              maintainer resumes it. Every other phase, 0–15, is ticked. v1.0.0 is PREPARED for release
-              (Windows + Linux; `release/v1.0.0-prep`, merged 2026-09-23): the maintainer tags it after
-              adding the signing secrets, and chose to ship with Appendix D not fully passing — the gaps
-              are the 1.0.0 notes' "Known limitations" (see "v1.0.0 release preparation" and `## Blocked`).
-LAST_UPDATED: 2026-09-23
+              maintainer resumes it. Every other phase, 0–15, is ticked. v1.0.0 is BUILT: tag v1.0.0 →
+              424f0d3, release run 35972864079 green (every job), a DRAFT release with the NSIS, MSI and
+              AppImage, their signatures, latest.json and the SBOM. Publishing the draft is the
+              maintainer's step. Three fixes on the way (DECISIONS_LOG 2026-09-23/24): the release job's
+              container tools, the app ID io.github.egeselbzgyk.OpenConvert, the AppImage budget 140 MB.
+              The maintainer chose to ship with Appendix D not fully passing — the gaps are the 1.0.0
+              notes' "Known limitations" (see "v1.0.0 release preparation" and `## Blocked`).
+LAST_UPDATED: 2026-09-24
 
 ---
 
