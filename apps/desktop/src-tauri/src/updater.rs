@@ -244,7 +244,7 @@ mod tests {
     }
 
     /// An update may be as large as this OS's installer budget, and no larger: on Linux the
-    /// AppImage's (it carries WebKitGTK; 112 953 848 bytes measured), elsewhere D12's.
+    /// AppImage's (it carries WebKitGTK; 132 852 216 bytes measured), elsewhere D12's.
     #[test]
     fn an_update_payload_may_be_as_large_as_this_os_installer() {
         let cap = config().payload_max_bytes;
@@ -255,7 +255,7 @@ mod tests {
         };
         assert_eq!(i64::try_from(cap).expect("fits"), budget);
         if cfg!(target_os = "linux") {
-            assert!(cap >= 112_953_848, "the measured AppImage must fit");
+            assert!(cap >= 132_852_216, "the measured AppImage must fit");
         }
     }
 }

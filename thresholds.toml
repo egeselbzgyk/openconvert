@@ -269,9 +269,9 @@ owner = "maintainer"
 review_by = "2027-06-30"
 
 [release.max_linux_installer_bytes]       # the Linux AppImage, which bundles WebKitGTK; also the most an AppImage update may download
-value = 120000000
+value = 140000000
 source = "binary"
-evidence = "maintainer decision 2026-09-23 (docs/DECISIONS_LOG.md; D12 amendment): the AppImage bundles WebKitGTK (~58 MB compressed) and measured 112 953 848 bytes after Phase 14; the budget is 120 MB, decimal. A pass/fail gate fixed by the maintainer, not an estimate"
+evidence = "maintainer decisions 2026-09-23 and 2026-09-24 (docs/DECISIONS_LOG.md; D12 amendment): the AppImage bundles WebKitGTK; built by the release job on Debian bookworm (WebKitGTK 2.50) it measured 132 852 216 bytes (v1.0.0 run, 2026-09-24; 112 953 848 bytes after Phase 14 on the older base); the budget is 140 MB, decimal. A pass/fail gate fixed by the maintainer, not an estimate"
 owner = "maintainer"
 review_by = "2027-06-30"
 

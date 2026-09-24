@@ -82,9 +82,10 @@ Two implementations in v1: `LocalSidecar` (server we own) and `OpenAiCompatible`
 > **Amendment, 2026-09-23 (maintainer).** **v1.0.0 ships for Windows and Linux only.** There is no
 > Apple Developer ID yet, so the macOS `.dmg` (Developer ID, notarization, every nested binary
 > signed) comes in a later 1.x release; the signing scripts stay in `packaging/macos/`. The **Linux
-> AppImage's installer budget is 120 MB** (it bundles WebKitGTK; measured 112.95 MB), a threshold of
-> its own; every other installer keeps the ≈ 35–45 MB base-install budget above. The validation pack
-> is not among the 1.0 downloads (D6 amendment). See `docs/DECISIONS_LOG.md`, 2026-09-23.
+> AppImage's installer budget is 140 MB** (it bundles WebKitGTK; measured 132.85 MB when built on
+> Debian bookworm by the release job; 120 MB until 2026-09-24), a threshold of its own; every other
+> installer keeps the ≈ 35–45 MB base-install budget above. The validation pack is not among the
+> 1.0 downloads (D6 amendment). See `docs/DECISIONS_LOG.md`, 2026-09-23 and 2026-09-24.
 
 ## D13. Application architecture
 
