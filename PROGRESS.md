@@ -112,32 +112,37 @@ LAST_UPDATED: 2026-09-26
       the 1.0.0 release notes and the release checklist. **Appendix D (v1.0) does not pass** — its
       evaluation is below the Phase 15 section and every open item is in `## Blocked`.)*
 
-## v1.1 — state at the end of the 2026-09-26 session (branch `v1.1/reading-quality`)
+## v1.1 — state (2026-09-26, evening; branch `v1.1/reading-quality`, not pushed)
 
-Done and committed (all workspace tests green except the 9 desktop tests with Unix paths that
-only pass on Linux CI):
-- Engine: raw image decode (fast), stencil-mask fact; heading joins never take owned blocks
-  (fixed I-1 on six technical books); W_DUPLICATE_BLOCKS counts only blocks of
-  `validate.dup_block_min_chars`+; front pages typed by what they are (`oc-structure/src/front.rs`:
-  title, half-title, copyright, dedication, epigraph, contents) with epub:type, DPUB roles and CSS;
-  back matter only past `book.back_min_page_share`; monospace needs `quotes.monospace_min_runs`.
-- AI: absolute time budget per mode (`llm.fast_*`, `llm.quality_*`); job spec v2 `ai.mode`
-  (fast | quality, default quality) and `--ai-mode`; metadata enabled for every language (`*`)
-  with a plausibility filter; new free-text `front_page` task (quality mode only, two answers in
-  opposite orders must agree). book_structure / heading_roles / verse_quote stay behind
-  `--ai-all-tasks`: the smoke test showed no benefit.
-- Desktop (merged from worktrees): conversion history (`history.json`), output folder + header
-  shortcut, per-step time limit (default 30 min), AI mode setting.
+All workspace tests green (877), clippy and fmt clean; the 9 desktop tests with Unix paths pass
+only on Linux CI. The maintainer asked to **stop before pushing or releasing** — they have a
+question first.
 
-Next, in order:
-1. Timeout book in the local corpus (260 pages): ~190 s between two stages and ~160 s in the
-   first — profile which stage (NDJSON stage events carry no stage name in the smoke script).
-2. One book loses 3 characters at `structure` (I-1) — debug with `OC_DEBUG_I1`.
-3. Missed chapter heading "1." (numeral with a period) in a German novel; Moliere-style false
-   dedication (a translator's essay title).
-4. Remaining LLM items the maintainer approved: author pick (quality), table/caption veto,
-   paragraph continuity at ambiguous breaks, optional review panel in the desktop.
-5. README rewrite, CHANGELOG `[1.1.0]`, version bump (ir_version 1→2), release v1.1.0.
+Done and committed since the morning:
+- Scanned books with a text layer: page scans dropped (`W_PAGE_SCAN_DROPPED`); image size and
+  colour space read from the object tree (PDFium's metadata call decoded every image); only shown
+  images are decoded. The 260-page timeout book: >580 s → 35 s.
+- Front pages typed (title, half-title, copyright, dedication, epigraph, contents) with
+  epub:type, roles and CSS; one contents entry for all of them; back matter only past
+  `book.back_min_page_share`; monospace needs `quotes.monospace_min_runs`.
+- Technical books: running heads/feet that carry the folio are furniture; outline entries bind
+  on their own page, label+title pairs bind, a well-bound outline is trusted over an invalid
+  inventory and over the contents page's indents; sections under a part are chapters.
+- Table detector: rules repeated across pages ignored; a region must show columns (novel with
+  74 false tables → 0). Real ruled tables in technical books are still not detected (rules drawn
+  in pieces) — next step.
+- Headings: `1.`-style chapter numbers legible; a held drop cap is never dropped (I-1 fix).
+- AI: time budget per mode, `--ai-mode fast|quality` (job spec v2), metadata for every language
+  with a plausibility filter, free-text `front_page` task (quality mode only).
+- Desktop: history, output folder, per-step time limit, AI mode setting; README rewritten.
+
+In progress / next:
+1. Corpus run v8 (all fixes together) — compare with v7 and fix regressions.
+2. Evaluation of System-1 decision models (kev-0.8b, kev-4b via `laya`; Tev1-4B via llama.cpp)
+   against the chat model on a hand-labelled front-page set — report to the maintainer.
+3. Real ruled tables (join rule segments); the novel whose chapter openers are body-size.
+4. Release v1.1.0 — only after the maintainer's go-ahead: CHANGELOG `[1.1.0]`, version bump,
+   ir_version 1→2, merge to main, tag, publish.
 
 ## v1.1 reading quality — the maintainer's books (2026-09-26, uncommitted work in `main`'s tree)
 
