@@ -407,6 +407,44 @@ pub fn structure_with(
             .unwrap_or(body_cluster)
     };
     let mut headings = crate::headings::levels::with_openers(headings, &openers, cluster_of);
+    // A chapter number found by its sequence is often set over a title at the body size, which
+    // size rank does not see: the short block right under it, on its page, that does not read as
+    // the start of prose, is that title.
+    let titles: Vec<HeadingAssignment> = headings
+        .iter()
+        .filter(|heading| heading.source == crate::headings::levels::LevelSource::Sequence)
+        .filter_map(|heading| {
+            let label = blocks.iter().find(|block| block.id == heading.block)?;
+            let next = blocks.iter().find(|block| block.order == label.order + 1)?;
+            let size = label.size_pt().max(next.size_pt()).max(body_size);
+            let gap = next.bbox.y0 - label.bbox.y1;
+            let text = next.text.trim();
+            let first = text.chars().next()?;
+            let last = text.chars().next_back()?;
+            let titled = next.page == label.page
+                && next.lines.len()
+                    <= usize::try_from(t.headings.opener_max_lines.max(1)).unwrap_or(1)
+                && f64::from(next.width_ratio()) < t.headings.short_line_max_width_ratio
+                && gap >= -1.0
+                && gap <= t.headings.label_title_gap_em as f32 * size
+                && first.is_alphanumeric()
+                && !matches!(last, '.' | ',' | ';' | ':')
+                && crate::headings::candidate::legible(text, t)
+                && !headings.iter().any(|other| other.block == next.id);
+            titled.then(|| HeadingAssignment {
+                block: next.id,
+                order: next.order,
+                page: next.page,
+                text: text.to_owned(),
+                level: heading.level,
+                cluster: heading.cluster,
+                numbering: None,
+                source: crate::headings::levels::LevelSource::Sequence,
+            })
+        })
+        .collect();
+    headings.extend(titles);
+    headings.sort_by_key(|heading| heading.order);
     let contents_blocks: std::collections::BTreeSet<BlockId> = contents
         .as_ref()
         .map(crate::contents::Contents::blocks)
@@ -1040,6 +1078,7 @@ fn join_multiline_headings(
         blocks.iter().map(|block| (block.id, block)).collect();
     let tolerance = t.headings.level_size_tolerance as f32;
     let gap_em = t.headings.join_gap_em as f32;
+    let label_gap_em = t.headings.label_title_gap_em as f32;
     let mut joins: std::collections::BTreeMap<BlockId, Vec<BlockId>> =
         std::collections::BTreeMap::new();
     let mut head: Option<BlockId> = None;
@@ -1053,7 +1092,16 @@ fn join_multiline_headings(
         let same_size = largest > 0.0 && (size_a - size_b).abs() / largest <= tolerance;
         let gap = b.bbox.y0 - a.bbox.y1;
         let close = gap >= -1.0 && gap <= gap_em * largest;
-        let joined = b.order == a.order + 1 && b.page == a.page && same_size && close;
+        // A chapter's label and its title — `3` over `The Road`, `BÖLÜM 3` over `Başlangıç` —
+        // are one heading whatever sizes they are set in, with the air a designer puts between
+        // them.
+        let label_then_title = crate::headings::openers::is_number_label(&pair[0].text, t)
+            && !crate::headings::openers::is_number_label(&pair[1].text, t)
+            && gap >= -1.0
+            && gap <= label_gap_em * largest;
+        let joined = b.order == a.order + 1
+            && b.page == a.page
+            && ((same_size && close) || label_then_title);
         if joined {
             let first = *head.get_or_insert(a.id);
             joins.entry(first).or_default().push(b.id);

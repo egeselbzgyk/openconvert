@@ -5,12 +5,12 @@ expression: hashes
 {
   "f01_prose_single_column": "d4f42748861a7673d9519daa1e3c71abfd33f83f82abeb3c7a6609cdf0c4a74a",
   "f02_two_column": "4147d14f1ee1be6853da608c3674059e9c41801659d09bff7c6706c6d94abc58",
-  "f03_image_only": "2d11446b10504a8e8fc2ad3374fa918f95f2e065dd0ebbb1a8a66b0ca793322a",
+  "f03_image_only": "1ff04aa1be0b4d5cfae074b657fd87a2eb5e1c0fc47eda0df81f332f7ed39d92",
   "f04_german_prose": "5b1588e49d82c4a56f6abdef8ef074569516be38d4ae206f0e59ca01a2281745",
   "f05_turkish_prose": "956db1b6d280f580c418fc98c4668b8c3c720c94a5e22188352c1327d876c420",
   "f06_hyphenation_de": "8342aabbb7b00d7bf83b9b387c432054f9190f108846719d63052ee488fb0477",
   "f07_verse_and_quote": "72b20f0fe3e34ef87c87534deffc4aff8b8f802c2a9698cf037b4cc61eb8a487",
   "f08_footnotes": "7cc1ed36c7185a5873cc9f567124e6a560d8f8d80642879bf8e2d8e1b72b41a9",
   "f09_novel_structure": "52267934409552500e008384dbefa39c8eb64c8c9268b1d90cdbfd29c480a8d5",
-  "f10_lists_and_table": "f9645fed704e0d31d7fe6856a59ae688af6dafde9e143dc84112ee06853d5867"
+  "f10_lists_and_table": "b30fb92ecac98c2aaac930058dabc01afc327d61945a47f9985274332b9fd7de"
 }

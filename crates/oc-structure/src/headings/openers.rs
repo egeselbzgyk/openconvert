@@ -146,6 +146,17 @@ fn shaped_like_a_number(block: &BlockView, t: &Thresholds) -> bool {
     tokens.first().is_some_and(numeric) || tokens.last().is_some_and(numeric)
 }
 
+/// Whether a heading's text is a chapter label — a number or numeral, with at most a few words
+/// beside it — rather than a title: `3`, `IV`, `Chapter 7`, `BÖLÜM 3`.
+pub fn is_number_label(text: &str, t: &Thresholds) -> bool {
+    let max_tokens = usize::try_from(t.headings.opener_max_tokens.max(1)).unwrap_or(1);
+    let tokens: Vec<&str> = text.split_whitespace().collect();
+    let numeric = |token: &&str| numeral(token).is_some() || looks_like_a_misread_numeral(token);
+    !tokens.is_empty()
+        && tokens.len() <= max_tokens
+        && (tokens.first().is_some_and(numeric) || tokens.last().is_some_and(numeric))
+}
+
 /// The number a block carries at one of its ends.
 fn number_of(text: &str) -> Option<u32> {
     let tokens: Vec<&str> = text.split_whitespace().collect();

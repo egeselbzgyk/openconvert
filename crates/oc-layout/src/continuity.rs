@@ -72,18 +72,26 @@ pub fn continuity(pages: &[Vec<String>]) -> Continuity {
 
 /// Whether one page's last text runs on into the next page's first.
 pub fn runs_on(last: &str, first: &str) -> bool {
+    // A sentence ends inside its closing quote or bracket as well: `…the end.”` has finished.
     let unfinished = last
         .trim_end()
+        .trim_end_matches(CLOSERS)
         .chars()
         .next_back()
         .is_some_and(|ch| !TERMINAL.contains(&ch));
-    let continues = first
-        .trim_start()
-        .chars()
-        .next()
-        .is_some_and(|ch| ch.general_category() == GeneralCategory::LowercaseLetter);
+    // Lower case continues a sentence; so does a letter of a script that has no case at all —
+    // Han, Kana, Arabic, Hebrew, Devanagari — where the test cannot be put the other way.
+    let continues = first.trim_start().chars().next().is_some_and(|ch| {
+        ch.general_category() == GeneralCategory::LowercaseLetter
+            || ch.general_category() == GeneralCategory::OtherLetter
+    });
     unfinished && continues
 }
+
+/// The closing quotes and brackets a sentence may end inside of.
+const CLOSERS: [char; 10] = [
+    '"', '\'', '\u{201D}', '\u{2019}', '\u{00BB}', '\u{00AB}', ')', ']', '}', '\u{300D}',
+];
 
 #[cfg(test)]
 mod tests {
@@ -142,5 +150,31 @@ mod tests {
         let measured = continuity(&pages);
         assert_eq!(measured.boundaries, 1);
         assert_eq!(measured.held, 1);
+    }
+}
+
+#[cfg(test)]
+mod script_tests {
+    use super::*;
+
+    /// A sentence that ends inside its closing quote has ended.
+    #[test]
+    fn a_sentence_closed_inside_a_quote_is_finished() {
+        assert!(!runs_on(
+            "and then she said, \u{201C}Go.\u{201D}",
+            "and he went"
+        ));
+        assert!(!runs_on("(as he had said.)", "and then"));
+        assert!(runs_on("and then she said, \u{201C}Go", "on, go\u{201D}"));
+    }
+
+    /// A caseless script continues a sentence with an ordinary letter.
+    #[test]
+    fn a_caseless_script_can_run_on() {
+        assert!(runs_on(
+            "\u{3053}\u{308C}\u{306F}",
+            "\u{65E5}\u{672C}\u{8A9E}"
+        ));
+        assert!(!runs_on("\u{3053}\u{308C}\u{3002}", "\u{65E5}\u{672C}"));
     }
 }

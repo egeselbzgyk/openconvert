@@ -52,6 +52,8 @@ pub struct PdfiumDoc {
     /// Pages whose declared glyph count has passed `limits.max_page_glyphs`, so each page's content
     /// is counted once however many times the page is loaded (PHASE 14 detail 10).
     glyphs_checked: std::sync::Mutex<std::collections::BTreeSet<u32>>,
+    /// Per page, which of its images carry a mask, read once from the object tree.
+    masks: std::sync::Mutex<std::collections::BTreeMap<u32, Option<Vec<bool>>>>,
 }
 
 impl PdfiumDoc {
@@ -102,6 +104,7 @@ impl PdfiumDoc {
             page_ids,
             structure,
             glyphs_checked: std::sync::Mutex::default(),
+            masks: std::sync::Mutex::default(),
         })
     }
 }
@@ -363,6 +366,38 @@ impl PdfiumDoc {
         Ok(())
     }
 
+    /// Whether the page's `nth` image carries a soft or stencil mask, as the object tree says.
+    /// Unknown — a tree `lopdf` could not read, or one that disagrees with PDFium about the count
+    /// — is taken as masked, which only costs the fast path.
+    fn image_masked(&self, page: u32, nth: usize) -> bool {
+        let mut masks = self
+            .masks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let facts = masks.entry(page).or_insert_with(|| {
+            let (Some(structure), Some(page_id)) = (
+                self.structure.as_ref(),
+                self.page_ids
+                    .get(usize::try_from(page).unwrap_or(usize::MAX)),
+            ) else {
+                return None;
+            };
+            crate::pdfium::page_image_facts(structure, *page_id, &self.limits)
+                .ok()
+                .flatten()
+                .map(|facts| {
+                    facts
+                        .iter()
+                        .map(|fact| fact.has_smask || fact.is_stencil)
+                        .collect()
+                })
+        });
+        facts
+            .as_ref()
+            .and_then(|facts| facts.get(nth).copied())
+            .unwrap_or(true)
+    }
+
     /// Extract one page's images (Phase 1 detail 4).
     ///
     /// Geometry and pixel counts come from PDFium; `has_smask` and `is_inline` come from the
@@ -520,13 +555,27 @@ impl PdfiumDoc {
         // PDFium reads both sides from the image's stream dictionary without decoding it; the
         // decoder is behind the check, not beside it (PHASE 14 detail 1).
         let dictionary = declared(object.width(), object.height());
+        // The image's own pixels, decoded from its stream, unless it carries a soft mask or a
+        // stencil mask: only then is PDFium's rendered bitmap needed, for the transparency the
+        // mask makes. The rendered path costs tens of milliseconds per image whatever its
+        // size, which on a scanned book drawn as thousands of tiles was most of the
+        // conversion (2026-09-26); the stream decode costs a fraction of one.
+        let masked = self.image_masked(page, wanted);
         decode_image_checked(&dictionary, &self.limits, page, || {
-            let decoded = object
-                .get_processed_image(&self.document)
-                .map_err(|source| PdfError::Page {
-                    index: page,
-                    message: format!("image {} could not be decoded: {source}", image.0),
-                })?;
+            let raw = if masked {
+                None
+            } else {
+                object.get_raw_image().ok()
+            };
+            let decoded = match raw {
+                Some(decoded) => decoded,
+                None => object
+                    .get_processed_image(&self.document)
+                    .map_err(|source| PdfError::Page {
+                        index: page,
+                        message: format!("image {} could not be decoded: {source}", image.0),
+                    })?,
+            };
             let rgba = decoded.to_rgba8();
             Ok(crate::images::DecodedImage {
                 width: rgba.width(),

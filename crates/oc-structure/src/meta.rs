@@ -99,13 +99,9 @@ pub fn metadata(
     sources: &MetaSources,
     blocks: &[BlockView],
     body_size_pt: f32,
-    // Taken and not read. Every number this function would need — the boilerplate list, the
-    // three pages the heuristic may look at, the namespace the identifier is minted under —
-    // is a *closed set* rather than a threshold: a blocklist entry is not a value anyone
-    // tunes, and changing the UUID namespace would change every book's identity. The
-    // parameter is here because every other rule in the stage takes it and a caller should
-    // not have to remember which one does not.
-    _t: &Thresholds,
+    // Read for the front pages' extent, `toc.max_front_pages`: how far into a book its title
+    // page and copyright page can be.
+    t: &Thresholds,
 ) -> (Metadata, Confidence) {
     let MetaSources {
         xmp,
@@ -134,6 +130,14 @@ pub fn metadata(
         ),
     };
 
+    // The file's own author field is whoever made the file — often the person who scanned or
+    // uploaded it, not the person who wrote the book. It is believed only when the book's front
+    // pages print that name too.
+    let front = front_text(blocks, language, t);
+    let printed = |name: &str| {
+        let key = squash_key(name, language);
+        !key.is_empty() && front.contains(&key)
+    };
     let authors = if !xmp.creators.is_empty() {
         xmp.creators.clone()
     } else {
@@ -141,6 +145,7 @@ pub fn metadata(
             .as_deref()
             .map(str::trim)
             .filter(|author| !is_boilerplate(author))
+            .filter(|author| printed(author))
             .map(|author| vec![author.to_owned()])
             .unwrap_or_else(|| author_from_page(blocks, language).into_iter().collect())
     };
@@ -185,6 +190,24 @@ pub fn metadata(
 pub fn identifier(source_sha256: &str) -> String {
     let uuid = uuid::Uuid::new_v5(&NAMESPACE, source_sha256.trim().as_bytes());
     format!("urn:uuid:{uuid}")
+}
+
+/// The front pages' text, folded and with every space removed, for a name to be looked up in.
+fn front_text(blocks: &[BlockView], language: &LangTag, t: &Thresholds) -> String {
+    let front = u32::try_from(t.toc.max_front_pages.max(0)).unwrap_or(u32::MAX);
+    blocks
+        .iter()
+        .filter(|block| block.page < front)
+        .map(|block| squash_key(&block.text, language))
+        .collect()
+}
+
+/// A lookup key: folded in the book's own locale, spaces and punctuation gone.
+fn squash_key(text: &str, language: &LangTag) -> String {
+    fold_key(text, language.clone())
+        .chars()
+        .filter(|ch| ch.is_alphanumeric())
+        .collect()
 }
 
 /// The heuristic title: the largest-font block on the first three pages.

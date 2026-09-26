@@ -1665,6 +1665,13 @@ evidence = "The most air, in heading sizes, between two heading blocks that are 
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[headings.label_title_gap_em]
+value = 3.0
+source = "provisional"
+evidence = "The most air, in heading sizes, between a chapter's label (a number or numeral with a word or two) and the title set under it, for the two to be one heading. Designers put one to two lines between them; more than three is a label standing alone over body text"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [headings.cluster_char_share_min]
 value = 0.6
 source = "provisional"
@@ -1717,6 +1724,13 @@ owner = "maintainer"
 review_by = "2027-06-30"
 
 # ---------- lists (PIPELINE 8.5) ----------
+[list.dash_dialogue_min_lines]
+value = 20
+source = "provisional"
+evidence = "How many lines of a book must open with a dash and a space before the dash is read as the book's dialogue punctuation and never as a bullet. A dash-bulleted list in a technical book runs to a handful of items; a novel that writes dialogue with dashes opens hundreds of lines with one. 2026-09-26, docs/DECISIONS_LOG.md"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [list.min_siblings]
 value = 2
 source = "published"

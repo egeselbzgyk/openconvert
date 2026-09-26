@@ -23,6 +23,9 @@ use crate::error::PdfError;
 pub(crate) struct ImageFacts {
     pub(crate) has_smask: bool,
     pub(crate) is_inline: bool,
+    /// A stencil mask (`/ImageMask true`): one bit per pixel that says where the fill colour
+    /// is painted, with no colour of its own.
+    pub(crate) is_stencil: bool,
 }
 
 /// The image draws of one page, in content-stream order.
@@ -52,6 +55,11 @@ pub(crate) fn page_image_facts(
             "BI" => facts.push(ImageFacts {
                 has_smask: operation.operands.iter().any(declares_mask_inline),
                 is_inline: true,
+                is_stencil: operation.operands.iter().any(|operand| {
+                    operand
+                        .as_stream()
+                        .is_ok_and(|stream| is_stencil(&stream.dict, b"IM"))
+                }),
             }),
             // `/Name Do`: an XObject, which is an image only if it says so.
             "Do" => {
@@ -80,6 +88,7 @@ pub(crate) fn page_image_facts(
                 facts.push(ImageFacts {
                     has_smask: declares_mask(&stream.dict),
                     is_inline: false,
+                    is_stencil: is_stencil(&stream.dict, b"ImageMask"),
                 });
             }
             _ => {}
@@ -102,6 +111,17 @@ const MAX_PAGE_TREE_DEPTH: usize = 64;
 /// not a plain rectangle of pixels.
 fn declares_mask(dictionary: &lopdf::Dictionary) -> bool {
     dictionary.has(b"SMask") || dictionary.has(b"Mask")
+}
+
+/// Whether the dictionary says `/ImageMask true` (or the inline `/IM true`).
+fn is_stencil(dictionary: &lopdf::Dictionary, key: &[u8]) -> bool {
+    [key, b"ImageMask".as_slice()].iter().any(|key| {
+        dictionary
+            .get(key)
+            .ok()
+            .and_then(|value| value.as_bool().ok())
+            == Some(true)
+    })
 }
 
 /// The same question for an inline image, whose dictionary uses the abbreviated keys.

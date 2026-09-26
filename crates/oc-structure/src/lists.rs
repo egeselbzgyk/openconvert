@@ -28,6 +28,9 @@ const BULLETS: [char; 8] = [
     '\u{2022}', '\u{00B7}', '\u{2013}', '\u{2014}', '*', '\u{2023}', '\u{25AA}', '\u{25E6}',
 ];
 
+/// The dashes a line of dialogue opens with, which are also bullets in a book that does not.
+const DASHES: [char; 2] = ['\u{2013}', '\u{2014}'];
+
 /// The characters that close a numbered marker. A number with none of them after it is a
 /// number in a sentence.
 const TERMINATORS: [char; 2] = ['.', ')'];
@@ -108,6 +111,31 @@ pub fn detect_lists(
                 marker,
                 value,
                 indent_pt: line.bbox().x0,
+            })
+        })
+        .collect();
+
+    // A book that opens many lines with a dash writes its dialogue that way — Turkish, French,
+    // Russian and Spanish novels do — and there a dash is punctuation, not a bullet. Measured on
+    // the book: past `list.dash_dialogue_min_lines` such lines, a dash never opens a list item.
+    let dash_opened = blocks
+        .iter()
+        .flat_map(|block| block.lines.iter())
+        .filter(|line| {
+            let mut chars = line.text.trim_start().chars();
+            chars.next().is_some_and(|ch| DASHES.contains(&ch))
+                && chars.next().is_some_and(char::is_whitespace)
+        })
+        .count();
+    let dashes_are_dialogue =
+        i64::try_from(dash_opened).unwrap_or(i64::MAX) >= t.list.dash_dialogue_min_lines;
+    let marked: Vec<Option<Marked>> = marked
+        .into_iter()
+        .map(|marked| {
+            marked.filter(|marked| {
+                !(dashes_are_dialogue
+                    && marked.kind == MarkerKind::Bullet
+                    && marked.marker.chars().all(|ch| DASHES.contains(&ch)))
             })
         })
         .collect();
