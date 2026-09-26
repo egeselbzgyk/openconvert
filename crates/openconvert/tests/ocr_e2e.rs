@@ -647,7 +647,6 @@ fn ocr_never_calls_the_llm() {
         provider: model,
         cache: None,
         clock: &clock,
-        started_ms: oc_ai::session::Clock::now_ms(&clock),
         all_tasks: true,
     };
     let path = typst("f03_image_only");

@@ -927,9 +927,9 @@ owner = "maintainer"
 review_by = "2027-06-30"
 
 [llm.max_calls_per_book]
-value = 8
+value = 400
 source = "provisional"
-evidence = "RT C4 hard budgets"
+evidence = "RT C4 hard budgets, raised from 8 when the time budget became absolute (2026-09-26): the questions are small - a label, a line number - and a book asks one per ambiguous heading, page or block, so the time budget is what bounds a book and this only stops a runaway"
 owner = "maintainer"
 review_by = "2027-06-30"
 
@@ -968,10 +968,24 @@ evidence = "ARCHITECTURE 6.2: heading_tree_violations is an integer count - leve
 owner = "maintainer"
 review_by = "2099-01-01"
 
-[llm.max_wallclock_share]
-value = 0.25
+[llm.seconds_per_page]
+value = 1.0
 source = "provisional"
-evidence = "RT C4 hard stop"
+evidence = "The model time a book may take, per page, replacing RT C4's share of the conversion's time: the deterministic stages take seconds, so a quarter of them allowed one call a book. The maintainer accepts three to five minutes a book for a better result (2026-09-26); a 300-page book gets five minutes at this rate. Invented, not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.min_budget_secs]
+value = 60
+source = "provisional"
+evidence = "The least model time any book gets, so a short one still has its metadata, contents and headings asked about: on a CPU a small model answers one of those questions in one to ten seconds (smoke test 2026-09-26). Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.max_budget_secs]
+value = 360
+source = "provisional"
+evidence = "The most model time any book gets: the upper end of the three to five minutes the maintainer accepts (2026-09-26) plus a minute, so a thousand-page book does not wait half an hour on a CPU. Invented"
 owner = "maintainer"
 review_by = "2027-06-30"
 

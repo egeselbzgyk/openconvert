@@ -12,15 +12,11 @@ fn max_calls() -> u32 {
     u32::try_from(T.llm.max_calls_per_book).expect("a small count")
 }
 
-/// Test 8.13. Eight calls a book (D13.6); the ninth is refused, with the warning the report
+/// Test 8.13. `llm.max_calls_per_book` calls a book (D13.6, raised from eight on 2026-09-26 when
+/// the time budget became what bounds a book); the next is refused, with the warning the report
 /// carries, and every call after it is refused the same way.
 #[test]
 fn budget_stops_after_max_calls() {
-    assert_eq!(
-        max_calls(),
-        8,
-        "D13.6: the ninth call is the first one refused"
-    );
     let mut budget = Budget::new(max_calls());
     for call in 0..max_calls() {
         let purpose = Purpose::ALL[usize::try_from(call).expect("small") % Purpose::ALL.len()];
@@ -39,7 +35,7 @@ fn budget_stops_after_max_calls() {
     assert_eq!(refused.code, W_LLM_BUDGET_EXHAUSTED);
     assert_eq!(refused.severity, Severity::Warn);
     assert_eq!(refused.args["task"], "metadata");
-    assert_eq!(refused.args["calls"], "8");
+    assert_eq!(refused.args["calls"], max_calls().to_string());
 
     assert!(budget.spend(Purpose::VerseQuote).is_err());
     assert_eq!(budget.spent(), max_calls(), "a refused call is not spent");

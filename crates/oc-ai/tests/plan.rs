@@ -236,29 +236,18 @@ fn language_gate_disables_a_task_for_one_language() {
     }
 }
 
-/// The wall-clock share is a hard stop: once the model's time reaches `llm.max_wallclock_share`
-/// of the conversion's, the next question is refused, and every one after it, with
-/// `W_LLM_TIME_EXHAUSTED` said once.
+/// The time budget is a hard stop: once the model's time reaches the book's budget, the next
+/// question is refused, and every one after it, with `W_LLM_TIME_EXHAUSTED` said once.
 #[test]
-fn the_wallclock_share_stops_the_session() {
+fn the_time_budget_stops_the_session() {
     let clock = FakeClock::default();
-    let started = clock.now_ms();
-    // Nine seconds of deterministic stages before the first call.
-    clock.advance(9_000);
     let model = Slow {
         clock: &clock,
         ms: 1_000,
         answer: "{}".to_owned(),
         calls: AtomicUsize::new(0),
     };
-    let mut session = Session::new(
-        &model,
-        None,
-        &clock,
-        started,
-        max_calls(),
-        T.llm.max_wallclock_share,
-    );
+    let mut session = Session::new(&model, None, &clock, max_calls(), 3_000);
     let requests = common::requests();
     let mut asked = 0;
     for _ in 0..8 {
@@ -271,9 +260,9 @@ fn the_wallclock_share_stops_the_session() {
             Err(other) => panic!("{other:?}"),
         }
     }
-    // 9 s + n s, stopping once n / (9 + n) ≥ 0.25: after the third call.
+    // One second a call against three seconds: the fourth question is refused.
     assert_eq!(asked, 3);
-    assert!(session.share() >= T.llm.max_wallclock_share);
+    assert!(session.llm_ms() >= session.budget_ms());
     assert!(matches!(session.ask(&requests[1]), Err(Unasked::Time(_))));
     assert_eq!(
         model.calls.load(Ordering::SeqCst),
@@ -306,12 +295,12 @@ fn the_session_answers_from_the_cache_and_counts_it() {
     };
     let request = common::requests().remove(0);
 
-    let mut cold = Session::new(&model, Some(&cache), &clock, 0, max_calls(), 1.0);
+    let mut cold = Session::new(&model, Some(&cache), &clock, max_calls(), u64::MAX);
     let first = cold.ask(&request).expect("answered");
     assert!(!first.response.cached);
     assert_eq!(model.calls.load(Ordering::SeqCst), 1);
 
-    let mut warm = Session::new(&model, Some(&cache), &clock, 0, max_calls(), 1.0);
+    let mut warm = Session::new(&model, Some(&cache), &clock, max_calls(), u64::MAX);
     let again = warm.ask(&request).expect("answered from the cache");
     assert!(again.response.cached);
     assert_eq!(again.response.text, first.response.text);
@@ -360,7 +349,7 @@ fn an_unreachable_provider_stops_the_session() {
     }
     let clock = FakeClock::default();
     let down = Down(AtomicUsize::new(0));
-    let mut session = Session::new(&down, None, &clock, 0, max_calls(), 1.0);
+    let mut session = Session::new(&down, None, &clock, max_calls(), u64::MAX);
     let requests = common::requests();
     assert!(matches!(
         session.ask(&requests[0]),
@@ -372,4 +361,15 @@ fn an_unreachable_provider_stops_the_session() {
     ));
     assert_eq!(down.0.load(Ordering::SeqCst), 1);
     assert!(session.stopped().is_some());
+}
+
+/// The budget is the book's length times `llm.seconds_per_page`, held between its floor and its
+/// ceiling: a short book still gets the floor, a long one no more than the ceiling.
+#[test]
+fn the_time_budget_follows_the_book_between_its_bounds() {
+    use oc_ai::session::time_budget_ms;
+    assert_eq!(time_budget_ms(100, 1.0, 60, 360), 100_000);
+    assert_eq!(time_budget_ms(10, 1.0, 60, 360), 60_000);
+    assert_eq!(time_budget_ms(5_000, 1.0, 60, 360), 360_000);
+    assert_eq!(time_budget_ms(0, f64::NAN, 60, 360), 60_000);
 }

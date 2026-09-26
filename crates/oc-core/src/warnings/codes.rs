@@ -85,7 +85,7 @@ pub const CODES: &[WarningSpec] = &[
     },
     WarningSpec {
         code: "W_LLM_TIME_EXHAUSTED",
-        args: &["task", "share"],
+        args: &["task", "seconds"],
     },
     WarningSpec {
         code: "W_LLM_UNAVAILABLE",

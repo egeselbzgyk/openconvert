@@ -550,7 +550,6 @@ fn consent_is_recorded_in_report() {
         provider: opened.provider.as_ref(),
         cache: None,
         clock: &clock,
-        started_ms: clock.now_ms(),
         all_tasks: true,
     };
     let options = openconvert::convert::ConvertOptions {

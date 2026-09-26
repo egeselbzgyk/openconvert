@@ -259,7 +259,6 @@ fn ai_edits_are_conserving_end_to_end() {
                 provider: &echo,
                 cache: None,
                 clock: &clock,
-                started_ms: clock.now_ms(),
                 all_tasks: true,
             };
             let conversion = convert_fixture(stem, evidence, Some(&context));
@@ -298,7 +297,6 @@ fn a_book_with_no_outline_and_boilerplate_metadata() {
         provider: &echo,
         cache: None,
         clock: &clock,
-        started_ms: clock.now_ms(),
         all_tasks: true,
     };
     let conversion = convert_fixture("f09_novel_structure", Evidence::Stripped, Some(&context));
@@ -356,7 +354,6 @@ fn book_structure_is_never_asked_when_an_outline_exists() {
         provider: &echo,
         cache: None,
         clock: &clock,
-        started_ms: clock.now_ms(),
         all_tasks: true,
     };
     let conversion = convert_fixture("f07_verse_and_quote", Evidence::AsIs, Some(&context));
@@ -373,12 +370,12 @@ fn book_structure_is_never_asked_when_an_outline_exists() {
 }
 
 /// Row 10.15. `f10` without its outline and title escalates three tasks. The model takes ten
-/// minutes a call on an injected clock, so after its first answer
-/// its share of the conversion's time is far over `llm.max_wallclock_share`: the remaining LLM
-/// work is abandoned, the conversion completes deterministically, `W_LLM_TIME_EXHAUSTED` is in the
-/// report, and the choices left unasked say `budget.time`.
+/// minutes a call on an injected clock, so after its first answer the book's time budget
+/// (`llm.max_budget_secs` at most) is spent: the remaining LLM work is abandoned, the conversion
+/// completes deterministically, `W_LLM_TIME_EXHAUSTED` is in the report, and the choices left
+/// unasked say `budget.time`.
 #[test]
-fn wallclock_share_hard_stop() {
+fn time_budget_hard_stop() {
     static CLOCK: FakeClock = FakeClock(AtomicU64::new(0));
     let echo = Echo {
         clock: Some((&CLOCK, 600_000)),
@@ -388,7 +385,6 @@ fn wallclock_share_hard_stop() {
         provider: &echo,
         cache: None,
         clock: &CLOCK,
-        started_ms: CLOCK.now_ms(),
         all_tasks: true,
     };
     let conversion = convert_fixture("f10_lists_and_table", Evidence::Stripped, Some(&context));
@@ -427,7 +423,6 @@ fn cache_hit_makes_ai_run_byte_identical() {
             provider: &echo,
             cache: Some(&cache),
             clock: &clock,
-            started_ms: clock.now_ms(),
             all_tasks: true,
         }),
     );
@@ -440,7 +435,6 @@ fn cache_hit_makes_ai_run_byte_identical() {
             provider: &Panicking,
             cache: Some(&cache),
             clock: &clock,
-            started_ms: clock.now_ms(),
             all_tasks: true,
         }),
     );
@@ -464,7 +458,6 @@ fn ai_without_all_tasks_asks_nothing_until_a_language_is_enabled() {
         provider: &echo,
         cache: None,
         clock: &clock,
-        started_ms: clock.now_ms(),
         all_tasks: false,
     };
     let with_ai = convert_fixture("f07_verse_and_quote", Evidence::AsIs, Some(&context));
@@ -528,7 +521,6 @@ fn unshare_n_covers_the_ai_cassette_path() {
         provider,
         cache: Some(&cache),
         clock: &clock,
-        started_ms: clock.now_ms(),
         all_tasks: true,
     };
 
@@ -567,7 +559,6 @@ fn unshare_n_covers_the_ai_cassette_path() {
         provider: replay,
         cache: None,
         clock: &clock,
-        started_ms: clock.now_ms(),
         all_tasks: true,
     };
     let replayed = convert_fixture("f09_novel_structure", Evidence::Stripped, Some(&uncached));

@@ -24,7 +24,7 @@ pub struct Asked {
 pub enum Unasked {
     /// The book's calls are spent (`W_LLM_BUDGET_EXHAUSTED`).
     Budget(Warning),
-    /// The wall-clock share is spent, and the rest of the book is deterministic.
+    /// The book's model time is spent, and the rest of the book is deterministic.
     Time(Warning),
     /// The provider could not answer at all: unreachable, not a chat completion, no cassette.
     Unavailable(LlmError),
@@ -41,7 +41,7 @@ impl Unasked {
     }
 }
 
-/// The `Decision.fallback` of a choice the wall-clock share stopped.
+/// The `Decision.fallback` of a choice the time budget stopped.
 pub const BUDGET_TIME: &str = "budget.time";
 
 /// The `Decision.fallback` of a choice whose model could not be reached.
@@ -84,12 +84,31 @@ impl Clock for SystemClock {
     }
 }
 
-/// Raised when the book's LLM time reached `llm.max_wallclock_share` of the conversion's.
+/// Raised when the book's model time reached its budget: `llm.seconds_per_page` a page, held
+/// between `llm.min_budget_secs` and `llm.max_budget_secs`.
 pub const W_LLM_TIME_EXHAUSTED: &str = "W_LLM_TIME_EXHAUSTED";
 
 /// The banner: AI was asked for and no model could be reached, so the book is deterministic
 /// (RT D20). Never a failure — the conversion completes and says so.
 pub const W_LLM_UNAVAILABLE: &str = "W_LLM_UNAVAILABLE";
+
+/// The model time a book of `pages` pages may take: `seconds_per_page` a page, never less than
+/// `min_secs` nor more than `max_secs` — `llm.seconds_per_page`, `llm.min_budget_secs` and
+/// `llm.max_budget_secs`, read by the caller.
+///
+/// Absolute rather than a share of the conversion's time: the deterministic stages take seconds,
+/// so any share of them is a call or two, and a book the model is asked to read needs minutes
+/// (maintainer direction, 2026-09-26).
+pub fn time_budget_ms(pages: u32, seconds_per_page: f64, min_secs: u64, max_secs: u64) -> u64 {
+    let secs = (f64::from(pages) * seconds_per_page.max(0.0)).round();
+    let secs = if secs.is_finite() && secs < u64::MAX as f64 {
+        secs as u64
+    } else {
+        max_secs
+    };
+    secs.clamp(min_secs, max_secs.max(min_secs))
+        .saturating_mul(1000)
+}
 
 /// One call as the NDJSON `llm` event reports it (D13.2): the purpose, where the answer came
 /// from, and what it cost. A trace says what was asked; this says what it took.
@@ -105,9 +124,9 @@ pub struct CallRecord {
 
 /// One book's session with a model: the [`Asker`] the pipeline uses (D13.6, D13.8).
 ///
-/// In order, for every question: a stop already reached refuses it (the wall-clock share, a
-/// provider that could not be reached); the **wall-clock share** is checked — LLM time over the
-/// conversion's time so far, a hard stop at `llm.max_wallclock_share`; the **call budget** is spent,
+/// In order, for every question: a stop already reached refuses it (the time budget, a
+/// provider that could not be reached); the **time budget** is checked — the model's time so far
+/// against an absolute budget the book's length sets; the **call budget** is spent,
 /// cached or not, so a warm cache decides the same things as a cold one; the **cache** answers if
 /// it can; and only then the provider. An answer from the provider is filed in the cache.
 pub struct Session<'a> {
@@ -115,9 +134,8 @@ pub struct Session<'a> {
     cache: Option<&'a crate::cache::FileCache>,
     clock: &'a dyn Clock,
     budget: crate::budget::Budget,
-    /// When the conversion began, on `clock`.
-    started_ms: u64,
-    max_share: f64,
+    /// The model time the book may take, in milliseconds.
+    budget_ms: u64,
     llm_ms: u64,
     stopped: Option<Unasked>,
     calls: Vec<CallRecord>,
@@ -125,23 +143,21 @@ pub struct Session<'a> {
 }
 
 impl<'a> Session<'a> {
-    /// A session for one book. `started_ms` is when its conversion began on `clock`, and the
-    /// numbers are `llm.max_calls_per_book` and `llm.max_wallclock_share`.
+    /// A session for one book: at most `max_calls` questions (`llm.max_calls_per_book`) and
+    /// `budget_ms` of the model's time ([`time_budget_ms`]).
     pub fn new(
         provider: &'a dyn crate::provider::LlmProvider,
         cache: Option<&'a crate::cache::FileCache>,
         clock: &'a dyn Clock,
-        started_ms: u64,
         max_calls: u32,
-        max_share: f64,
+        budget_ms: u64,
     ) -> Self {
         Self {
             provider,
             cache,
             clock,
             budget: crate::budget::Budget::new(max_calls),
-            started_ms,
-            max_share,
+            budget_ms,
             llm_ms: 0,
             stopped: None,
             calls: Vec::new(),
@@ -164,13 +180,9 @@ impl<'a> Session<'a> {
         self.llm_ms
     }
 
-    /// LLM time over the conversion's time so far.
-    pub fn share(&self) -> f64 {
-        let elapsed = self.clock.now_ms().saturating_sub(self.started_ms);
-        if elapsed == 0 {
-            return 0.0;
-        }
-        self.llm_ms as f64 / elapsed as f64
+    /// The model time the book may take, in milliseconds.
+    pub fn budget_ms(&self) -> u64 {
+        self.budget_ms
     }
 
     /// Why the session stopped asking, if it did.
@@ -196,10 +208,10 @@ impl Asker for Session<'_> {
         if let Some(stopped) = &self.stopped {
             return Err(stopped.clone());
         }
-        if self.llm_ms > 0 && self.share() >= self.max_share {
+        if self.llm_ms >= self.budget_ms {
             let warning = Warning::new(W_LLM_TIME_EXHAUSTED, oc_model::doc::Severity::Warn)
                 .with_arg("task", request.purpose.as_str())
-                .with_arg("share", format!("{:.3}", self.share()));
+                .with_arg("seconds", (self.budget_ms / 1000).to_string());
             self.warn_once(warning.clone());
             let stop = Unasked::Time(warning);
             self.stopped = Some(stop.clone());

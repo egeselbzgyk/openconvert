@@ -343,9 +343,8 @@ fn steps<W: Write + Send>(
         );
     }
 
-    // The wall-clock share is of the whole conversion, so its clock starts here (D13.6).
+    // The model's time is measured on this clock (D13.6).
     let clock = oc_ai::session::SystemClock::new();
-    let started_ms = clock.now_ms();
 
     let options = ConvertOptions {
         filename: args
@@ -403,7 +402,6 @@ fn steps<W: Write + Send>(
         provider: opened.provider.as_ref(),
         cache: Some(&llm_cache),
         clock: &clock,
-        started_ms,
         all_tasks: job.ai.as_ref().is_some_and(|ai| ai.all_tasks),
     });
 

@@ -106,8 +106,6 @@ pub struct AiContext<'a> {
     pub provider: &'a dyn LlmProvider,
     pub cache: Option<&'a FileCache>,
     pub clock: &'a dyn Clock,
-    /// When the conversion began, on `clock`: the wall-clock share is of the whole conversion.
-    pub started_ms: u64,
     /// `--ai-all-tasks`: the language gate is set aside.
     pub all_tasks: bool,
 }
@@ -148,9 +146,13 @@ pub fn run(
         ctx.provider,
         ctx.cache,
         ctx.clock,
-        ctx.started_ms,
         u32::try_from(t.llm.max_calls_per_book).unwrap_or_default(),
-        t.llm.max_wallclock_share,
+        oc_ai::session::time_budget_ms(
+            input.page_count,
+            t.llm.seconds_per_page,
+            u64::try_from(t.llm.min_budget_secs).unwrap_or_default(),
+            u64::try_from(t.llm.max_budget_secs).unwrap_or_default(),
+        ),
     );
     let mut step = Step {
         input,

@@ -81,7 +81,7 @@ fn openai_compatible_without_grammar_warns() {
     assert_eq!(provider.thinking_control(), ThinkingControl::NoThinkSuffix);
 
     let clock = SystemClock::new();
-    let mut session = Session::new(&provider, None, &clock, 0, 8, 1.0);
+    let mut session = Session::new(&provider, None, &clock, 8, u64::MAX);
     for _ in 0..2 {
         let asked = session.ask(request).expect("answered");
         assert!(
@@ -158,7 +158,7 @@ fn a_constrained_provider_does_not_warn() {
         ThinkingControl::ChatTemplateKwargs
     );
     let clock = SystemClock::new();
-    let mut session = Session::new(&sidecar, None, &clock, 0, 8, 1.0);
+    let mut session = Session::new(&sidecar, None, &clock, 8, u64::MAX);
     session.ask(request).expect("answered");
     assert!(session.warnings().is_empty(), "{:?}", session.warnings());
     let body = good.last();
