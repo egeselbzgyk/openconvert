@@ -220,8 +220,13 @@ pub fn detect_furniture(
     // from two digits to three, or that a chapter opening skipped, broke the old test.
     let folios = find_folios(pages, body_size, t);
     for folio in &folios {
+        let kind = match (folio.with_text, folio.band) {
+            (false, _) => FurnitureKind::PageNumber,
+            (true, Band::Top) => FurnitureKind::RunningHeader,
+            (true, Band::Bottom | Band::Body) => FurnitureKind::RunningFooter,
+        };
         verdicts[offsets[folio.page] + folio.line] = FurnitureVerdict {
-            kind: Some(FurnitureKind::PageNumber),
+            kind: Some(kind),
             evidence: RepetitionEvidence {
                 progression_step: Some(1),
                 label: Some(folio.label.clone()),
@@ -311,8 +316,11 @@ pub fn apply_furniture(pages: &[PageLines], verdicts: &[FurnitureVerdict]) -> Fu
                 line.text.clone(),
             ));
             removed_chars = removed_chars.saturating_add(width);
-            if kind == FurnitureKind::PageNumber {
-                labels[page_index] = verdict.evidence.label.clone();
+            // A page number, or a running head or foot that carries one.
+            if kind == FurnitureKind::PageNumber || verdict.evidence.progression_step.is_some() {
+                if let Some(label) = &verdict.evidence.label {
+                    labels[page_index] = Some(label.clone());
+                }
             }
         }
         kept.push(PageLines {
@@ -649,6 +657,9 @@ struct Folio {
     line: usize,
     band: Band,
     label: String,
+    /// The folio is printed inside a running head or foot — `Section | 127` — and the whole
+    /// line goes.
+    with_text: bool,
 }
 
 /// A band line that is nothing but a number, or what a scan made of one.
@@ -660,6 +671,8 @@ struct Numeral {
     /// Arabic or roman, and its value; `None` for a token that is only digit-shaped.
     reading: Option<(bool, i64)>,
     text: String,
+    /// The number is printed at one end of a running head or foot, beside its words.
+    with_text: bool,
 }
 
 /// Find the page numbers: band lines holding a number that is the page's index plus a
@@ -721,7 +734,30 @@ fn find_folios(pages: &[PageLines], body_size: f32, t: &Thresholds) -> Vec<Folio
                 .collect();
             // The decoration a folio is printed with — `- 12 -`, `[12]`, `12 |` — is dropped;
             // anything with a letter in it that is not a numeral is a running head.
-            if token.is_empty() || token.chars().count() > 5 {
+            if token.is_empty() {
+                continue;
+            }
+            // A running head or foot that prints the folio beside its words — `Storage and
+            // Indexing | 127`, `128 | Chapter 4: Storage`. The words change with every section,
+            // so the repetition test never saw them as one running head, and a technical book's
+            // footers came through as headings (2026-09-26). The number at its end is a folio
+            // candidate like any other, and the progression decides.
+            if token.chars().count() > 5 {
+                if band != Band::Body {
+                    if let Some((value, digits)) =
+                        number_at_an_end(&line.text, line.size_pt < body_size)
+                    {
+                        numerals.push(Numeral {
+                            page: page_index,
+                            line: line_index,
+                            band,
+                            baseline_y: line.baseline_y,
+                            reading: Some((true, value)),
+                            text: digits,
+                            with_text: true,
+                        });
+                    }
+                }
                 continue;
             }
             let reading = if token.chars().all(|ch| ch.is_ascii_digit()) {
@@ -743,6 +779,7 @@ fn find_folios(pages: &[PageLines], body_size: f32, t: &Thresholds) -> Vec<Folio
                 baseline_y: line.baseline_y,
                 reading,
                 text: line.text.trim().to_owned(),
+                with_text: false,
             });
         }
     }
@@ -791,6 +828,7 @@ fn find_folios(pages: &[PageLines], body_size: f32, t: &Thresholds) -> Vec<Folio
             line: numeral.line,
             band: numeral.band,
             label: numeral.text.clone(),
+            with_text: numeral.with_text,
         });
     }
     if folios.is_empty() {
@@ -823,10 +861,44 @@ fn find_folios(pages: &[PageLines], body_size: f32, t: &Thresholds) -> Vec<Folio
             line: numeral.line,
             band,
             label: value.to_string(),
+            with_text: false,
         });
     }
+
     folios.sort_by_key(|folio| (folio.page, folio.line));
     folios
+}
+
+/// The number a running head or foot opens or closes on, when it is set apart from the line's
+/// words: by a separator next to it, or by the line being `smaller` than the body text. A line
+/// of words that merely starts with a number is not one.
+fn number_at_an_end(text: &str, smaller: bool) -> Option<(i64, String)> {
+    const SEPARATORS: [char; 8] = [
+        '|', '\u{2022}', '\u{00B7}', '\u{2013}', '\u{2014}', '/', ':', '-',
+    ];
+    let tokens: Vec<&str> = text.split_whitespace().collect();
+    if !text.chars().any(char::is_alphabetic) || tokens.len() < 2 {
+        return None;
+    }
+    let ends = [
+        (tokens.first().copied(), tokens.get(1).copied()),
+        (
+            tokens.last().copied(),
+            tokens.get(tokens.len().saturating_sub(2)).copied(),
+        ),
+    ];
+    ends.into_iter().find_map(|(end, next)| {
+        let end = end?;
+        let digits = end.trim_matches(|ch: char| SEPARATORS.contains(&ch));
+        let value: i64 = digits
+            .parse()
+            .ok()
+            .filter(|_| !digits.is_empty() && digits.chars().all(|ch| ch.is_ascii_digit()))?;
+        let apart = end.len() != digits.len()
+            || next.is_some_and(|next| next.chars().all(|ch| SEPARATORS.contains(&ch)))
+            || smaller;
+        apart.then(|| (value, digits.to_owned()))
+    })
 }
 
 /// A short token made of digits and of the letters a text layer reads digits as — `ı`, `l`,
@@ -1029,6 +1101,68 @@ mod folio_tests {
             .expect("the misread folio");
         assert_eq!(misread.label, "65");
         assert!(folios.iter().any(|folio| folio.label == "124"));
+    }
+
+    /// A footer that prints the folio with the section's name, on either side of a separator,
+    /// is found as a whole on every page, and so is its page label; a line of text at the foot
+    /// that merely begins with the page's number, at body size and with no separator, is not.
+    #[test]
+    fn a_running_foot_that_carries_the_folio_is_found_whole() {
+        let pages: Vec<PageLines> = (0..40u32)
+            .map(|index| {
+                let folio = index + 7;
+                let foot = match index % 8 {
+                    // A chapter opening: the folio alone, which fixes the constant.
+                    0 => folio.to_string(),
+                    n if n % 2 == 1 => format!("Section {} | {folio}", index / 8),
+                    _ => format!("{folio} | Chapter {}: A Title", index / 8),
+                };
+                page(
+                    index,
+                    &[
+                        ("body text of the page, set full.".to_owned(), 100.0),
+                        (foot, 480.0),
+                    ],
+                )
+            })
+            .collect();
+        let folios = find_folios(&pages, 10.0, &T);
+        assert_eq!(
+            folios.len(),
+            40,
+            "{:?}",
+            folios.iter().map(|f| f.page).collect::<Vec<_>>()
+        );
+        assert!(folios
+            .iter()
+            .filter(|folio| folio.page % 8 != 0)
+            .all(|folio| folio.with_text));
+        let page_nine = folios.iter().find(|folio| folio.page == 9).expect("page 9");
+        assert_eq!(page_nine.label, "16");
+
+        assert_eq!(number_at_an_end("16 people came to the door", false), None);
+        assert_eq!(
+            number_at_an_end("Section 2 | 16", false),
+            Some((16, "16".to_owned()))
+        );
+        assert_eq!(
+            number_at_an_end("16 | Chapter 1: A Title", false),
+            Some((16, "16".to_owned()))
+        );
+
+        // No chapter opening at all: the footers alone fix the constant.
+        let footers: Vec<PageLines> = (0..20u32)
+            .map(|index| {
+                page(
+                    index,
+                    &[
+                        ("body text of the page, set full.".to_owned(), 100.0),
+                        (format!("Section | {}", index + 3), 480.0),
+                    ],
+                )
+            })
+            .collect();
+        assert_eq!(find_folios(&footers, 10.0, &T).len(), 20);
     }
 
     /// Numbers in the margin that are not the page's index plus a constant — footnote markers,

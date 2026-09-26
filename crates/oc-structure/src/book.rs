@@ -205,6 +205,15 @@ pub fn book_structure_with(
         // carried between iterations, and the match above has no transition out of `Back`.
         // A book does not return to its body after its index.
 
+        // Close every open section at or below the new one's level, so that what is left on
+        // the stack is the new section's parent.
+        while stack.len() >= usize::from(heading.level.max(1)) {
+            close(&mut stack, &mut roots);
+        }
+        // The section right under a part is a chapter, whatever level the part put it at.
+        let under_part = stack
+            .last()
+            .is_some_and(|parent| parent.role == SectionRole::Part);
         let role = match zone {
             Zone::Front => SectionRole::FrontMatter(front.unwrap_or(FrontMatterKind::Other)),
             Zone::Back => SectionRole::BackMatter(back.unwrap_or(BackMatterKind::Other)),
@@ -214,7 +223,7 @@ pub fn book_structure_with(
             Zone::Body => match crate::headings::numbering::read(&text, lang).map(|n| n.kind) {
                 Some(NumberingKind::Part) => SectionRole::Part,
                 _ if label.is_some_and(|label| label.part) => SectionRole::Part,
-                _ if heading.level == 1 => SectionRole::Chapter,
+                _ if heading.level == 1 || under_part => SectionRole::Chapter,
                 _ => SectionRole::Section,
             },
         };
@@ -237,10 +246,6 @@ pub fn book_structure_with(
             ]),
         };
 
-        // Close every open section at or below the new one's level.
-        while stack.len() >= usize::from(opened.level.max(1)) {
-            close(&mut stack, &mut roots);
-        }
         // A level that skips is not possible here — `assign_levels` removed the skips — but a
         // tree built from a flow has to be total, so a gap is filled by nesting under the
         // deepest open section rather than by panicking.
@@ -502,6 +507,42 @@ mod tests {
                 SectionRole::Chapter,
                 SectionRole::Chapter,
                 SectionRole::BackMatter(BackMatterKind::Index),
+            ]
+        );
+    }
+
+    /// A book in parts: the sections right under a part are its chapters, and the sections
+    /// under those are sections.
+    #[test]
+    fn the_sections_under_a_part_are_chapters() {
+        use oc_core::thresholds::T;
+        let at = |index: u32, text: &str, level: u8| {
+            let mut item = heading(index, text);
+            if let Content::Heading(heading) = &mut item.content {
+                heading.level = level;
+            }
+            item
+        };
+        let flow = vec![
+            at(1, "Chapter 1. Introduction", 1),
+            at(10, "Part I. Foundations", 1),
+            at(11, "Chapter 2. Thinking", 2),
+            at(12, "Defining the Terms", 3),
+            at(20, "Chapter 3. Modularity", 2),
+        ];
+        let (sections, ..) = book_structure(&flow, &[], &LangTag::EN, &T);
+        let roles: Vec<SectionRole> = sections
+            .iter()
+            .flat_map(|root| root.walk().into_iter().map(|section| section.role))
+            .collect();
+        assert_eq!(
+            roles,
+            vec![
+                SectionRole::Chapter,
+                SectionRole::Part,
+                SectionRole::Chapter,
+                SectionRole::Section,
+                SectionRole::Chapter,
             ]
         );
     }

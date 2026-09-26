@@ -651,7 +651,14 @@ pub fn link_contents(
         .filter_map(|entry| Some((entry.target?, entry.level)))
         .collect();
     let min_linked = usize::try_from(t.toc.min_entries.max(1)).unwrap_or(usize::MAX);
-    if linked.len() >= min_linked
+    // The book's own outline outranks the contents page's indents: it is the hierarchy the
+    // publisher encoded, where the indent ladder is read off the page's geometry — which set
+    // the chapters of a technical book one step under its preface (2026-09-26).
+    let outline_levels = headings
+        .iter()
+        .any(|heading| heading.source == LevelSource::Outline);
+    if !outline_levels
+        && linked.len() >= min_linked
         && linked.len() as f64 >= t.toc.levels_min_linked_share * numbered as f64
     {
         let top = linked.values().copied().min().unwrap_or(1);

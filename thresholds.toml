@@ -2017,3 +2017,10 @@ source = "provisional"
 evidence = "The least non-whitespace text a page needs for its full-page background to be dropped as the scan under its text layer. An OCR sandwich page of prose carries a thousand characters and more; a full-bleed photograph's caption a line or two. A 260-page scanned book emitted all 520 page scans as figures beside their own text (2026-09-26). Invented"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+[headings.outline_trust_min_bound_share]
+value = 0.5
+source = "provisional"
+evidence = "The share of a PDF outline's entries that must bind to headings printed on the pages for the outline's levels to be used when the style inventory is invalid. Technical books set code, keys and emphasis in more styles than inventory.max_clusters and so had their bookmarks - which name nearly every heading they print - ignored for size rank (2026-09-26). An outline that binds half its entries is the book's; one that binds a few by chance is not. Invented"
+owner = "maintainer"
+review_by = "2027-06-30"

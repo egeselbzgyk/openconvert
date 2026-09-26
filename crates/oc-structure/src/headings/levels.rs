@@ -77,27 +77,55 @@ pub fn assign_levels(
         .collect();
 
     let ranks = cluster_ranks(inventory, t);
-    let by_outline = bind(&admissible, &outline_titles(outline), lang, t);
+    let outline_entries = outline_titles(outline);
+    let all: Vec<&HeadingCandidate> = candidates.iter().collect();
+    let (by_outline, outline_bound) = bind(&admissible, &all, &outline_entries, lang, t);
     let by_toc = toc
         .map(|toc| {
             bind(
                 &admissible,
+                &all,
                 &toc.entries
                     .iter()
-                    .map(|entry| (entry.title.clone(), entry.level))
+                    .map(|entry| (entry.title.clone(), entry.level, None))
                     .collect::<Vec<_>>(),
                 lang,
                 t,
             )
+            .0
         })
         .unwrap_or_default();
 
-    // The inventory being invalid forces size rank: detail 3 says so, and a bound outline
-    // would otherwise smuggle a level tree back into a book whose typography has none.
-    let use_outline = inventory.valid && !by_outline.is_empty();
+    // An invalid inventory forces size rank (detail 3) — unless the outline itself is found
+    // on the pages: a technical book sets code, keys and emphasis in so many styles that its
+    // inventory is invalid, and its bookmarks, which name nearly every heading it prints, were
+    // ignored for a size rank that made the cover's lettering its first headings (2026-09-26).
+    let use_outline = trust_outline(
+        inventory.valid,
+        outline_bound,
+        outline_entries.len(),
+        !by_outline.is_empty(),
+        t,
+    );
     let use_toc = inventory.valid && !use_outline && !by_toc.is_empty();
 
-    let mut assignments: Vec<HeadingAssignment> = admissible
+    // The admissible candidates, and with a trusted outline also the blocks it bound that the
+    // evidence alone did not admit: a chapter title set wide under its label, with no air of
+    // its own, is the second half of a heading the outline names.
+    let pool: Vec<&HeadingCandidate> = if use_outline {
+        candidates
+            .iter()
+            .filter(|candidate| {
+                candidate.is_admissible()
+                    || by_outline
+                        .iter()
+                        .any(|bound| bound.block == candidate.block)
+            })
+            .collect()
+    } else {
+        admissible.clone()
+    };
+    let mut assignments: Vec<HeadingAssignment> = pool
         .iter()
         .filter_map(|candidate| {
             let (level, source) = if use_outline {
@@ -221,7 +249,7 @@ fn cluster_ranks(inventory: &StyleInventory, t: &Thresholds) -> Vec<(ClusterId, 
 }
 
 /// Outline entries as `(title, level)`, with the 0-based depth turned into a 1-based level.
-fn outline_titles(outline: &[OutlineEntry]) -> Vec<(String, u8)> {
+fn outline_titles(outline: &[OutlineEntry]) -> Vec<(String, u8, Option<u32>)> {
     outline
         .iter()
         .map(|entry| {
@@ -230,6 +258,7 @@ fn outline_titles(outline: &[OutlineEntry]) -> Vec<(String, u8)> {
                 u8::try_from(entry.level.saturating_add(1))
                     .unwrap_or(1)
                     .clamp(1, 6),
+                entry.page,
             )
         })
         .collect()
@@ -241,41 +270,103 @@ fn outline_titles(outline: &[OutlineEntry]) -> Vec<(String, u8)> {
 /// not decide it, because a destination points at the top of the page a heading is on and a
 /// page may carry two headings. Each candidate is bound at most once, in source order, so a
 /// book whose chapters repeat a title does not bind them all to the first occurrence.
+/// How far, in pages, a heading may sit from the page its outline entry points at: the entry
+/// may point at the top of the page before a heading set at the foot of it.
+const OUTLINE_PAGE_SLACK: u32 = 1;
+
+/// Whether the outline's levels are the book's: always when the typography is a valid
+/// inventory and the outline bound anywhere; otherwise only when it bound at least
+/// `headings.outline_trust_min_bound_share` of its entries to headings on the pages.
+pub fn trust_outline(
+    inventory_valid: bool,
+    entries_bound: usize,
+    entries: usize,
+    any_bound: bool,
+    t: &Thresholds,
+) -> bool {
+    if !any_bound || entries == 0 {
+        return false;
+    }
+    inventory_valid
+        || entries_bound as f64 >= t.headings.outline_trust_min_bound_share * entries as f64
+}
+
+/// Bind each entry to the heading candidate that prints it, and say how many entries bound.
+///
+/// A title may be printed as two blocks that follow each other on one page — `CHAPTER 1` over
+/// `Trade-Offs`, for an entry `Chapter 1. Trade-Offs` — and the two are tried together as well
+/// as each alone; a pair that matches binds both, at the entry's level, and the heading join
+/// makes them one heading again.
 fn bind(
     candidates: &[&HeadingCandidate],
-    entries: &[(String, u8)],
+    all: &[&HeadingCandidate],
+    entries: &[(String, u8, Option<u32>)],
     lang: &LangTag,
     t: &Thresholds,
-) -> Vec<Bound> {
+) -> (Vec<Bound>, usize) {
+    let mut ordered: Vec<&HeadingCandidate> = candidates.to_vec();
+    ordered.sort_by_key(|candidate| candidate.order);
+    // Each single candidate, and each with the block right after it on its page — admissible
+    // or not, because a title set wide under its label has no air of its own.
+    let mut options: Vec<(Vec<&HeadingCandidate>, String)> = ordered
+        .iter()
+        .map(|candidate| {
+            (
+                vec![*candidate],
+                fold_key(&candidate.text, lang.clone()).to_string(),
+            )
+        })
+        .collect();
+    for first in &ordered {
+        let Some(next) = all
+            .iter()
+            .find(|next| next.page == first.page && next.order == first.order + 1)
+        else {
+            continue;
+        };
+        let text = format!("{} {}", first.text, next.text);
+        options.push((
+            vec![*first, *next],
+            fold_key(&text, lang.clone()).to_string(),
+        ));
+    }
+
     let mut taken: Vec<BlockId> = Vec::new();
     let mut bound = Vec::new();
-    for (title, level) in entries {
+    let mut entries_bound = 0;
+    for (title, level, page) in entries {
         let key = fold_key(title, lang.clone());
-        let best = candidates
+        let best = options
             .iter()
-            .filter(|candidate| !taken.contains(&candidate.block))
-            .map(|candidate| {
-                let distance =
-                    normalised_edit_distance(&key, &fold_key(&candidate.text, lang.clone()));
-                (candidate, distance)
+            .filter(|(blocks, _)| blocks.iter().all(|block| !taken.contains(&block.block)))
+            // An entry that says where it points is found there: the same title printed on
+            // the contents page, or in a running head, is not the heading it names.
+            .filter(|(blocks, _)| {
+                page.is_none_or(|page| blocks[0].page.abs_diff(page) <= OUTLINE_PAGE_SLACK)
             })
+            .map(|(blocks, text)| (blocks, normalised_edit_distance(&key, text)))
             .filter(|(_, distance)| f64::from(*distance) <= t.headings.outline_match_ned_max)
             // Ties go to the earlier candidate in reading order, which is what "the next
-            // occurrence of this title" means in a book that repeats one.
+            // occurrence of this title" means in a book that repeats one — and then to the
+            // single block over the pair.
             .min_by(|(left, left_distance), (right, right_distance)| {
                 left_distance
                     .total_cmp(right_distance)
-                    .then(left.order.cmp(&right.order))
+                    .then(left[0].order.cmp(&right[0].order))
+                    .then(left.len().cmp(&right.len()))
             });
-        if let Some((candidate, _)) = best {
-            taken.push(candidate.block);
-            bound.push(Bound {
-                block: candidate.block,
-                level: *level,
-            });
+        if let Some((blocks, _)) = best {
+            entries_bound += 1;
+            for block in blocks {
+                taken.push(block.block);
+                bound.push(Bound {
+                    block: block.block,
+                    level: *level,
+                });
+            }
         }
     }
-    bound
+    (bound, entries_bound)
 }
 
 /// Compress the level tree so it has no skips: an `h1` followed by an `h3` becomes an `h2`.
@@ -444,6 +535,110 @@ mod tests {
             numbering: None,
             source: LevelSource::SizeRank,
         }
+    }
+
+    fn candidate(order: u32, page: u32, text: &str) -> HeadingCandidate {
+        HeadingCandidate {
+            block: BlockId::derive(
+                page,
+                oc_model::geom::Rect {
+                    x0: 0.0,
+                    y0: f32::from(u8::try_from(order).unwrap_or(0)),
+                    x1: 1.0,
+                    y1: 1.0,
+                },
+                text,
+            ),
+            order,
+            page,
+            text: text.to_owned(),
+            cluster: ClusterId(1),
+            width_ratio: 0.3,
+            short_line: true,
+            sentence_continuing: false,
+            space_above: true,
+            legible: true,
+        }
+    }
+
+    /// An entry printed as a label over a title binds both blocks at its level; the cover's
+    /// lettering, which no entry names, binds nothing.
+    #[test]
+    fn an_outline_entry_binds_a_label_and_the_title_under_it() {
+        let t = &oc_core::thresholds::T;
+        let blocks = [
+            candidate(0, 0, "2"),
+            candidate(1, 0, "n d"),
+            candidate(2, 3, "Preface"),
+            candidate(3, 9, "CHAPTER 1"),
+            candidate(4, 9, "Trade-Offs in Data Systems Architecture"),
+            candidate(5, 10, "Operational Versus Analytical Systems"),
+        ];
+        let mut title = candidate(4, 9, "Trade-Offs in Data Systems Architecture");
+        // Set wide under its label, with no air of its own: not admissible alone.
+        title.short_line = false;
+        title.space_above = false;
+        let blocks = [
+            blocks[0].clone(),
+            blocks[1].clone(),
+            blocks[2].clone(),
+            blocks[3].clone(),
+            title,
+            blocks[5].clone(),
+            // The contents page, before the chapter, lists it too.
+            candidate(6, 1, "Preface"),
+        ];
+        let admissible: Vec<&HeadingCandidate> = blocks
+            .iter()
+            .filter(|candidate| candidate.is_admissible())
+            .collect();
+        let all: Vec<&HeadingCandidate> = blocks.iter().collect();
+        let entries = vec![
+            ("Preface".to_owned(), 1, Some(3)),
+            (
+                "Chapter 1. Trade-Offs in Data Systems Architecture".to_owned(),
+                1,
+                Some(9),
+            ),
+            (
+                "Operational Versus Analytical Systems".to_owned(),
+                2,
+                Some(10),
+            ),
+        ];
+        let (bound, entries_bound) = bind(&admissible, &all, &entries, &LangTag::EN, t);
+        assert_eq!(entries_bound, 3);
+        let levels: Vec<(String, u8)> = bound
+            .iter()
+            .map(|bound| {
+                let text = blocks
+                    .iter()
+                    .find(|candidate| candidate.block == bound.block)
+                    .map(|candidate| candidate.text.clone())
+                    .unwrap_or_default();
+                (text, bound.level)
+            })
+            .collect();
+        assert_eq!(
+            levels,
+            vec![
+                ("Preface".to_owned(), 1),
+                ("CHAPTER 1".to_owned(), 1),
+                ("Trade-Offs in Data Systems Architecture".to_owned(), 1),
+                ("Operational Versus Analytical Systems".to_owned(), 2),
+            ]
+        );
+    }
+
+    /// An outline found on the pages is trusted over typography too varied to rank; one that
+    /// binds a few entries by chance is not.
+    #[test]
+    fn a_well_bound_outline_is_trusted_whatever_the_typography() {
+        let t = &oc_core::thresholds::T;
+        assert!(trust_outline(true, 1, 100, true, t));
+        assert!(trust_outline(false, 90, 100, true, t));
+        assert!(!trust_outline(false, 10, 100, true, t));
+        assert!(!trust_outline(false, 0, 0, false, t));
     }
 
     /// The repair, in isolation: every skip closes, and a level that *descends* by more than
