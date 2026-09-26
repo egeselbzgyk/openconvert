@@ -267,6 +267,34 @@ evidence = "docs/design/handoff/docs/motion.md 'Copy -> Copied ... reverts after
 owner = "maintainer"
 review_by = "2028-01-01"
 
+[desktop.default_stage_deadline_secs]     # the per-stage deadline every job the app queues carries, unless the user set one (Settings › Advanced)
+value = 1800
+source = "provisional"
+evidence = "maintainer decision 2026-09-26: large image-heavy books ran past the engine's own limits.stage_deadline_secs (300 s) in one stage, so the app sends 30 minutes per stage; not measured on a corpus"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[desktop.min_stage_deadline_secs]         # the shortest per-stage deadline Settings › Advanced accepts
+value = 60
+source = "provisional"
+evidence = "one minute: shorter would stop ordinary books in `ingest`; the UI edits the deadline in whole minutes, so this is its smallest step. Not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[desktop.max_stage_deadline_secs]         # the longest per-stage deadline Settings › Advanced accepts
+value = 86400
+source = "provisional"
+evidence = "one day per stage: past this a stage is not slow but stuck, and the heartbeat and Cancel remain the way out. Not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[desktop.history_max_entries]             # conversions the app remembers across restarts (history.json); the oldest are dropped past this
+value = 500
+source = "provisional"
+evidence = "maintainer request 2026-09-26: earlier conversions listed on the main page; 500 rows keep the file under ~0.5 MB and the list quick to render. Not measured"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 # ---------- release (PHASE 15) ----------
 [release.max_installer_bytes]             # every installer a release ships but the Linux AppImage (NSIS, MSI; the dmg when macOS ships), each
 value = 45000000

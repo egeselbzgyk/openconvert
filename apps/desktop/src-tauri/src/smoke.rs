@@ -7,8 +7,8 @@
 //! what a release smoke test has to: that the installed bundle launches — the web view's libraries
 //! load, the window opens, under `xvfb-run` on a runner with no display — that it finds its own
 //! engine and that engine finds its own PDFium, and that a PDF becomes an EPUB. Nothing about it
-//! reaches further than a drop does: the book is written where a drop would write it, beside the
-//! PDF, never over an existing file.
+//! reaches further than a drop does: the book is written where a drop with the library setting off
+//! would write it, beside the PDF, never over an existing file.
 
 use std::ffi::OsString;
 use std::path::PathBuf;

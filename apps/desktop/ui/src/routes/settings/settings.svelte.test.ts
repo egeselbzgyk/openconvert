@@ -115,6 +115,79 @@ describe("settings route", () => {
     expect(document.activeElement?.textContent).toBe("Close");
   });
 
+  // The maintainer's decision (2026-09-26): 30 minutes per step by default, changeable in whole
+  // minutes within what thresholds.toml allows, and back to the default in one press.
+  it("the time limit per step is in minutes, defaults to the app's, is saved in seconds and resets", async () => {
+    const backend = await openSettings();
+    nav("Advanced")?.click();
+    flushSync();
+    const field = () => document.querySelector<HTMLInputElement>('input[aria-label="Time limit per step, minutes"]');
+    const reset = () => button("Reset to 30 minutes");
+    expect(field()?.value, "the app's default, from thresholds.toml").toBe(String(CONFIG.defaultStageDeadlineSecs / 60));
+    expect(field()?.min).toBe("1");
+    expect(field()?.max).toBe("1440");
+    expect(reset(), "already the default").toBeUndefined();
+
+    const type = (text: string) => {
+      const input = field();
+      if (input === null) return;
+      input.value = text;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      flushSync();
+    };
+    type("90");
+    expect(backend.saved.stageDeadlineSecs).toBe(5400);
+    expect(reset()).toBeDefined();
+
+    type("2000");
+    expect(field()?.getAttribute("aria-invalid")).toBe("true");
+    expect(document.querySelector(".oc-field__error")?.textContent, "the locale's numbers").toContain("from 1 to 1,440");
+    expect(backend.saved.stageDeadlineSecs, "an entry out of range is not saved").toBe(5400);
+
+    reset()?.click();
+    await settle();
+    flushSync();
+    expect(backend.saved.stageDeadlineSecs, "the default again").toBeNull();
+    expect(field()?.value).toBe("30");
+    expect(field()?.getAttribute("aria-invalid")).toBeNull();
+
+    type("30");
+    expect(backend.saved.stageDeadlineSecs, "the default typed in is the default").toBeNull();
+  });
+
+  it("books are saved to the OpenConvert folder unless switched off; the folder is chosen in the native picker", async () => {
+    const backend = await openSettings();
+    nav("Output folder")?.click();
+    await settle();
+    flushSync();
+    const body = () => document.querySelector(".oc-settings__body")?.textContent ?? "";
+    const library = () => document.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Save to the OpenConvert folder"]');
+    expect(library()?.getAttribute("aria-checked"), "on by default").toBe("true");
+    expect(body()).toContain("/home/me/Documents/OpenConvert");
+    expect(button("Use the default"), "already the default").toBeUndefined();
+
+    library()?.click();
+    await settle();
+    flushSync();
+    expect(backend.saved.saveToLibrary).toBe(false);
+    expect(body()).toContain("each book is saved next to its PDF");
+
+    button("Change…")?.click();
+    await settle();
+    flushSync();
+    expect(backend.saved.libraryDir).toBe("/home/me/Books");
+    expect(body()).toContain("/home/me/Books");
+    button("Use the default")?.click();
+    await settle();
+    flushSync();
+    expect(backend.saved.libraryDir).toBeNull();
+    expect(body()).toContain("/home/me/Documents/OpenConvert");
+
+    button("Open folder")?.click();
+    await settle();
+    expect(backend.calls).toContainEqual(["openLibrary", null]);
+  });
+
   it("the cache says what it holds, and clearing it asks once and deletes it", async () => {
     const backend = await openSettings();
     nav("Advanced")?.click();

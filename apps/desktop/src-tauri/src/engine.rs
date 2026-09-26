@@ -59,6 +59,12 @@ pub enum UiError {
     IrMismatch { engine: u64, app: u64 },
     #[error("no job {0}")]
     UnknownJob(String),
+    /// An id the conversion history does not have (`history.rs`).
+    #[error("no history entry {0}")]
+    UnknownEntry(String),
+    /// A recorded book that is no longer an EPUB on disk: moved, deleted, or never written.
+    #[error("{0} is not an EPUB on disk")]
+    NotOnDisk(String),
     /// A job that has not finished cannot be started again.
     #[error("job {0} has not finished")]
     JobBusy(String),

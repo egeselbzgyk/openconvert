@@ -24,6 +24,8 @@ export interface MockFixture {
   packs: { unavailable: string | null; rows: Array<Record<string, unknown>> };
   /** The licence text `model_license` returns. */
   licenseText: string;
+  /** Earlier runs' books (`history_list`), as the Rust side's history sends them. */
+  history: Array<Record<string, unknown>>;
 }
 
 export function installTauriMock(fixture: MockFixture): void {
@@ -38,12 +40,17 @@ export function installTauriMock(fixture: MockFixture): void {
     preset: "auto",
     maxPages: null,
     maxMemoryBytes: null,
+    stageDeadlineSecs: null,
+    saveToLibrary: true,
+    libraryDir: null,
+    historyOpen: true,
     firstrunDismissed: false,
     aiEnabled: false,
     provider: "builtin",
     ollamaModel: null,
     custom: { endpoint: "", model: "", apiKeyFile: null, consent: null },
   };
+  let history = fixture.history.map((entry) => ({ ...entry }));
   const calls: string[] = [];
   const violations: string[] = [];
   (window as unknown as Record<string, unknown>).__ocTest = { calls, violations };
@@ -181,6 +188,22 @@ export function installTauriMock(fixture: MockFixture): void {
     update_check: () => ({ state: "up_to_date" }),
     update_install: () => null,
     clear_cache: () => null,
+    // Previous conversions, as the history keeps them; nothing is opened or revealed here.
+    history_list: () => history,
+    history_remove: (args) => {
+      history = history.filter((entry) => entry.id !== args.id);
+      return null;
+    },
+    history_clear: () => {
+      history = [];
+      return null;
+    },
+    history_open: () => null,
+    history_show: () => null,
+    library_path: () => "/home/me/Documents/OpenConvert",
+    open_library: () => null,
+    pick_library_dir: () => settings,
+    reset_library_dir: () => settings,
     quit: () => null,
   };
 

@@ -10,10 +10,13 @@
     strip,
     dragging,
     onselect,
+    library = false,
   }: {
     strip: boolean;
     dragging: { pdfs: number; skipped: string[] } | null;
     onselect: () => void;
+    /** Books are saved in the OpenConvert folder rather than beside their PDFs (Settings). */
+    library?: boolean;
   } = $props();
 </script>
 
@@ -41,6 +44,6 @@
     <span class="oc-tile oc-tile--lg oc-tile--accent"><Icon name="fileplus" size="xl" /></span>
     <span class="oc-dropzone__title">{t("drop.title")}</span>
     <span class="oc-dropzone__or">{t("drop.or")} <button class="oc-btn oc-btn--primary" onclick={onselect}>{t("drop.select")}</button></span>
-    <span class="oc-dropzone__hint">{t("drop.hint")}</span>
+    <span class="oc-dropzone__hint">{library ? t("drop.hintLibrary") : t("drop.hint")}</span>
   {/if}
 </div>

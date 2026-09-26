@@ -31,6 +31,11 @@ export function stepOf(row: Row): string {
   return t("queue.stepOf", { i: index + 1, n: steps.length });
 }
 
+/** A number of minutes as the locale writes it in full: "30 minutes", "30 Minuten", "30 dakika". */
+export function minutesText(minutes: number): string {
+  return new Intl.NumberFormat(i18n.locale, { style: "unit", unit: "minute", unitDisplay: "long" }).format(minutes);
+}
+
 /** "12 images", "1 image" — a count with its noun, by the locale's plural rules. */
 export function pluralCount(key: string, n: number): string {
   return tn(key, n);

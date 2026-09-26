@@ -12,10 +12,11 @@
 //! webview may call, and the two events it receives — `engine-line` (one NDJSON line of one job's
 //! engine, parsed and judged by the UI) and `job-changed` (a queue row's state).
 //!
-//! The webview names files only by job id. A path the Rust side opens, reveals or reads is always
-//! one the queue recorded for that job, never a string from the webview.
+//! The webview names files only by job id — or, for an earlier session's book, by history entry id.
+//! A path the Rust side opens, reveals or reads is always one the queue or the history recorded,
+//! never a string from the webview; the library folder is chosen in a native picker.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -28,8 +29,9 @@ use openconvert_desktop::diagnostics::{self, Bundle};
 use openconvert_desktop::engine::{
     handshake, sidecar_path, Engine, Hello, ProcessLauncher, UiError,
 };
-use openconvert_desktop::fs_scope::{partition_drop, AppDirs, CacheUsage};
-use openconvert_desktop::jobqueue::{JobQueue, JobView, QueueSink, Rebuild};
+use openconvert_desktop::fs_scope::{openable_epub, partition_drop, AppDirs, CacheUsage, Library};
+use openconvert_desktop::history::{self, History};
+use openconvert_desktop::jobqueue::{Finished, JobQueue, JobView, QueueSink, Rebuild};
 use openconvert_desktop::llm::{self, AppModelServer, LlmHost};
 use openconvert_desktop::models::{self, LicenseView, ModelManager, ModelsView, Row, RowSink};
 use openconvert_desktop::netlog::{self, NetworkLog};
@@ -79,6 +81,23 @@ impl QueueSink for WebviewSink {
     fn changed(&self, job: &JobView) {
         let _ = self.0.emit("job-changed", job);
     }
+    /// Every conversion that ends goes into the history, so it is listed after a restart. A history
+    /// that cannot be written costs this run nothing: the queue's row is still there.
+    fn finished(&self, job: &Finished) {
+        if let Some(history) = self.0.try_state::<Remembered>() {
+            let _ = lock(&history.0).record_finished(job);
+        }
+    }
+}
+
+/// The conversion history (`history.rs`), once the app knows its data directory.
+struct Remembered(Mutex<History>);
+
+/// Where books are saved when Settings saves to the library.
+struct Books(Library);
+
+fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// The model manager (Phase 12 detail 9), once the app knows its config directory.
@@ -187,32 +206,157 @@ struct Enqueued {
 }
 
 /// Queue the PDFs among `paths`; name everything else. Paths come from Tauri's native drop or
-/// the native file picker, so they are absolute (Phase 12 detail 2). The preset and the resource
-/// caps are the user's settings.
+/// the native file picker, so they are absolute (Phase 12 detail 2). The preset, the resource
+/// caps — the stage deadline always among them — and where the books are saved are the user's
+/// settings.
 #[tauri::command]
 fn enqueue(
     paths: Vec<PathBuf>,
     startup: tauri::State<'_, Startup>,
     queue: tauri::State<'_, Queue>,
     prefs: tauri::State<'_, Prefs>,
+    books: tauri::State<'_, Books>,
 ) -> Result<Enqueued, UiError> {
     startup.0.as_ref().map_err(Clone::clone)?;
     let drop = partition_drop(paths);
-    let chosen = prefs
-        .current
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .clone();
+    let chosen = lock(&prefs.current).clone();
     // AI assistance as the settings say at the moment of the drop: a job keeps what it was queued
     // with, whatever changes before its turn.
     let ai = JobAi::plan(&chosen);
+    // The library, made if missing; a library that cannot be made saves beside the PDF.
+    let folder = if chosen.save_to_library {
+        books.0.ensure(chosen.library_dir.as_deref())
+    } else {
+        None
+    };
     let jobs = with_queue(&queue, |queue| {
-        Ok(queue.enqueue_as(&drop.pdfs, chosen.preset, chosen.limits(), &ai))
+        Ok(queue.enqueue_into(
+            &drop.pdfs,
+            chosen.preset,
+            Some(chosen.limits()),
+            &ai,
+            folder.as_deref(),
+        ))
     })?;
     Ok(Enqueued {
         jobs,
         skipped: drop.skipped,
     })
+}
+
+/// "Previous conversions": the history's entries from earlier runs of the app, newest first.
+#[tauri::command]
+fn history_list(history: tauri::State<'_, Remembered>) -> Vec<history::Row> {
+    lock(&history.0).earlier()
+}
+
+/// Forget one entry; its book stays where it is.
+#[tauri::command]
+fn history_remove(id: String, history: tauri::State<'_, Remembered>) -> Result<(), UiError> {
+    lock(&history.0).remove(&id).map(|_| ())
+}
+
+/// Forget every entry; no book is touched.
+#[tauri::command]
+fn history_clear(history: tauri::State<'_, Remembered>) -> Result<(), UiError> {
+    lock(&history.0).clear()
+}
+
+/// The book an entry recorded, as the history names it; the webview names only the entry.
+fn recorded_output(history: &Remembered, id: &str) -> Result<PathBuf, UiError> {
+    lock(&history.0)
+        .get(id)
+        .map(|entry| entry.output.clone())
+        .ok_or_else(|| UiError::UnknownEntry(id.to_owned()))
+}
+
+/// "Open in reader" on an earlier book: the OS's EPUB handler — and only for an EPUB on disk, so a
+/// history file edited by something else can never make the app launch a program.
+#[tauri::command]
+fn history_open(
+    id: String,
+    app: AppHandle,
+    history: tauri::State<'_, Remembered>,
+) -> Result<(), UiError> {
+    let output = recorded_output(&history, &id)?;
+    if !openable_epub(&output) {
+        return Err(UiError::NotOnDisk(output.display().to_string()));
+    }
+    app.opener()
+        .open_path(output.to_string_lossy(), None::<&str>)
+        .map_err(|error| UiError::Io(error.to_string()))
+}
+
+/// "Show in folder" on an earlier book: the book selected in its folder, or — moved or deleted
+/// since — the folder it was saved in.
+#[tauri::command]
+fn history_show(
+    id: String,
+    app: AppHandle,
+    history: tauri::State<'_, Remembered>,
+) -> Result<(), UiError> {
+    let output = recorded_output(&history, &id)?;
+    if output.is_file() {
+        return app
+            .opener()
+            .reveal_item_in_dir(output)
+            .map_err(|error| UiError::Io(error.to_string()));
+    }
+    match output.parent().filter(|folder| folder.is_dir()) {
+        Some(folder) => open_folder(&app, folder),
+        None => Err(UiError::NotOnDisk(output.display().to_string())),
+    }
+}
+
+/// A folder, in the system's file manager.
+fn open_folder(app: &AppHandle, folder: &Path) -> Result<(), UiError> {
+    app.opener()
+        .open_path(folder.to_string_lossy(), None::<&str>)
+        .map_err(|error| UiError::Io(error.to_string()))
+}
+
+/// The library folder, as Settings shows it: the one the user chose, or the default.
+#[tauri::command]
+fn library_path(prefs: tauri::State<'_, Prefs>, books: tauri::State<'_, Books>) -> PathBuf {
+    books.0.chosen(lock(&prefs.current).library_dir.as_deref())
+}
+
+/// The main page's folder button: the library in the system's file manager, made if missing.
+#[tauri::command]
+fn open_library(
+    app: AppHandle,
+    prefs: tauri::State<'_, Prefs>,
+    books: tauri::State<'_, Books>,
+) -> Result<(), UiError> {
+    let custom = lock(&prefs.current).library_dir.clone();
+    let folder = books.0.ensure(custom.as_deref()).ok_or_else(|| {
+        UiError::NotOnDisk(books.0.chosen(custom.as_deref()).display().to_string())
+    })?;
+    open_folder(&app, &folder)
+}
+
+/// "Change…" on the library folder: the native folder picker, and the folder kept in the settings.
+#[tauri::command]
+async fn pick_library_dir(app: AppHandle) -> Result<Settings, UiError> {
+    let picker = app.clone();
+    let picked =
+        tauri::async_runtime::spawn_blocking(move || picker.dialog().file().blocking_pick_folder())
+            .await
+            .map_err(|error| UiError::Io(error.to_string()))?;
+    let prefs = app.state::<Prefs>();
+    let mut next = lock(&prefs.current).clone();
+    if let Some(folder) = picked.and_then(|folder| folder.into_path().ok()) {
+        next.library_dir = Some(folder);
+    }
+    store_settings(&prefs, next)
+}
+
+/// "Use the default" on the library folder.
+#[tauri::command]
+fn reset_library_dir(prefs: tauri::State<'_, Prefs>) -> Result<Settings, UiError> {
+    let mut next = lock(&prefs.current).clone();
+    next.library_dir = None;
+    store_settings(&prefs, next)
 }
 
 /// The native file picker, PDFs only ("Select PDF…"). Run off the main thread: a blocking dialog
@@ -677,14 +821,12 @@ fn smoke_convert(handle: AppHandle, pdf: PathBuf, tick: Duration) {
             handle.exit(smoke::EXIT_NOT_STARTED);
             return;
         }
-        let preset = handle
-            .state::<Prefs>()
-            .current
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .preset;
+        let chosen = lock(&handle.state::<Prefs>().current).clone();
         let queue = handle.state::<Queue>();
-        let Ok(ids) = with_queue(&queue, |queue| Ok(queue.enqueue(&[pdf], preset))) else {
+        // Beside the PDF, whatever the library setting: the release check looks for it there.
+        let Ok(ids) = with_queue(&queue, |queue| {
+            Ok(queue.enqueue_with(&[pdf], chosen.preset, Some(chosen.limits())))
+        }) else {
             eprintln!("smoke: the queue is not ready");
             handle.exit(smoke::EXIT_NOT_STARTED);
             return;
@@ -752,7 +894,16 @@ fn main() {
         .setup(move |app| {
             #[cfg(feature = "updater")]
             app.manage(updater::Pending::default());
-            let dirs = AppDirs::under(&app.path().app_data_dir()?)?;
+            let data_dir = app.path().app_data_dir()?;
+            let dirs = AppDirs::under(&data_dir)?;
+            // What earlier runs converted, and where this one saves books (`OpenConvert` in
+            // Documents, or the app's own `Converted` folder without one).
+            app.manage(Remembered(Mutex::new(History::open(
+                history::history_path(&data_dir),
+                history::new_session(),
+            ))));
+            let documents = app.path().document_dir().ok();
+            app.manage(Books(Library::new(documents.as_deref(), &data_dir)));
             let config_dir = app.path().app_config_dir()?;
             let settings_file = settings::settings_path(&config_dir);
             // One store for the app and `openconvert model`, so a model is fetched once.
@@ -882,6 +1033,15 @@ fn main() {
             pick_key_file,
             clear_key_file,
             grant_consent,
+            history_list,
+            history_remove,
+            history_clear,
+            history_open,
+            history_show,
+            library_path,
+            open_library,
+            pick_library_dir,
+            reset_library_dir,
             network_log,
             #[cfg(feature = "updater")]
             update_check,

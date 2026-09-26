@@ -135,9 +135,70 @@ pub fn is_inside(dir: &Path, path: &Path) -> bool {
     resolved.starts_with(&dir) && resolved != dir
 }
 
-/// `<stem>.epub` beside the input: where a dropped book is written unless Settings says otherwise.
+/// `<stem>.epub` beside the input: where a book is written when Settings saves beside the PDF.
 pub fn default_output_for(input: &Path) -> PathBuf {
     input.with_extension("epub")
+}
+
+/// `<dir>/<stem>.epub`: where a book is written when Settings saves to the library.
+pub fn output_in(dir: &Path, input: &Path) -> PathBuf {
+    // Pushed rather than `with_extension`: a stem may hold a dot of its own ("Vol. 2").
+    let mut name = input
+        .file_stem()
+        .unwrap_or(input.as_os_str())
+        .to_os_string();
+    name.push(".epub");
+    dir.join(name)
+}
+
+/// The library folder's name in the user's Documents.
+pub const LIBRARY_DIR_NAME: &str = "OpenConvert";
+/// The library folder's name in the app's data directory, when Documents is missing or cannot be
+/// written (a sandbox without it).
+pub const FALLBACK_LIBRARY_DIR_NAME: &str = "Converted";
+
+/// Where converted books are saved when Settings saves to the library: one folder for every book,
+/// which the main page's folder button opens.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Library {
+    /// `OpenConvert` in Documents — or, with no Documents folder, the fallback.
+    default: PathBuf,
+    /// `Converted` in the app's data directory, which the app can always write.
+    fallback: PathBuf,
+}
+
+impl Library {
+    /// The library for a user whose Documents folder is `documents`, of an app whose data
+    /// directory is `data_dir`.
+    pub fn new(documents: Option<&Path>, data_dir: &Path) -> Self {
+        let fallback = data_dir.join(FALLBACK_LIBRARY_DIR_NAME);
+        Self {
+            default: documents.map_or_else(|| fallback.clone(), |dir| dir.join(LIBRARY_DIR_NAME)),
+            fallback,
+        }
+    }
+
+    /// The folder the user chose, or the default. Not made; see [`Library::ensure`].
+    pub fn chosen(&self, custom: Option<&Path>) -> PathBuf {
+        custom.map_or_else(|| self.default.clone(), Path::to_path_buf)
+    }
+
+    /// The first of the chosen folder and the fallback that exists or could be made; `None` when
+    /// neither can be, and the book is saved beside its PDF instead.
+    pub fn ensure(&self, custom: Option<&Path>) -> Option<PathBuf> {
+        [self.chosen(custom), self.fallback.clone()]
+            .into_iter()
+            .find(|dir| std::fs::create_dir_all(dir).is_ok() && dir.is_dir())
+    }
+}
+
+/// Whether `path` is an EPUB on disk: the only thing the app asks the OS to open for a path it read
+/// from a file (the history), so that file can never make the app launch a program.
+pub fn openable_epub(path: &Path) -> bool {
+    path.is_file()
+        && path
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("epub"))
 }
 
 /// `desired`, or the first of `name (2).epub`, `name (3).epub`, … that does not exist.
@@ -267,6 +328,77 @@ mod tests {
         assert_eq!(free_output_path(&desired), root.join("Book (2).epub"));
         std::fs::write(root.join("Book (2).epub"), "x").expect("written");
         assert_eq!(free_output_path(&desired), root.join("Book (3).epub"));
+    }
+
+    /// The library is `OpenConvert` in Documents, the app's own `Converted` folder when there is no
+    /// Documents folder — and when the one chosen cannot be made, the next that can.
+    #[test]
+    fn the_library_is_in_documents_or_else_in_the_app_data() {
+        let root = scratch("library");
+        let documents = root.join("Documents");
+        let data = root.join("data");
+        let library = Library::new(Some(&documents), &data);
+        assert_eq!(library.chosen(None), documents.join(LIBRARY_DIR_NAME));
+        assert_eq!(
+            Library::new(None, &data).chosen(None),
+            data.join(FALLBACK_LIBRARY_DIR_NAME)
+        );
+        let custom = root.join("My Books");
+        assert_eq!(library.chosen(Some(&custom)), custom);
+
+        assert_eq!(
+            library.ensure(None).as_deref(),
+            Some(documents.join(LIBRARY_DIR_NAME).as_path())
+        );
+        assert!(
+            documents.join(LIBRARY_DIR_NAME).is_dir(),
+            "made on first use"
+        );
+
+        // A folder that cannot be made — a file stands where it would be — falls back.
+        let blocked = root.join("blocked");
+        std::fs::write(&blocked, "x").expect("written");
+        assert_eq!(
+            library.ensure(Some(&blocked.join("Books"))).as_deref(),
+            Some(data.join(FALLBACK_LIBRARY_DIR_NAME).as_path())
+        );
+    }
+
+    /// A book saved into a folder keeps its PDF's name, and is never written over one already
+    /// there.
+    #[test]
+    fn a_book_saved_in_a_folder_keeps_its_name() {
+        let root = scratch("output-in");
+        let pdf = root.join("in").join("Moby Dick.PDF");
+        let library = root.join("library");
+        assert_eq!(output_in(&library, &pdf), library.join("Moby Dick.epub"));
+        assert_eq!(
+            output_in(&library, &root.join("Vol. 2.pdf")),
+            library.join("Vol. 2.epub"),
+            "a dot in the name is the name's"
+        );
+        std::fs::create_dir_all(&library).expect("made");
+        std::fs::write(library.join("Moby Dick.epub"), "x").expect("written");
+        assert_eq!(
+            free_output_path(&output_in(&library, &pdf)),
+            library.join("Moby Dick (2).epub")
+        );
+    }
+
+    /// The history names paths from a file on disk; the app hands the OS's default handler only an
+    /// EPUB that exists — never a program, whatever that file says.
+    #[test]
+    fn only_an_existing_epub_is_opened() {
+        let root = scratch("openable");
+        let book = root.join("Book.EPUB");
+        std::fs::write(&book, "x").expect("written");
+        let program = root.join("setup.exe");
+        std::fs::write(&program, "x").expect("written");
+        assert!(openable_epub(&book));
+        assert!(!openable_epub(&program), "not an EPUB");
+        assert!(!openable_epub(&root.join("Gone.epub")), "not on disk");
+        std::fs::create_dir_all(root.join("dir.epub")).expect("made");
+        assert!(!openable_epub(&root.join("dir.epub")), "a folder");
     }
 
     #[test]

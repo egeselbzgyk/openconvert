@@ -12,8 +12,10 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = new URL("..", import.meta.url).pathname;
+// Not `.pathname`, which on Windows is `/C:/…` and names no directory there.
+const root = fileURLToPath(new URL("..", import.meta.url));
 const findings = [];
 
 function walk(dir) {

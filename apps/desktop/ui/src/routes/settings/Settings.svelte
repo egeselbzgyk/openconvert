@@ -1,13 +1,14 @@
 <script lang="ts">
   // Route `settings` (settings.html; `models` is its Models section, and `firstrun` is that section
   // opened at the default model — `setup`). Live: AI assistance and its provider, the document
-  // preset, the two resource caps, the app language, the versions, the third-party notices, and
-  // the model manager and packs, whose rows are exactly what the Rust side's manager reports. What
-  // this build cannot do is drawn as the design draws it and says so in words — never a number or a
-  // row it cannot back with real data.
+  // preset, where books are saved, the resource caps and the time each step may take, the app
+  // language, the versions, the third-party notices, and the model manager and packs, whose rows
+  // are exactly what the Rust side's manager reports. What this build cannot do is drawn as the
+  // design draws it and says so in words — never a number or a row it cannot back with real data.
   import ConsentDialog from "../../components/ConsentDialog.svelte";
   import CopyCommand from "../../components/CopyCommand.svelte";
   import Dialog from "../../components/Dialog.svelte";
+  import Icon from "../../components/Icon.svelte";
   import ModelRow from "../../components/ModelRow.svelte";
   import NumberWithUnit from "../../components/NumberWithUnit.svelte";
   import RadioGroup from "../../components/RadioGroup.svelte";
@@ -31,11 +32,22 @@
   import { defaultModel, type Catalog } from "../../lib/catalog.svelte";
   import type { Hello } from "../../lib/events";
   import { detectLocale, LOCALES, type Locale } from "../../lib/i18n";
+  import { minutesText } from "../../lib/labels";
   import { i18n, setLanguage, t, tn } from "../../lib/locale.svelte";
   import { tesseractCommand } from "../../lib/ocr";
   import notices from "../../../THIRD-PARTY-NOTICES.txt?raw";
 
-  export type Section = "ai" | "models" | "provider" | "presets" | "advanced" | "packs" | "language" | "network" | "about";
+  export type Section =
+    | "ai"
+    | "models"
+    | "provider"
+    | "presets"
+    | "output"
+    | "advanced"
+    | "packs"
+    | "language"
+    | "network"
+    | "about";
 
   let {
     settings,
@@ -55,6 +67,7 @@
     onsaved = () => undefined,
     consent = $bindable(null),
     onconsented = () => undefined,
+    library = null,
   }: {
     settings: Settings;
     config: UiConfig;
@@ -94,6 +107,8 @@
     consent?: EndpointCheck | null;
     /** Allow was pressed in the dialog, and the consent is saved. */
     onconsented?: () => void;
+    /** Settings › Output folder: the library folder, its native picker, and the file manager. */
+    library?: Pick<Backend, "libraryPath" | "pickLibraryDir" | "resetLibraryDir" | "openLibrary"> | null;
   } = $props();
 
   /** Rows whose licence is shown, awaiting acceptance, by "kind:id". */
@@ -120,10 +135,36 @@
     if (!firstModel.installed && firstModel.download.state === "idle") expand("models", firstModel.id);
   });
 
-  const SECTIONS: Section[] = ["ai", "models", "provider", "presets", "advanced", "packs", "language", "network", "about"];
+  const SECTIONS: Section[] = ["ai", "models", "provider", "presets", "output", "advanced", "packs", "language", "network", "about"];
   const PRESETS: Preset[] = ["auto", "novel", "academic", "textbook", "poetry", "scanned"];
   /** Bytes per GB as the Advanced field counts them (a unit, not a tunable). */
   const GIB = 1024 * 1024 * 1024;
+  /** Seconds per minute: the time limit is edited in whole minutes (a unit, not a tunable). */
+  const MINUTE = 60;
+
+  // Settings › Advanced › Time limit per step: whole minutes inside the range thresholds.toml
+  // allows; the app's default is `null`, so a later default reaches users who never changed it.
+  const deadlineDefault = $derived(Math.round(config.defaultStageDeadlineSecs / MINUTE));
+  const deadlineMin = $derived(Math.ceil(config.minStageDeadlineSecs / MINUTE));
+  const deadlineMax = $derived(Math.floor(config.maxStageDeadlineSecs / MINUTE));
+  const deadline = $derived(Math.round((settings.stageDeadlineSecs ?? config.defaultStageDeadlineSecs) / MINUTE));
+  function saveDeadline(minutes: number) {
+    save({ stageDeadlineSecs: minutes === deadlineDefault ? null : minutes * MINUTE });
+  }
+
+  // Settings › Output folder: the folder is the Rust side's to name (the chosen one, or the
+  // default) and to choose (the native picker); asked again whenever the choice changes.
+  let libraryPath = $state<string | null>(null);
+  $effect(() => {
+    void settings.libraryDir;
+    if (section === "output" && library !== null) void library.libraryPath().then((path) => (libraryPath = path));
+  });
+  async function pickLibrary() {
+    if (library !== null) onsaved(await library.pickLibraryDir());
+  }
+  async function resetLibrary() {
+    if (library !== null) onsaved(await library.resetLibraryDir());
+  }
   /** Bytes per MB as the cache size is written (a unit, not a tunable). */
   const MB = 1024 * 1024;
 
@@ -465,7 +506,63 @@
           {/each}
         </select>
       </div>
+    {:else if section === "output"}
+      <p class="oc-settings__hint">{t("settings.output.hint")}</p>
+      <div class="oc-setting">
+        <div class="oc-setting__text">
+          <div class="oc-setting__label">{t("settings.output.library")}</div>
+          <div class="oc-setting__help" id="oc-library-help">
+            {settings.saveToLibrary ? t("settings.output.libraryOn") : t("settings.output.libraryOff")}
+          </div>
+        </div>
+        <Toggle
+          checked={settings.saveToLibrary}
+          label={t("settings.output.library")}
+          describedby="oc-library-help"
+          onchange={(on) => save({ saveToLibrary: on })}
+        />
+      </div>
+      <div class="oc-setting oc-setting--stack">
+        <div class="oc-field">
+          <span class="oc-field__label" id="oc-library-label">{t("settings.output.folder")}</span>
+          <div class="oc-filepick">
+            <span class="oc-filepick__value is-set" aria-labelledby="oc-library-label">{libraryPath ?? ""}</span>
+            <button class="oc-btn oc-btn--sm" disabled={library === null} onclick={() => void pickLibrary()}
+              ><Icon name="folder" />{t("settings.output.change")}</button
+            >
+            {#if settings.libraryDir !== null}
+              <button class="oc-btn oc-btn--quiet oc-btn--sm" onclick={() => void resetLibrary()}>{t("settings.output.default")}</button>
+            {/if}
+          </div>
+          <span class="oc-field__help">{t("settings.output.folderHelp")}</span>
+        </div>
+        <div class="oc-actions">
+          <button class="oc-btn oc-btn--sm" disabled={library === null} onclick={() => void library?.openLibrary().catch(() => undefined)}
+            >{t("settings.output.open")}</button
+          >
+        </div>
+      </div>
     {:else if section === "advanced"}
+      <div class="oc-setting">
+        <div class="oc-setting__text">
+          <div class="oc-setting__label">{t("settings.advanced.deadline")}</div>
+          <div class="oc-setting__help">{t("settings.advanced.deadlineHelp")}</div>
+        </div>
+        <NumberWithUnit
+          label={t("settings.advanced.deadline")}
+          unit={t("settings.advanced.minutes")}
+          value={deadline}
+          min={deadlineMin}
+          max={deadlineMax}
+          help={t("settings.advanced.deadlineHelp")}
+          onchange={saveDeadline}
+        />
+        {#if settings.stageDeadlineSecs !== null}
+          <button class="oc-btn oc-btn--quiet oc-btn--sm" onclick={() => save({ stageDeadlineSecs: null })}
+            >{t("settings.advanced.reset", { value: minutesText(deadlineDefault) })}</button
+          >
+        {/if}
+      </div>
       <div class="oc-setting">
         <div class="oc-setting__text">
           <div class="oc-setting__label">{t("settings.advanced.maxPages")}</div>

@@ -19,6 +19,11 @@ pub struct UiConfig {
     pub supervisor_tick_ms: u64,
     pub max_pages: u64,
     pub max_memory_bytes: u64,
+    /// The stage deadline every job carries unless the user set one, and the range Settings ›
+    /// Advanced accepts (`desktop.*_stage_deadline_secs`).
+    pub default_stage_deadline_secs: u64,
+    pub min_stage_deadline_secs: u64,
+    pub max_stage_deadline_secs: u64,
     /// `std::env::consts::OS`, for the one OS-specific thing the UI says: how to install Tesseract.
     pub os: String,
     /// How many of the four AI tasks this build enables for at least one language
@@ -53,6 +58,12 @@ impl UiConfig {
             supervisor_tick_ms: u64::try_from(T.desktop.supervisor_tick_ms).unwrap_or_default(),
             max_pages: u64::try_from(T.limits.max_pages).unwrap_or_default(),
             max_memory_bytes: u64::try_from(T.limits.max_memory_bytes).unwrap_or_default(),
+            default_stage_deadline_secs: u64::try_from(T.desktop.default_stage_deadline_secs)
+                .unwrap_or_default(),
+            min_stage_deadline_secs: u64::try_from(T.desktop.min_stage_deadline_secs)
+                .unwrap_or_default(),
+            max_stage_deadline_secs: u64::try_from(T.desktop.max_stage_deadline_secs)
+                .unwrap_or_default(),
             os: std::env::consts::OS.to_owned(),
             ai_tasks_enabled: [
                 T.ai.task.metadata.languages,
@@ -102,6 +113,18 @@ mod tests {
             "camelCase for the webview: {json}"
         );
         assert!(json["supervisorTickMs"].is_u64());
+        assert_eq!(
+            json["defaultStageDeadlineSecs"], T.desktop.default_stage_deadline_secs,
+            "the stage deadline Settings shows is the app's default"
+        );
+        assert_eq!(
+            json["minStageDeadlineSecs"],
+            T.desktop.min_stage_deadline_secs
+        );
+        assert_eq!(
+            json["maxStageDeadlineSecs"],
+            T.desktop.max_stage_deadline_secs
+        );
         let enabled = [
             T.ai.task.metadata.languages.is_empty(),
             T.ai.task.heading_roles.languages.is_empty(),
