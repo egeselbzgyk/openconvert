@@ -1940,3 +1940,38 @@ source = "provisional"
 evidence = "An OCR line's size is the median height of its words, which moves with the mix of ascenders, descenders and x-height-only words: on the synthetic-scan fixtures one 10 pt body face measured 7.2 and 8.9 pt on alternate lines (19 % apart) while their 14 pt headings measured 13-14 pt (1.5x). Lines within 25 % of a region's median are one body size; not measured on real scans"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+[front.title_page_max_words]
+value = 60
+source = "provisional"
+evidence = "The most words a page before the first heading may have and still be the title page, when it prints the book's title: title, subtitle, author, translator and the publisher's name. A copyright page that repeats the title is found first by its copyright sign or ISBN. Invented, checked against the front pages of a dozen books of the local corpus (2026-09-26)"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[front.dedication_max_words]
+value = 30
+source = "provisional"
+evidence = "The most words a page before the first heading may have and be a dedication, when it is no title page, copyright page or epigraph and has no numbers. Dedications seen run from one word to two lines. Invented (2026-09-26)"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[front.epigraph_max_words]
+value = 90
+source = "provisional"
+evidence = "The most words a page before the first heading may have and be an epigraph, when it ends in an attribution line opening with a dash. A motto or a stanza with its source. Invented (2026-09-26)"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[quotes.monospace_min_runs]
+value = 4
+source = "provisional"
+evidence = "How many runs of more than three characters a block needs before one advance across all of them makes it monospace. At two, a title and its author centred on a copyright page matched within 1 % by chance and were emitted as preformatted text (2026-09-26); four independent lines agreeing is not chance. A code block of fewer lines is then read as the paragraph or quotation its geometry says"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[book.back_min_page_share]
+value = 0.5
+source = "provisional"
+evidence = "How far into the book, as a share of its pages, a back-matter keyword heading has to be to start the back matter. A technical book's preface ends in Acknowledgments; read as the back matter, it put all nine chapters after it there (2026-09-26). Appendices, notes, bibliography and index sit in the second half of every book in the local corpus. Invented"
+owner = "maintainer"
+review_by = "2027-06-30"

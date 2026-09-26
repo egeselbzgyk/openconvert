@@ -3,14 +3,14 @@ source: crates/openconvert/tests/ai.rs
 expression: hashes
 ---
 {
-  "f01_prose_single_column": "d4f42748861a7673d9519daa1e3c71abfd33f83f82abeb3c7a6609cdf0c4a74a",
-  "f02_two_column": "4147d14f1ee1be6853da608c3674059e9c41801659d09bff7c6706c6d94abc58",
-  "f03_image_only": "1ff04aa1be0b4d5cfae074b657fd87a2eb5e1c0fc47eda0df81f332f7ed39d92",
-  "f04_german_prose": "5b1588e49d82c4a56f6abdef8ef074569516be38d4ae206f0e59ca01a2281745",
-  "f05_turkish_prose": "956db1b6d280f580c418fc98c4668b8c3c720c94a5e22188352c1327d876c420",
-  "f06_hyphenation_de": "8342aabbb7b00d7bf83b9b387c432054f9190f108846719d63052ee488fb0477",
-  "f07_verse_and_quote": "72b20f0fe3e34ef87c87534deffc4aff8b8f802c2a9698cf037b4cc61eb8a487",
-  "f08_footnotes": "7cc1ed36c7185a5873cc9f567124e6a560d8f8d80642879bf8e2d8e1b72b41a9",
-  "f09_novel_structure": "52267934409552500e008384dbefa39c8eb64c8c9268b1d90cdbfd29c480a8d5",
-  "f10_lists_and_table": "b30fb92ecac98c2aaac930058dabc01afc327d61945a47f9985274332b9fd7de"
+  "f01_prose_single_column": "043d6d1210ffe7327f4b173bd46ccc63b8fb5cf0bdba3882c45a213d02373a66",
+  "f02_two_column": "77918f1b40f16fd3a7666d3af100809243adbaf918d94aa51321fa77aad0fb40",
+  "f03_image_only": "50602834840d51ff1f86a567b90c4d2b38e6382b6746cf1f61c81faf37c8845b",
+  "f04_german_prose": "2f70ab86ae9fafa234e1ce0d162d780f3502dac87379f06c94c7302bd0ef63fb",
+  "f05_turkish_prose": "3a0df3b7a7e61223c41297e798566bbce596c342f4324b1e10667bff979382f2",
+  "f06_hyphenation_de": "a1ca2bc2816b52c7667cf4a18e85c64e8a22bdb64eb767d79d818497e022f777",
+  "f07_verse_and_quote": "bb5cdcaaf85a70a5cd6072e1b93e9b5def3a4b3cd191ea9fff03170263a2dd29",
+  "f08_footnotes": "5097a4284c313567659f82b0be3f1e004cda4641fddd8da0fe1a44cae5a755d9",
+  "f09_novel_structure": "7449ec60976970688ae4c58800ac223aec41fc60de87cbbf1a90c5e98b1f0d45",
+  "f10_lists_and_table": "6732242e2bc15fc55c26d4e1ebcd2c65b3ba0493f0d45a29fd0e86435f275cc0"
 }

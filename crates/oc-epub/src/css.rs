@@ -71,6 +71,29 @@ pub fn stylesheet() -> String {
          aside[epub|type~=\"footnote\"] { font-size: 0.9em; }\n\n",
     );
 
+    // The pages before the first chapter, each on a screen of its own and set the way a
+    // printer sets them: the title page and the dedication centred, the copyright page small.
+    out.push_str(
+        "section[epub|type~=\"titlepage\"], section[epub|type~=\"halftitlepage\"],\n\
+         section[epub|type~=\"dedication\"], section[epub|type~=\"epigraph\"],\n\
+         section[epub|type~=\"copyright-page\"] {\n\
+         \x20 page-break-before: always; break-before: page;\n\
+         }\n\
+         section[epub|type~=\"titlepage\"], section[epub|type~=\"halftitlepage\"] {\n\
+         \x20 text-align: center; margin-top: 15%;\n\
+         }\n\
+         section[epub|type~=\"titlepage\"] p, section[epub|type~=\"halftitlepage\"] p {\n\
+         \x20 text-indent: 0; margin: 0.6em 0;\n\
+         }\n\
+         section[epub|type~=\"dedication\"] { text-align: center; font-style: italic; \
+         margin-top: 25%; }\n\
+         section[epub|type~=\"dedication\"] p { text-indent: 0; }\n\
+         section[epub|type~=\"epigraph\"] { margin: 20% 10% 0; }\n\
+         section[epub|type~=\"epigraph\"] p { text-indent: 0; }\n\
+         section[epub|type~=\"copyright-page\"] { font-size: 0.8em; }\n\
+         section[epub|type~=\"copyright-page\"] p { text-indent: 0; margin: 0 0 0.4em; }\n\n",
+    );
+
     for class in CssClass::ALL {
         out.push_str(&rule(*class));
     }

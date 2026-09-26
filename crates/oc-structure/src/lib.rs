@@ -8,6 +8,7 @@ pub mod claims;
 pub mod contents;
 pub mod escalate;
 pub mod figures;
+pub mod front;
 pub mod headings;
 pub mod images;
 pub mod lists;

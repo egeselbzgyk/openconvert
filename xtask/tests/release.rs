@@ -1496,28 +1496,29 @@ fn prompt_and_job_spec_changes_follow_their_rules() {
     ));
 
     let copy = rehearsal("jobspec", "v1.0.0");
+    // The rehearsal releases the tree's own job-spec version, v2.
     edit(
         &copy,
-        "schemas/job-spec.v1.json",
+        "schemas/job-spec.v2.json",
         "\"type\": \"object\"",
         "\"type\":\"object\"",
     );
     assert!(matches!(
-        bump_check(&copy).expect_err("v1 was edited").as_slice(),
-        [BumpViolation::JobSpecMutated { version: 1, .. }]
+        bump_check(&copy).expect_err("v2 was edited").as_slice(),
+        [BumpViolation::JobSpecMutated { version: 2, .. }]
     ));
-    // The right way: v1 untouched, a new v2, oc-core pointed at it.
+    // The right way: the released files untouched, a new version, oc-core pointed at it.
     let copy = rehearsal("jobspec2", "v1.0.0");
     std::fs::copy(
-        copy.join("schemas/job-spec.v1.json"),
         copy.join("schemas/job-spec.v2.json"),
+        copy.join("schemas/job-spec.v3.json"),
     )
     .expect("a new file");
     edit(
         &copy,
         "crates/oc-core/src/jobspec.rs",
-        "schemas/job-spec.v1.json",
         "schemas/job-spec.v2.json",
+        "schemas/job-spec.v3.json",
     );
     assert_eq!(bump_check(&copy), Ok(()));
     let _ = std::fs::remove_dir_all(copy);

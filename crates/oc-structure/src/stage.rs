@@ -989,8 +989,14 @@ pub fn structure_with(
         });
     }
 
-    let (sections, book_warnings, book_confidence) =
-        crate::book::book_structure_with(&flow, &input.labels, &input.lang, t, &edits.zones);
+    let (sections, book_warnings, book_confidence) = crate::book::book_structure_with(
+        &flow,
+        &input.labels,
+        &input.lang,
+        metadata.title.as_deref(),
+        t,
+        &edits.zones,
+    );
 
     let mut warnings = Vec::new();
     warnings.extend(inventory.warnings.clone());

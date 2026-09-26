@@ -109,7 +109,7 @@ pub fn classify_indented(
             block
                 .runs()
                 .all(|run| run.text.chars().all(|c| c != '\u{0}'))
-        }) && is_monospace(block);
+        }) && is_monospace(block, t);
         let quoted = block
             .text
             .trim()
@@ -265,13 +265,18 @@ fn short_line_ratio(block: &BlockView, t: &Thresholds) -> f32 {
 /// Read from the block's own runs' advance rather than from the font flags, because the flag
 /// is what a producer chose to declare and the advance is what it drew. A block every one of
 /// whose runs has the same character advance is monospace whatever the font name says.
-fn is_monospace(block: &BlockView) -> bool {
+///
+/// It takes `quotes.monospace_min_runs` runs to say so: two short lines of proportional type
+/// can have the same average advance by chance, and a title and its author set centred over a
+/// copyright notice came out as code that way (2026-09-26).
+fn is_monospace(block: &BlockView, t: &Thresholds) -> bool {
     let advances: Vec<f32> = block
         .runs()
         .filter(|run| run.text.chars().count() > 3)
         .map(|run| (run.bbox.x1 - run.bbox.x0) / run.text.chars().count() as f32)
         .collect();
-    if advances.len() < 2 {
+    let min_runs = usize::try_from(t.quotes.monospace_min_runs.max(2)).unwrap_or(usize::MAX);
+    if advances.len() < min_runs {
         return false;
     }
     let first = advances[0];

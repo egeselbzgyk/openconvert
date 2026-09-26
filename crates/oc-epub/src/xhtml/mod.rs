@@ -149,6 +149,13 @@ pub enum EpubType {
     Noteref,
     Footnotes,
     Pagebreak,
+    Titlepage,
+    Halftitlepage,
+    CopyrightPage,
+    Dedication,
+    Foreword,
+    Preface,
+    Introduction,
 }
 
 impl EpubType {
@@ -168,6 +175,13 @@ impl EpubType {
             EpubType::Noteref => "noteref",
             EpubType::Footnotes => "footnotes",
             EpubType::Pagebreak => "pagebreak",
+            EpubType::Titlepage => "titlepage",
+            EpubType::Halftitlepage => "halftitlepage",
+            EpubType::CopyrightPage => "copyright-page",
+            EpubType::Dedication => "dedication",
+            EpubType::Foreword => "foreword",
+            EpubType::Preface => "preface",
+            EpubType::Introduction => "introduction",
         }
     }
 
@@ -193,6 +207,12 @@ impl EpubType {
             EpubType::Footnote => Some("doc-footnote"),
             EpubType::Noteref => Some("doc-noteref"),
             EpubType::Pagebreak => Some("doc-pagebreak"),
+            EpubType::Dedication => Some("doc-dedication"),
+            EpubType::Foreword => Some("doc-foreword"),
+            EpubType::Preface => Some("doc-preface"),
+            EpubType::Introduction => Some("doc-introduction"),
+            // The title page, half-title and copyright page have no DPUB-ARIA role.
+            EpubType::Titlepage | EpubType::Halftitlepage | EpubType::CopyrightPage => None,
             EpubType::Frontmatter
             | EpubType::Bodymatter
             | EpubType::Backmatter

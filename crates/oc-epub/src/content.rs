@@ -1088,8 +1088,20 @@ fn alt_text(derived: &str, caption: Option<&str>, kind: &str, number: u32) -> St
 }
 
 fn epub_type_of(role: SectionRole) -> Option<EpubType> {
+    use oc_model::doc::FrontMatterKind;
     match role {
-        SectionRole::FrontMatter(_) => Some(EpubType::Frontmatter),
+        SectionRole::FrontMatter(kind) => Some(match kind {
+            FrontMatterKind::TitlePage => EpubType::Titlepage,
+            FrontMatterKind::HalfTitle => EpubType::Halftitlepage,
+            FrontMatterKind::Copyright => EpubType::CopyrightPage,
+            FrontMatterKind::Dedication => EpubType::Dedication,
+            FrontMatterKind::Epigraph => EpubType::Epigraph,
+            FrontMatterKind::Foreword => EpubType::Foreword,
+            FrontMatterKind::Preface => EpubType::Preface,
+            FrontMatterKind::Introduction => EpubType::Introduction,
+            // A printed contents page keeps `frontmatter`: the book's `toc` is the nav.
+            FrontMatterKind::TableOfContents | FrontMatterKind::Other => EpubType::Frontmatter,
+        }),
         SectionRole::Part => Some(EpubType::Part),
         SectionRole::Chapter => Some(EpubType::Chapter),
         SectionRole::BackMatter(_) => Some(EpubType::Backmatter),

@@ -26,7 +26,6 @@ use oc_model::confidence::{Confidence, Signal};
 use oc_model::doc::{
     BackMatterKind, Content, FrontMatterKind, Section, SectionRole, Severity, Warning, Zone,
 };
-use oc_model::ids::BlockId;
 use oc_model::lang::LangTag;
 use oc_text::fold::fold_key;
 
@@ -96,7 +95,7 @@ pub fn book_structure(
     lang: &LangTag,
     t: &Thresholds,
 ) -> (Vec<Section>, Vec<Warning>, Confidence) {
-    book_structure_with(flow, labels, lang, t, &ZoneEdits::default())
+    book_structure_with(flow, labels, lang, None, t, &ZoneEdits::default())
 }
 
 /// One heading's place, as the book-structure task (PHASE 10, task 3) placed it.
@@ -131,12 +130,18 @@ pub fn book_structure_with(
     flow: &[FlowItem],
     labels: &[Option<String>],
     lang: &LangTag,
-    // Taken and not read, for the same reason `meta::metadata` takes it: the keyword lists
-    // and the zone ordering are closed sets rather than tunable numbers.
-    _t: &Thresholds,
+    // The book's title, by which its title page is known among the pages before the first
+    // heading.
+    title: Option<&str>,
+    t: &Thresholds,
     zones: &ZoneEdits,
 ) -> (Vec<Section>, Vec<Warning>, Confidence) {
     let body_starts = arabic_reset_page(labels);
+    // Back matter is at the back: a keyword heading before `book.back_min_page_share` of the
+    // book's pages is an acknowledgement in a preface or a chapter called "Notes", and taking
+    // it for the start of the back matter put every chapter after it there (2026-09-26).
+    let last_page = flow.iter().map(|item| item.page).max().unwrap_or_default();
+    let back_from = f64::from(last_page) * t.book.back_min_page_share;
     let mut heading_index: u32 = 0;
 
     // Walk the flow once, opening a section at every heading and closing it at the next
@@ -144,8 +149,9 @@ pub fn book_structure_with(
     let mut roots: Vec<Section> = Vec::new();
     // The open sections, outermost first. `stack[i]` is at level `i + 1`.
     let mut stack: Vec<Section> = Vec::new();
-    // Content seen before the first heading — a title page, an epigraph, a dedication.
-    let mut preamble: Vec<Content> = Vec::new();
+    // Content seen before the first heading — a title page, an epigraph, a dedication — page
+    // by page.
+    let mut preamble: Vec<crate::front::FrontPage> = Vec::new();
     let mut zone = Zone::Front;
 
     for item in flow {
@@ -155,7 +161,13 @@ pub fn book_structure_with(
                     open.content.push(item.content.clone());
                     open.source_pages.1 = open.source_pages.1.max(item.page);
                 }
-                None => preamble.push(item.content.clone()),
+                None => match preamble.last_mut() {
+                    Some(page) if page.page == item.page => page.content.push(item.content.clone()),
+                    _ => preamble.push(crate::front::FrontPage {
+                        page: item.page,
+                        content: vec![item.content.clone()],
+                    }),
+                },
             }
             continue;
         };
@@ -174,7 +186,9 @@ pub fn book_structure_with(
             (Some(label), _, _) => label.zone,
             (None, Zone::Front, Some(first)) if item.page >= first => Zone::Body,
             (None, Zone::Front, None) if front.is_none() => Zone::Body,
-            (None, Zone::Body, _) if back.is_some() => Zone::Back,
+            (None, Zone::Body, _) if back.is_some() && f64::from(item.page) >= back_from => {
+                Zone::Back
+            }
             (None, current, _) => current,
         };
         // Once in the back matter a heading without a keyword stays there — `zone` is
@@ -226,36 +240,12 @@ pub fn book_structure_with(
         close(&mut stack, &mut roots);
     }
 
-    // The preamble becomes a front-matter section of its own, so that nothing printed before
-    // the first heading is lost.
+    // The preamble becomes front-matter sections of its own, a title page, a copyright page, a
+    // dedication, so that nothing printed before the first heading is lost and each page is
+    // what it is.
     if !preamble.is_empty() {
-        let first = flow.first().map(|item| item.page).unwrap_or_default();
-        let last = roots
-            .first()
-            .map(|section| section.source_pages.0)
-            .unwrap_or(first);
-        roots.insert(
-            0,
-            Section {
-                id: BlockId::derive(
-                    first,
-                    oc_model::geom::Rect {
-                        x0: 0.0,
-                        y0: 0.0,
-                        x1: 0.0,
-                        y1: 0.0,
-                    },
-                    "front matter",
-                ),
-                role: SectionRole::FrontMatter(FrontMatterKind::Other),
-                level: 1,
-                heading: None,
-                content: preamble,
-                children: Vec::new(),
-                source_pages: (first, last),
-                confidence: Confidence::fallback(vec![Signal::new("unheaded_preamble", 1.0)]),
-            },
-        );
+        let front = crate::front::front_sections(preamble, title, lang, t);
+        roots.splice(0..0, front);
     }
 
     let warnings = validate(&roots);
@@ -366,6 +356,7 @@ fn validate(roots: &[Section]) -> Vec<Warning> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use oc_model::ids::BlockId;
 
     #[test]
     fn a_roman_run_followed_by_arabic_one_is_the_body_boundary() {
@@ -455,7 +446,7 @@ mod tests {
             .into_iter()
             .collect(),
         };
-        let (edited, warnings, _) = book_structure_with(&flow, &[], &LangTag::EN, &T, &zones);
+        let (edited, warnings, _) = book_structure_with(&flow, &[], &LangTag::EN, None, &T, &zones);
         let roles: Vec<SectionRole> = edited.iter().map(|section| section.role).collect();
         assert_eq!(
             roles,
@@ -468,6 +459,33 @@ mod tests {
             ]
         );
         assert!(warnings.is_empty(), "{warnings:?}");
+    }
+
+    /// A back-matter keyword in the first half of the book — the acknowledgements that close a
+    /// preface — does not send every chapter after it to the back matter; the same keyword in
+    /// the second half starts it.
+    #[test]
+    fn back_matter_starts_only_in_the_back_of_the_book() {
+        use oc_core::thresholds::T;
+        let flow = vec![
+            heading(0, "Foreword"),
+            heading(2, "Acknowledgments"),
+            heading(10, "The First Chapter"),
+            heading(50, "The Last Chapter"),
+            heading(90, "Index"),
+        ];
+        let (sections, ..) = book_structure(&flow, &[], &LangTag::EN, &T);
+        let roles: Vec<SectionRole> = sections.iter().map(|section| section.role).collect();
+        assert_eq!(
+            roles,
+            vec![
+                SectionRole::FrontMatter(FrontMatterKind::Foreword),
+                SectionRole::Chapter,
+                SectionRole::Chapter,
+                SectionRole::Chapter,
+                SectionRole::BackMatter(BackMatterKind::Index),
+            ]
+        );
     }
 
     #[test]

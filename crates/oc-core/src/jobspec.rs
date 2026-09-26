@@ -568,7 +568,10 @@ mod tests {
     #[test]
     fn a_minimal_spec_parses() {
         let spec = parse(&minimal().to_string()).expect("the minimal spec is valid");
-        assert_eq!(spec.schema, SCHEMA_TAG);
+        assert_eq!(
+            spec.schema, "openconvert.job/1",
+            "a version-1 spec is still read"
+        );
         assert_eq!(spec.input.path, absolute("/tmp/in.pdf"));
         assert!(!spec.output.overwrite, "overwrite defaults to false");
     }
@@ -593,7 +596,7 @@ mod tests {
     fn the_schema_is_what_is_enforced() {
         // Each of these is a rule that lives only in the schema file.
         let mut wrong_tag = minimal();
-        wrong_tag["schema"] = "openconvert.job/2".into();
+        wrong_tag["schema"] = "openconvert.job/3".into();
         assert!(matches!(refused(&wrong_tag), JobSpecError::Invalid { .. }));
 
         let mut bad_id = minimal();
