@@ -1,10 +1,39 @@
 schema_version = 1
-default = "qwen3-1.7b-q4_k_m"
+default = "tev1-4b-experimental.q4_k_m"
 
 # --- default tier -------------------------------------------------------------
+# A System-1 decision model: a page, a question and lettered options in, one letter out. On a
+# hand-labelled set of 31 opening pages in Turkish, German and English (2026-09-26) it typed 30
+# correctly; the chat model below typed 11 with one-word answers. Default by maintainer
+# direction (docs/DECISIONS_LOG.md, 2026-09-26).
+[[model]]
+id            = "tev1-4b-experimental.q4_k_m"
+tier          = "default"
+display_name  = "Tev1 4B decision model (Tev1-4B-experimental.Q4_K_M)"
+family        = "qwen3.5"
+arch          = "hybrid-recurrent"
+license       = "unspecified"                   # Together AI: the fine-tune's licence "was still being finalized"; the base Qwen3.5-4B is Apache-2.0
+license_url   = "https://huggingface.co/togethercomputer/Tev1-4B-experimental"
+notice_text   = "Tev1-4B-experimental by Together AI, a fine-tune of Qwen3.5-4B (Apache-2.0). The fine-tuned weights' licence was still being finalised at publication."
+repo          = "prithivMLmods/Tev1-4B-experimental-GGUF"   # the quant the evaluation ran on
+revision      = "b00dd6b2e08ce24bc3ab7b96ef4a4d86e94c13cf"   # 40-hex commit SHA (HF API, 2026-09-26)
+file          = "Tev1-4B-experimental.Q4_K_M.gguf"
+url_template  = "https://huggingface.co/{repo}/resolve/{revision}/{file}"
+sha256        = "78455b295b829871e93e77e76ea43a732a9cc3664ad95f82cad7d706e7786cea"   # the commit's LFS oid, checked against the evaluated file
+size_bytes    = 2708804352
+context       = 8192
+parallel      = 1
+min_ram_bytes = 6442450944
+cpu_expectation = "about six seconds a question on a laptop CPU"
+thinking_off  = { chat_template_kwargs = { enable_thinking = false } }
+prompt_profile = "qwen3-chatml"
+cache_reuse   = false                           # RT A3: recurrent layers cannot be KV-shifted
+context_checkpoints = 32
+
+# --- small chat tier ----------------------------------------------------------
 [[model]]
 id            = "qwen3-1.7b-q4_k_m"
-tier          = "default"
+tier          = "small"
 display_name  = "Qwen3 1.7B (Q4_K_M)"
 family        = "qwen3"
 arch          = "dense"

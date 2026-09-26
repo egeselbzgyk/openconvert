@@ -105,14 +105,9 @@ impl<T: Transport> OpenAiCompatible<T> {
             _ => request.system_prefix.to_owned(),
         };
 
-        let constraint = if request.is_free_text() {
-            None
-        } else {
-            Some(self.config.constraint)
-        };
-        let user = match constraint {
-            Some(Constraint::None) => schema_in_prompt(request),
-            _ => request.user.clone(),
+        let user = match self.config.constraint {
+            Constraint::None => schema_in_prompt(request),
+            Constraint::Gbnf | Constraint::JsonSchema => request.user.clone(),
         };
 
         let mut body = Map::new();
@@ -127,7 +122,7 @@ impl<T: Transport> OpenAiCompatible<T> {
         body.insert("temperature".to_owned(), json!(self.config.temperature));
         body.insert("max_tokens".to_owned(), json!(request.max_tokens));
 
-        match constraint.unwrap_or(Constraint::None) {
+        match self.config.constraint {
             Constraint::Gbnf => {
                 body.insert("grammar".to_owned(), json!(request.grammar));
             }

@@ -316,7 +316,7 @@ fn an_unpinned_registry_offers_no_download() {
     ));
 }
 
-/// The registry the app ships is pinned (2026-09-23): every model is a row, the default is D9's.
+/// The registry the app ships is pinned (2026-09-26): every model is a row, the decision model first.
 #[test]
 fn the_shipped_registry_offers_every_model() {
     let (tx, _rx) = mpsc::channel();
@@ -337,6 +337,7 @@ fn the_shipped_registry_offers_every_model() {
     assert_eq!(
         ids,
         [
+            "tev1-4b-experimental.q4_k_m",
             "qwen3-1.7b-q4_k_m",
             "qwen3-0.6b-q8_0",
             "qwen3-4b-q4_k_m",

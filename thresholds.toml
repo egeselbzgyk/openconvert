@@ -948,19 +948,17 @@ owner = "maintainer"
 review_by = "2027-06-30"
 
 [llm.front_page_max_chars]
-value = 1500
+value = 600
 source = "provisional"
-evidence = "The most characters of a page the front_page task shows the model: a title, copyright or dedication page is far shorter, and the start of a longer page says what kind it is. Keeps a question well inside a 4096-token slot with its reasoning. Invented (2026-09-26)"
+evidence = "The most characters of a page the front_page decision shows the model. On 31 hand-labelled opening pages in three languages (2026-09-26) the decision model was right on 30 at 600 characters, 29 at 1,500 and 29 at 350, and 600 characters took half the time of 1,500: the start of a page says what kind it is"
 owner = "maintainer"
 review_by = "2027-06-30"
-
-[llm.reasoned_max_tokens]
-value = 400
+[llm.decision_max_tokens]
+value = 4
 source = "provisional"
-evidence = "The most tokens a reasoned (quality-mode) answer may take: two or three sentences and an ANSWER line took 25-65 tokens from the bundled model in the smoke test (2026-09-26); the rest is room for a wordier model. Invented"
+evidence = "The most tokens a decision answer may take: one option letter, and room for a model that writes a space or a quote first. The grammar holds the bundled server to the letter itself (2026-09-26)"
 owner = "maintainer"
 review_by = "2027-06-30"
-
 [llm.max_calls_per_book]
 value = 400
 source = "provisional"

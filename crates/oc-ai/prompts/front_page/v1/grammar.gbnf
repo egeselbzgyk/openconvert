@@ -1,0 +1,3 @@
+# crates/oc-ai/prompts/front_page/v1/grammar.gbnf
+# Output: the letter of one option, A-K (the eleven kinds of kinds.txt, in either order).
+root ::= [A-K]

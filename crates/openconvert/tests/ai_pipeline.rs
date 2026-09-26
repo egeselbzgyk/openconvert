@@ -102,10 +102,9 @@ impl LlmProvider for Echo {
             clock.advance(ms);
         }
         let text = match request.purpose {
-            // A page the rules could not type is, to this double, other front matter.
-            Purpose::FrontPage => "It is neither of the named kinds.
-ANSWER: other"
-                .to_owned(),
+            // The tenth option, whichever it is: asked twice in opposite orders the two answers
+            // do not agree, and the page stays as the rules typed it.
+            Purpose::FrontPage => "J".to_owned(),
             Purpose::Metadata => {
                 let title = request
                     .user

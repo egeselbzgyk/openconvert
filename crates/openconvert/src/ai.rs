@@ -297,10 +297,10 @@ pub fn run(
             grant.book_structure_chunks,
         );
     }
-    // --- The pages before the first chapter the rules could not type: quality mode only, where
-    // the model reasons before it answers. Constrained one-word answers were at chance on them.
-    if ctx.mode == oc_core::jobspec::AiMode::Quality && allowed(Purpose::FrontPage) {
-        step.front_pages(&mut session);
+    // --- The pages before the first chapter the rules could not type: a decision per page, and
+    // in quality mode a second one with the kinds in the opposite order that has to agree.
+    if allowed(Purpose::FrontPage) {
+        step.front_pages(&mut session, ctx.mode == oc_core::jobspec::AiMode::Quality);
     }
 
     step.outcome
@@ -425,13 +425,13 @@ impl Step<'_> {
 
     /// Ask about each page before the first chapter that the rules left untyped or called a
     /// dedication, and apply the kinds both answers agreed on as one edit.
-    fn front_pages(&mut self, session: &mut Session<'_>) {
+    fn front_pages(&mut self, session: &mut Session<'_>, twice: bool) {
         use oc_ai::task::front_page::{ask, PageKind};
         use oc_model::doc::{FrontMatterKind, SectionRole};
 
         let max_pages = usize::try_from(self.t.llm.front_page_max_pages).unwrap_or_default();
         let max_chars = usize::try_from(self.t.llm.front_page_max_chars).unwrap_or(usize::MAX);
-        let max_tokens = u32::try_from(self.t.llm.reasoned_max_tokens).unwrap_or(self.max_tokens);
+        let max_tokens = u32::try_from(self.t.llm.decision_max_tokens).unwrap_or(self.max_tokens);
         let pages: Vec<(u32, FrontMatterKind)> = self
             .current
             .sections
@@ -462,7 +462,7 @@ impl Step<'_> {
                 deterministic: front_word(deterministic).to_owned(),
                 alternatives: Vec::new(),
             };
-            match ask(session, &text, page.saturating_add(1), max_tokens) {
+            match ask(session, &text, twice, max_tokens) {
                 Err(why) => self.unasked(choice, why.code()),
                 Ok(answer) => {
                     let Some(trace) = answer.traces.first().cloned() else {

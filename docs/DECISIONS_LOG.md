@@ -6128,3 +6128,38 @@ mark every hyphenation point with a soft hyphen (0.0147 and 0.0021 of `|C_0|`).
 Decision: `SoftHyphen` is its own budget group, `conservation.budget.soft_hyphen` = 0.03, the
 dehyphenation budget and for its reason: a soft hyphen is a line-break hyphen written discretionary.
 Affects: `crates/oc-core/src/ledger_check.rs`, `thresholds.toml`.
+
+## 2026-09-26 · The default model is a System-1 decision model (Tev1-4B) · v1.1
+
+**Maintainer direction.** After a comparison on the maintainer's machine, the default model is
+Tev1-4B-experimental (Together AI, a fine-tune of Qwen3.5-4B), Q4_K_M, pinned in `models.toml`
+by commit and hash. Qwen3-1.7B stays in the registry as the small chat model.
+
+**Evidence.** 31 hand-labelled opening pages (Turkish, German, English), one question each —
+what kind of page is this — over eleven kinds, on a laptop CPU (i7-13700H):
+
+| model | runtime | correct | seconds/page |
+|---|---|---|---|
+| Tev1-4B Q4_K_M, page cut to 600 characters | llama-server | 30 | ~6 |
+| Qwen3-1.7B, reasoned twice, both orders agreeing | llama-server | 19 (of 22 answered) | ~20 |
+| Jev-Style 2B v2 Q4 | llama-server | 17 | ~5 |
+| Jev-Style 0.8B v3 Q8 (scorer emulated) | llama-server | 16 | - |
+| Tev1-0.8B (converted to Q8_0 locally) | llama-server | 13 | ~2.6 |
+| Qwen3-1.7B, one constrained word | llama-server | 11 | ~7 |
+| laya-multilingual (mmBERT) | ggmlc `laya` | 7 | ~1.3 |
+| kev-0.8b | ggmlc `laya` | 6 | 10-16 |
+| kev-4b | ggmlc `laya` | not finished (>55 s/page) | - |
+
+The kev and laya GGUFs do not load in llama.cpp (they need ggmlc's `laya` or a fork), so they
+would have meant a second sidecar and protocol; Tev1 runs on the bundled llama-server as is.
+
+**What changed.** The `front_page` task asks a decision — the page as the state, the kinds as
+lettered options, one letter back under a grammar — in both modes; quality mode asks a second
+time with the options reversed and keeps only an agreeing answer. The format is the decision
+models' and any instruction model's, so a user's own model is asked the same way.
+`llm.front_page_max_chars` is 600: 30/31 at 600 characters against 29 at 1,500 and 350, at half
+the time of 1,500.
+
+**Open.** The fine-tuned weights declare no licence yet ("still being finalized" at
+publication); the registry says so (`license = "unspecified"`) and the app does not bundle the
+model — the user downloads it. Revisit when Together AI publishes the licence.

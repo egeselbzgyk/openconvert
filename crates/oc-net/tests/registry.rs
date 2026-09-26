@@ -91,18 +91,18 @@ fn the_shipped_registry_loads_with_every_pin_filled() {
 
     assert_eq!(
         loaded.default_id(),
-        &ModelId("qwen3-1.7b-q4_k_m".to_owned())
+        &ModelId("tev1-4b-experimental.q4_k_m".to_owned())
     );
     let default = loaded
         .get(loaded.default_id())
         .expect("the default is an entry");
     assert_eq!(default.tier, "default");
-    // The maintainer's pin (D9 amendment, 2026-09-23): the official repository publishes no
-    // Q4_K_M, the llama.cpp project's does.
-    assert_eq!(default.repo, "ggml-org/Qwen3-1.7B-GGUF");
-    assert_eq!(default.file, "Qwen3-1.7B-Q4_K_M.gguf");
+    // The maintainer's pin (2026-09-26): the decision model the evaluation ran on, in the quant
+    // it ran on.
+    assert_eq!(default.repo, "prithivMLmods/Tev1-4B-experimental-GGUF");
+    assert_eq!(default.file, "Tev1-4B-experimental.Q4_K_M.gguf");
 
-    assert_eq!(loaded.entries().len(), 4);
+    assert_eq!(loaded.entries().len(), 5);
     for entry in loaded.entries() {
         let id = &entry.id.0;
         assert!(is_commit(&entry.revision), "{id}: {}", entry.revision);

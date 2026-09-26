@@ -166,11 +166,13 @@ fn prompt_artifacts_are_pinned_to_their_version() {
             actual.insert(path, hex(&sha256(text.as_bytes())));
         }
     }
-    // The free-text task: no grammar and no schema, and two files of its own.
+    // The decision task: its own system prefix, and two files of its own.
     let front = prompt::artifacts(Purpose::FrontPage);
     for (file, text) in [
         ("system.md", front.system),
         ("user.tmpl", front.user_template),
+        ("grammar.gbnf", front.grammar),
+        ("schema.json", front.schema),
         ("kinds.txt", oc_ai::prompt::v1::front_page::KINDS),
         (
             "instruction.txt",

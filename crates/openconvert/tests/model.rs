@@ -231,13 +231,15 @@ fn model_list_works_on_the_shipped_registry() {
         .filter(|row| row["is_default"] == true)
         .filter_map(|row| row["id"].as_str())
         .collect();
-    assert_eq!(defaults, ["qwen3-1.7b-q4_k_m"]);
+    assert_eq!(defaults, ["tev1-4b-experimental.q4_k_m"]);
     assert!(rows.iter().all(|row| row["installed"] == false));
     insta::assert_json_snapshot!(value);
 
     let human = model(&["list", "--dir", &store.to_string_lossy()]);
     assert_eq!(human.status.code(), Some(0));
-    assert!(String::from_utf8_lossy(&human.stdout).contains("qwen3-1.7b-q4_k_m (default)"));
+    assert!(
+        String::from_utf8_lossy(&human.stdout).contains("tev1-4b-experimental.q4_k_m (default)")
+    );
 }
 
 fn super_registry() -> PathBuf {

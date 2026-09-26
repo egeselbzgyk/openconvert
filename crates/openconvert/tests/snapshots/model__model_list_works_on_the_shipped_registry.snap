@@ -4,10 +4,23 @@ expression: value
 ---
 [
   {
-    "id": "qwen3-1.7b-q4_k_m",
-    "display_name": "Qwen3 1.7B (Q4_K_M)",
+    "id": "tev1-4b-experimental.q4_k_m",
+    "display_name": "Tev1 4B decision model (Tev1-4B-experimental.Q4_K_M)",
     "tier": "default",
     "is_default": true,
+    "installed": false,
+    "size_bytes": 2708804352,
+    "ram_estimate_bytes": 6442450944,
+    "cpu_expectation": "about six seconds a question on a laptop CPU",
+    "license": "unspecified",
+    "license_path": null,
+    "warn": null
+  },
+  {
+    "id": "qwen3-1.7b-q4_k_m",
+    "display_name": "Qwen3 1.7B (Q4_K_M)",
+    "tier": "small",
+    "is_default": false,
     "installed": false,
     "size_bytes": 1282439264,
     "ram_estimate_bytes": 3221225472,

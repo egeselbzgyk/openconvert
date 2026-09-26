@@ -1,13 +1,13 @@
 //! Task `front_page`: the kind of a page before the first chapter, when the deterministic rules
-//! could not say (quality mode only; see [`crate::prompt::v1::front_page`]).
+//! could not say (see [`crate::prompt::v1::front_page`]).
 //!
 //! The answer is a label and nothing else — a wrong one sets a page's `epub:type` and its styling
-//! wrong, and cannot add, remove or move a character. It is asked twice, with the kinds in
-//! opposite orders, and taken only when both reasoned answers name the same kind.
+//! wrong, and cannot add, remove or move a character. In quality mode it is asked twice, with the
+//! kinds in opposite orders, and taken only when both answers name the same kind.
 
 use oc_model::decision::LlmTrace;
 
-use crate::prompt::v1::front_page::{request, KINDS};
+use crate::prompt::v1::front_page::{kinds, request, LETTERS};
 use crate::session::{Asker, Unasked};
 
 /// The kinds a page can be given: the words of `kinds.txt`, in its order.
@@ -63,66 +63,58 @@ impl PageKind {
     }
 }
 
-/// The kind a reasoned answer ends on: the word after its last `ANSWER:`, whatever case and
-/// emphasis the model wrapped it in. `None` for an answer that names no kind of the list.
-pub fn parse(answer: &str) -> Option<PageKind> {
-    const MARK: &str = "answer:";
-    let lower = answer.to_lowercase();
-    let at = lower.rfind(MARK)?;
-    let word: String = lower[at + MARK.len()..]
-        .trim_start_matches(|ch: char| ch.is_whitespace() || ch == '*' || ch == '`' || ch == '"')
+/// The kind an answer names: its first letter, read against the order the options were listed
+/// in. `None` for an answer that is no option's letter.
+pub fn parse(answer: &str, order: &[&str]) -> Option<PageKind> {
+    let letter = answer
+        .trim_start_matches(|ch: char| ch.is_whitespace() || ch == '"' || ch == '*' || ch == '(')
         .chars()
-        .take_while(|ch| ch.is_alphabetic() || *ch == '-')
-        .filter(|ch| *ch != '-')
-        .collect();
-    PageKind::from_word(&word)
+        .next()?;
+    let index = LETTERS.find(letter.to_ascii_uppercase())?;
+    PageKind::from_word(order.get(index)?)
 }
 
 /// What asking about one page came to.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PageAnswer {
-    /// The kind both answers named; `None` when they disagreed or either named none.
+    /// The kind the answers named; `None` when they disagreed or one named none.
     pub kind: Option<PageKind>,
     /// Every call made, in order.
     pub traces: Vec<LlmTrace>,
 }
 
-/// Ask about one page: twice, the kinds in opposite orders, and keep the kind only if both
-/// answers name it. `Err` when the session refused the first question; a refusal of the second
-/// leaves the first answer unconfirmed, which is no answer.
+/// Ask about one page — once, or with `twice` a second time with the kinds in the opposite
+/// order, keeping the kind only if both answers name it. `Err` when the session refused the
+/// first question; a refusal of the second leaves the first answer unconfirmed, which is no
+/// answer.
 pub fn ask(
     asker: &mut dyn Asker,
     page: &str,
-    number: u32,
+    twice: bool,
     max_tokens: u32,
 ) -> Result<PageAnswer, Unasked> {
     let mut traces = Vec::new();
-    let mut kinds = Vec::new();
-    for reversed in [false, true] {
-        let Ok(question) = request(page, number, reversed, max_tokens) else {
+    let mut kinds_named = Vec::new();
+    let orders: &[bool] = if twice { &[false, true] } else { &[false] };
+    for reversed in orders {
+        let Ok((question, order)) = request(page, *reversed, max_tokens) else {
             return Ok(PageAnswer { kind: None, traces });
         };
         match asker.ask(&question) {
             Ok(asked) => {
-                kinds.push(parse(&asked.response.text));
+                kinds_named.push(parse(&asked.response.text, &order));
                 traces.push(asked.trace);
             }
             Err(why) if traces.is_empty() => return Err(why),
             Err(_) => return Ok(PageAnswer { kind: None, traces }),
         }
     }
-    let kind = match kinds.as_slice() {
-        [Some(first), Some(second)] if first == second => Some(*first),
-        _ => None,
-    };
+    let first = kinds_named.first().copied().flatten();
+    let kind = first.filter(|kind| kinds_named.iter().all(|named| *named == Some(*kind)));
     Ok(PageAnswer { kind, traces })
 }
 
 /// The kinds `kinds.txt` defines, in its order: the list [`PageKind`] must be.
 pub fn defined_words() -> Vec<&'static str> {
-    KINDS
-        .lines()
-        .filter_map(|line| line.split_once(':').map(|(word, _)| word.trim()))
-        .filter(|word| !word.is_empty())
-        .collect()
+    kinds().into_iter().map(|(word, _)| word).collect()
 }

@@ -1,1 +1,1 @@
-Think it over in two or three sentences, then write the last line as ANSWER: <kind>, with one kind from the list.
+What kind of page of a book is this page?
