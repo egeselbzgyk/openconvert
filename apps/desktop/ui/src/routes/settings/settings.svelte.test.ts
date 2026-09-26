@@ -82,7 +82,7 @@ describe("settings route", () => {
     expect(document.querySelector(".oc-setting__help")?.textContent).toContain("opens the model download");
     // No task has passed its evaluation in this build (`aiTasksEnabled: 0`): the page says the switch
     // changes no book, rather than promise it.
-    expect(document.querySelector(".oc-settings__body")?.textContent).toContain("no decision has passed its evaluation");
+    expect(document.querySelector(".oc-settings__body")?.textContent).toContain("fills in a missing title and author");
 
     ai()?.click();
     await settle();

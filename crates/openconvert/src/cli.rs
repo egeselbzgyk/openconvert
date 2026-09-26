@@ -274,7 +274,8 @@ usage:
   --ocr-path <PATH>    the tesseract binary to use instead of searching for one
   --ocr-lang <SPEC>    Tesseract language data, e.g. deu or deu+eng (default: the book's language)
   --re-ocr <MODE>      never|auto|always; replace an OCR sandwich's own text layer (default never)
-  --ai                 ask a model the four once-per-book questions; never fails a conversion
+  --ai                 let a model fill in metadata and, in quality mode, type the opening
+                       pages; never fails a conversion
   --llm-endpoint <URL> a server you run: llama-server, Ollama, LM Studio, any OpenAI-compatible
                        one; the engine asks it what it is before asking it anything else
   --llm-provider <P>   builtin (start the bundled server), ollama (localhost:11434 unless

@@ -405,7 +405,7 @@
  "packs.contents.validation": "Yerleşik denetimden sonra tam EPUBCheck'i çalıştırır",
  "settings.ai.off": "Kapalı. Açtığınızda, yüklü model yoksa model indirme ekranı açılır.",
  "settings.ai.on": "Açık: kuralların tek başına karar veremediği yerde {provider} sorulur.",
- "settings.ai.noTasks": "Bu sürümde henüz hiçbir karar herhangi bir dil için değerlendirmeden geçmedi; bu yüzden kitaplar bu ayar kapalıymış gibi dönüştürülür. Her rapor yine de nelerin sorulacağını listeler.",
+ "settings.ai.noTasks": "Model, her dildeki kitaplarda eksik başlığı ve yazarı doldurur; Kaliteli modda kuralların belirleyemediği açılış sayfalarını da tanır. Modele ulaşılamazsa kitap onsuz dönüştürülür.",
  "settings.ai.mode": "Yapay zekâ modu",
  "settings.ai.mode.fast": "Hızlı",
  "settings.ai.mode.fastHint": "Daha çabuk; model kısa cevaplar verir.",

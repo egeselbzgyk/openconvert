@@ -405,7 +405,7 @@
  "packs.contents.validation": "Führt nach der eingebauten Prüfung das vollständige EPUBCheck aus",
  "settings.ai.off": "Aus. Beim Einschalten öffnet sich der Modell-Download, falls kein Modell installiert ist.",
  "settings.ai.on": "An: {provider} wird gefragt, wo die Regeln allein nicht entscheiden können.",
- "settings.ai.noTasks": "In dieser Version hat noch keine Entscheidung ihre Auswertung für eine Sprache bestanden; Bücher werden daher so umgewandelt, als wäre dies aus. Jeder Bericht listet trotzdem auf, was gefragt worden wäre.",
+ "settings.ai.noTasks": "Das Modell ergänzt einen fehlenden Titel und Autor für Bücher in jeder Sprache und bestimmt im Modus Gründlich auch Eingangsseiten, die die Regeln nicht einordnen konnten. Ist es nicht erreichbar, wird ohne es umgewandelt.",
  "settings.ai.mode": "KI-Modus",
  "settings.ai.mode.fast": "Schnell",
  "settings.ai.mode.fastHint": "Schneller; das Modell gibt kurze Antworten.",

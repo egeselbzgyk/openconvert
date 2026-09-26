@@ -405,7 +405,7 @@
  "packs.contents.validation": "Runs the full EPUBCheck after the built-in check",
  "settings.ai.off": "Off. Turning it on opens the model download if no model is installed.",
  "settings.ai.on": "On: {provider} is asked where the rules alone cannot decide.",
- "settings.ai.noTasks": "In this build no decision has passed its evaluation for any language yet, so books convert as they would with this off. Each report still lists what would have been asked.",
+ "settings.ai.noTasks": "The model fills in a missing title and author for books in any language and, in Quality mode, also identifies opening pages the rules could not. If it cannot be reached, books convert without it.",
  "settings.ai.mode": "AI mode",
  "settings.ai.mode.fast": "Fast",
  "settings.ai.mode.fastHint": "Quicker; the model gives short answers.",
