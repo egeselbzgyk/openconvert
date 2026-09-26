@@ -8,141 +8,180 @@
 
 <h1 align="center">OpenConvert</h1>
 
-<p align="center">Convert PDF books to reflowable EPUB 3.3, on your own computer.</p>
+<p align="center">Turn PDF books into reflowable EPUBs, on your own computer.</p>
 
 <p align="center">
-  <a href="https://github.com/egeselbzgyk/openconvert/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/egeselbzgyk/openconvert/actions/workflows/ci.yml/badge.svg?branch=main"></a>
-  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
   <a href="https://github.com/egeselbzgyk/openconvert/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/egeselbzgyk/openconvert"></a>
+  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
 </p>
 
 OpenConvert is a desktop app and a command-line tool that turns a PDF book into an EPUB 3.3 that
-reflows on any e-reader. It runs entirely on your computer: nothing is uploaded, there is no
-telemetry, and a conversion never uses the network.
+reflows on any e-reader. It rebuilds the book instead of copying pages: paragraphs, chapters, a
+linked table of contents, footnotes and a cover. Everything runs on your computer. Nothing is
+uploaded, and there is no telemetry.
 
-## What it does, and how it differs
+[Install](#install) · [Desktop app](#desktop-app) · [Command line](#command-line) ·
+[AI assistance](#ai-assistance-optional) · [Scanned books](#scanned-books) ·
+[Privacy](#privacy-and-security) · [Limitations](#known-limitations) ·
+[Build from source](#build-from-source)
 
-Most converters copy the text out of a PDF page by page. OpenConvert rebuilds the book's structure:
+## What's new in 1.1
 
-- **Deterministic structure inference.** Columns and reading order, paragraphs rejoined across lines
-  and pages, running headers, footers and page numbers removed, headings and chapters recovered (one
-  file per chapter, a table of contents and a page list that point at them), footnotes linked both
-  ways, and verse, quotations, lists, tables and figures kept as what they are. Without AI, the same
-  PDF gives the same EPUB, byte for byte.
-- **Character conservation.** Every stage of the pipeline must keep every character of the book's
-  text or declare why it removed it (a running header, a soft hyphen, …). The report says what was
-  removed, why, and how much of the source text reached the EPUB.
-- **Validate, then repair.** Every EPUB is checked as it is written — package structure, navigation,
-  footnote links, the page list, image descriptions, no scripts or remote resources — and anything
-  the checks find is repaired before the file is saved. CI holds the project's test books to zero
-  EPUBCheck errors.
-- **Optional local AI, off by default.** A small model on your computer can be asked four narrow
-  questions per book; every answer is checked before it is used, and the conversion is complete
-  without it.
-- **Private by construction.** No telemetry and no crash reporting. The converter's core contains no
-  network code; the app connects only when you download a model, check for updates, or use an AI
-  server off your computer after consenting to its host.
+- **Much better results on real books.** Paragraphs continue across page breaks, words hyphenated
+  at line ends are joined again, page numbers no longer leak into the text, chapters are found more
+  reliably, the book's printed contents page becomes clickable links, and the first page becomes the
+  cover.
+- **Front matter is recognised.** Title page, half-title, copyright page, dedication and epigraph are
+  marked as what they are instead of being treated as ordinary text.
+- **Not tied to particular languages.** The rules read each book's own layout, numbering and
+  vocabulary instead of relying on word lists for a few languages, and the book's language is
+  detected automatically.
+- **More useful AI, with Fast and Quality modes.** When you turn it on, the model fills in a missing
+  title and author and, in Quality mode, identifies opening pages the rules could not. Both modes
+  work the same with the built-in model, Ollama or your own OpenAI-compatible server.
+- **Desktop app:** a list of previous conversions, one folder for all your books with a button to
+  open it, an adjustable time limit per step for large books, and the app's own icon.
 
-## Download and install
+## Install
 
-OpenConvert 1.0 is for **Windows and Linux**. A macOS version comes in a later 1.x release, once the
-app can be signed and notarized; until then it can be built from source (below).
+Download the file for your system from the
+[latest release](https://github.com/egeselbzgyk/openconvert/releases/latest):
 
-- **Windows:** the NSIS installer (per user, no administrator rights) or the MSI. The installers are
-  not code-signed in 1.0, so Microsoft Defender SmartScreen warns the first time; choose *More info*
-  → *Run anyway*, or first compare the file's SHA-256 with the one in the release notes.
-- **Linux:** the AppImage, which updates itself when you ask it to. A Flatpak for Flathub (no network
-  access, updated by Flathub) is prepared in `packaging/linux/flatpak/` and is listed on Flathub once
-  Flathub accepts it.
+| System | File |
+|---|---|
+| Windows (64-bit) | `OpenConvert_<version>_x64-setup.exe` (installs for your user, no admin rights), or the `.msi` |
+| Linux (x86-64) | `OpenConvert_<version>_amd64.AppImage`: make it executable and run it |
+| macOS | No download yet. You can [build it from source](#build-from-source). |
 
-Downloads are on the [Releases](https://github.com/egeselbzgyk/openconvert/releases) page, with every
-file's SHA-256 and a CycloneDX SBOM. Checksums, the SmartScreen warning and what each package can
-and cannot do: [docs/INSTALL.md](docs/INSTALL.md).
+- **Windows will warn you once.** The installers are not code-signed, so Microsoft Defender
+  SmartScreen shows "Windows protected your PC". Choose **More info**, then **Run anyway**. To check
+  the file first, compare its SHA-256 with the one in the release notes.
+- **Flatpak:** a Flathub package is prepared. [docs/INSTALL.md](docs/INSTALL.md) has its status,
+  checksums, and what each package can and cannot do.
+- The AI model is not in the installer. You download it from the app only if you want it.
 
-## Using it
+## Desktop app
 
-**Desktop app.** Drop PDFs on the window. Each book shows its progress; when it is done you can read
-its report, correct the title, author or chapter list and rebuild, and preview the result. The app is
-in English, German and Turkish.
+1. Drop one or more PDFs on the window, or click **Select PDF**.
+2. Each book shows its progress. When it is done, open it in your e-reader, preview it, or read the
+   conversion report.
+3. If the title, author or chapter list is wrong, correct it and choose **Fix and rebuild**. This
+   takes a few seconds.
 
-**Command line.** The app runs the same engine, `openconvert`:
+By default every EPUB is saved in an `OpenConvert` folder in your Documents, and the folder button at
+the top of the window opens it. Under **Settings › Output folder** you can pick another folder or save
+each EPUB next to its PDF. An existing book is never overwritten. Your earlier books are listed under
+**Previous conversions** on the main page.
 
-```sh
-openconvert convert book.pdf                   # book.epub and book.epub.report.json beside the PDF
-openconvert convert book.pdf -o out.epub --lang de --preset novel
-openconvert validate book.epub                 # the built-in validator's findings
-openconvert validate book.epub --json          # the same, as JSON on stdout
-openconvert inspect book.pdf --json            # the PDF's pages, how each is classified, its producer
-openconvert --help                             # every command and flag
-```
+If a very large book stops with a time-limit message, raise **Time limit per step** under
+**Settings › Advanced** (30 minutes by default). The app is available in English, German and Turkish.
 
-`--progress json` prints progress as NDJSON events on stderr; stdout carries data only. Exit codes:
-0 ok, 1 failed (a report is still written), 2 usage, 3 cancelled.
+## Command line
 
-## Optional AI assistance
-
-Off by default. With it on, the converter may ask a local model four once-per-book questions — the
-title and author, the heading levels, where the front and back matter begin, and whether an indented
-passage is verse or a quotation — and uses an answer only after checking it. The model is a download
-you choose; it is never in the installer:
+`openconvert` is the engine the desktop app runs. There is no separate download for it yet, so
+[build it from source](#build-from-source) to use it on its own.
 
 ```sh
-openconvert model list                         # the models this version knows, with sizes and licences
-openconvert model pull qwen3-1.7b-q4_k_m       # the default: Qwen3 1.7B, Apache-2.0, 1.28 GB
-openconvert convert book.pdf --ai
+openconvert convert book.pdf                  # writes book.epub and book.epub.report.json next to the PDF
+openconvert convert book.pdf -o out.epub      # choose where the EPUB goes
+openconvert convert book.pdf --lang de        # set the book's language instead of detecting it
+openconvert validate book.epub                # check an EPUB with the built-in validator
+openconvert inspect book.pdf                  # what the PDF contains, page by page
+openconvert --help                            # every command and option
 ```
 
-It can also use Ollama or another OpenAI-compatible server you run (`--llm-provider`,
-`--llm-endpoint`); a server off your computer needs your consent to its host (`--llm-allow-host`).
-In 1.0 no task has yet passed its accuracy evaluation for any language, so `--ai` (and the app's AI
-switch) asks the model nothing; `--ai-all-tasks` runs the tasks without that evaluation.
+## AI assistance (optional)
 
-## OCR
+AI assistance is **off by default**, and a conversion is complete without it. When you turn it on, a
+language model helps with the few decisions the rules cannot make on their own:
 
-Scanned pages, and scanned regions of otherwise digital pages, are read with
-[Tesseract](https://github.com/tesseract-ocr/tesseract) 5 when it is installed on your system
-(English, German and Turkish are tested). Without it, scanned pages stay images and the report says
-so. `--ocr never|auto|always` and `--ocr-lang` control it.
+- it fills in the title and author when the PDF file itself does not give a title, accepting only
+  text that is actually printed on the first pages;
+- in Quality mode, it identifies opening pages the rules could not (title page, copyright page,
+  dedication and so on).
+
+Every answer is checked before it is used. If it does not fit, the rule-based result stays. The
+report lists each AI decision next to what the rules alone would have chosen.
+
+**Where the model runs** (Settings › Provider):
+
+- **Built-in:** the app runs a small model on your computer. The default is Qwen3 1.7B
+  (Apache-2.0, a 1.28 GB download you start yourself).
+- **Ollama** running on your computer.
+- **Custom endpoint:** any OpenAI-compatible server. If it is not on your computer, the app asks for
+  your consent before any text from your books is sent to it.
+
+**AI mode** (Settings › AI assistance):
+
+- **Quality** (default, slower): the model thinks each answer through and every question is asked
+  twice. Only answers that agree are used.
+- **Fast:** short answers and a shorter time budget.
+
+From the command line:
+
+```sh
+openconvert model pull qwen3-1.7b-q4_k_m                          # download the default model once
+openconvert convert book.pdf --ai                                 # Quality mode
+openconvert convert book.pdf --ai --ai-mode fast
+openconvert convert book.pdf --ai --llm-provider ollama --llm-model <name>
+```
+
+Further experimental tasks (heading levels, where front and back matter begin, verse or quotation)
+run only with `--ai-all-tasks`.
+
+## Scanned books
+
+PDFs that already have a text layer use that text. Pages that are only an image are read with
+[Tesseract](https://github.com/tesseract-ocr/tesseract) 5 if it is installed on your system.
+OpenConvert does not include it. Without it, those pages stay images in the EPUB and the report says
+so.
+
+- **Linux (Debian/Ubuntu):** `sudo apt install tesseract-ocr`, plus the language data you need, for
+  example `tesseract-ocr-deu`
+- **macOS:** `brew install tesseract tesseract-lang`
+- **Windows:** the [UB-Mannheim Tesseract installer](https://github.com/UB-Mannheim/tesseract/wiki);
+  select the extra languages you need while installing
+
+On the command line, `--ocr auto|never|always` and `--ocr-lang` (for example `deu+eng`) control it.
 
 ## Privacy and security
 
-The threat OpenConvert defends against is a hostile PDF. Resource limits (pages, image size,
-decompressed data, per-stage deadlines) are checked before the work they bound; on Linux the
-converter caps its own memory and confines itself with Landlock before it reads the PDF; the parsers
-the project writes are fuzzed. What is and is not enforced on each platform:
-[docs/SECURITY.md](docs/SECURITY.md) and the Security section of the
-[1.0.0 release notes](docs/CHANGELOG.md). Please report vulnerabilities privately through GitHub
-Security Advisories.
+- No telemetry, no crash reporting, no account.
+- Without AI assistance, a conversion never uses the network. With the built-in model or a local
+  Ollama, nothing leaves your computer.
+- The app goes online only when you download a model, when you press **Check for updates**, or when
+  you use an AI server that is not on your computer and have agreed to send text to it.
+  **Settings › Network log** lists every connection it made.
+- Updates are installed only after their signature has been verified.
 
-## Known limitations in 1.0
+OpenConvert treats every PDF as untrusted: it checks size limits before doing the work, stops a step
+that runs too long, and on recent Linux kernels confines the converter in a sandbox. Details are in
+[docs/SECURITY.md](docs/SECURITY.md).
+Please report vulnerabilities privately through GitHub Security Advisories.
 
-- No macOS build yet; it comes in a later 1.x.
+## Known limitations
+
+- No macOS download yet.
 - The Windows installers are not code-signed.
-- The optional validation pack (the full EPUBCheck inside the app) is not offered yet; the built-in
-  validator checks every EPUB.
-- On the project's real-world test corpus, 79 of 104 documents convert with every character
-  accounted for; the others lose some text, do not finish within the time limit, or stop at a
-  conservation check. That work continues after 1.0.
-- No cap on the size of the EPUB written (a book over 50 MiB gets a warning), and no memory cap on
-  Windows.
-- AI assistance is off by default, no task is enabled for any language yet, and the default model has
-  not been through its promotion gates.
+- Not every book converts perfectly yet. Complex layouts and scans with a poor text layer can still
+  lose some text or structure. Every conversion's report says how much of the text reached the EPUB,
+  and what was removed and why.
+- The AI tasks have not yet passed the project's formal accuracy evaluation. Every answer is still
+  checked, and AI stays off unless you turn it on.
+- The optional full EPUBCheck validation is not built into the app yet. The built-in validator checks
+  every EPUB.
 
-The full list is in [docs/CHANGELOG.md](docs/CHANGELOG.md).
+## Build from source
 
-## Building from source
-
-You need Rust 1.98 and Node 22. On Linux, with Debian or Ubuntu package names:
+You need Rust 1.98 and Node 22, plus the [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/)
+for the desktop app. On Debian or Ubuntu:
 
 ```sh
 sudo apt-get install build-essential pkg-config libwebkit2gtk-4.1-dev libgtk-3-dev \
   librsvg2-dev libayatana-appindicator3-dev
 ```
 
-On Windows: the Microsoft C++ Build Tools and the WebView2 runtime (part of Windows 10 and 11), as
-for any [Tauri 2](https://v2.tauri.app/start/prerequisites/) app.
-
-The converter, from the repository root (it finds PDFium in `vendor/`, or set `OC_PDFIUM_PATH`):
+The command-line tool, from the repository root:
 
 ```sh
 cargo run -p xtask -- vendor-pdfium            # the pinned PDFium build, checked against its SHA-256
@@ -153,33 +192,28 @@ cargo build -p openconvert --release
 The desktop app (Tauri 2 and Svelte 5, in `apps/desktop`):
 
 ```sh
-cargo run -p xtask -- fetch-llama-server       # the pinned llama.cpp server the app bundles
-cargo build -p openconvert                     # the engine the app runs
-cargo run -p xtask -- stage-sidecars           # both, with PDFium, where the bundler expects them
+cargo run -p xtask -- fetch-llama-server       # the model server the app bundles
+cargo build -p openconvert
+cargo run -p xtask -- stage-sidecars           # put both, with PDFium, where the bundler expects them
 npm ci --prefix apps/desktop/ui
 cargo install tauri-cli --version "=2.11.5" --locked
 cd apps/desktop/src-tauri && cargo tauri dev
 ```
 
-Tests: `cargo run -p xtask -- fixtures` and `cargo run -p xtask -- fixtures --keep-structtree`
-compile the test PDFs, then `cargo nextest run --workspace --exclude openconvert-desktop`; the UI's
-tests are `npm test --prefix apps/desktop/ui`.
+## Help and contributing
 
-## Contributing and project documents
-
-- [docs/DECISIONS.md](docs/DECISIONS.md) — the architecture decisions and their reasons; the
-  highest authority when documents disagree.
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — processes, the intermediate representation, the
-  conservation law, the validation gates.
-- [docs/PIPELINE.md](docs/PIPELINE.md) — each stage's algorithm and parameters.
-- [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) and [PROGRESS.md](PROGRESS.md) — the
-  phase plan and where the work stands.
-- [CLAUDE.md](CLAUDE.md) — the repository's working agreement: test-first work items and the rules
-  CI enforces (no ignored tests, no numeric literals outside `thresholds.toml`, deterministic
-  output).
+- **Problems and ideas:** open an [issue](https://github.com/egeselbzgyk/openconvert/issues). In the
+  app, **Settings › About & updates › Report a problem** creates a diagnostic bundle that you review
+  before sharing it. Nothing is sent automatically.
+- **Documentation:** [installing](docs/INSTALL.md), [release notes](docs/CHANGELOG.md),
+  [security](docs/SECURITY.md), [how the converter works](docs/ARCHITECTURE.md) and
+  [its stages](docs/PIPELINE.md), [design decisions](docs/DECISIONS.md).
+- **Contributing:** [CLAUDE.md](CLAUDE.md) describes how work is done here: test-first, with the
+  rules CI enforces. Build the test PDFs with `cargo run -p xtask -- fixtures` and
+  `cargo run -p xtask -- fixtures --keep-structtree`, then run
+  `cargo nextest run --workspace --exclude openconvert-desktop` and `npm test --prefix apps/desktop/ui`.
 
 ## License
 
-Apache-2.0: see [LICENSE](LICENSE) and [NOTICE](NOTICE). Third-party licences are listed in
-[docs/LICENSE_AND_DEPENDENCIES.md](docs/LICENSE_AND_DEPENDENCIES.md) and
-`licenses/third-party-rust.txt`.
+Apache-2.0: see [LICENSE](LICENSE) and [NOTICE](NOTICE). Third-party licenses are listed in
+[docs/LICENSE_AND_DEPENDENCIES.md](docs/LICENSE_AND_DEPENDENCIES.md).
