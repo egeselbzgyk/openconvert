@@ -4,5 +4,6 @@ pub mod candidate;
 pub mod cluster;
 pub mod levels;
 pub mod numbering;
+pub mod openers;
 pub mod runin;
 pub mod toc_page;

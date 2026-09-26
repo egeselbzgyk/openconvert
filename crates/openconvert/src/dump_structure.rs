@@ -42,6 +42,9 @@ pub struct Digest {
     pub style_clusters: u32,
     pub inventory_valid: bool,
     pub metadata_source: String,
+    /// The printed contents page's entries, and how many of them link to a heading.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contents: Option<(u32, u32)>,
 }
 
 /// Reduce a structured document to its digest.
@@ -115,6 +118,17 @@ pub fn digest(output: &StructureOutput) -> Digest {
         style_clusters: u32::try_from(output.inventory.clusters.len()).unwrap_or(u32::MAX),
         inventory_valid: output.inventory.valid,
         metadata_source: format!("{:?}", output.metadata.source).to_lowercase(),
+        contents: output.contents.as_ref().map(|contents| {
+            let linked = contents
+                .entries
+                .iter()
+                .filter(|entry| entry.target.is_some())
+                .count();
+            (
+                u32::try_from(contents.entries.len()).unwrap_or(u32::MAX),
+                u32::try_from(linked).unwrap_or(u32::MAX),
+            )
+        }),
     }
 }
 
@@ -200,10 +214,13 @@ pub fn dump(
 
     let input = crate::input::page_inputs(document).map_err(|error| error.to_string())?;
     let mut totals = ReasonTotals::default();
-    let text = crate::pipeline::text_stage(&input, &mut totals, t).map_err(fail)?;
+    let mut text = crate::pipeline::text_stage(&input, &mut totals, t).map_err(fail)?;
     let furniture =
-        crate::pipeline::furniture_stage(&text, lang.clone(), &mut totals, t).map_err(fail)?;
-    let layout = crate::pipeline::layout_stage(&text, &furniture, &mut totals, t).map_err(fail)?;
+        crate::pipeline::furniture_stage(&mut text, lang.clone(), &mut totals, t).map_err(fail)?;
+    let mut layout =
+        crate::pipeline::layout_stage(&text, &furniture, &mut totals, t).map_err(fail)?;
+    let paragraphs = crate::pipeline::paragraphs_stage(&mut layout, lang.clone(), &mut totals, t)
+        .map_err(fail)?;
 
     let images = crate::structure_input::document_images(&text);
     // The one decoder, which hashes only what the ornament rule reads. This site used to keep
@@ -218,7 +235,7 @@ pub fn dump(
     let doc_info = document.doc_info();
 
     let stage_input = StructureInput {
-        blocks: crate::structure_input::block_views(&text, &layout),
+        blocks: crate::structure_input::block_views(&text, &layout, &paragraphs.plan),
         runs: crate::pipeline::body_runs(&text, &furniture),
         fonts: text.fonts.clone(),
         images,

@@ -8,9 +8,6 @@ use crate::freq;
 
 use super::{joined, Decision, DocLexicon, HyphenAction, Tier};
 
-/// German, the one language whose orthography changes the candidacy rule.
-const GERMAN: &str = "de";
-
 /// **T2 — candidacy.** Is this line break even a broken word?
 ///
 /// The general rule is that the next line starts lower-case: `pipe-` / `line` is a broken
@@ -21,7 +18,7 @@ const GERMAN: &str = "de";
 ///
 /// Either way a digit on either side rules it out: `2019-` / `2020` is a range, and nothing
 /// in this module should ever be joining numbers.
-pub fn is_candidate(head: &str, tail: &str, lang: &LangTag) -> bool {
+pub fn is_candidate(head: &str, tail: &str, capitalises_nouns: bool) -> bool {
     let Some(first) = tail.chars().next() else {
         return false;
     };
@@ -31,7 +28,7 @@ pub fn is_candidate(head: &str, tail: &str, lang: &LangTag) -> bool {
     if first.is_lowercase() {
         return true;
     }
-    lang.primary() == GERMAN
+    capitalises_nouns
 }
 
 /// **T3 — the in-document lexicon.** The book's own vocabulary, which is stronger evidence
@@ -56,6 +53,97 @@ pub fn in_document(head: &str, tail: &str, doc: &DocLexicon) -> Option<Decision>
         }
         _ => Some(Decision::new(HyphenAction::Keep, Tier::InDocument, signals)),
     }
+}
+
+/// **The suspended compound.** `Ein-` / `und Ausgang` is not a broken word: the hyphen is
+/// left hanging on purpose and the word after it is a conjunction. Which words those are is
+/// read from the book — the words it writes after a hyphen hanging mid-line, and the handful
+/// it uses most, which in every language are its function words. Joining `Einund` would be a
+/// silent corruption; keeping the hyphen, at worst, a visible one.
+pub fn suspended(
+    head: &str,
+    tail: &str,
+    doc: &DocLexicon,
+    frequent_rank: usize,
+) -> Option<Decision> {
+    let _ = head;
+    let follows = doc.follows_suspended(tail);
+    let frequent = doc.is_frequent(tail, frequent_rank);
+    if !(follows || frequent) {
+        return None;
+    }
+    Some(Decision::new(
+        HyphenAction::Keep,
+        Tier::InDocument,
+        vec![
+            Signal::new("follows_suspended", f32::from(u8::from(follows))),
+            Signal::new("frequent_tail", f32::from(u8::from(frequent))),
+        ],
+    ))
+}
+
+/// **The book's own stems.** When the joined form is nowhere else in the book but a word
+/// starting with the head and the first letters of the tail is, the break is inside a word the
+/// book uses: the stem is attested, and only the ending is new. The inflecting and
+/// compounding languages' case, found without knowing which language it is.
+pub fn stem(
+    head: &str,
+    tail: &str,
+    doc: &DocLexicon,
+    min_stem: usize,
+    tail_chars: usize,
+) -> Option<Decision> {
+    // A book that spells this very word both ways has said nothing about the break (T3
+    // abstained), and a stem search would only find the joined spelling again.
+    if contested(head, tail, doc) {
+        return None;
+    }
+    let lead: String = tail.chars().take(tail_chars).collect();
+    let stem = format!("{head}{lead}");
+    if stem.chars().count() < min_stem
+        || lead.chars().count() < tail_chars.min(tail.chars().count())
+    {
+        return None;
+    }
+    let count = doc.stem_count(&stem);
+    (count > 0).then(|| {
+        Decision::new(
+            HyphenAction::Join,
+            Tier::InDocument,
+            vec![Signal::new("indoc_stem", count as f32)],
+        )
+    })
+}
+
+/// **The book's own hyphenation style.** A book that writes almost no compound with a
+/// lower-case second part — no `well-known`, no `self-evident` — does not have one broken at
+/// the end of a line either: a line-final hyphen before a lower-case word is the typesetter's.
+/// Measured on the book, so it is a property of the book rather than of its language; English
+/// prose writes such compounds often enough that the rule stays out of its way.
+pub fn book_style(
+    head: &str,
+    tail: &str,
+    doc: &DocLexicon,
+    max_rate: f64,
+    min_words: u64,
+) -> Option<Decision> {
+    // A style is a property of a book, and a handful of words is not one.
+    if contested(head, tail, doc) || doc.word_count() < min_words {
+        return None;
+    }
+    let rate = doc.lower_compound_rate();
+    (rate <= max_rate).then(|| {
+        Decision::new(
+            HyphenAction::Join,
+            Tier::InDocument,
+            vec![Signal::new("lower_compound_rate", rate as f32)],
+        )
+    })
+}
+
+/// Whether the book spells this word both ways, which is the case T3 declines.
+fn contested(head: &str, tail: &str, doc: &DocLexicon) -> bool {
+    doc.joined_count(head, tail) > 0 || doc.hyphenated_count(head, tail) > 0
 }
 
 /// **T4, German first.** The orthography and the compound acceptor (`compound_de`).

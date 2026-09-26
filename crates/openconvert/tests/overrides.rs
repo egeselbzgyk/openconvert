@@ -153,7 +153,8 @@ fn overrides_roundtrip_metadata_and_toc() {
     overrides.metadata = Some(MetadataPatch {
         title: Some("A Short Novel, Corrected".to_owned()),
         authors: Some(vec!["Ada Reader".to_owned(), "O. Convert".to_owned()]),
-        language: Some("en".to_owned()),
+        // The book is detected as English; the user says British English.
+        language: Some("en-GB".to_owned()),
     });
     overrides.toc = Some(vec![
         TocPatch {
@@ -185,7 +186,7 @@ fn overrides_roundtrip_metadata_and_toc() {
         report["document"]["authors"],
         json!(["Ada Reader", "O. Convert"])
     );
-    assert_eq!(report["document"]["language"], "en");
+    assert_eq!(report["document"]["language"], "en-gb");
 
     let renamed = heading(report, "I. The Beginning");
     assert_eq!(
@@ -263,7 +264,7 @@ fn overrides_roundtrip_metadata_and_toc() {
                 "Ada Reader; O. Convert",
                 json!(["O. Convert"])
             ),
-            ("metadata_language", "en", json!(["und"])),
+            ("metadata_language", "en-gb", json!(["en"])),
             (
                 "toc_heading_text",
                 "I. The Beginning",
@@ -280,7 +281,7 @@ fn overrides_roundtrip_metadata_and_toc() {
         "{opf}"
     );
     assert!(opf.contains(">Ada Reader</dc:creator>"), "{opf}");
-    assert!(opf.contains(">en</dc:language>"), "{opf}");
+    assert!(opf.contains(">en-gb</dc:language>"), "{opf}");
     let nav = entry(&second.epub, "nav.xhtml");
     assert!(
         nav.contains("I. The Beginning") && !nav.contains("Chapter One"),

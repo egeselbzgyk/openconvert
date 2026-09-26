@@ -16,7 +16,7 @@ use oc_layout::columns::{
 };
 use oc_layout::continuity::{continuity, Continuity};
 use oc_layout::furniture::{apply_furniture, detect_furniture, PageLines};
-use oc_layout::paragraphs::{dehyphenate_paragraphs, infer_convention, reconstruct_paragraphs};
+use oc_layout::paragraphs::{infer_convention, paragraphs_of_plan, plan_paragraphs, ParagraphPlan};
 use oc_layout::reading_order::reading_order;
 use oc_model::extract::{CharHistogram, FontId, FontInfo, Glyph, ImageRef, PageRef};
 use oc_model::geom::Rect;
@@ -247,12 +247,17 @@ fn merge_fonts(document: &mut Vec<FontInfo>, page: &[FontInfo]) -> Vec<FontId> {
 
 /// Run `furniture`: find the running heads, feet and page numbers, and remove them.
 pub fn furniture_stage(
-    text: &TextStage,
+    text: &mut TextStage,
     lang: LangTag,
     totals: &mut ReasonTotals,
     t: &Thresholds,
 ) -> Result<FurnitureStage, ConservationError> {
     let before = run_chars(&text.pages);
+    // Control characters are glyphs a broken ToUnicode map pointed at nothing printable. They
+    // are no text a reader could see, XML 1.0 cannot carry them, and one of them used to refuse
+    // the whole book at `epub`. They leave here, from the runs every later stage reads, as the
+    // decorative glyphs they are.
+    let controls = strip_control_glyphs(text);
 
     let pages: Vec<PageLines> = text
         .pages
@@ -262,7 +267,10 @@ pub fn furniture_stage(
         })
         .collect();
     let verdicts = detect_furniture(&pages, lang, t);
-    let outcome = apply_furniture(&pages, &verdicts);
+    let mut outcome = apply_furniture(&pages, &verdicts);
+    for entry in controls.entries().iter().cloned() {
+        outcome.delta.push(entry);
+    }
 
     // The verdicts are page-major and line-aligned with the input, so survival is readable
     // straight off them; a line that stayed is a line `layout` still has the geometry of.
@@ -291,6 +299,50 @@ pub fn furniture_stage(
         kept,
         check,
     })
+}
+
+/// Whether a character is a control code: C0 and C1, and DEL. Tab, line feed and carriage
+/// return are whitespace and are left to the whitespace rules.
+fn is_control_glyph(ch: char) -> bool {
+    ch.is_control() && !matches!(ch, '\t' | '\n' | '\r')
+}
+
+/// Remove every control character from the document's runs, one `DecorativeGlyph` entry per
+/// run that held any.
+fn strip_control_glyphs(text: &mut TextStage) -> LedgerDelta {
+    let mut delta = LedgerDelta::default();
+    for page in &mut text.pages {
+        for run in &mut page.runs {
+            if !run.text.chars().any(is_control_glyph) {
+                continue;
+            }
+            let removed: String = run
+                .text
+                .chars()
+                .filter(|ch| is_control_glyph(*ch))
+                .collect();
+            let at = run
+                .text
+                .chars()
+                .position(is_control_glyph)
+                .and_then(|at| u32::try_from(at).ok())
+                .unwrap_or_default();
+            let width = u32::try_from(removed.chars().count()).unwrap_or(u32::MAX);
+            delta.push(oc_model::ledger::LedgerEntry::removed(
+                stages::FURNITURE.name,
+                oc_model::ledger::Reason::DecorativeGlyph,
+                page.page.index,
+                (at, at.saturating_add(width)),
+                removed,
+            ));
+            run.text = run
+                .text
+                .chars()
+                .filter(|ch| !is_control_glyph(*ch))
+                .collect();
+        }
+    }
+    delta
 }
 
 /// Run `layout`: group the surviving lines into blocks and cross-check the segmentation.
@@ -470,7 +522,11 @@ struct LayoutPass {
 pub struct ParagraphStage {
     /// How this book marks a paragraph start, decided once over the whole of it.
     pub convention: ParagraphConvention,
-    /// The document's paragraphs, in reading order, across columns and pages.
+    /// Where every paragraph of running text starts, which block carries on which, and which
+    /// line breaks were joined — what `structure` cuts and joins the blocks it emits by.
+    pub plan: ParagraphPlan,
+    /// The document's paragraphs, in reading order, across columns and pages: the plan read
+    /// back over every text block.
     pub paragraphs: Vec<Para>,
     /// The document's own vocabulary, which is what decided most of the hyphens.
     pub lexicon: DocLexicon,
@@ -480,16 +536,18 @@ pub struct ParagraphStage {
 
 /// Run `paragraphs`: lines into paragraphs, then dehyphenation (PIPELINE §7).
 ///
-/// Budgeted over `Dehyphenate` and nothing else. Reconstruction changes no text — it decides
-/// where one paragraph ends and the next begins — so every character this stage removes is a
-/// hyphen at a line break, and I-5 says so entry by entry.
+/// Budgeted over `Dehyphenate` and nothing else. Deciding where one paragraph ends and the
+/// next begins changes no text, so every character this stage removes is a hyphen at a line
+/// break, and I-5 says so entry by entry. The hyphen leaves the line's own text in `layout`'s
+/// pages, which is where `structure` reads every line from — so the stage after this one reads
+/// the book as this one left it, and its own check is taken against that.
 ///
 /// The order inside the stage is not incidental. The in-document lexicon is built from the
-/// paragraphs *before* any hyphen is resolved, because it is evidence about the book and a
+/// blocks *before* any hyphen is resolved, because it is evidence about the book and a
 /// lexicon built from already-joined text would be evidence about this function's own
 /// earlier decisions.
 pub fn paragraphs_stage(
-    layout: &LayoutStage,
+    layout: &mut LayoutStage,
     lang: LangTag,
     totals: &mut ReasonTotals,
     t: &Thresholds,
@@ -497,19 +555,39 @@ pub fn paragraphs_stage(
     let before = block_chars(&layout.blocks, &layout.pages);
 
     let convention = infer_convention(&layout.pages, &layout.blocks, t);
-    let mut built = reconstruct_paragraphs(&layout.pages, &layout.blocks, convention, t);
+    // Line by line rather than block by block: a hyphen hanging at the end of a line is a line
+    // break and one hanging inside it is a suspended compound, and only the lines can tell the
+    // lexicon which is which.
     let lexicon = DocLexicon::build(
-        built.paragraphs.iter().map(|para| para.text.as_str()),
+        layout
+            .blocks
+            .iter()
+            .zip(&layout.pages)
+            .flat_map(|(blocks, page)| {
+                blocks
+                    .iter()
+                    .flat_map(move |block| block.lines.iter().map(move |line| text_of(page, line)))
+            }),
         &lang,
     );
-    let delta = dehyphenate_paragraphs(&mut built, &lexicon, &lang, stages::PARAGRAPHS.name, t);
+    let (plan, delta) = plan_paragraphs(
+        &mut layout.pages,
+        &layout.blocks,
+        convention,
+        &lexicon,
+        &lang,
+        stages::PARAGRAPHS.name,
+        t,
+    );
 
-    let after = paragraph_chars(&built.paragraphs);
+    let after = block_chars(&layout.blocks, &layout.pages);
     let check = check_invariants(&before, &after, &delta, stages::PARAGRAPHS, totals)?;
+    let paragraphs = paragraphs_of_plan(&layout.pages, &layout.blocks, &plan);
 
     Ok(ParagraphStage {
         convention,
-        paragraphs: built.paragraphs,
+        plan,
+        paragraphs,
         lexicon,
         delta,
         check,
@@ -687,6 +765,85 @@ pub fn epub_check(
         bodies.push(oc_epub::textcontent::body_text(&file.markup)?);
     }
     let after = c_of_parts(bodies.iter().map(String::as_str));
+
+    if before != after && std::env::var_os("OC_DEBUG_I1").is_some() {
+        let squash =
+            |text: &str| -> String { text.chars().filter(|c| !c.is_whitespace()).collect() };
+        let all: String = bodies.iter().map(|body| squash(body)).collect();
+        if let Ok(needle) = std::env::var("OC_DEBUG_NEEDLE") {
+            for piece in pieces.iter().filter(|piece| piece.contains(&needle)) {
+                eprintln!(
+                    "DEBUG needle piece: {:?}",
+                    piece.chars().take(200).collect::<String>()
+                );
+            }
+            for body in &bodies {
+                for (at, _) in body.match_indices(&needle) {
+                    let from = body[..at]
+                        .char_indices()
+                        .rev()
+                        .nth(60)
+                        .map_or(0, |(i, _)| i);
+                    eprintln!(
+                        "DEBUG needle out: {:?}",
+                        body[from..].chars().take(140).collect::<String>()
+                    );
+                }
+            }
+        }
+        for piece in pieces
+            .iter()
+            .filter(|piece| {
+                !all.contains(&squash(piece))
+                    || std::env::var("OC_DEBUG_NEEDLE").is_ok_and(|needle| piece.contains(&needle))
+            })
+            .take(8)
+        {
+            eprintln!(
+                "DEBUG epub missing piece: {:?}",
+                piece.chars().take(160).collect::<String>()
+            );
+            let head: String = piece.chars().take(40).collect();
+            for (index, section) in document.walk().iter().enumerate() {
+                for item in &section.content {
+                    let text = match item {
+                        oc_model::doc::Content::Paragraph(para) => para.text.clone(),
+                        other => format!("{other:?}"),
+                    };
+                    if text.contains(&head) {
+                        eprintln!(
+                            "   in section {index} role {:?} as {} heading {:?}",
+                            section.role,
+                            item.variant(),
+                            section.heading.as_ref().map(|h| h.text())
+                        );
+                    }
+                }
+            }
+            for figure in &document.figures {
+                if format!("{figure:?}").contains(&head) {
+                    eprintln!(
+                        "   in figure {} image {} anchor {:?}",
+                        figure.id.0, figure.image.0, figure.anchor
+                    );
+                }
+            }
+            for table in &document.tables {
+                if format!("{table:?}").contains(&head) {
+                    eprintln!("   in table {}", table.id.0);
+                }
+            }
+            for note in &document.notes {
+                if note
+                    .body
+                    .iter()
+                    .any(|item| format!("{item:?}").contains(&head))
+                {
+                    eprintln!("   in note {} page {}", note.id.0, note.page.index);
+                }
+            }
+        }
+    }
 
     let delta = LedgerDelta::default();
     let check = check_invariants(&before, &after, &delta, stages::EPUB, totals)?;
@@ -968,4 +1125,53 @@ pub fn line_chars(pages: &[PageLines]) -> CharHistogram {
             .iter()
             .flat_map(|page| page.lines.iter().map(|line| line.text.as_str())),
     )
+}
+
+/// The document's language, detected over its running text (PIPELINE §4 step 7).
+///
+/// Read from the runs `text` assembled, from the middle of the book outward: a title page, a
+/// copyright page and an index are the least representative text a book has, and a detector
+/// fed them first answers for them. A bounded sample, because a trigram detector has made up
+/// its mind long before a whole novel is through it.
+///
+/// `fallback` is what a document with no detectable text gets — `und`, from the driver, which
+/// tells a reading system it does not know rather than telling it something wrong.
+pub fn detect_language(text: &TextStage, fallback: LangTag, t: &Thresholds) -> LangTag {
+    let budget = usize::try_from(t.lang.document_sample_chars.max(0)).unwrap_or(usize::MAX);
+    let count = text.pages.len();
+    // Pages in the order they are sampled: the middle first, then outward.
+    let middle = count / 2;
+    let mut order: Vec<usize> = Vec::with_capacity(count);
+    for step in 0..count {
+        let below = middle.checked_sub(step);
+        let above = middle + step + 1;
+        if let Some(page) = below {
+            order.push(page);
+        }
+        if above < count {
+            order.push(above);
+        }
+        if order.len() >= count {
+            break;
+        }
+    }
+    let mut sample = String::new();
+    'pages: for page in order {
+        let Some(page) = text.pages.get(page) else {
+            continue;
+        };
+        for run in &page.runs {
+            sample.push_str(&run.text);
+            sample.push(' ');
+            if sample.len() >= budget {
+                break 'pages;
+            }
+        }
+    }
+    let detected = oc_text::lang::detect_document(&sample, fallback.clone());
+    if detected.fell_back || sample.trim().is_empty() {
+        fallback
+    } else {
+        detected.lang
+    }
 }

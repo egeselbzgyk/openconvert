@@ -156,6 +156,7 @@ fn the_report_carries_every_part_the_plan_names() {
             "text",
             "furniture",
             "layout",
+            "paragraphs",
             "structure",
             "document",
             "epub+validate+repair",
@@ -177,9 +178,9 @@ fn the_report_carries_every_part_the_plan_names() {
     assert_eq!(furniture.budget, Some(0.04));
     assert!(furniture.headroom.is_some_and(|headroom| headroom > 0.0));
 
-    // The per-stage checks, all nine of them: `ingest` is checked since Phase 13, when it began to
-    // add text (OCR) as well as to find it.
-    assert_eq!(report.conservation.per_stage.len(), 9);
+    // The per-stage checks, all ten of them: `ingest` is checked since Phase 13, when it began to
+    // add text (OCR) as well as to find it, and `paragraphs` since the driver ran it (2026-09-26).
+    assert_eq!(report.conservation.per_stage.len(), 10);
 
     // The page-class histogram, the producer stratum, the retention ratio.
     assert!(!report.page_classes.is_empty());

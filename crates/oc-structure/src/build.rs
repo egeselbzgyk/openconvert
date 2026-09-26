@@ -67,11 +67,7 @@ pub fn para_of(
     // Every character of every line, joined the way `layout` joins them. Nothing is stripped
     // — not even a list marker — because `structure` is Conserving and `Reason` has no
     // variant for text this stage chose to drop.
-    let text = lines
-        .iter()
-        .map(|line| line.text.trim())
-        .collect::<Vec<_>>()
-        .join(" ");
+    let text = join_lines(lines.iter().copied());
     let spans = spans_of(page, lines, noterefs, t);
     debug_assert_eq!(
         oc_model::doc::spans_text(&spans),
@@ -141,22 +137,104 @@ pub fn para_of(
 /// overwrites another's and a footnote loses its reference (`docs/DECISIONS_LOG.md`).
 fn spans_of(page: u32, lines: &[&LineView], noterefs: &NoteRefRuns, t: &Thresholds) -> Vec<Span> {
     let mut pieces: Vec<Span> = Vec::new();
+    let mut glued = false;
 
     for line in lines {
         let text = line.text.trim();
         if text.is_empty() {
             continue;
         }
-        if !pieces.is_empty() {
+        if !pieces.is_empty() && !glued {
             // The join `para_of` uses between lines, as a span of its own. It carries no style
             // because it is not text the book set: it is the boundary between two lines.
             pieces.push(Span::plain(" "));
         }
         pieces.extend(align(page, text, &line.runs, noterefs, t));
+        glued = line.glue;
     }
 
     merge_adjacent(pieces)
 }
+
+/// Lines joined as a reader reads them: by a single space, except after a line whose broken
+/// word `paragraphs` joined, which runs straight on into the next.
+///
+/// The one join every paragraph in `structure` is built with, so the text a paragraph carries
+/// and the spans it is split into cannot disagree about a line boundary.
+pub fn join_lines<'a>(lines: impl IntoIterator<Item = &'a LineView>) -> String {
+    let mut text = String::new();
+    let mut glued = false;
+    for line in lines {
+        let piece = line.text.trim();
+        if piece.is_empty() {
+            continue;
+        }
+        if !text.is_empty() && !glued {
+            text.push(' ');
+        }
+        text.push_str(piece);
+        glued = line.glue;
+    }
+    text
+}
+
+/// Carry a paragraph on with the next piece of it: the rest of a paragraph a page or a column
+/// broke off, as `paragraphs` decided. `glued` is whether the piece before ended on a word
+/// `paragraphs` joined across the break, which then runs on without a space.
+pub fn continue_para(para: &mut Para, next: Para, glued: bool) {
+    let mut spans = std::mem::take(&mut para.spans);
+    if !glued {
+        spans.push(Span::plain(" "));
+        para.text.push(' ');
+    }
+    para.text.push_str(&next.text);
+    spans.extend(next.spans);
+    para.spans = merge_adjacent(spans);
+    para.blocks.extend(next.blocks);
+    para.lines.extend(next.lines);
+    para.pages.1 = para.pages.1.max(next.pages.1);
+}
+
+/// Make the first `prefix` bytes of a paragraph's text a link to `target`: a printed contents
+/// entry's title, pointed at the heading it names. The text is untouched; only its spans are
+/// cut at the prefix's end, and a note reference is never folded into a link.
+pub fn link_prefix(para: &mut Para, prefix: usize, target: BlockId) {
+    let mut out: Vec<Span> = Vec::new();
+    let mut at = 0usize;
+    for span in std::mem::take(&mut para.spans) {
+        let end = at + span.text.len();
+        if at >= prefix || span.noteref.is_some() {
+            out.push(span);
+        } else if end <= prefix {
+            out.push(Span {
+                link: Some(oc_model::doc::LinkTarget::Internal(target)),
+                ..span
+            });
+        } else {
+            let cut = prefix - at;
+            if span.text.is_char_boundary(cut) {
+                let (head, tail) = span.text.split_at(cut);
+                out.push(Span {
+                    text: head.to_owned(),
+                    link: Some(oc_model::doc::LinkTarget::Internal(target)),
+                    ..span.clone()
+                });
+                out.push(Span {
+                    text: tail.to_owned(),
+                    ..span
+                });
+            } else {
+                out.push(span);
+            }
+        }
+        at = end;
+    }
+    para.spans = merge_adjacent(out);
+}
+
+/// The hyphens a line break is made with, which `paragraphs` may have taken off a line's text
+/// while the run that drew the line still has it.
+const BREAK_HYPHENS: [char; 2] = ['\u{002D}', '\u{2010}'];
 
 /// Split one line's text at its runs, keeping every character.
 fn align(
@@ -174,7 +252,14 @@ fn align(
         if needle.is_empty() {
             continue;
         }
-        let Some(at) = rest.find(needle) else {
+        // A line's last run may still end on the hyphen `paragraphs` took off the line.
+        let found = rest.find(needle).map(|at| (at, needle)).or_else(|| {
+            let bare = needle.trim_end_matches(BREAK_HYPHENS);
+            (bare.len() < needle.len() && !bare.is_empty())
+                .then(|| rest.find(bare).map(|at| (at, bare)))
+                .flatten()
+        });
+        let Some((at, needle)) = found else {
             // Out of step. Everything left goes out as plain text rather than being dropped or
             // re-derived, because the characters matter and the styling does not.
             break;
@@ -212,7 +297,11 @@ fn merge_adjacent(pieces: Vec<Span>) -> Vec<Span> {
     let mut out: Vec<Span> = Vec::with_capacity(pieces.len());
     for piece in pieces {
         match out.last_mut() {
-            Some(last) if last.style == piece.style && last.noteref == piece.noteref => {
+            Some(last)
+                if last.style == piece.style
+                    && last.noteref == piece.noteref
+                    && last.link == piece.link =>
+            {
                 last.text.push_str(&piece.text);
             }
             _ => out.push(piece),

@@ -571,6 +571,7 @@ fn gate_view(output: &StructureOutput) -> Document {
         warnings: Vec::new(),
         classification: oc_model::document::DocClass::default(),
         presets: oc_model::document::PresetName::default(),
+        cover: None,
     }
 }
 

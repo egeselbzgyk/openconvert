@@ -372,6 +372,8 @@ fn missing_engine_emits_install_hint_and_page_images() {
     let images = entries
         .keys()
         .filter(|path| path.ends_with(".jpg") || path.ends_with(".png"))
+        // The cover is a rendering of the first page, not one of the pages carried as a picture.
+        .filter(|path| !path.starts_with("images/cover."))
         .count();
     assert_eq!(images, 2, "{:?}", entries.keys().collect::<Vec<_>>());
     let report: serde_json::Value = serde_json::from_slice(

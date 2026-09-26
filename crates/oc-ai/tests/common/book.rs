@@ -116,6 +116,7 @@ pub fn document(sections: Vec<Section>) -> Document {
         warnings: Vec::new(),
         classification: DocClass::BookProse,
         presets: PresetName::Novel,
+        cover: None,
     }
 }
 

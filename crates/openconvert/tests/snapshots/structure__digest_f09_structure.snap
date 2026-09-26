@@ -11,7 +11,7 @@ expression: digest(&stage.output)
     "list": 0,
     "note_ref_anchor": 0,
     "page_break": 0,
-    "paragraph": 15,
+    "paragraph": 18,
     "preformatted": 0,
     "rule": 0,
     "table": 0,
@@ -62,5 +62,9 @@ expression: digest(&stage.output)
   "warnings": [],
   "style_clusters": 4,
   "inventory_valid": true,
-  "metadata_source": "xmp"
+  "metadata_source": "xmp",
+  "contents": [
+    7,
+    6
+  ]
 }

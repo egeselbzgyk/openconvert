@@ -48,6 +48,8 @@ pub struct PackageInput<'a> {
     /// so that a test can hold it still: it is the one field that is different in two builds
     /// of the same book, and test 5.4 redacts exactly it.
     pub modified: String,
+    /// The image that is the book's cover, when it has one.
+    pub cover: Option<oc_model::extract::ImageId>,
 }
 
 /// Serialise `content.opf`.
@@ -126,6 +128,17 @@ fn metadata(document: &Document, input: &PackageInput<'_>) -> String {
     }
 
     out.push_str(&accessibility(document, input));
+    // EPUB 2's way of naming the cover, which EPUB 3 keeps as a legacy `meta` and which the
+    // readers that predate `cover-image` — Kindle's converters among them — still read.
+    if let Some(index) = input
+        .cover
+        .and_then(|cover| input.images.iter().position(|image| image.id == cover))
+    {
+        out.push_str(&format!(
+            "<meta name=\"cover\" content=\"img{:04}\"/>\n",
+            index + 1
+        ));
+    }
     out.push_str("</metadata>\n");
     out
 }
@@ -233,8 +246,13 @@ fn manifest(input: &PackageInput<'_>) -> String {
         ));
     }
     for (index, image) in input.images.iter().enumerate() {
+        let cover = if input.cover == Some(image.id) {
+            " properties=\"cover-image\""
+        } else {
+            ""
+        };
         out.push_str(&format!(
-            "<item id=\"img{:04}\" href=\"{}\" media-type=\"{}\"/>\n",
+            "<item id=\"img{:04}\" href=\"{}\" media-type=\"{}\"{cover}/>\n",
             index + 1,
             escape::attribute(&image.path),
             image.media_type

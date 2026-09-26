@@ -66,12 +66,21 @@ fn a_clean_conversion_is_the_same_bytes_the_emitter_produced() {
         let built = common::build(stem);
         let direct = oc_epub::build_epub(&built.document, &Vec::new(), &common::epub_options());
 
-        // Images are not passed here, so only the fixtures without them can be compared byte for
-        // byte; for the rest the claim is that the loop changed nothing about the document.
+        // Images are not passed here — not even the cover, a rendering of the first page — so
+        // the content documents are compared, file for file, for the fixtures without images;
+        // for the rest the claim is that the loop changed nothing about the document.
         if let Ok(direct) = direct {
             if built.extracted_images == 0 {
+                let content = |files: &[oc_epub::content::XhtmlFile]| -> Vec<(String, String)> {
+                    files
+                        .iter()
+                        .filter(|file| file.path != oc_epub::content::COVER_PATH)
+                        .map(|file| (file.path.clone(), file.markup.clone()))
+                        .collect()
+                };
                 assert_eq!(
-                    direct.bytes, built.built.bytes,
+                    content(&direct.emitted.files),
+                    content(&built.built.emitted.files),
                     "{stem}: the loop's container is not the emitter's"
                 );
             }
@@ -108,6 +117,7 @@ fn the_ledger_records_validate_and_repair_as_conserving_stages() {
                 "text",
                 "furniture",
                 "layout",
+                "paragraphs",
                 "structure",
                 "document",
                 "epub",

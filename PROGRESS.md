@@ -4,15 +4,14 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 7.5
-CURRENT_ITEM: Phase 7.5 — parked by the maintainer's decision (2026-09-23); do not start it until the
-              maintainer resumes it. Every other phase, 0–15, is ticked. v1.0.0 is BUILT: tag v1.0.0 →
-              424f0d3, release run 35972864079 green (every job), a DRAFT release with the NSIS, MSI and
-              AppImage, their signatures, latest.json and the SBOM. Publishing the draft is the
-              maintainer's step. Three fixes on the way (DECISIONS_LOG 2026-09-23/24): the release job's
-              container tools, the app ID io.github.egeselbzgyk.OpenConvert, the AppImage budget 140 MB.
-              The maintainer chose to ship with Appendix D not fully passing — the gaps are the 1.0.0
-              notes' "Known limitations" (see "v1.0.0 release preparation" and `## Blocked`).
-LAST_UPDATED: 2026-09-24
+CURRENT_ITEM: Phase 7.5 resumed by the maintainer (2026-09-26) as "reading quality on real books",
+              working toward v1.1.0 (maintainer: release it on GitHub, published, when the quality is
+              reasonable). Work loop: convert the maintainer's ~140 local books (kept outside the repository;
+              never named or committed) with the scratch harness described under "v1.1 reading
+              quality", fix the worst defect class, re-measure. Next: the `epub` stage losing text on
+              four books, the two timeouts, LLM tasks ("IDs in, labels out"), README, then the
+              release (ir_version 1 → 2 because `Document.cover` was added).
+LAST_UPDATED: 2026-09-26
 
 ---
 
@@ -112,6 +111,44 @@ LAST_UPDATED: 2026-09-24
       `oc-net`, the SBOM, the reproducibility and version-bump gates, the release workflow, notices,
       the 1.0.0 release notes and the release checklist. **Appendix D (v1.0) does not pass** — its
       evaluation is below the Phase 15 section and every open item is in `## Blocked`.)*
+
+## v1.1 reading quality — the maintainer's books (2026-09-26, uncommitted work in `main`'s tree)
+
+The maintainer reported v1.0 output as very poor on their own books (paragraph per page, hyphens left
+in, no chapters, no TOC, no cover, `und` language). Every fix is in `docs/DECISIONS_LOG.md`
+(2026-09-26 entries). Root causes found and fixed:
+
+- [x] `paragraphs` was never called by the driver: now runs after `layout`, records a
+      `ParagraphPlan`; `structure` cuts running-text blocks at it and joins page/column carry-overs.
+- [x] Language detection was never called: detected from the middle of the book.
+- [x] Dehyphenation: book-statistics tiers (suspended compounds, stems, the book's own hyphen style,
+      capitalisation rate instead of `lang == de`); budget 0.005 → 0.03; soft hyphens their own budget.
+- [x] Page numbers: index + constant, margins included, OCR-misread folios recovered.
+- [x] Chapter openers by place and sequence (`headings::openers`); heading size tiers, legibility,
+      level cap 3, multi-line titles joined.
+- [x] Printed contents page: detected by shape, emitted with links to the headings, promotes missed
+      headings, decides levels when well linked.
+- [x] Cover (first page rendered), `images/cover.*`, cover page, landmark; untitled sections named
+      from the book; captions no longer bind to ornament images (lost whole paragraphs at `epub`);
+      control characters removed as `DecorativeGlyph`; I-7 folds `N`'s reasons into `C_0`.
+- [x] Desktop icons generated from the design handoff's app icon.
+
+Measured on 50 local books present in both runs (scratch harness): hyphen residues 63 084 → 4 377, lower-case
+page splits 2 768 → 686, merged-dialogue paragraphs 1 448 → 292, folio-like one-character paragraphs
+5 712 → 2 759, paragraphs 34 213 → 64 417. Workspace: 839 tests green, clippy, fmt, ci-lint,
+thresholds-lint clean.
+
+Open (measured on 142 books, v3 run): `epub` loses text on 5 books (a table cell a table region
+dropped, among others), `structure` on 1 (3 chars); 2 timeouts over 580 s; 2 PDFium open failures; 2 books whose text layer
+is mostly control codes (need OCR); OCR-garbled headings in scanned books (only OCR can fix).
+
+**Harness** (not in the repo, rebuild it if lost): a Python script converts a list of PDFs with a
+given engine binary in parallel and computes per-book metrics from the EPUB (paragraph count and
+length, `\w- \w` hyphen residues, lower-case page splits, merged dialogue, one-character
+paragraphs, TOC entries, language); `--ref-dir` compares with a reference EPUB of the same book.
+Debug aids in the engine: `OC_DEBUG_I1=1` prints the multiset an I-1 failure left over and, at
+`epub`, the pieces missing and the structure holding them; `OC_DEBUG_TOC=1` prints each contents
+entry and the heading it linked to.
 
 ## v1.0.0 release run fixes — `fix/release-gates-file`, merged 2026-09-23
 

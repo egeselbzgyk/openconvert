@@ -148,6 +148,7 @@ fn document_with_an_undescribed_figure() -> Document {
         warnings: Vec::new(),
         classification: oc_model::document::DocClass::BookProse,
         presets: oc_model::document::PresetName::Novel,
+        cover: None,
     }
 }
 

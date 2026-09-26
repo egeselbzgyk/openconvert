@@ -63,6 +63,8 @@ pub fn stylesheet() -> String {
          blockquote p { text-indent: 0; }\n\
          figure { margin: 1em 0; text-align: center; }\n\
          figure img { max-width: 100%; height: auto; }\n\
+         section[epub|type~=\"cover\"] figure { margin: 0; }\n\
+         section[epub|type~=\"cover\"] img { max-height: 97vh; object-fit: contain; }\n\
          table { border-collapse: collapse; margin: 1em 0; }\n\
          th, td { border: 1px solid; padding: 0.3em 0.5em; text-align: left; }\n\
          pre { white-space: pre-wrap; overflow-wrap: break-word; }\n\

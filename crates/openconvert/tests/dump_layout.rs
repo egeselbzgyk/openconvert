@@ -28,9 +28,9 @@ fn lay_out(relative: &str) -> LayoutStage {
     let input = openconvert::input::page_inputs(document.as_ref()).expect("every page extracts");
 
     let mut totals = ReasonTotals::default();
-    let text = text_stage(&input, &mut totals, &T).expect("text conserves");
-    let furniture =
-        furniture_stage(&text, LangTag::EN, &mut totals, &T).expect("furniture stays in budget");
+    let mut text = text_stage(&input, &mut totals, &T).expect("text conserves");
+    let furniture = furniture_stage(&mut text, LangTag::EN, &mut totals, &T)
+        .expect("furniture stays in budget");
     layout_stage(&text, &furniture, &mut totals, &T).expect("layout conserves")
 }
 

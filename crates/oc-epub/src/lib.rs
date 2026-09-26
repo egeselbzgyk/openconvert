@@ -98,13 +98,22 @@ pub fn build_epub(
     sources: &[SourceImage],
     options: &EpubOptions,
 ) -> Result<BuiltEpub, EpubError> {
-    let (encoded, paths) = images::encode(
+    let (mut encoded, mut paths) = images::encode(
         sources,
         &ImageOptions {
             max_longest_side_px: options.max_longest_side_px,
             jpeg_quality: options.jpeg_quality,
         },
     )?;
+    // The cover is filed under its own name, `images/cover.*`: it is not one of the book's
+    // images, and a reader of the container can tell which file it is.
+    if let Some(cover) = document.cover {
+        for image in encoded.iter_mut().filter(|image| image.id == cover) {
+            let extension = image.path.rsplit('.').next().unwrap_or("jpg").to_owned();
+            image.path = format!("images/cover.{extension}");
+            paths.insert(cover, image.path.clone());
+        }
+    }
 
     let emitted = content::emit(
         document,
@@ -114,13 +123,25 @@ pub fn build_epub(
         },
     )?;
 
+    let mut emitted = emitted;
+    let title_for_cover = document.meta.title.clone().unwrap_or_default();
+    let cover_path = document
+        .cover
+        .and_then(|id| paths.get(&id).map(|path| (id, path.clone())));
+    if let Some((_, path)) = &cover_path {
+        content::prepend_cover(&mut emitted, document, &title_for_cover, path)?;
+    }
+
     // Only the images a document actually references reach the manifest. An item nothing
     // points at is EPUBCheck's `OPF-003` class, and an image dropped as an ornament or living
     // on a page no section covers is exactly that.
+    // The cover is carried beside them: it is a rendering of the first page, not one of the
+    // images the book's text uses, and `used_images` stays the count of those.
     let used: Vec<ImageId> = emitted.used_images.clone();
+    let cover_id = cover_path.as_ref().map(|(id, _)| *id);
     let images: Vec<images::EncodedImage> = encoded
         .into_iter()
-        .filter(|image| used.contains(&image.id))
+        .filter(|image| used.contains(&image.id) || Some(image.id) == cover_id)
         .collect();
 
     let title = document
@@ -140,6 +161,7 @@ pub fn build_epub(
             ncx_path: ncx::NCX_PATH,
             style_path: css::STYLE_PATH,
             modified: options.modified.clone(),
+            cover: cover_path.as_ref().map(|(id, _)| *id),
         },
     );
 

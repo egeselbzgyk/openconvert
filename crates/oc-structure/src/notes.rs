@@ -418,6 +418,7 @@ mod note_text_tests {
             },
             text: text.to_owned(),
             runs: Vec::new(),
+            glue: false,
         }
     }
 
@@ -454,6 +455,8 @@ mod note_text_tests {
             column_width_pt: 300.0,
             space_above_pt: 0.0,
             page_height_pt: 792.0,
+            para_starts: Vec::new(),
+            continues: None,
         }
     }
 

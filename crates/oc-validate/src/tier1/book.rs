@@ -254,6 +254,13 @@ fn image_parity(package: &Package, expected: &Expectations, report: &mut Tier1Re
         .manifest
         .values()
         .filter(|item| item.media_type.starts_with("image/"))
+        // The cover is a rendering of the first page, not an image extraction produced.
+        .filter(|item| {
+            !item
+                .properties
+                .iter()
+                .any(|property| property == "cover-image")
+        })
         .count();
     if u32::try_from(carried).unwrap_or(u32::MAX) != expected {
         report.push(Finding::new(

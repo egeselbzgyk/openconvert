@@ -8,7 +8,7 @@ f01_prose_single_column
   blocks 5  duplicates 0  dup_para_frac 0.0000  top_3gram 0.0000
   warnings ["W_LOW_RETENTION"]
 f02_two_column
-  i7 true  retention 0.9888  parity true  bijection true  hrefs true
+  i7 true  retention 0.9881  parity true  bijection true  hrefs true
   h1 5  skips 0  monotone Some(true)  plausible None
   blocks 16  duplicates 0  dup_para_frac 0.0000  top_3gram 0.0135
   warnings []
@@ -28,24 +28,24 @@ f05_turkish_prose
   blocks 4  duplicates 0  dup_para_frac 0.0000  top_3gram 0.0000
   warnings []
 f06_hyphenation_de
-  i7 true  retention 1.0000  parity true  bijection true  hrefs true
+  i7 true  retention 0.9975  parity true  bijection true  hrefs true
   h1 1  skips 0  monotone Some(true)  plausible None
   blocks 4  duplicates 0  dup_para_frac 0.0000  top_3gram 0.0000
   warnings []
 f07_verse_and_quote
-  i7 true  retention 1.0000  parity true  bijection true  hrefs true
+  i7 true  retention 0.9993  parity true  bijection true  hrefs true
   h1 1  skips 0  monotone Some(true)  plausible None
-  blocks 10  duplicates 0  dup_para_frac 0.0000  top_3gram 0.0247
+  blocks 12  duplicates 0  dup_para_frac 0.0000  top_3gram 0.0247
   warnings []
 f08_footnotes
-  i7 true  retention 0.9677  parity true  bijection true  hrefs true
+  i7 true  retention 0.9667  parity true  bijection true  hrefs true
   h1 2  skips 0  monotone Some(true)  plausible None
   blocks 10  duplicates 0  dup_para_frac 0.0000  top_3gram 0.0267
   warnings ["W_LOW_RETENTION"]
 f09_novel_structure
-  i7 true  retention 0.9704  parity true  bijection true  hrefs true
+  i7 true  retention 0.9688  parity true  bijection true  hrefs true
   h1 6  skips 0  monotone Some(true)  plausible None
-  blocks 22  duplicates 0  dup_para_frac 0.0000  top_3gram 0.8008
+  blocks 25  duplicates 0  dup_para_frac 0.0000  top_3gram 0.8021
   warnings ["W_LOW_RETENTION"]
 f10_lists_and_table
   i7 true  retention 0.9727  parity true  bijection true  hrefs true

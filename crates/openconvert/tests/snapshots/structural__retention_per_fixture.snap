@@ -3,12 +3,12 @@ source: crates/openconvert/tests/structural.rs
 expression: "lines.join(\"\\n\")"
 ---
 f01_prose_single_column  retention 0.9687  |C_0| 766  |C(EPUB)| 742  flagged yes
-f02_two_column  retention 0.9888  |C_0| 2689  |C(EPUB)| 2659  flagged no
+f02_two_column  retention 0.9881  |C_0| 2689  |C(EPUB)| 2657  flagged no
 f03_image_only  retention 0.0000  |C_0| 0  |C(EPUB)| 0  flagged no
 f04_german_prose  retention 1.0000  |C_0| 610  |C(EPUB)| 610  flagged no
 f05_turkish_prose  retention 1.0000  |C_0| 612  |C(EPUB)| 612  flagged no
-f06_hyphenation_de  retention 1.0000  |C_0| 399  |C(EPUB)| 399  flagged no
-f07_verse_and_quote  retention 1.0000  |C_0| 1458  |C(EPUB)| 1458  flagged no
-f08_footnotes  retention 0.9677  |C_0| 930  |C(EPUB)| 900  flagged yes
-f09_novel_structure  retention 0.9704  |C_0| 1857  |C(EPUB)| 1802  flagged yes
+f06_hyphenation_de  retention 0.9975  |C_0| 399  |C(EPUB)| 398  flagged no
+f07_verse_and_quote  retention 0.9993  |C_0| 1458  |C(EPUB)| 1457  flagged no
+f08_footnotes  retention 0.9667  |C_0| 930  |C(EPUB)| 899  flagged yes
+f09_novel_structure  retention 0.9688  |C_0| 1857  |C(EPUB)| 1799  flagged yes
 f10_lists_and_table  retention 0.9727  |C_0| 1646  |C(EPUB)| 1601  flagged yes

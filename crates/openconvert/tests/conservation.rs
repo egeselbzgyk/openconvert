@@ -48,7 +48,7 @@ fn conservation_i1_holds_across_text_and_furniture() {
         let mut totals = ReasonTotals::default();
 
         let before_text = glyph_chars(&input);
-        let text = text_stage(&input, &mut totals, &T)
+        let mut text = text_stage(&input, &mut totals, &T)
             .unwrap_or_else(|error| panic!("{fixture}: text broke the law: {error}"));
         assert!(
             balances(&before_text, &run_chars(&text.pages), &text.delta),
@@ -56,7 +56,7 @@ fn conservation_i1_holds_across_text_and_furniture() {
         );
 
         let before_furniture = run_chars(&text.pages);
-        let furniture = furniture_stage(&text, LangTag::EN, &mut totals, &T)
+        let furniture = furniture_stage(&mut text, LangTag::EN, &mut totals, &T)
             .unwrap_or_else(|error| panic!("{fixture}: furniture broke the law: {error}"));
         assert!(
             balances(
@@ -116,11 +116,11 @@ fn a_budget_breach_stops_the_stage() {
     // than the book quietly emerging empty.
     let input = read("../../corpus/fixtures/handmade/h20_recto_verso.pdf");
     let mut totals = ReasonTotals::default();
-    let text = text_stage(&input, &mut totals, &T).expect("text conserves");
+    let mut text = text_stage(&input, &mut totals, &T).expect("text conserves");
 
     // h20's heads are 8 of its 20 body characters per page — well over the 4 % furniture
     // budget, and the checker says so by name.
-    let error = furniture_stage(&text, LangTag::EN, &mut totals, &T)
+    let error = furniture_stage(&mut text, LangTag::EN, &mut totals, &T)
         .expect_err("removing a third of the text must breach the furniture budget");
     match error {
         ConservationError::BudgetExceeded { stage, group, .. } => {
@@ -212,7 +212,7 @@ proptest! {
         let before_text = glyph_chars(&input);
         // The budget checks are not the subject here: a page of pure running head breaches
         // them by construction, and I-1 is what the row is named for.
-        let text = match text_stage(&input, &mut totals, &T) {
+        let mut text = match text_stage(&input, &mut totals, &T) {
             Ok(text) => text,
             Err(ConservationError::BudgetExceeded { .. }) => return Ok(()),
             Err(error) => return Err(TestCaseError::fail(format!("text: {error}"))),
@@ -220,7 +220,7 @@ proptest! {
         prop_assert!(balances(&before_text, &run_chars(&text.pages), &text.delta));
 
         let before_furniture = run_chars(&text.pages);
-        let furniture = match furniture_stage(&text, LangTag::EN, &mut totals, &T) {
+        let furniture = match furniture_stage(&mut text, LangTag::EN, &mut totals, &T) {
             Ok(furniture) => furniture,
             Err(ConservationError::BudgetExceeded { .. }) => return Ok(()),
             Err(error) => return Err(TestCaseError::fail(format!("furniture: {error}"))),

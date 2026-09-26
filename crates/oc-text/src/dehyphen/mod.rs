@@ -150,7 +150,11 @@ pub fn dehyphenate(
         );
     };
 
-    if !tiers::is_candidate(&head, &tail, lang) {
+    // Whether this book capitalises its nouns, read off the book itself as well as off its
+    // language tag: German does, and so does any book in a language that does.
+    let capitalises_nouns = doc.mid_sentence_capital_rate() >= t.dehyphen.noun_capital_rate_min
+        || lang.primary() == "de";
+    if !tiers::is_candidate(&head, &tail, capitalises_nouns) {
         return Decision::new(
             HyphenAction::Keep,
             Tier::Candidacy,
@@ -161,8 +165,32 @@ pub fn dehyphenate(
     if let Some(decision) = tiers::in_document(&head, &tail, doc) {
         return decision;
     }
-    if lang.primary() == "de" {
+    let frequent_rank = usize::try_from(t.dehyphen.function_word_rank.max(0)).unwrap_or(0);
+    if let Some(decision) = tiers::suspended(&head, &tail, doc, frequent_rank) {
+        return decision;
+    }
+    if capitalises_nouns {
         if let Some(decision) = tiers::german(&head, &tail, doc) {
+            return decision;
+        }
+    }
+    let min_stem = usize::try_from(t.dehyphen.stem_min_chars.max(1)).unwrap_or(usize::MAX);
+    let tail_chars = usize::try_from(t.dehyphen.stem_tail_chars.max(1)).unwrap_or(usize::MAX);
+    // Only a lower-case continuation: a capital after the break is a name or a noun, and what
+    // the book's stems say about those is not what they say about a broken word.
+    let lower = tail.chars().next().is_some_and(char::is_lowercase);
+    if lower {
+        if let Some(decision) = tiers::stem(&head, &tail, doc, min_stem, tail_chars) {
+            return decision;
+        }
+        let min_words = u64::try_from(t.dehyphen.style_min_words.max(0)).unwrap_or(u64::MAX);
+        if let Some(decision) = tiers::book_style(
+            &head,
+            &tail,
+            doc,
+            t.dehyphen.lower_compound_rate_max,
+            min_words,
+        ) {
             return decision;
         }
     }
@@ -380,6 +408,60 @@ mod tests {
         let decision = dehyphenate("we under-", "stand it", &doc, &LangTag::EN, &T);
         assert_eq!(decision.tier, Tier::Classifier);
         assert_eq!(decision.resolved(), HyphenAction::Keep);
+    }
+
+    /// A book long enough to have a style, in which nothing is ever hyphenated: every word
+    /// distinct enough that no stem search finds the break's word.
+    fn a_book_of(words: usize, extra: &str) -> Vec<String> {
+        let mut text: Vec<String> = (0..words)
+            .map(|index| format!("w{index}x"))
+            .collect::<Vec<_>>()
+            .chunks(10)
+            .map(|chunk| chunk.join(" "))
+            .collect();
+        text.push(extra.to_owned());
+        text
+    }
+
+    /// A book that writes no compound with a hyphen in it does not break one at a line end:
+    /// the unattested break is the typesetter's, and it is joined — whatever the language.
+    #[test]
+    fn a_book_that_hyphenates_nothing_joins_an_unattested_break() {
+        let text = a_book_of(3000, "hiçbir şey");
+        let doc = DocLexicon::build(text.iter(), &LangTag::TR);
+        let decision = dehyphenate("şüphe uyan-", "dırırız dedi", &doc, &LangTag::TR, &T);
+        assert_eq!(decision.action, HyphenAction::Join, "{decision:?}");
+        assert_eq!(decision.tier, Tier::InDocument);
+    }
+
+    /// And a book that writes such compounds all the time says nothing by its style, so an
+    /// unattested break goes on to the tiers after it.
+    #[test]
+    fn a_book_that_hyphenates_freely_says_nothing_by_its_style() {
+        let compounds: Vec<String> = (0..200).map(|index| format!("well-known{index}")).collect();
+        let text = a_book_of(3000, &compounds.join(" "));
+        let doc = DocLexicon::build(text.iter(), &LangTag::EN);
+        let decision = dehyphenate("a bit of blan-", "dish talk", &doc, &LangTag::EN, &T);
+        assert_ne!(decision.tier, Tier::InDocument, "{decision:?}");
+    }
+
+    /// The book's own stems: `uyandırırız` occurs nowhere else, but `uyandırdı` does, so the
+    /// break is inside a word the book uses.
+    #[test]
+    fn an_inflected_form_of_a_word_the_book_uses_is_joined() {
+        let doc = lexicon(&["onu uyandırdı ve gitti"], &LangTag::TR);
+        let decision = dehyphenate("şüphe uyan-", "dırırız dedi", &doc, &LangTag::TR, &T);
+        assert_eq!(decision.action, HyphenAction::Join, "{decision:?}");
+        assert_eq!(decision.tier, Tier::InDocument);
+    }
+
+    /// A suspended compound — `Haus-` / `und Gartenarbeit` — keeps its hyphen: the book writes
+    /// `und` after a hanging hyphen elsewhere, mid-line.
+    #[test]
+    fn a_suspended_compound_keeps_its_hyphen() {
+        let doc = lexicon(&["der Ein- und Ausgang war offen"], &LangTag::DE);
+        let decision = dehyphenate("die Haus-", "und Gartenarbeit", &doc, &LangTag::DE, &T);
+        assert_eq!(decision.resolved(), HyphenAction::Keep, "{decision:?}");
     }
 
     proptest! {

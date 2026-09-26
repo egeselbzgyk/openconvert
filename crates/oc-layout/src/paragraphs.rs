@@ -28,9 +28,9 @@ use oc_model::ids::BlockId;
 use oc_model::lang::LangTag;
 use oc_model::layout::{Block, BlockKindHint, Para, ParagraphConvention};
 use oc_model::ledger::{LedgerDelta, LedgerEntry, Reason};
-use oc_model::text::Line;
+use oc_model::text::{Line, RunId};
 
-use oc_text::dehyphen::{dehyphenate, Decision, DocLexicon, HyphenAction, LINE_BREAK_HYPHENS};
+use oc_text::dehyphen::{dehyphenate, DocLexicon, HyphenAction, LINE_BREAK_HYPHENS};
 
 use crate::blocks::{LayoutLine, LayoutPage};
 use crate::continuity::runs_on;
@@ -65,334 +65,513 @@ pub fn infer_convention(
     }
 }
 
-/// Rebuild the document's paragraphs.
+/// Where a laid-out document's paragraphs begin and end — PIPELINE §7, recorded as decisions
+/// on the blocks `layout` built.
 ///
-/// Blocks are taken in reading order, page by page, and cut into paragraphs; a paragraph that
-/// the last cue says has not ended carries on into the next block, whichever column or page
-/// that block is on.
+/// `structure` reads blocks, and it has to: a heading, a list, a note and a stanza are decided
+/// on the block `layout` put together. But a block of running text is not a paragraph. A page
+/// of a novel is one block holding a dozen paragraphs, and the paragraph that runs off its foot
+/// carries on at the top of the next page. So this stage decides where every paragraph of
+/// running text starts and which block carries on which, and `structure` cuts the blocks it
+/// emits as running text at exactly these places and joins exactly these pairs — one decision,
+/// made here and read there, rather than a second predicate in `structure` standing in for it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ParagraphPlan {
+    /// Per block, the positions of the lines, after its first, that open a new paragraph.
+    pub starts: BTreeMap<BlockId, Vec<usize>>,
+    /// Per block, the block whose last paragraph its first line carries on — across a page or
+    /// a column boundary, never within one column of one page.
+    pub continues: BTreeMap<BlockId, BlockId>,
+    /// Per block, the positions of the lines whose line-break hyphen was resolved by a join:
+    /// the line runs on into the next without a space. The hyphen itself is already gone from
+    /// the line's text, under a `Dehyphenate` entry.
+    pub glued: BTreeMap<BlockId, BTreeSet<usize>>,
+    /// Line-break hyphens joined, and kept.
+    pub hyphens_joined: u32,
+    pub hyphens_kept: u32,
+}
+
+impl ParagraphPlan {
+    /// Whether a block's line opens a paragraph of its own.
+    pub fn starts_at(&self, block: BlockId, position: usize) -> bool {
+        self.starts
+            .get(&block)
+            .is_some_and(|starts| starts.binary_search(&position).is_ok())
+    }
+
+    /// Whether a block's line runs on into the next line without a space.
+    pub fn glued_at(&self, block: BlockId, position: usize) -> bool {
+        self.glued
+            .get(&block)
+            .is_some_and(|glued| glued.contains(&position))
+    }
+}
+
+/// One line of a text block, as the plan reasons about it.
+struct PlanLine {
+    /// Where the line lives in its page's `lines`, which is where its text is.
+    at: Option<usize>,
+    text: String,
+    size_pt: f32,
+    /// How wide the line's first word is set, estimated from its first run's advance: what a
+    /// line before it would have had to leave free for the word to have fitted there.
+    first_word_pt: f32,
+}
+
+/// One text block, in document order.
+struct PlanBlock<'a> {
+    page: usize,
+    block: &'a Block,
+    lines: Vec<PlanLine>,
+    em: f32,
+}
+
+impl PlanBlock<'_> {
+    /// Whether the block's last paragraph is still open when the block ends: its last line
+    /// reaches the measure, or ends on a hyphen.
+    fn ends_open(&self, t: &Thresholds) -> bool {
+        let (Some(line), Some(last)) = (self.block.lines.last(), self.lines.last()) else {
+            return false;
+        };
+        fill_of(self.block, line) >= t.paragraph.line_unwrap_factor as f32
+            || ends_with_break_hyphen(&last.text)
+    }
+}
+
+/// Decide the document's paragraphs, and resolve its line-break hyphens (PIPELINE §7).
+///
+/// The texts in `pages` are changed in exactly one way: a line-break hyphen the tiers decided
+/// to join is removed from the end of its line, and each removal is one `Dehyphenate` entry in
+/// the delta — I-5, entry by entry. Everything else is recorded in the plan and changes no text.
+pub fn plan_paragraphs(
+    pages: &mut [LayoutPage],
+    blocks: &[Vec<Block>],
+    convention: ParagraphConvention,
+    lexicon: &DocLexicon,
+    lang: &LangTag,
+    stage: &'static str,
+    t: &Thresholds,
+) -> (ParagraphPlan, LedgerDelta) {
+    let mut plan = decide(pages, blocks, convention, t);
+    let delta = resolve_hyphens(pages, blocks, &mut plan, lexicon, lang, stage, t);
+    (plan, delta)
+}
+
+/// The paragraph boundaries and the carry-overs, without touching a hyphen.
+fn decide(
+    pages: &[LayoutPage],
+    blocks: &[Vec<Block>],
+    convention: ParagraphConvention,
+    t: &Thresholds,
+) -> ParagraphPlan {
+    let unwrap = t.paragraph.line_unwrap_factor as f32;
+    let barrier = t.layout.block.size_barrier_ratio as f32;
+    let indent_min = t.paragraph.indent_min_em as f32;
+    let order = text_blocks(pages, blocks);
+    let mut plan = ParagraphPlan::default();
+
+    for entry in &order {
+        let block = entry.block;
+        let mut starts = Vec::new();
+        for position in 1..block.lines.len() {
+            let line = &block.lines[position];
+            let previous = &block.lines[position - 1];
+            let opens = starts_paragraph(block, position, line, convention, entry.em, t)
+                || fill_of(block, previous) < unwrap
+                || differs(
+                    entry.lines[position - 1].size_pt,
+                    entry.lines[position].size_pt,
+                    barrier,
+                );
+            if opens {
+                starts.push(position);
+            }
+        }
+        if !starts.is_empty() {
+            plan.starts.insert(block.id, starts);
+        }
+    }
+
+    for (index, first) in order.iter().enumerate() {
+        if !first.ends_open(t) {
+            continue;
+        }
+        let Some(next) = carry_over_candidate(&order, index, barrier) else {
+            continue;
+        };
+        let crosses = next.page != first.page || next.block.column != first.block.column;
+        if !crosses {
+            continue;
+        }
+        let (Some(last), Some(head), Some(head_line)) = (
+            first.lines.last(),
+            next.lines.first(),
+            next.block.lines.first(),
+        ) else {
+            continue;
+        };
+        let indented = next.block.lines.len() > 1 && head_line.indent_pt >= indent_min * next.em;
+        // The first word of the next page would have fitted at the end of this page's last line:
+        // the typesetter broke the line there because the paragraph ended, not because the line
+        // was full (Tesseract's paragraph finder, `FirstWordWouldHaveFit`). A justified line
+        // that continues leaves at most a word space free.
+        let last_line = first.block.lines.last();
+        let space = last.size_pt.max(head.size_pt) * t.paragraph.word_space_em as f32;
+        let would_have_fit = last_line.is_some_and(|line| {
+            head.first_word_pt > 0.0 && line.right_gap_pt > head.first_word_pt + space
+        });
+        // A book that indents every paragraph says so on the next page too: a first line set
+        // full out, reaching the measure, is the paragraph above still going — even when the
+        // page happened to end on a full stop, which about one page in eight does, and the next
+        // sentence opens with a capital. Only for such a book, and only for a line that is
+        // running text by its shape: a chapter number or a scene break is short, and a heading
+        // is a block of another size that is never a candidate.
+        let full_out = convention == ParagraphConvention::FirstLineIndent
+            && next.block.lines.len() > 1
+            && fill_of(next.block, head_line) >= unwrap
+            && head
+                .text
+                .trim_start()
+                .chars()
+                .next()
+                .is_some_and(|ch| !ch.is_numeric());
+        let hyphen = ends_with_break_hyphen(&last.text);
+        let carries = !indented
+            && (hyphen || !would_have_fit)
+            && (hyphen || runs_on(&last.text, &head.text) || full_out);
+        if carries {
+            plan.continues.insert(next.block.id, first.block.id);
+        }
+    }
+    plan
+}
+
+/// The block a paragraph that is still open at the end of `order[index]` could carry on into.
+///
+/// The next text block in reading order — except that a block on the same page set at a
+/// materially different size is passed over: a footnote sits between the foot of the text and
+/// the top of the next page in reading order, and a paragraph does not end because one did.
+/// On the next page there is no passing over: the first text block there is the candidate or
+/// nothing is, because a chapter heading is exactly a block of a different size and a
+/// paragraph must never be carried past one.
+fn carry_over_candidate<'o, 'a>(
+    order: &'o [PlanBlock<'a>],
+    index: usize,
+    barrier: f32,
+) -> Option<&'o PlanBlock<'a>> {
+    let first = order.get(index)?;
+    let size = first.lines.last()?.size_pt;
+    for next in order.get(index + 1..)? {
+        if next.page > first.page + 1 {
+            return None;
+        }
+        let head = next.lines.first()?.size_pt;
+        if !differs(size, head, barrier) {
+            return Some(next);
+        }
+        if next.page != first.page {
+            return None;
+        }
+    }
+    None
+}
+
+/// Resolve the line-break hyphens inside every paragraph the plan describes, and across every
+/// carry-over.
+fn resolve_hyphens(
+    pages: &mut [LayoutPage],
+    blocks: &[Vec<Block>],
+    plan: &mut ParagraphPlan,
+    lexicon: &DocLexicon,
+    lang: &LangTag,
+    stage: &'static str,
+    t: &Thresholds,
+) -> LedgerDelta {
+    // Decided on the text as it stands, then applied: a decision must not read a line an
+    // earlier decision already changed.
+    let mut joins: Vec<(usize, usize, BlockId, usize)> = Vec::new();
+    {
+        let order = text_blocks(pages, blocks);
+        let by_id: BTreeMap<BlockId, usize> = order
+            .iter()
+            .enumerate()
+            .map(|(index, entry)| (entry.block.id, index))
+            .collect();
+        // The block each block's last paragraph carries on into, which is the reverse of
+        // `continues`.
+        let carried_into: BTreeMap<BlockId, BlockId> = plan
+            .continues
+            .iter()
+            .map(|(next, first)| (*first, *next))
+            .collect();
+
+        for entry in &order {
+            let id = entry.block.id;
+            for (position, line) in entry.lines.iter().enumerate() {
+                if !ends_with_break_hyphen(&line.text) {
+                    continue;
+                }
+                let next_text = if position + 1 < entry.lines.len() {
+                    if plan.starts_at(id, position + 1) {
+                        None
+                    } else {
+                        Some(entry.lines[position + 1].text.as_str())
+                    }
+                } else {
+                    carried_into
+                        .get(&id)
+                        .and_then(|next| by_id.get(next))
+                        .and_then(|&next| order[next].lines.first())
+                        .map(|head| head.text.as_str())
+                };
+                let Some(next_text) = next_text else {
+                    continue;
+                };
+                let decision = dehyphenate(line.text.trim(), next_text.trim(), lexicon, lang, t);
+                match decision.resolved() {
+                    HyphenAction::Join => {
+                        if let Some(at) = line.at {
+                            joins.push((entry.page, at, id, position));
+                        }
+                    }
+                    _ => plan.hyphens_kept += 1,
+                }
+            }
+        }
+    }
+
+    let mut delta = LedgerDelta::default();
+    for (page, at, block, position) in joins {
+        let Some(line) = pages.get_mut(page).and_then(|page| page.lines.get_mut(at)) else {
+            continue;
+        };
+        let trimmed = line.text.trim_end();
+        let Some(hyphen) = trimmed.chars().next_back() else {
+            continue;
+        };
+        if !LINE_BREAK_HYPHENS.contains(&hyphen) {
+            continue;
+        }
+        let kept = trimmed[..trimmed.len() - hyphen.len_utf8()].to_owned();
+        let offset = u32::try_from(kept.chars().count()).unwrap_or(u32::MAX);
+        delta.push(LedgerEntry::removed(
+            stage,
+            Reason::Dehyphenate,
+            u32::try_from(page).unwrap_or(u32::MAX),
+            (offset, offset.saturating_add(1)),
+            hyphen.to_string(),
+        ));
+        line.text = kept;
+        plan.glued.entry(block).or_default().insert(position);
+        plan.hyphens_joined += 1;
+    }
+    delta
+}
+
+/// The document's text blocks in reading order, with each line's text and size looked up
+/// once.
+fn text_blocks<'a>(pages: &[LayoutPage], blocks: &'a [Vec<Block>]) -> Vec<PlanBlock<'a>> {
+    let mut order = Vec::new();
+    for (index, page) in pages.iter().enumerate() {
+        let Some(page_blocks) = blocks.get(index) else {
+            continue;
+        };
+        // Where each line lives, keyed on its runs: a block's copy of a line is re-measured
+        // against the block and is deliberately not equal to the page's copy.
+        let at: BTreeMap<&[RunId], usize> = page
+            .lines
+            .iter()
+            .enumerate()
+            .map(|(position, line)| (line.line.runs.as_slice(), position))
+            .collect();
+        let em = page_em(page);
+        for block in page_blocks {
+            if block.kind_hint != BlockKindHint::Text || block.lines.is_empty() {
+                continue;
+            }
+            let lines = block
+                .lines
+                .iter()
+                .map(|line| {
+                    let found = at.get(line.runs.as_slice()).copied();
+                    let source = found.and_then(|position| page.lines.get(position));
+                    PlanLine {
+                        at: found,
+                        text: source.map(|line| line.text.clone()).unwrap_or_default(),
+                        size_pt: source.map_or(0.0, LayoutLine::size_pt),
+                        first_word_pt: source.map_or(0.0, first_word_width),
+                    }
+                })
+                .collect();
+            order.push(PlanBlock {
+                page: index,
+                block,
+                lines,
+                em,
+            });
+        }
+    }
+    order
+}
+
+/// The width of a line's first word, from the advance of the run it starts: the run's width over
+/// its characters, times the word's. Zero when the line has no run to measure.
+fn first_word_width(line: &LayoutLine) -> f32 {
+    let Some(segment) = line
+        .segments
+        .iter()
+        .find(|segment| !segment.text.trim().is_empty())
+    else {
+        return 0.0;
+    };
+    let chars = segment.text.chars().count().max(1) as f32;
+    let advance = (segment.bbox.x1 - segment.bbox.x0).max(0.0) / chars;
+    let word = segment
+        .text
+        .split_whitespace()
+        .next()
+        .map_or(0, |word| word.chars().count()) as f32;
+    advance * word
+}
+
+/// Whether two sizes are far enough apart to be two different things, by the same barrier
+/// `layout` splits blocks with. A size of zero is no evidence either way.
+fn differs(a: f32, b: f32, barrier: f32) -> bool {
+    let largest = a.max(b);
+    a > 0.0 && b > 0.0 && (a - b).abs() / largest > barrier
+}
+
+fn ends_with_break_hyphen(text: &str) -> bool {
+    text.trim_end()
+        .chars()
+        .next_back()
+        .is_some_and(|ch| LINE_BREAK_HYPHENS.contains(&ch))
+}
+
+/// Rebuild the document's paragraphs from a plan: each text block cut where the plan says a
+/// paragraph starts, and each carry-over joined to the paragraph it continues.
+///
+/// This is the plan read back as paragraphs — what `structure` does to the blocks it emits as
+/// running text, done here over every text block so that the stage's own tests, and the
+/// report, see the decisions as a reader would.
+pub fn paragraphs_of_plan(
+    pages: &[LayoutPage],
+    blocks: &[Vec<Block>],
+    plan: &ParagraphPlan,
+) -> Vec<Para> {
+    let order = text_blocks(pages, blocks);
+    let mut minted: BTreeSet<String> = BTreeSet::new();
+    let mut built: Vec<(Para, bool)> = Vec::new();
+    // The paragraph each block's last piece ended up in, for the carry-overs to find.
+    let mut last_piece: BTreeMap<BlockId, usize> = BTreeMap::new();
+
+    for entry in &order {
+        let block = entry.block;
+        let page = u32::try_from(entry.page).unwrap_or(u32::MAX);
+        let mut pieces: Vec<(Vec<usize>, bool)> = Vec::new();
+        for position in 0..block.lines.len() {
+            if position == 0 || plan.starts_at(block.id, position) {
+                pieces.push((Vec::new(), position == 0));
+            }
+            if let Some(piece) = pieces.last_mut() {
+                piece.0.push(position);
+            }
+        }
+        for (positions, opens_block) in pieces {
+            let mut text = String::new();
+            for &position in &positions {
+                let piece = entry.lines[position].text.trim();
+                text.push_str(piece);
+                if !plan.glued_at(block.id, position) {
+                    text.push(' ');
+                }
+            }
+            let text = text.trim_end().to_owned();
+            let lines: Vec<Line> = positions
+                .iter()
+                .map(|&position| block.lines[position].clone())
+                .collect();
+            let glued_end = positions
+                .last()
+                .is_some_and(|&position| plan.glued_at(block.id, position));
+
+            let carried = opens_block
+                .then(|| plan.continues.get(&block.id))
+                .flatten()
+                .and_then(|first| last_piece.get(first).copied());
+            if let Some(into) = carried {
+                let (para, glued) = &mut built[into];
+                if !*glued {
+                    para.text.push(' ');
+                }
+                para.text.push_str(&text);
+                para.blocks.push(block.id);
+                para.lines.extend(lines);
+                para.pages.1 = page;
+                *glued = glued_end;
+                last_piece.insert(block.id, into);
+                continue;
+            }
+
+            let bbox = lines
+                .iter()
+                .map(|line| line.bbox)
+                .reduce(union)
+                .unwrap_or(block.bbox);
+            let base = BlockId::derive(page, bbox, &text);
+            let mut id = base;
+            for suffix in 0..32u8 {
+                id = base.with_collision_suffix(suffix);
+                if minted.insert(id.as_str().to_owned()) {
+                    break;
+                }
+            }
+            built.push((
+                Para {
+                    id,
+                    blocks: vec![block.id],
+                    first_line_indent: lines.first().is_some_and(|line| line.indent_pt > 0.0),
+                    lines,
+                    text,
+                    pages: (page, page),
+                    // `structure`'s half of the type, empty until it has run (IR_SKETCH).
+                    spans: Vec::new(),
+                    drop_cap: false,
+                    align: oc_model::doc::Align::Left,
+                    lang: None,
+                    confidence: None,
+                },
+                glued_end,
+            ));
+            last_piece.insert(block.id, built.len() - 1);
+        }
+    }
+    built.into_iter().map(|(para, _)| para).collect()
+}
+
+/// Rebuild the document's paragraphs, without resolving a hyphen.
+///
+/// The plan, read back as paragraphs: blocks taken in reading order, cut at every paragraph
+/// start, and a paragraph that the last cue says has not ended carried into the block that
+/// continues it, whichever column or page that block is on.
 pub fn reconstruct_paragraphs(
     pages: &[LayoutPage],
     blocks: &[Vec<Block>],
     convention: ParagraphConvention,
     t: &Thresholds,
 ) -> Reconstruction {
-    let mut paragraphs: Vec<Open> = Vec::new();
-    let mut open: Option<Open> = None;
-
-    for (index, page) in pages.iter().enumerate() {
-        let em = page_em(page);
-        let Some(page_blocks) = blocks.get(index) else {
-            continue;
-        };
-        for block in page_blocks {
-            // A block that is not flowing text is not part of a paragraph, and it interrupts
-            // whatever was open: a figure between two halves of a sentence is still a figure.
-            if block.kind_hint != BlockKindHint::Text {
-                if let Some(finished) = open.take() {
-                    paragraphs.push(finished);
-                }
-                continue;
-            }
-
-            for (position, line) in block.lines.iter().enumerate() {
-                let text = text_of(pages, index, line);
-                let size = size_of(pages, index, line);
-                let starts = starts_paragraph(block, position, line, convention, em, t);
-                let continues = match (&open, starts) {
-                    (Some(previous), false) => previous.accepts(index, &text, size),
-                    _ => false,
-                };
-                if !continues {
-                    if let Some(finished) = open.take() {
-                        paragraphs.push(finished);
-                    }
-                    open = Some(Open::new(block, line, &text, index, em, t).at_size(size));
-                    continue;
-                }
-                if let Some(current) = open.as_mut() {
-                    current.push(block, line, &text, index, t);
-                }
-            }
-        }
+    let plan = decide(pages, blocks, convention, t);
+    Reconstruction {
+        paragraphs: paragraphs_of_plan(pages, blocks, &plan),
+        plan,
     }
-    if let Some(finished) = open.take() {
-        paragraphs.push(finished);
-    }
-
-    let mut minted: BTreeSet<String> = BTreeSet::new();
-    let mut built = Reconstruction::default();
-    for open in paragraphs {
-        let (para, texts, pages) = open.finish(&mut minted);
-        built.paragraphs.push(para);
-        built.line_texts.push(texts);
-        built.line_pages.push(pages);
-    }
-    built
 }
 
-/// The paragraphs, with the lines they were built from kept alongside.
-///
-/// The line texts are carried rather than re-derived from `Para::text`, because dehyphenation
-/// has to know where the line boundaries *were*: a hyphen followed by a space in a joined
-/// paragraph is not necessarily a line break, and guessing at them after the fact would put
-/// the one decision the conservation law cannot check back on a guess.
+/// The paragraphs, with the plan they were read from.
 #[derive(Clone, Debug, Default)]
 pub struct Reconstruction {
     pub paragraphs: Vec<Para>,
-    /// Per paragraph, the text of each line it was built from, in order.
-    pub line_texts: Vec<Vec<String>>,
-    /// Per paragraph, the page each of those lines came from.
-    pub line_pages: Vec<Vec<u32>>,
-}
-
-/// Resolve every hyphenated line break in the document's paragraphs (PIPELINE §7 step 6).
-///
-/// This is the only part of `paragraphs` that changes the text, and the only reason the stage
-/// is Budgeted rather than Conserving. Each decision is a `Dehyphenate` ledger entry holding
-/// exactly the one character that left, which is the ledger's half of invariant I-5; the other
-/// half — that the word left behind is the two pieces concatenated and nothing else — is a
-/// property of the join itself, and is where `oc_text::dehyphen`'s own property test lives.
-///
-/// A kept hyphen produces no entry at all, because nothing was removed. That asymmetry is the
-/// fail-closed rule showing through: the safe outcome is also the one with nothing to record.
-pub fn dehyphenate_paragraphs(
-    built: &mut Reconstruction,
-    lexicon: &DocLexicon,
-    lang: &LangTag,
-    stage: &'static str,
-    t: &Thresholds,
-) -> LedgerDelta {
-    let mut delta = LedgerDelta::default();
-
-    for (index, para) in built.paragraphs.iter_mut().enumerate() {
-        let Some(lines) = built.line_texts.get(index) else {
-            continue;
-        };
-        let pages = built.line_pages.get(index);
-        let mut text = String::new();
-        let mut offset: u32 = 0;
-
-        for (position, line) in lines.iter().enumerate() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            let next = lines
-                .get(position + 1)
-                .map(|next| next.trim())
-                .unwrap_or_default();
-
-            let decision = if next.is_empty() {
-                None
-            } else {
-                Some(dehyphenate(line, next, lexicon, lang, t))
-            };
-
-            match decision.as_ref().map(Decision::resolved) {
-                Some(HyphenAction::Join) => {
-                    // The hyphen goes, and so does the space that would have joined the two
-                    // lines: the word is one word.
-                    let kept = line
-                        .strip_suffix(LINE_BREAK_HYPHENS)
-                        .unwrap_or(line)
-                        .to_owned();
-                    let removed = line
-                        .chars()
-                        .next_back()
-                        .map(String::from)
-                        .unwrap_or_default();
-                    let width = u32::try_from(kept.chars().count()).unwrap_or(u32::MAX);
-                    delta.push(LedgerEntry::removed(
-                        stage,
-                        Reason::Dehyphenate,
-                        pages
-                            .and_then(|pages| pages.get(position).copied())
-                            .unwrap_or(para.pages.0),
-                        (
-                            offset.saturating_add(width),
-                            offset.saturating_add(width).saturating_add(1),
-                        ),
-                        removed,
-                    ));
-                    text.push_str(&kept);
-                    offset = offset.saturating_add(width);
-                }
-                _ => {
-                    text.push_str(line);
-                    offset = offset
-                        .saturating_add(u32::try_from(line.chars().count()).unwrap_or(u32::MAX));
-                    if !next.is_empty() {
-                        text.push(' ');
-                    }
-                }
-            }
-        }
-        para.text = text;
-    }
-
-    delta
-}
-
-/// One line's text, found on the page it came from.
-///
-/// Keyed on the run ids: `blocks` re-measures a line's indent against its block, so the copy
-/// in the block is deliberately not equal to the copy on the page.
-fn size_of(pages: &[LayoutPage], page: usize, line: &Line) -> f32 {
-    pages
-        .get(page)
-        .and_then(|page| {
-            page.lines
-                .iter()
-                .find(|candidate| candidate.line.runs == line.runs)
-        })
-        .map_or(0.0, LayoutLine::size_pt)
-}
-
-fn text_of(pages: &[LayoutPage], page: usize, line: &Line) -> String {
-    pages
-        .get(page)
-        .and_then(|page| {
-            page.lines
-                .iter()
-                .find(|candidate| candidate.line.runs == line.runs)
-        })
-        .map(|candidate| candidate.text.clone())
-        .unwrap_or_default()
-}
-
-/// A paragraph under construction.
-struct Open {
-    blocks: Vec<BlockId>,
-    lines: Vec<Line>,
-    texts: Vec<String>,
-    /// The page each line came from, so a ledger entry can say where a hyphen was.
-    line_pages: Vec<u32>,
-    first_line_indent: bool,
-    pages: (u32, u32),
-    bbox: Rect,
-    /// The last line's share of its block's measure, which is what says whether the paragraph
-    /// is still open.
-    last_fill: f32,
-    /// Whether the last line ends on a hyphen, for the dehyphenation that follows.
-    last_ends_with_hyphen: bool,
-    unwrap_factor: f32,
-    /// The size the paragraph's first line is set at. A paragraph is set in one style, so a
-    /// line at a materially different size is the start of something else — which is what
-    /// keeps a chapter heading out of the paragraph beneath it when the producer does not
-    /// indent the first line after a heading, as Typst and most book designers do not.
-    size_pt: f32,
-    /// The barrier, as a fraction of the larger of the two sizes.
-    size_barrier: f32,
-}
-
-impl Open {
-    /// Record the size the paragraph opens at, which is the size every later line of it is
-    /// compared against.
-    fn at_size(mut self, size_pt: f32) -> Self {
-        self.size_pt = size_pt;
-        self
-    }
-
-    fn new(block: &Block, line: &Line, text: &str, page: usize, _em: f32, t: &Thresholds) -> Self {
-        let page = u32::try_from(page).unwrap_or(u32::MAX);
-        Self {
-            blocks: vec![block.id],
-            lines: vec![line.clone()],
-            texts: vec![text.to_owned()],
-            line_pages: vec![page],
-            first_line_indent: line.indent_pt > 0.0,
-            pages: (page, page),
-            bbox: line.bbox,
-            last_fill: fill_of(block, line),
-            last_ends_with_hyphen: line.ends_with_hyphen,
-            unwrap_factor: t.paragraph.line_unwrap_factor as f32,
-            // Filled by `at_size`, which is the only constructor the stage uses. Zero here
-            // disables the barrier, which is the safe direction for a caller that has no
-            // size to give: it merges as the stage did before the barrier existed.
-            size_pt: 0.0,
-            size_barrier: t.layout.block.size_barrier_ratio as f32,
-        }
-    }
-
-    fn push(&mut self, block: &Block, line: &Line, text: &str, page: usize, _t: &Thresholds) {
-        if self.blocks.last() != Some(&block.id) {
-            self.blocks.push(block.id);
-        }
-        self.lines.push(line.clone());
-        self.texts.push(text.to_owned());
-        self.line_pages
-            .push(u32::try_from(page).unwrap_or(u32::MAX));
-        self.pages.1 = u32::try_from(page).unwrap_or(u32::MAX);
-        self.bbox = union(self.bbox, line.bbox);
-        self.last_fill = fill_of(block, line);
-        self.last_ends_with_hyphen = line.ends_with_hyphen;
-    }
-
-    /// Whether this paragraph takes the next line.
-    ///
-    /// The short last line is the cue, and the one extra condition is for the case it cannot
-    /// see: across a page boundary a paragraph may also be ended by the text itself, which the
-    /// continuity proxy reads.
-    fn accepts(&self, page: usize, next: &str, size_pt: f32) -> bool {
-        if self.last_fill < self.unwrap_factor {
-            return false;
-        }
-        let largest = self.size_pt.max(size_pt);
-        if largest > 0.0 && (self.size_pt - size_pt).abs() / largest > self.size_barrier {
-            return false;
-        }
-        let crosses_page = u32::try_from(page).unwrap_or(u32::MAX) != self.pages.1;
-        if !crosses_page {
-            return true;
-        }
-        self.texts
-            .last()
-            .is_some_and(|last| runs_on(last, next) || self.last_ends_with_hyphen)
-    }
-
-    fn finish(self, minted: &mut BTreeSet<String>) -> (Para, Vec<String>, Vec<u32>) {
-        let text = join(&self.texts);
-        let base = BlockId::derive(self.pages.0, self.bbox, &text);
-        let mut id = base;
-        for suffix in 0..32u8 {
-            id = base.with_collision_suffix(suffix);
-            if minted.insert(id.as_str().to_owned()) {
-                break;
-            }
-        }
-        (
-            Para {
-                id,
-                blocks: self.blocks,
-                lines: self.lines,
-                text,
-                first_line_indent: self.first_line_indent,
-                pages: self.pages,
-                // `structure`'s half of the type, empty until it has run (IR_SKETCH).
-                spans: Vec::new(),
-                drop_cap: false,
-                align: oc_model::doc::Align::Left,
-                lang: None,
-                confidence: None,
-            },
-            self.texts,
-            self.line_pages,
-        )
-    }
-}
-
-/// Join a paragraph's lines with single spaces.
-///
-/// Hyphenated line breaks are left exactly as they are: whether `pipe-` + `line` is one word
-/// is `dehyphen`'s question, it is answered under invariant I-5, and a joiner that guessed
-/// here would be making that decision silently and without a ledger entry.
-fn join(texts: &[String]) -> String {
-    texts
-        .iter()
-        .map(|text| text.trim())
-        .filter(|text| !text.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ")
+    pub plan: ParagraphPlan,
 }
 
 /// Whether a line starts a new paragraph on its own evidence.

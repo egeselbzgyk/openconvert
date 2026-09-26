@@ -94,8 +94,8 @@ pub fn dump(
     t: &Thresholds,
 ) -> Result<(DumpHeader, Vec<DumpPage>), ConservationError> {
     let mut totals = ReasonTotals::default();
-    let text = text_stage(input, &mut totals, t)?;
-    let furniture = furniture_stage(&text, lang, &mut totals, t)?;
+    let mut text = text_stage(input, &mut totals, t)?;
+    let furniture = furniture_stage(&mut text, lang, &mut totals, t)?;
     let layout = layout_stage(&text, &furniture, &mut totals, t)?;
 
     Ok((header(&layout), pages(&layout)))

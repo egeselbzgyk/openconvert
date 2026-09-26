@@ -118,6 +118,10 @@ pub struct Document {
     pub classification: DocClass,
     /// The preset that was applied, already resolved: never [`PresetName::Auto`].
     pub presets: PresetName,
+    /// The picture the book is shown by in a library: the source's first page, rendered.
+    /// An image of the whole page rather than any text on it, so it is outside `C`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cover: Option<crate::extract::ImageId>,
 }
 
 impl Document {
@@ -374,6 +378,7 @@ fn sample(content: Vec<Content>) -> Document {
         warnings: Vec::new(),
         classification: DocClass::BookProse,
         presets: PresetName::Novel,
+        cover: None,
     }
 }
 

@@ -24,6 +24,10 @@ pub struct LineView {
     pub line: Line,
     pub text: String,
     pub runs: Vec<Run>,
+    /// The line runs on into the next one without a space: `paragraphs` joined a word broken
+    /// across the line break and took its hyphen out of `text`.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub glue: bool,
 }
 
 impl LineView {
@@ -85,6 +89,14 @@ pub struct BlockView {
     pub space_above_pt: f32,
     /// The page's height, for the band tests that footnotes and furniture share.
     pub page_height_pt: f32,
+    /// The positions of the lines, after the first, that open a new paragraph — `paragraphs`'
+    /// decision, which `structure` cuts a block of running text at.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub para_starts: Vec<usize>,
+    /// The block whose last paragraph this block's first line carries on, across a page or a
+    /// column boundary — `paragraphs`' decision, which `structure` joins by.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub continues: Option<BlockId>,
 }
 
 impl BlockView {

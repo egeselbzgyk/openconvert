@@ -22,10 +22,17 @@ evidence = "RT C1: an OCR sandwich can duplicate ~half a page"
 owner = "maintainer"
 review_by = "2027-06-30"
 
-[conservation.budget.dehyphenate]
-value = 0.005
+[conservation.budget.soft_hyphen]
+value = 0.03
 source = "provisional"
-evidence = "RT C1"
+evidence = "Soft hyphens N strips, as a fraction of |C_0|. They were in the 0.001 'other' group; two books of the 2026-09-26 reading set (InDesign exports) mark every hyphenation point with U+00AD and refused at 0.0147 and 0.0021. A soft hyphen is a line-break hyphen written discretionary, so it takes the dehyphenation budget and its reasoning: at most one per line, ~1/30 of a line's characters. docs/DECISIONS_LOG.md 2026-09-26"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[conservation.budget.dehyphenate]
+value = 0.03
+source = "provisional"
+evidence = "RT C1 set 0.005 before `paragraphs` was wired into the driver; the first real books through it refused at 0.0059 and 0.0063 (Turkish children's books, narrow measure, 2026-09-26, docs/DECISIONS_LOG.md). A line carries at most one line-break hyphen and a book line carries at least ~30 non-whitespace characters, so the physical ceiling is ~1/30 = 0.033: the budget is set just under it, where it still catches a runaway (every line joined twice) and never a narrow book. I-5 checks each entry is exactly one hyphen, which is the guard that matters"
 owner = "maintainer"
 review_by = "2027-06-30"
 
@@ -367,6 +374,13 @@ evidence = "R10 §4.4 row 6: the grey zone is [0.30, 0.70). Below this a band li
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[layout.furniture.folio_constant_min_share]
+value = 0.15
+source = "provisional"
+evidence = "A page number is the page's index plus a constant; a book may change the constant where it skips numbers over unnumbered plates, so every constant holding on enough pages is one. This is the share of a numbering system's readings a constant must hold, so that a few margin numbers that happen to count with the page (footnote markers, a year) are not read as a pagination. 0.15 admits a book split into six numbered runs; 2026-09-26, docs/DECISIONS_LOG.md"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [layout.furniture.min_repeat_page_share]
 value = 0.20
 source = "published"
@@ -493,6 +507,48 @@ evidence = "A maximal white rectangle separates two lines only if it is at least
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[dehyphen.function_word_rank]
+value = 30
+source = "provisional"
+evidence = "A line-final hyphen before one of the book's thirty most frequent words is a suspended compound ('Ein- und Ausgang', 'pre- and post-war'), not a broken word: those words are its function words in every language measured. A broken word's tail is its ending, which is rarely a word at all. 2026-09-26, docs/DECISIONS_LOG.md"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[dehyphen.stem_min_chars]
+value = 4
+source = "provisional"
+evidence = "The shortest head-plus-tail-start the book's own words are searched for. Below four letters a prefix is shared by half the vocabulary and says nothing about this break"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[dehyphen.stem_tail_chars]
+value = 3
+source = "provisional"
+evidence = "How many letters of the continuation the stem search takes: three is past the syllable the typesetter broke at, so a word starting with head+three letters is the same word inflected, not a different word sharing a first syllable"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[dehyphen.lower_compound_rate_max]
+value = 0.0005
+source = "provisional"
+evidence = "Hyphenated compounds with a lower-case second part per word of the book, at or under which a line-final hyphen before a lower-case word is the typesetter's and is joined. Measured on the 2026-09-26 reading set: Turkish prose writes about one per ten thousand words, English prose one to several per thousand, so five per ten thousand separates them. The in-document tiers answer first; this only decides what they leave open"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[dehyphen.style_min_words]
+value = 2000
+source = "provisional"
+evidence = "How many words a document must have before its own hyphenation style is read as evidence about a break. A style is a rate, and a rate over a page or two of text is noise: under this the style tier abstains and the break goes to the tiers after it, and failing them is kept (the fail-closed rule, row 3.10)"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[dehyphen.noun_capital_rate_min]
+value = 0.15
+source = "provisional"
+evidence = "The share of mid-sentence words starting with a capital at or above which a book is read as one that capitalises its nouns, so that a capital after a line-break hyphen may still be a broken word. German prose runs at about a quarter; English, Turkish and the Romance languages capitalise only names, a few per hundred. Measured on the book, not assumed from its language tag, so a new language needs no rule of its own. 2026-09-26, docs/DECISIONS_LOG.md"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [dehyphen.classifier_margin_min]
 value = 0.25
 source = "provisional"
@@ -525,6 +581,13 @@ review_by = "2028-01-01"
 value = 0.05
 source = "provisional"
 evidence = "The share of a book's lines that have to be indented before the book is read as using first-line indentation. A book that indents averages one indented line per paragraph over four to eight lines of paragraph, so 0.12-0.25; a book that separates paragraphs with space indents almost nothing, and what it does indent - block quotes, verse - is well under 0.05. The gap between the two populations is an order of magnitude, which is why the exact figure does not matter much; what matters is that the decision is made once over the whole book, because a book is internally consistent and a page is not enough evidence (PIPELINE §7 step 1, R1 §C.4 #3)."
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[paragraph.word_space_em]
+value = 0.3
+source = "provisional"
+evidence = "A word space, in ems: what a justified line's last word leaves free beside it at most. With the next line's first word, it is Tesseract's FirstWordWouldHaveFit test (Apache-2.0, src/ccmain/paragraphs.cpp): a line that ended with room for the next word ended its paragraph. Word spaces run 0.25-0.33 em in book faces"
 owner = "maintainer"
 review_by = "2027-06-30"
 
@@ -699,6 +762,13 @@ source = "published"
 evidence = "R10 §6.17: per-block overrides must be < 20% of blocks"
 owner = "maintainer"
 review_by = "2028-01-01"
+
+[lang.document_sample_chars]
+value = 200000
+source = "provisional"
+evidence = "How much running text the document's language is detected over, taken from the middle of the book outward. whatlang's trigram model is reliable well under 10 000 characters of prose (R10 §6.17: a whole book 'is effectively always right'); the cap only bounds the cost on a very long book. Provisional: fit on the reading corpus once it exists"
+owner = "maintainer"
+review_by = "2027-06-30"
 
 # ---------- quality statistics (R10 §6.18, datatrove) ----------
 [quality.dup_line_frac]
@@ -1448,6 +1518,69 @@ evidence = "PIPELINE §8.1 says front matter. Twenty pages is past the longest f
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[toc.max_back_pages]
+value = 12
+source = "provisional"
+evidence = "How far from the end of a book a printed contents page is looked for. Turkish, French and German trade books often print it last; twelve pages covers an index-free back matter's contents page and its continuation"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[toc.min_gap_em]
+value = 1.5
+source = "provisional"
+evidence = "White space between a contents title and its page number, in body sizes, that separates them when no leader is drawn. A word gap is a quarter to a half em; one and a half is past any justified stretch"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[toc.right_edge_tolerance_pt]
+value = 3.0
+source = "provisional"
+evidence = "How close to the page's modal right edge a contents row's page number must end to count as set flush right: a digit's width varies by about a point between proportional figures"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[toc.contents_min_row_share]
+value = 0.4
+source = "provisional"
+evidence = "The share of a page's rows that must be separated entries for the page to be a contents page. Lower than toc.min_line_share (leaders only) because wrapped titles and part titles are rows too; a page of prose with a few lines ending in numbers stays far below it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[toc.contents_min_rising_share]
+value = 0.8
+source = "provisional"
+evidence = "The share of consecutive entries whose page numbers do not go down (per numbering system). A contents page rises; an index or a table of figures by topic does not have to. Wu, Mitra and Giles (ICDAR 2013) use the same monotonicity to end a contents page"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[toc.match_ned_max]
+value = 0.3
+source = "provisional"
+evidence = "The normalised edit distance, after folding and after dropping the number a title is printed with, within which a contents entry names a heading. Wu, Mitra and Giles (ICDAR 2013) match at 0.2; the reading set's OCR layers need the extra tenth"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[toc.promote_max_lines]
+value = 3
+source = "provisional"
+evidence = "A block on the page a contents entry names, reading as its title, is promoted to a heading only if it is at most this many lines: a chapter title, not a paragraph that mentions it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[toc.indent_step_pt]
+value = 4.0
+source = "provisional"
+evidence = "Contents titles whose starts differ by less than this are at one level. A scan's text layer places one indent within a couple of points; a designer's level step is at least one em"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[toc.levels_min_linked_share]
+value = 0.5
+source = "provisional"
+evidence = "The share of a contents page's numbered entries that must have been linked to headings before the contents page, rather than type size, decides the book's heading levels. HiPS (R2 §B.5): a contents-based parse is the most accurate level source when the contents is complete; half linked is the point past which it is more complete than the size ranking it replaces"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [toc.min_leader_chars]
 value = 2
 source = "provisional"
@@ -1459,6 +1592,76 @@ review_by = "2027-06-30"
 value = 1.2
 source = "provisional"
 evidence = "PIPELINE §8.2: 'vertical whitespace above greater than the body leading'. Leading is body size x ~1.2 in every book measured, so one leading is 1.2 em; a block at the top of its column satisfies the condition trivially and is treated as satisfying it"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.opener_sink_em]
+value = 3.0
+source = "provisional"
+evidence = "A chapter opener is the first text on its page and starts well below where the book's pages usually start (the chapter 'sink', a quarter to a third of the page in trade books), or sits under this much air mid-page. Three body sizes is two blank lines and a half: more than any paragraph gap or scene break, less than the smallest sink measured on the 2026-09-26 reading set (59 pt at an 11 pt body). docs/DECISIONS_LOG.md 2026-09-26"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.opener_min_chain]
+value = 3
+source = "provisional"
+evidence = "How many numbered openers counting up by one make a chapter sequence. Two consecutive numbers are an accident a numbered list or two dates produce; three in order, each on a later page, sunk or under air, are not. Chapter Captor (EMNLP 2020) and Calibre's structure detection both refuse single hits for the same reason"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.opener_min_page_gap]
+value = 2
+source = "provisional"
+evidence = "The median number of pages between consecutive members of an opener chain. A folio the furniture pass missed counts up by one on every page (gap 1); chapters of a trade book run to several pages. Two is the smallest median chapter length that is not a folio"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.opener_max_lines]
+value = 2
+source = "binary"
+evidence = "A chapter number, with a word beside it, fits on one line; a second allows a wrapped 'Chapter' line. A block of three lines is a paragraph"
+owner = "maintainer"
+review_by = "2099-01-01"
+
+[headings.opener_max_tokens]
+value = 4
+source = "provisional"
+evidence = "The number and at most three words beside it ('Chapter 7', 'BÖLÜM 3', 'Book Two, 4'). More than that is a sentence that happens to end in a number"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.legible_min_chars]
+value = 2
+source = "binary"
+evidence = "A heading has at least two letters or digits, or is a bare number. One mark set large is a rule or a smudge a scan's text layer read, not a title"
+owner = "maintainer"
+review_by = "2099-01-01"
+
+[headings.legible_min_share]
+value = 0.6
+source = "provisional"
+evidence = "The share of a heading's visible characters that must be letters or digits. Titles carry punctuation ('Chapter 3: The Road', 'Cambridge, 1935') well under 40 %; the garbage an OCR layer makes of a line drawing ('/ l |', '] fl', 'j l | j l') is mostly marks. 2026-09-26 reading set"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.size_rank_max_level]
+value = 3
+source = "provisional"
+evidence = "The deepest level size rank assigns. Chapter, section, subsection is what a book's type sizes reliably mean; on the 2026-09-26 reading set every level past three came from a scan's noisy sizes or from display type on a title page, and produced navigation nobody could use. Outline and contents-page levels are not capped"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.level_size_tolerance]
+value = 0.10
+source = "provisional"
+evidence = "Heading clusters whose sizes are within this fraction of the tier's largest are one level. A designer's level step is 15-25 % (headings.* in PIPELINE §8.2, and layout.block.size_barrier_ratio); an OCR text layer reports one heading style across a 5-8 % spread (2026-09-26 reading set: 14.2/14.6/15.1 pt for one book's chapter titles)"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[headings.join_gap_em]
+value = 1.2
+source = "provisional"
+evidence = "The most air, in heading sizes, between two heading blocks that are one title printed over several lines. A title's own leading leaves a fraction of an em; a heading followed by a subheading is set apart by at least one line"
 owner = "maintainer"
 review_by = "2027-06-30"
 

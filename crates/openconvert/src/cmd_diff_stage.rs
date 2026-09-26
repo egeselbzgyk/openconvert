@@ -257,12 +257,15 @@ fn structure_diff(
     let input = openconvert::input::page_inputs(pdf).map_err(|error| error.to_string())?;
     let mut totals = oc_core::ledger_check::ReasonTotals::default();
 
-    let text = text_stage(&input, &mut totals, t).map_err(|error| format!("text: {error}"))?;
-    let language = LangTag::UND;
-    let furniture = furniture_stage(&text, language.clone(), &mut totals, t)
+    let mut text = text_stage(&input, &mut totals, t).map_err(|error| format!("text: {error}"))?;
+    let language = openconvert::pipeline::detect_language(&text, LangTag::UND, t);
+    let furniture = furniture_stage(&mut text, language.clone(), &mut totals, t)
         .map_err(|error| format!("furniture: {error}"))?;
-    let layout = layout_stage(&text, &furniture, &mut totals, t)
+    let mut layout = layout_stage(&text, &furniture, &mut totals, t)
         .map_err(|error| format!("layout: {error}"))?;
+    let paragraphs =
+        openconvert::pipeline::paragraphs_stage(&mut layout, language.clone(), &mut totals, t)
+            .map_err(|error| format!("paragraphs: {error}"))?;
 
     let images = document_images(&text);
     let hashes = openconvert::convert::image_hashes(
@@ -276,7 +279,7 @@ fn structure_diff(
         .flatten()
         .collect();
     let doc_info = pdf.doc_info();
-    let blocks = block_views(&text, &layout);
+    let blocks = block_views(&text, &layout, &paragraphs.plan);
 
     let stage_input = StructureInput {
         blocks: blocks.clone(),

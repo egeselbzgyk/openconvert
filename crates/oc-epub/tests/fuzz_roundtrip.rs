@@ -221,6 +221,7 @@ fn document() -> impl Strategy<Value = Document> {
             warnings: Vec::new(),
             classification: DocClass::BookProse,
             presets: PresetName::Novel,
+            cover: None,
         })
 }
 

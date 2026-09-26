@@ -320,6 +320,9 @@ pub struct Prepared {
     pub text: crate::pipeline::TextStage,
     pub furniture: crate::pipeline::FurnitureStage,
     pub layout: crate::pipeline::LayoutStage,
+    /// `paragraphs`: where every paragraph of running text starts and which block carries on
+    /// which, and the hyphens it joined, already gone from `layout`'s pages.
+    pub paragraphs: crate::pipeline::ParagraphStage,
     pub images: Vec<oc_model::extract::ImageRef>,
     /// Per document-wide image, its page-local number — what `image_bytes` decodes it by.
     pub slots: Vec<oc_model::extract::ImageId>,
@@ -375,17 +378,24 @@ fn prepare_observed(
             .total(),
     );
 
-    let text = timings.observed(observe, "text", || text_stage(&input, &mut totals, t))?;
-    // Language detection is Phase 2's and is not wired into the stage driver yet, so the
-    // configured tag is the one that is used; `LangTag::UND` is what a book gets when nobody
-    // said. Guessing English would tell a screen reader to pronounce a German book in English.
-    let language = options.language.clone().unwrap_or(LangTag::UND);
+    let mut text = timings.observed(observe, "text", || text_stage(&input, &mut totals, t))?;
+    // The configured tag when the job forced one; otherwise the language of the book's own
+    // running text, and `und` when it has none to detect — never a guess at English, which would
+    // tell a screen reader to pronounce a German book in English. Detected here, before
+    // `furniture`, because `paragraphs` resolves hyphens by it.
+    let language = options
+        .language
+        .clone()
+        .unwrap_or_else(|| crate::pipeline::detect_language(&text, LangTag::UND, t));
 
     let furniture = timings.observed(observe, "furniture", || {
-        furniture_stage(&text, language.clone(), &mut totals, t)
+        furniture_stage(&mut text, language.clone(), &mut totals, t)
     })?;
-    let layout = timings.observed(observe, "layout", || {
+    let mut layout = timings.observed(observe, "layout", || {
         layout_stage(&text, &furniture, &mut totals, t)
+    })?;
+    let paragraphs = timings.observed(observe, "paragraphs", || {
+        crate::pipeline::paragraphs_stage(&mut layout, language.clone(), &mut totals, t)
     })?;
 
     let images = document_images(&text);
@@ -402,7 +412,7 @@ fn prepare_observed(
     let doc_info = pdf.doc_info();
 
     let structure_input = StructureInput {
-        blocks: block_views(&text, &layout),
+        blocks: block_views(&text, &layout, &paragraphs.plan),
         runs: body_runs(&text, &furniture),
         fonts: text.fonts.clone(),
         images: images.clone(),
@@ -431,6 +441,7 @@ fn prepare_observed(
         text,
         furniture,
         layout,
+        paragraphs,
         images,
         slots,
         language,
@@ -456,6 +467,9 @@ pub struct Upstream {
     /// Per document-wide image, its page-local number — what `image_bytes` decodes it by.
     pub slots: Vec<oc_model::extract::ImageId>,
     pub extracted_images: u32,
+    /// Images `structure` dropped as ornaments: extracted, and deliberately not carried, so
+    /// the container's image parity is counted without them.
+    pub ornaments_dropped: u32,
     pub language: LangTag,
     pub producer_family: oc_pdf::producer::ProducerFamily,
     /// Every choice the deterministic evidence could not settle (PHASE 10 detail 1).
@@ -502,6 +516,7 @@ fn settle(
         text,
         furniture,
         layout,
+        paragraphs,
         images,
         slots,
         language,
@@ -592,6 +607,7 @@ fn settle(
     ledger.push_stage(&text.delta, text.check.clone());
     ledger.push_stage(&furniture.delta, furniture.check.clone());
     ledger.push_stage(&layout.delta, layout.check.clone());
+    ledger.push_stage(&paragraphs.delta, paragraphs.check.clone());
     ledger.push_stage(&structure.delta, structure.check.clone());
 
     Ok(Settled {
@@ -605,6 +621,8 @@ fn settle(
             images,
             slots,
             extracted_images,
+            ornaments_dropped: u32::try_from(structure.output.images.dropped.len())
+                .unwrap_or(u32::MAX),
             language,
             producer_family,
             escalations: escalations.records(),
@@ -634,7 +652,7 @@ fn downstream(
     observe: Observe<'_>,
 ) -> Result<Conversion, ConvertError> {
     let (overrides, refused) = crate::overrides::load(options.overrides.as_deref(), source_sha256);
-    let document = timings.observed(observe, "document", || {
+    let mut document = timings.observed(observe, "document", || {
         document_stage(
             DocumentInput {
                 source_sha256,
@@ -658,7 +676,21 @@ fn downstream(
     // The images are decoded for `epub`, and reported as its work: the first thing a user sees of
     // "Building" on an illustrated book is this loop.
     observe.check()?;
-    let sources = decode_images(pdf, &upstream.images, &upstream.slots, observe)?;
+    let mut sources = decode_images(pdf, &upstream.images, &upstream.slots, observe)?;
+    // The cover: the first page, rendered whole, as the picture a library shows the book by.
+    // Numbered one past the last extracted image, so it cannot be mistaken for one of them.
+    let reserved = document
+        .document
+        .tables
+        .iter()
+        .filter_map(|table| table.fallback_image)
+        .map(|image| image.0.saturating_add(1))
+        .max()
+        .unwrap_or(0);
+    if let Some(cover) = render_cover(pdf, &sources, reserved, t) {
+        document.document.cover = Some(cover.id);
+        sources.push(cover);
+    }
 
     // `epub`, `validate` and `repair` are one call, because the loop owns the emission: each of its
     // iterations is one regeneration plus one validation pass, and a caller that emitted once for
@@ -671,7 +703,11 @@ fn downstream(
             &sources,
             &options.epub,
             oc_validate::Expectations {
-                images: Some(upstream.extracted_images),
+                images: Some(
+                    upstream
+                        .extracted_images
+                        .saturating_sub(upstream.ornaments_dropped),
+                ),
             },
             pdf.page_count(),
             &mut totals,
@@ -829,6 +865,36 @@ fn hash_images(
 
 /// Every image, decoded to RGBA for the encoder, with a cancel check between images. `slots` is
 /// [`image_slots`].
+/// The first page, rendered in colour at the size the book's images are capped at, as a
+/// source image numbered after every extracted one. `None` when the page will not render,
+/// which costs the book its cover and nothing else.
+fn render_cover(
+    pdf: &dyn PdfDoc,
+    sources: &[SourceImage],
+    reserved: u32,
+    t: &Thresholds,
+) -> Option<SourceImage> {
+    if pdf.page_count() == 0 {
+        return None;
+    }
+    let longest = u32::try_from(t.images.max_longest_side_px.max(1)).unwrap_or(u32::MAX);
+    let raster = pdf.render_page_rgba(0, longest).ok()?;
+    let next = sources
+        .iter()
+        .map(|source| source.id.0.saturating_add(1))
+        .max()
+        .unwrap_or(0)
+        // Past every id a table's fallback image was given, too: those are images `epub` looks
+        // up by id, and the cover must never answer for one.
+        .max(reserved);
+    Some(SourceImage {
+        id: oc_model::extract::ImageId(next),
+        width: raster.width(),
+        height: raster.height(),
+        rgba: raster.into_raw(),
+    })
+}
+
 fn decode_images(
     pdf: &dyn PdfDoc,
     images: &[oc_model::extract::ImageRef],

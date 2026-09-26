@@ -69,11 +69,17 @@ fn opf_has_all_required_metadata() {
         common::FIXED_MODIFIED
     )));
 
-    // Computed, not asserted: `f09` has headings, so it claims structural navigation; it has
-    // no images, so it claims neither a visual access mode nor alternative text.
+    // Computed, not asserted: `f09` has headings, so it claims structural navigation; its only
+    // image is the cover — a rendering of its first page, with the title as its alt text — so
+    // it claims a visual access mode and alternative text, and marks the cover as the cover.
     assert!(opf.contains("<meta property=\"schema:accessMode\">textual</meta>"));
     assert!(opf.contains("structuralNavigation"));
-    assert!(!opf.contains("alternativeText"), "f09 has no images");
+    assert!(
+        opf.contains("alternativeText"),
+        "the cover carries alt text"
+    );
+    assert!(opf.contains("properties=\"cover-image\""), "{opf}");
+    assert!(opf.contains("<meta name=\"cover\""), "{opf}");
     assert!(opf.contains("<meta property=\"schema:accessibilityHazard\">none</meta>"));
 
     // Never auto-claim conformance (PIPELINE §9.6): `dcterms:conformsTo` *is* the WCAG claim

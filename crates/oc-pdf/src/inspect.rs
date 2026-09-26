@@ -150,6 +150,11 @@ pub trait PdfDoc {
         region: oc_model::geom::Rect,
         dpi: u32,
     ) -> Result<crate::render::RenderedRegion, PdfError>;
+
+    /// One whole page, rendered in colour at the size that makes its longer side `longest_px`
+    /// pixels — the book's cover, when it is the first page. Checked against
+    /// `limits.max_image_pixels` before anything is rendered, as a region is.
+    fn render_page_rgba(&self, index: u32, longest_px: u32) -> Result<image::RgbaImage, PdfError>;
 }
 
 /// The document-level metadata `inspect` reports.

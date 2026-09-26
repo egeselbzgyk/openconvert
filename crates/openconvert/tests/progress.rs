@@ -87,6 +87,7 @@ fn a_conversion_reports_the_stages_it_runs_by_their_real_names() {
             "text",
             "furniture",
             "layout",
+            "paragraphs",
             "structure",
             "document",
             "epub",

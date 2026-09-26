@@ -261,6 +261,38 @@ impl PdfDoc for PdfiumDoc {
         crate::render::crop(&gray, index, region, dpi)
     }
 
+    fn render_page_rgba(&self, index: u32, longest_px: u32) -> Result<image::RgbaImage, PdfError> {
+        let page = self.page(index)?;
+        let longest_pt = page.width().value.max(page.height().value).max(1.0);
+        let scale = longest_px.max(1) as f32 / longest_pt;
+        let width = (page.width().value * scale).ceil().max(1.0) as u32;
+        let height = (page.height().value * scale).ceil().max(1.0) as u32;
+        check_image_before_decode(
+            &ImageDict {
+                width: u64::from(width),
+                height: u64::from(height),
+            },
+            &self.limits,
+            index,
+        )?;
+        let config = pdfium_render::prelude::PdfRenderConfig::new()
+            .scale_page_by_factor(scale)
+            .render_form_data(true);
+        let bitmap = page
+            .render_with_config(&config)
+            .map_err(|source| PdfError::Page {
+                index,
+                message: format!("the page could not be rendered: {source}"),
+            })?;
+        Ok(bitmap
+            .as_image()
+            .map_err(|source| PdfError::Page {
+                index,
+                message: format!("the rendered page could not be read: {source}"),
+            })?
+            .to_rgba8())
+    }
+
     fn page_image_stats(&self, index: u32) -> Result<PageImageStats, PdfError> {
         let page = self.page(index)?;
         let page_area = page.width().value * page.height().value;

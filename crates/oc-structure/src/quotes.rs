@@ -330,6 +330,7 @@ mod tests {
             },
             text: "word word word".to_owned(),
             runs: Vec::new(),
+            glue: false,
         }
     }
 
@@ -358,6 +359,8 @@ mod tests {
             column_width_pt: 400.0,
             space_above_pt: 0.0,
             page_height_pt: 792.0,
+            para_starts: Vec::new(),
+            continues: None,
         }
     }
 

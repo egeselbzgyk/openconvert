@@ -22,7 +22,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use oc_model::doc::{Content, Note, Section, SectionRole, Span, Table};
 use oc_model::document::Document;
 use oc_model::extract::ImageId;
-use oc_model::ids::{NoteId, PageBreakId};
+use oc_model::ids::{BlockId, NoteId, PageBreakId};
 
 use crate::xhtml::{
     self, flow, frag, sectioning, CssClass, El, EpubType, Flow, FlowContext, FlowFrag, ImgRef,
@@ -99,6 +99,7 @@ pub fn emit(
         used_images: Vec::new(),
         emitted_notes: BTreeSet::new(),
         next_section: 0,
+        heading_anchors: heading_anchors(document),
     };
 
     // Which notes are referenced from the flow, so that the ones that are not can be emitted
@@ -151,6 +152,8 @@ struct Ctx<'a> {
     used_images: Vec<ImageId>,
     emitted_notes: BTreeSet<NoteId>,
     next_section: u32,
+    /// Per heading, the id its element carries — what an internal link points at.
+    heading_anchors: BTreeMap<BlockId, String>,
 }
 
 impl<'a> Ctx<'a> {
@@ -164,6 +167,7 @@ impl<'a> Ctx<'a> {
             used_images: Vec::new(),
             emitted_notes: BTreeSet::new(),
             next_section: u32::MAX,
+            heading_anchors: BTreeMap::new(),
         }
     }
 
@@ -267,7 +271,7 @@ fn build_spine(
         kind: epub_type_of(section.role),
         nav: NavPlan {
             title: if title.is_empty() {
-                role_title(section.role).to_owned()
+                untitled(section, ctx.document)
             } else {
                 title.clone()
             },
@@ -551,7 +555,7 @@ fn emit_table<C: FlowContext>(el: El<C>, id: oc_model::ids::TableId, ctx: &mut C
                 .map(|spans| oc_model::doc::spans_text(spans))
                 .unwrap_or_default();
             let alt = alt_text(&label, None, "Table", id.0);
-            let Some(image) = ImgRef::new(href, alt) else {
+            let Some(image) = ImgRef::new(from_text_dir(&href), alt) else {
                 return el;
             };
             if !ctx.used_images.contains(&image_id) {
@@ -687,51 +691,112 @@ fn one_span(el: El<xhtml::Phrasing>, span: &Span, ctx: &mut Ctx<'_>) -> El<xhtml
             let marker = span.text.clone();
             el.noteref(&anchor, &marker)
         }
-        None => styled(el, span, |t, text| t.text(text)),
+        None => match span.link.as_ref().and_then(|link| match link {
+            oc_model::doc::LinkTarget::Internal(block) => ctx.heading_anchors.get(block),
+            oc_model::doc::LinkTarget::External(_) => None,
+        }) {
+            // A link to a heading: written with a placeholder href, because which file the
+            // heading lands in is only known once the book is split into files; `pack`
+            // resolves it.
+            Some(anchor) => {
+                let href = format!("{LINK_PLACEHOLDER}{anchor}");
+                el.link(&href, |a| styled(a, span, |t, text| t.text(text)))
+            }
+            None => styled(el, span, |t, text| t.text(text)),
+        },
+    }
+}
+
+/// The href prefix an internal link is written with until `pack` knows its file.
+const LINK_PLACEHOLDER: &str = "oc-link:";
+
+/// Per heading, the id `build_spine` gives its element: `sec{n}h`, `n` numbering the sections
+/// in the pre-order `build_spine` takes them in, which is `Section::walk`'s.
+fn heading_anchors(document: &Document) -> BTreeMap<BlockId, String> {
+    document
+        .walk()
+        .iter()
+        .enumerate()
+        .filter_map(|(number, section)| {
+            let heading = section.heading.as_ref()?;
+            Some((heading.id, format!("sec{number}h")))
+        })
+        .collect()
+}
+
+/// Rewrite every placeholder link in the files to the file and anchor it points at. A link to
+/// an anchor no file carries is left pointing at the file's own top, which is a dead end but
+/// never a broken reference.
+fn resolve_links(files: &mut [XhtmlFile], anchors: &BTreeMap<String, String>) {
+    let needle = format!("href=\"{LINK_PLACEHOLDER}");
+    for file in files.iter_mut() {
+        if !file.markup.contains(&needle) {
+            continue;
+        }
+        let mut out = String::with_capacity(file.markup.len());
+        let mut rest = file.markup.as_str();
+        while let Some(at) = rest.find(&needle) {
+            out.push_str(&rest[..at]);
+            let after = &rest[at + needle.len()..];
+            let end = after.find('"').unwrap_or(after.len());
+            let anchor = &after[..end];
+            let href = anchors
+                .get(anchor)
+                .map(|path| {
+                    let name = path.rsplit('/').next().unwrap_or(path);
+                    format!("{name}#{anchor}")
+                })
+                .unwrap_or_else(|| format!("#{anchor}"));
+            out.push_str("href=\"");
+            out.push_str(&href);
+            rest = &after[end..];
+        }
+        out.push_str(rest);
+        file.markup = out;
     }
 }
 
 /// Wrap one span's text in the elements its style calls for, innermost last.
-fn styled(
-    el: El<xhtml::Phrasing>,
+fn styled<C: xhtml::PhrasingContext>(
+    el: El<C>,
     span: &Span,
-    write: impl FnOnce(El<xhtml::Phrasing>, &str) -> El<xhtml::Phrasing>,
-) -> El<xhtml::Phrasing> {
+    write: impl FnOnce(El<C>, &str) -> El<C>,
+) -> El<C> {
     let text = span.text.clone();
     let style = span.style;
-    let inner = move |t: El<xhtml::Phrasing>| write(t, &text);
+    let inner = move |t: El<C>| write(t, &text);
 
     // Nested in a fixed order so that two spans with the same style always serialise to the
     // same bytes — which is half of what makes two builds of one book byte-identical.
-    let inner = move |t: El<xhtml::Phrasing>| {
+    let inner = move |t: El<C>| {
         if style.smallcaps {
             t.span_class(CssClass::SmallCaps, inner)
         } else {
             inner(t)
         }
     };
-    let inner = move |t: El<xhtml::Phrasing>| {
+    let inner = move |t: El<C>| {
         if style.monospace {
             t.code(inner)
         } else {
             inner(t)
         }
     };
-    let inner = move |t: El<xhtml::Phrasing>| {
+    let inner = move |t: El<C>| {
         if style.subscript {
             t.subscript(inner)
         } else {
             inner(t)
         }
     };
-    let inner = move |t: El<xhtml::Phrasing>| {
+    let inner = move |t: El<C>| {
         if style.superscript {
             t.superscript(inner)
         } else {
             inner(t)
         }
     };
-    let inner = move |t: El<xhtml::Phrasing>| {
+    let inner = move |t: El<C>| {
         if style.italic {
             t.em(inner)
         } else {
@@ -840,6 +905,7 @@ fn pack(
         .collect();
     let page_list = page_targets(document, &anchors);
     let landmarks = landmarks(document, &nav_plans, &anchors, &files);
+    resolve_links(&mut files, &anchors);
 
     Ok(Emitted {
         files,
@@ -922,6 +988,55 @@ fn landmarks(
         .collect()
 }
 
+/// Where the cover page lives inside the container.
+pub const COVER_PATH: &str = "text/cover.xhtml";
+
+/// Put the cover page first in the book: its own content document, first in the spine, and
+/// the first landmark.
+///
+/// A picture and nothing else. Its alt text is the book's title, because that is what a cover
+/// says; the title is metadata, so the page adds nothing to `C`.
+pub fn prepend_cover(
+    emitted: &mut Emitted,
+    document: &Document,
+    title: &str,
+    image_path: &str,
+) -> Result<(), xhtml::IllegalChar> {
+    let alt = if title.trim().is_empty() {
+        "Cover".to_owned()
+    } else {
+        title.to_owned()
+    };
+    let Some(image) = crate::xhtml::ImgRef::new(from_text_dir(image_path), alt.clone()) else {
+        return Ok(());
+    };
+    let markup = xhtml::content_document(&alt, &document.language, "../style.css", |body| {
+        body.section(
+            Some(EpubType::Cover),
+            "cover",
+            &SectionLabel::None,
+            |section| section.figure(&image, None),
+        )
+    })?;
+    emitted.files.insert(
+        0,
+        XhtmlFile {
+            path: COVER_PATH.to_owned(),
+            title: alt,
+            markup,
+        },
+    );
+    emitted.landmarks.insert(
+        0,
+        Landmark {
+            kind: "cover",
+            title: "Cover".to_owned(),
+            href: COVER_PATH.to_owned(),
+        },
+    );
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Names and labels
 // ---------------------------------------------------------------------------
@@ -980,6 +1095,42 @@ fn epub_type_of(role: SectionRole) -> Option<EpubType> {
         SectionRole::BackMatter(_) => Some(EpubType::Backmatter),
         SectionRole::Section => None,
     }
+}
+
+/// What a section with no heading is called in the nav: its own first words, in the book's
+/// own language, the way a reading system names an untitled chapter — or, for the pages before
+/// the first chapter, the book's title. The role's name is the last resort, for a section
+/// with no text at all. Nav text is outside `C`.
+fn untitled(section: &Section, document: &Document) -> String {
+    const WORDS: usize = 6;
+    if matches!(section.role, SectionRole::FrontMatter(_)) {
+        if let Some(title) = document
+            .meta
+            .title
+            .as_ref()
+            .filter(|title| !title.trim().is_empty())
+        {
+            return title.trim().to_owned();
+        }
+    }
+    let first = section.content.iter().find_map(|item| match item {
+        Content::Paragraph(para) if !para.text.trim().is_empty() => Some(para.text.clone()),
+        _ => None,
+    });
+    if let Some(text) = first {
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let mut label = words
+            .iter()
+            .take(WORDS)
+            .copied()
+            .collect::<Vec<_>>()
+            .join(" ");
+        if words.len() > WORDS {
+            label.push('\u{2026}');
+        }
+        return label;
+    }
+    role_title(section.role).to_owned()
 }
 
 /// What a section with no heading is called in the nav.

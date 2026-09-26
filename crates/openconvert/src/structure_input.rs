@@ -6,6 +6,7 @@
 //! same three questions, and answering them once at the boundary is both cheaper and far
 //! easier to check than answering them nine times.
 
+use oc_layout::paragraphs::ParagraphPlan;
 use oc_model::extract::{ImageId, ImageRef};
 use oc_structure::view::{BlockView, LineView};
 
@@ -16,7 +17,11 @@ use crate::pipeline::{text_of, LayoutStage, TextStage};
 /// Document order, not page order: `structure` walks the book. `layout` numbers reading
 /// order within a page, so the document order is the pages in order and each page's blocks in
 /// their own reading order — which is what the flattening below produces by construction.
-pub fn block_views(text: &TextStage, layout: &LayoutStage) -> Vec<BlockView> {
+///
+/// `paragraphs`' decisions ride on the views: where each block's paragraphs start, which block
+/// carries on which, and which line breaks were joined. `layout`'s pages already hold the text
+/// as `paragraphs` left it, so a line's text here has lost exactly the hyphens it joined.
+pub fn block_views(text: &TextStage, layout: &LayoutStage, plan: &ParagraphPlan) -> Vec<BlockView> {
     let mut views = Vec::new();
     let mut order = 0u32;
 
@@ -45,7 +50,8 @@ pub fn block_views(text: &TextStage, layout: &LayoutStage) -> Vec<BlockView> {
             let lines: Vec<LineView> = block
                 .lines
                 .iter()
-                .map(|line| LineView {
+                .enumerate()
+                .map(|(position, line)| LineView {
                     line: line.clone(),
                     text: text_of(page, line).to_owned(),
                     runs: text
@@ -61,7 +67,9 @@ pub fn block_views(text: &TextStage, layout: &LayoutStage) -> Vec<BlockView> {
                                 .collect()
                         })
                         .unwrap_or_default(),
+                    glue: plan.glued_at(block.id, position),
                 })
+                .map(without_joined_hyphen)
                 .collect();
 
             views.push(BlockView {
@@ -71,22 +79,43 @@ pub fn block_views(text: &TextStage, layout: &LayoutStage) -> Vec<BlockView> {
                 bbox: block.bbox,
                 column: block.column,
                 kind_hint: block.kind_hint,
-                text: lines
-                    .iter()
-                    .map(|line| line.text.as_str())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-                    .trim()
-                    .to_owned(),
+                text: oc_structure::build::join_lines(lines.iter()),
                 lines,
                 column_width_pt,
                 space_above_pt,
                 page_height_pt: page.height_pt,
+                para_starts: plan.starts.get(&block.id).cloned().unwrap_or_default(),
+                continues: plan.continues.get(&block.id).copied(),
             });
             order = order.saturating_add(1);
         }
     }
     views
+}
+
+/// A line whose broken word `paragraphs` joined has lost its hyphen from its text; its last run
+/// loses it too, so that every structure built from the runs — a table's cells, a note's body —
+/// reads the same text the line does.
+fn without_joined_hyphen(mut line: LineView) -> LineView {
+    if !line.glue {
+        return line;
+    }
+    if let Some(run) = line
+        .runs
+        .iter_mut()
+        .rev()
+        .find(|run| !run.text.trim().is_empty())
+    {
+        let trimmed = run.text.trim_end();
+        if let Some(hyphen) = trimmed
+            .chars()
+            .next_back()
+            .filter(|ch| oc_text::dehyphen::LINE_BREAK_HYPHENS.contains(ch))
+        {
+            run.text = trimmed[..trimmed.len() - hyphen.len_utf8()].to_owned();
+        }
+    }
+    line
 }
 
 /// Every image in the document, in page order, with ids that are unique across the book.

@@ -43,8 +43,8 @@ expression: value
   "conservation": {
     "c_raw_chars": 1458,
     "c0_chars": 1458,
-    "epub_chars": 1458,
-    "retention": 1.0,
+    "epub_chars": 1457,
+    "retention": 0.9993141,
     "per_stage": [
       {
         "stage": "ingest",
@@ -75,42 +75,60 @@ expression: value
         "retention": 1.0
       },
       {
+        "stage": "paragraphs",
+        "kind": "budgeted",
+        "removed_chars": 1,
+        "added_chars": 0,
+        "retention": 0.9993141
+      },
+      {
         "stage": "structure",
         "kind": "conserving",
         "removed_chars": 0,
         "added_chars": 0,
-        "retention": 1.0
+        "retention": 0.9993141
       },
       {
         "stage": "document",
         "kind": "conserving",
         "removed_chars": 0,
         "added_chars": 0,
-        "retention": 1.0
+        "retention": 0.9993141
       },
       {
         "stage": "epub",
         "kind": "conserving",
         "removed_chars": 0,
         "added_chars": 0,
-        "retention": 1.0
+        "retention": 0.9993141
       },
       {
         "stage": "validate",
         "kind": "conserving",
         "removed_chars": 0,
         "added_chars": 0,
-        "retention": 1.0
+        "retention": 0.9993141
       },
       {
         "stage": "repair",
         "kind": "conserving",
         "removed_chars": 0,
         "added_chars": 0,
-        "retention": 1.0
+        "retention": 0.9993141
       }
     ],
-    "per_reason": [],
+    "per_reason": [
+      {
+        "reason": "dehyphenate",
+        "removed_chars": 1,
+        "added_chars": 0,
+        "net_removed": 1,
+        "budget_group": "dehyphenate",
+        "budget": 0.03,
+        "measured": 0.0006858710562414266,
+        "headroom": 0.029314128943758573
+      }
+    ],
     "i7": {
       "holds": true,
       "missing_chars": 0,
@@ -149,10 +167,10 @@ expression: value
       "i7": {
         "missing": {},
         "extra": {},
-        "epub_chars": 1458,
+        "epub_chars": 1457,
         "c0_chars": 1458
       },
-      "retention": 1.0,
+      "retention": 0.9993141,
       "image_parity": true,
       "note_bijection": true,
       "hrefs_resolve": true,
@@ -163,7 +181,7 @@ expression: value
         "h1_count_plausible": null
       },
       "duplicates": {
-        "blocks": 10,
+        "blocks": 12,
         "duplicates": 0,
         "worst": []
       },
@@ -171,11 +189,11 @@ expression: value
         "region": "document",
         "dup_line_frac": 0.0,
         "dup_para_frac": 0.0,
-        "top_2gram": 0.030864198,
-        "top_3gram": 0.024691358,
+        "top_2gram": 0.030885382,
+        "top_3gram": 0.024708305,
         "top_4gram": 0.0,
-        "non_alpha_word_ratio": 0.0064102565,
-        "mean_word_len": 4.673077,
+        "non_alpha_word_ratio": 0.006430868,
+        "mean_word_len": 4.6848874,
         "replacement_share": 0.0,
         "dict_hit_rate": null
       },
@@ -256,5 +274,5 @@ expression: value
       "input_hash": "adc3de8ec21ab7d5d16b72e02fc20ac7bb4deb29d0b34a22a31535e227bfae2b"
     }
   ],
-  "thresholds": "[230 entries, redacted]"
+  "thresholds": "[259 entries, redacted]"
 }

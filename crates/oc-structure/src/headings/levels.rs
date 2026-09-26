@@ -39,6 +39,9 @@ pub enum LevelSource {
     SizeRank,
     /// The level a numbering pattern gave, overriding the source that proposed it.
     Numbering,
+    /// A chapter opener: a numbered block found by its place on the page and its sequence
+    /// through the book, whatever face it is set in (`headings::openers`).
+    Sequence,
 }
 
 /// One block, decided to be a heading.
@@ -112,9 +115,14 @@ pub fn assign_levels(
             } else {
                 let rank = ranks
                     .iter()
-                    .position(|cluster| *cluster == candidate.cluster)?;
+                    .find(|(cluster, _)| *cluster == candidate.cluster)
+                    .map(|(_, tier)| *tier)?;
+                // Size rank tells a chapter from a section and a section from a subsection; past
+                // that it is reading type sizes a designer did not mean as levels, and a
+                // navigation six deep is one nobody can use.
+                let deepest = u8::try_from(t.headings.size_rank_max_level.clamp(1, 6)).unwrap_or(3);
                 (
-                    u8::try_from(rank + 1).unwrap_or(1).clamp(1, 6),
+                    u8::try_from(rank + 1).unwrap_or(1).clamp(1, deepest),
                     LevelSource::SizeRank,
                 )
             };
@@ -179,8 +187,37 @@ struct Bound {
 }
 
 /// The candidate clusters in size-rank order — the h1…h6 ladder.
-fn cluster_ranks(inventory: &StyleInventory, t: &Thresholds) -> Vec<ClusterId> {
-    inventory.candidates(t)
+/// Each candidate cluster's tier: clusters whose sizes differ by less than
+/// `headings.level_size_tolerance` of the larger are one level, however many distinct sizes a
+/// noisy text layer reported for it. A scan's text layer sets one chapter title at 14.2, the
+/// next at 14.6 and the third at 15.1; ranked one by one they were three levels of a tree that
+/// has one. Clusters are taken in rank order (largest first, bold before regular at a size), so
+/// the tier numbers are the levels, top first.
+fn cluster_ranks(inventory: &StyleInventory, t: &Thresholds) -> Vec<(ClusterId, usize)> {
+    let tolerance = t.headings.level_size_tolerance as f32;
+    let mut tiers: Vec<(ClusterId, usize)> = Vec::new();
+    let mut tier = 0usize;
+    let mut top_of_tier: Option<(f32, bool)> = None;
+    for id in inventory.candidates(t) {
+        let Some(cluster) = inventory.clusters.iter().find(|cluster| cluster.id == id) else {
+            continue;
+        };
+        let bold = cluster.is_bold(t);
+        if let Some((size, tier_bold)) = top_of_tier {
+            let apart = size > 0.0 && (size - cluster.size_pt) / size > tolerance;
+            // At one size, bold over regular is a level step; within the tolerance of a size it
+            // is the same heading set by a scan that could not tell.
+            let weight_step = tier_bold && !bold && (size - cluster.size_pt).abs() < f32::EPSILON;
+            if apart || weight_step {
+                tier += 1;
+                top_of_tier = Some((cluster.size_pt, bold));
+            }
+        } else {
+            top_of_tier = Some((cluster.size_pt, bold));
+        }
+        tiers.push((id, tier));
+    }
+    tiers
 }
 
 /// Outline entries as `(title, level)`, with the 0-based depth turned into a 1-based level.
@@ -246,6 +283,61 @@ fn bind(
 /// Not a cosmetic repair. A skipped level is invalid navigation in every reading system, it
 /// is one of the things PIPELINE §8's end-of-stage validation checks for, and the repair is
 /// free because the *order* of the levels carries all the information the numbers do.
+/// Add the chapter openers the other sources did not already make headings.
+///
+/// An opener is a chapter: level one, unless the book's own headings already have a level-one
+/// tier above it — a book in parts — in which case it sits one below the top. The tree is then
+/// repaired as every other source's is.
+pub fn with_openers(
+    mut assignments: Vec<HeadingAssignment>,
+    openers: &[crate::headings::openers::Opener],
+    cluster_of: impl Fn(BlockId) -> ClusterId,
+) -> Vec<HeadingAssignment> {
+    if openers.is_empty() {
+        return assignments;
+    }
+    let known: std::collections::BTreeSet<BlockId> = assignments
+        .iter()
+        .map(|assignment| assignment.block)
+        .collect();
+    // A book whose size-ranked headings are fewer than its numbered chapters has used its top
+    // tier for something above them only if that tier sits *between* the openers, like parts.
+    let first = openers.first().map_or(0, |opener| opener.order);
+    let parts = assignments
+        .iter()
+        .filter(|assignment| assignment.level == 1 && assignment.order > first)
+        .count();
+    let level = if parts > 0 && parts < openers.len() {
+        2
+    } else {
+        1
+    };
+    for opener in openers {
+        if known.contains(&opener.block) {
+            continue;
+        }
+        assignments.push(HeadingAssignment {
+            block: opener.block,
+            order: opener.order,
+            page: opener.page,
+            text: opener.text.clone(),
+            level,
+            cluster: cluster_of(opener.block),
+            numbering: None,
+            source: LevelSource::Sequence,
+        });
+    }
+    assignments.sort_by_key(|assignment| assignment.order);
+    remove_level_skips(&mut assignments);
+    assignments
+}
+
+/// Close every level skip in a heading list already in reading order, as every source's list
+/// is closed: an `h1 → h3` transition is invalid navigation in any reading system.
+pub fn repair_levels(assignments: &mut [HeadingAssignment]) {
+    remove_level_skips(assignments);
+}
+
 fn remove_level_skips(assignments: &mut [HeadingAssignment]) {
     let mut previous = 0u8;
     for assignment in assignments.iter_mut() {

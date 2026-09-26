@@ -37,6 +37,7 @@ struct Read {
     runs: Vec<Run>,
     text: TextStage,
     layout: LayoutStage,
+    plan: oc_layout::paragraphs::ParagraphPlan,
     outline: Vec<OutlineEntry>,
     vectors: Vec<oc_model::extract::VectorRegion>,
     images: Vec<oc_model::extract::ImageRef>,
@@ -52,7 +53,7 @@ struct Read {
 
 impl Read {
     fn views(&self) -> Vec<BlockView> {
-        block_views(&self.text, &self.layout)
+        block_views(&self.text, &self.layout, &self.plan)
     }
 
     fn inventory(&self) -> StyleInventory {
@@ -105,10 +106,13 @@ fn read(relative: &str) -> Read {
     let input = openconvert::input::page_inputs(document.as_ref()).expect("every page extracts");
 
     let mut totals = ReasonTotals::default();
-    let text = text_stage(&input, &mut totals, &T).expect("text conserves");
-    let furniture =
-        furniture_stage(&text, LangTag::EN, &mut totals, &T).expect("furniture stays in budget");
-    let layout = layout_stage(&text, &furniture, &mut totals, &T).expect("layout conserves");
+    let mut text = text_stage(&input, &mut totals, &T).expect("text conserves");
+    let furniture = furniture_stage(&mut text, LangTag::EN, &mut totals, &T)
+        .expect("furniture stays in budget");
+    let mut layout = layout_stage(&text, &furniture, &mut totals, &T).expect("layout conserves");
+    let plan = openconvert::pipeline::paragraphs_stage(&mut layout, LangTag::EN, &mut totals, &T)
+        .expect("paragraphs stays in budget")
+        .plan;
     let vectors = (0..document.page_count())
         .filter_map(|page| document.page_vectors(page).ok())
         .flatten()
@@ -150,6 +154,7 @@ fn read(relative: &str) -> Read {
         images,
         text,
         layout,
+        plan,
     }
 }
 

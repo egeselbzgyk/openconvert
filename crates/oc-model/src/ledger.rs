@@ -73,8 +73,19 @@ impl Reason {
     /// an entry is kept in the ledger as the record of what was removed, and is left out of I-7's
     /// `Removed_all` — the equation's baseline already does not contain it, and counting it again
     /// would be charging the book for text it never had.
+    ///
+    /// So are the two that normalisation `N` makes (D13.4: `C_0` is taken after `N`): a soft
+    /// hyphen `N` stripped and a ligature `N` expanded are already on the far side of the
+    /// baseline. Counting them again made I-7 report every book with one soft hyphen in it as
+    /// having gained a character (2026-09-26 reading set, `docs/DECISIONS_LOG.md`).
     pub fn folded_into_c0(self) -> bool {
-        matches!(self, Reason::OverdrawDedup | Reason::OcrLayerDuplicate)
+        matches!(
+            self,
+            Reason::OverdrawDedup
+                | Reason::OcrLayerDuplicate
+                | Reason::SoftHyphen
+                | Reason::LigatureExpand
+        )
     }
 }
 
@@ -362,9 +373,18 @@ impl Ledger {
         histogram
     }
 
-    /// Everything every stage added — the `Added_all` of invariant I-7.
+    /// Everything every stage added — the `Added_all` of invariant I-7 — less what a reason
+    /// folded into `C_0` added, which the baseline already contains.
     pub fn added_all(&self) -> CharHistogram {
-        self.side(true)
+        let mut histogram = CharHistogram::new();
+        for entry in self
+            .entries
+            .iter()
+            .filter(|e| e.added && !e.reason.folded_into_c0())
+        {
+            histogram = histogram.union(&c_of(&entry.text));
+        }
+        histogram
     }
 
     /// What OCR added: the characters this pipeline read off pixels rather than out of the
@@ -377,14 +397,6 @@ impl Ledger {
             .iter()
             .filter(|e| e.added && e.reason == Reason::Ocr)
         {
-            histogram = histogram.union(&c_of(&entry.text));
-        }
-        histogram
-    }
-
-    fn side(&self, added: bool) -> CharHistogram {
-        let mut histogram = CharHistogram::new();
-        for entry in self.entries.iter().filter(|e| e.added == added) {
             histogram = histogram.union(&c_of(&entry.text));
         }
         histogram

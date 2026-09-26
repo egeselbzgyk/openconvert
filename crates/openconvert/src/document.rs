@@ -179,6 +179,7 @@ pub fn assemble(input: DocumentInput<'_>, t: &Thresholds) -> Document {
         warnings,
         classification,
         presets,
+        cover: None,
     }
 }
 
@@ -332,7 +333,32 @@ fn insert_page_breaks(
                     out.push(Content::PageBreak(id));
                 }
             }
+            // A paragraph `paragraphs` carried across a page turn opens the next page inside
+            // itself. Its break follows the paragraph rather than splitting it, so the page list
+            // still has every page, in order, a paragraph late at most.
+            // Its anchor is the paragraph's own first block: the flow carries that one, and it is
+            // the paragraph that holds the page's first words.
+            let carried: Vec<(BlockId, BlockId)> = match &item {
+                Content::Paragraph(para) => para
+                    .blocks
+                    .iter()
+                    .skip(1)
+                    .filter_map(|block| Some((*block, *para.blocks.first()?)))
+                    .collect(),
+                _ => Vec::new(),
+            };
             out.push(item);
+            for (block, anchor) in carried {
+                if let Some(id) = open_page(
+                    block_pages.get(&block).copied(),
+                    anchor,
+                    &mut current,
+                    labels,
+                    &mut breaks,
+                ) {
+                    out.push(Content::PageBreak(id));
+                }
+            }
         }
         section.content = out;
     });

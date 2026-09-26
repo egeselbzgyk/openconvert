@@ -5968,3 +5968,163 @@ Evidence: release run 35969590562, job "build (ubuntu-22.04, linux, …)", step 
 `the_installer_budget_counts_installers_only`, `an_update_payload_may_be_as_large_as_this_os_installer`.
 Affects: `thresholds.toml`, `docs/DECISIONS.md` D12 amendment, `xtask/tests/release.rs`,
 `apps/desktop/src-tauri/src/updater.rs` (tests only).
+
+## 2026-09-26 · `paragraphs` is wired into the driver · defect found on the maintainer's books
+Context: the maintainer converted real books on their own machine (~140 PDFs in Turkish, German
+and English, kept outside the repository) and reported the output as very poor: a novel page
+came out as one `<p>`, line-break hyphens stayed (`tehli- keli`), paragraphs broke at every page turn.
+Root cause: `pipeline::paragraphs_stage` existed, was tested, and was never called by `convert`;
+`structure` emitted every `layout` block as one paragraph. PIPELINE §7 puts `paragraphs` between
+`layout` and `structure`; the driver skipped it.
+Decision: the stage runs in the driver, after `layout`, and records its decisions as a
+`ParagraphPlan` on the blocks: where each block's paragraphs start, which block carries on which
+across a page or column boundary, which line breaks were joined. `structure` still classifies whole
+blocks — headings, lists, notes and verse are block decisions — and cuts only the blocks it emits as
+running text at the plan's starts, joining carry-overs to the paragraph they continue. A joined hyphen
+leaves the line's text in `layout`'s pages (one `Dehyphenate` entry each, I-5) and the line's last run,
+so every structure built from runs reads the same text. Across a page a paragraph carries on when its
+last line reaches the measure and the next page's first text block (a smaller-set footnote on the
+same page is passed over; nothing on the next page is) is not indented and runs on (unfinished
+sentence and lower case), ends on a hyphen, or — in a book that indents its paragraphs — is a full
+line starting lower case.
+Measured (a 390-page Turkish novel): 435 → 2 417 paragraphs, 1 934 → 42 hyphen
+residues, 99 → 0 lower-case page splits.
+Evidence: the `oc-layout` paragraph tests (unchanged names, now read over the plan).
+Affects: `crates/oc-layout/src/paragraphs.rs`, `crates/openconvert/src/{pipeline,convert,structure_input}.rs`,
+`crates/oc-structure/src/{stage,build,view}.rs`.
+
+## 2026-09-26 · The document language is detected · defect found on the maintainer's books
+Context: every book came out `xml:lang="und"`: detection existed (`oc_text::lang`) and the driver never
+called it, and dehyphenation and folding need it.
+Decision: `convert` detects the language over up to `lang.document_sample_chars` of running text, taken
+from the middle of the book outward, unless the job forces one; `und` only when nothing is detectable.
+Affects: `crates/openconvert/src/{pipeline,convert,cmd_diff_stage}.rs`, `thresholds.toml`.
+
+## 2026-09-26 · Rules are measured on the book, not keyed on its language · maintainer direction
+Context: the maintainer asked for language-agnostic solutions: a Spanish, Russian or Italian book must
+not need rules of its own. The two projects they pointed at (oomol-lab/pdf-craft, MIT;
+overcuriousity/pdf2epub, MIT over GPL marker — ideas only) agree: Unicode properties and statistics of
+the document, not word lists.
+Decision: new rules read the book. Dehyphenation: a suspended compound is recognised by the words the
+book writes after a hyphen hanging mid-line and by its most frequent words
+(`dehyphen.function_word_rank`); a break is joined when a word of the book starts with the head and
+the first letters of the tail (`dehyphen.stem_min_chars`, `dehyphen.stem_tail_chars`), or when the book
+writes (almost) no lower-case hyphenated compounds at all (`dehyphen.lower_compound_rate_max`, only
+over `dehyphen.style_min_words`); whether a capital after the hyphen can continue a word is read from
+the book's mid-sentence capitalisation rate (`dehyphen.noun_capital_rate_min`) as well as from
+`lang == de`. Fail-closed still holds when none of them has evidence (row 3.10 unchanged). Chapter
+openers, page numbers and the contents page (below) are found by numbers, geometry and sequence.
+Affects: `crates/oc-text/src/dehyphen/{mod,tiers,lexicon}.rs`, `thresholds.toml`.
+
+## 2026-09-26 · Page numbers are the page index plus a constant · defect found on the maintainer's books
+Context: folios leaked into the text as one-character paragraphs in most scanned books (285 in one
+novel) and broke every page-turn join. The old test required one arithmetic step across all members
+of a digit-masked key group: a folio moving from two digits to three, a chapter opening that prints
+none, or one OCR-misread folio (`2ı`) failed it for the whole book; a folio in the outer margin was
+never a candidate.
+Decision: a line in the top or bottom band, or beside the text column in the outer margin, holding a
+lone number, arabic or roman, is a page number when its value minus its page index is a constant that
+holds on at least `layout.furniture.min_repeat_pages` pages and `layout.furniture.folio_constant_min_share`
+of its numbering system's readings; several constants may hold (numbering that skips over plates). A
+digit-shaped line (`6ı`) at the height its neighbours print their folios is taken, labelled by their
+constant. These are found first; the grouping pass that finds running heads no longer sees them.
+Evidence: `page_numbers_are_the_page_index_plus_a_constant`, `numbers_that_do_not_track_the_page_are_not_folios`.
+Affects: `crates/oc-layout/src/furniture.rs`, `thresholds.toml`.
+
+## 2026-09-26 · Chapter openers by place and sequence · defect found on the maintainer's books
+Context: novels that number chapters at the body size (`1`, `IV`, `BÖLÜM 3`) had no headings and a
+navigation of one entry: size rank has no cluster for them.
+Decision: `headings::openers` finds short blocks (`headings.opener_max_lines`,
+`headings.opener_max_tokens`) with an arabic number or a well-formed roman numeral at one end, the
+first text on their page and sunk `headings.opener_sink_em` body sizes below the book's usual page top
+(or under that much air), and keeps those whose numbers count up by one (one step of two allowed, over
+a misread numeral) in a chain of `headings.opener_min_chain`, spread like chapters
+(`headings.opener_min_page_gap`). The words beside the number are never read.
+Evidence: the six `openers` unit tests. The same novel: 0 → 51 chapter headings.
+Affects: `crates/oc-structure/src/headings/{openers,levels,mod}.rs`, `stage.rs`, `thresholds.toml`.
+
+## 2026-09-26 · Heading levels from tolerant size tiers; legibility; multi-line titles · reading set
+Context: scanned books' text layers report one heading style across several sizes (14.2/14.6/15.1 pt),
+which size rank turned into three levels; line drawings read by OCR (`/ l |`, `] fl`) became headings;
+navigation ran six levels deep; titles printed over two lines became two headings.
+Decision: candidate clusters within `headings.level_size_tolerance` of their tier's largest are one
+level; size rank assigns at most `headings.size_rank_max_level` levels; a heading must be legible
+(`headings.legible_min_chars`, `headings.legible_min_share`); consecutive heading blocks on one page at
+one size with at most `headings.join_gap_em` of air between them are one heading.
+Affects: `crates/oc-structure/src/headings/{levels,candidate}.rs`, `stage.rs`, `thresholds.toml`.
+
+## 2026-09-26 · The printed contents page becomes links · maintainer request
+Context: the maintainer asked for a correct, clickable table of contents. The printed contents page
+came out as paragraphs or as a `<table>`, and only a dotted-leader page was ever parsed.
+Decision: `contents::find_contents` recognises the page by shape — rows ending in a page number set
+apart from the title by a leader, by white space (`toc.min_gap_em`) or by a shared right edge
+(`toc.right_edge_tolerance_pt`), at least `toc.contents_min_row_share` of the page's rows, numbers
+rising (`toc.contents_min_rising_share`), in the first `toc.max_front_pages` or last
+`toc.max_back_pages` pages, over consecutive pages. The page is claimed before tables and lists, kept in
+the book whole, and each entry's title becomes a link to the heading it names: found by page label,
+else by the printed-to-physical offset the matched entries agree on, else by title in reading order
+after the previous entry (`toc.match_ned_max`); a short block (`toc.promote_max_lines`) that reads as
+the title is promoted to a heading. When `toc.levels_min_linked_share` of the numbered entries are
+linked, the contents page's levels (indent ladder per page, `toc.indent_step_pt`) replace size rank's.
+The EPUB renders `LinkTarget::Internal` as `<a href>`, resolved to the heading's file after splitting.
+pdf-craft deletes the contents page; conservation forbids that here.
+Affects: `crates/oc-structure/src/contents.rs`, `stage.rs`, `build.rs`, `crates/oc-epub/src/content.rs`,
+`thresholds.toml`.
+
+## 2026-09-26 · A cover · maintainer request
+Context: the EPUB carried no cover; reading systems showed a blank tile.
+Decision: the first page is rendered in colour (PDFium, longest side `images.max_longest_side_px`) as
+an image numbered after every extracted image and every table-fallback id, marked `cover-image`, with a
+`cover.xhtml` first in the spine (`epub:type="cover"`, alt text the title), a `cover` landmark and
+EPUB 2's `<meta name="cover">`. It is a picture, outside `C`; Tier 1's image parity does not count it.
+The table-fallback `<img>` now carries the `../` every content document's image path needs (it never
+had an image to point at before, so the bug never showed).
+Affects: `crates/oc-pdf/src/{inspect.rs,pdfium/doc.rs}`, `crates/oc-model/src/document.rs`,
+`crates/oc-epub/src/{lib,opf,content,css}.rs`, `crates/oc-validate/src/tier1/book.rs`,
+`crates/openconvert/src/convert.rs`.
+
+## 2026-09-26 · Untitled sections are named from the book · maintainer direction (language-agnostic)
+Context: a section without a heading was called "Front matter", "Chapter", "Section" in the nav — in
+English, whatever the book's language.
+Decision: front matter is named by the book's title; any other untitled section by its first six words;
+the role name only when a section has no text.
+Affects: `crates/oc-epub/src/content.rs`.
+
+## 2026-09-26 · I-7 folds `N`'s reasons into `C_0` · defect
+Context: every book with one soft hyphen failed I-7 with "1 unexplained addition": `C_0` is taken after
+`N` (D13.4), but `Removed_all` still counted the soft hyphen `N` stripped.
+Decision: `SoftHyphen` and `LigatureExpand` join the two dedup reasons in `folded_into_c0`, on both sides
+of the equation (`added_all` excludes folded reasons too).
+Affects: `crates/oc-model/src/ledger.rs`.
+
+## 2026-09-26 · Control characters are decorative glyphs · defect found on the maintainer's books
+Context: several books were refused at `epub` because a control character (`\0`, `\u{1f}`) reached XML,
+in the body (a broken ToUnicode map) or in the Info-dictionary title.
+Decision: `furniture` removes C0/C1 control characters from the runs as `DecorativeGlyph` (the reason
+PIPELINE §5 gives that stage) before any later stage reads them; metadata strings lose them in
+`structure` (metadata is outside `C`). A document whose text layer is mostly control codes still fails
+I-4, correctly: it needs OCR, not deletion.
+Affects: `crates/openconvert/src/pipeline.rs`, `crates/oc-structure/src/stage.rs`.
+
+## 2026-09-26 · The dehyphenation budget is 0.03 · reading set
+Context: `conservation.budget.dehyphenate` was 0.005 (RT C1) when `paragraphs` never ran; the first
+books through it refused at 0.0059 and 0.0063 (Turkish children's books, narrow measure).
+Decision: 0.03. A line carries at most one line-break hyphen and a book line at least ~30 non-whitespace
+characters, so ~1/30 is the physical ceiling; I-5 checks each entry is exactly one hyphen.
+Affects: `thresholds.toml`.
+
+## 2026-09-26 · The desktop app's icon is the design handoff's · maintainer request
+Context: the bundled icons were the Tauri scaffold's generic document glyph. The maintainer's own logo
+is in the design handoff (`docs/design/handoff/logo/`, adopted with the UI in 323d40f).
+Decision: `apps/desktop/src-tauri/icons/app-icon.svg` and `app-icon-small.svg` are copies of the
+handoff's app icon; every bundled size is rendered from them (headless Chrome, resized with Pillow):
+the small artwork for 16–48 px (the `.ico`'s small frames and `32x32.png`), the full artwork above.
+Affects: `apps/desktop/src-tauri/icons/*`.
+
+## 2026-09-26 · Soft hyphens have their own budget · reading set
+Context: two InDesign books of the maintainer's reading set were refused
+by I-4: `N` strips U+00AD under `SoftHyphen`, which fell in the 0.001 "other" group, and these books
+mark every hyphenation point with a soft hyphen (0.0147 and 0.0021 of `|C_0|`).
+Decision: `SoftHyphen` is its own budget group, `conservation.budget.soft_hyphen` = 0.03, the
+dehyphenation budget and for its reason: a soft hyphen is a line-break hyphen written discretionary.
+Affects: `crates/oc-core/src/ledger_check.rs`, `thresholds.toml`.

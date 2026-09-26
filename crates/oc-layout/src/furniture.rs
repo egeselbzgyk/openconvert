@@ -213,8 +213,31 @@ pub fn detect_furniture(
     }
 
     let body_size = modal_body_size(pages);
-    let candidates = gather(pages, lang, body_size, t);
     let offsets = line_offsets(pages);
+
+    // Page numbers first, by the one property only a page number has: it is the page's index
+    // plus a constant. Found here they are not grouped again below, where a folio that moved
+    // from two digits to three, or that a chapter opening skipped, broke the old test.
+    let folios = find_folios(pages, body_size, t);
+    for folio in &folios {
+        verdicts[offsets[folio.page] + folio.line] = FurnitureVerdict {
+            kind: Some(FurnitureKind::PageNumber),
+            evidence: RepetitionEvidence {
+                progression_step: Some(1),
+                label: Some(folio.label.clone()),
+                band: folio.band,
+                ..RepetitionEvidence::body("#".to_owned())
+            },
+        };
+    }
+    let taken: std::collections::BTreeSet<(usize, usize)> = folios
+        .iter()
+        .map(|folio| (folio.page, folio.line))
+        .collect();
+    let candidates: Vec<Candidate> = gather(pages, lang, body_size, t)
+        .into_iter()
+        .filter(|candidate| !taken.contains(&(candidate.page, candidate.line)))
+        .collect();
 
     for group in group_candidates(candidates, body_size, t) {
         let evidence = best_evidence(&group, &eligible, pages, t);
@@ -609,6 +632,213 @@ fn progression_step(group: &Group) -> Option<i64> {
 }
 
 // ---------------------------------------------------------------------------
+// Page numbers
+// ---------------------------------------------------------------------------
+
+/// How long a line must be to say where the text column's edges are: a full line of prose,
+/// not a heading or a number.
+const MARGIN_REFERENCE_CHARS: usize = 30;
+
+/// How far inside the text column's edge a margin folio may reach: a digit's side bearing.
+const MARGIN_SLACK_PT: f32 = 1.0;
+
+/// One line found to be the page's printed number.
+#[derive(Clone, Debug, PartialEq)]
+struct Folio {
+    page: usize,
+    line: usize,
+    band: Band,
+    label: String,
+}
+
+/// A band line that is nothing but a number, or what a scan made of one.
+struct Numeral {
+    page: usize,
+    line: usize,
+    band: Band,
+    baseline_y: f32,
+    /// Arabic or roman, and its value; `None` for a token that is only digit-shaped.
+    reading: Option<(bool, i64)>,
+    text: String,
+}
+
+/// Find the page numbers: band lines holding a number that is the page's index plus a
+/// constant.
+///
+/// The constant is what tells a folio from every other number a page carries in its margins —
+/// a chapter number, a footnote marker, a year in a running head — and it is language-free.
+/// It is taken per numbering system, arabic and roman apart, so a book numbered `i`–`xii` and
+/// then `1`–`300` has two, and it may change where a book skips numbers over unnumbered
+/// plates: every constant that holds on `layout.furniture.min_repeat_pages` pages is one.
+/// A folio is kept however its value compares with its neighbours', so a chapter opening
+/// that prints no number costs that one page its label and nothing else.
+///
+/// A scanned book's text layer misreads digits (`2ı`, `3l`). A digit-shaped line at the height
+/// the book prints its folios, on a page next to pages whose folios were read, is taken as the
+/// folio the constant says it is.
+fn find_folios(pages: &[PageLines], body_size: f32, t: &Thresholds) -> Vec<Folio> {
+    let band_ratio = t.layout.furniture.band_ratio as f32;
+    let min_pages = usize::try_from(t.layout.furniture.min_repeat_pages.max(2)).unwrap_or(2);
+    let y_tolerance = t.layout.furniture.y_cluster_ratio as f32 * body_size.max(1.0);
+
+    let mut numerals: Vec<Numeral> = Vec::new();
+    for (page_index, page) in pages.iter().enumerate() {
+        let band_height = band_ratio * page.page_height_pt;
+        // The text column's own edges, from its long lines: a folio set in the outer margin,
+        // beside the text rather than above or below it, is outside them.
+        let long: Vec<&LineText> = page
+            .lines
+            .iter()
+            .filter(|line| line.text.chars().count() >= MARGIN_REFERENCE_CHARS)
+            .collect();
+        let column = (!long.is_empty()).then(|| {
+            (
+                long.iter()
+                    .map(|line| line.bbox.x0)
+                    .fold(f32::MAX, f32::min),
+                long.iter()
+                    .map(|line| line.bbox.x1)
+                    .fold(f32::MIN, f32::max),
+            )
+        });
+        for (line_index, line) in page.lines.iter().enumerate() {
+            let in_margin = column.is_some_and(|(left, right)| {
+                line.bbox.x1 <= left + MARGIN_SLACK_PT || line.bbox.x0 >= right - MARGIN_SLACK_PT
+            });
+            let band = if line.bbox.y1 <= band_height {
+                Band::Top
+            } else if line.bbox.y0 >= page.page_height_pt - band_height {
+                Band::Bottom
+            } else if in_margin {
+                Band::Body
+            } else {
+                continue;
+            };
+            let token: String = line
+                .text
+                .chars()
+                .filter(|ch| ch.is_alphanumeric())
+                .collect();
+            // The decoration a folio is printed with — `- 12 -`, `[12]`, `12 |` — is dropped;
+            // anything with a letter in it that is not a numeral is a running head.
+            if token.is_empty() || token.chars().count() > 5 {
+                continue;
+            }
+            let reading = if token.chars().all(|ch| ch.is_ascii_digit()) {
+                token.parse().ok().map(|value| (true, value))
+            } else if token.chars().all(|ch| ch.is_ascii_lowercase())
+                || token.chars().all(|ch| ch.is_ascii_uppercase())
+            {
+                roman_value(&token).map(|value| (false, value))
+            } else {
+                None
+            };
+            if reading.is_none() && !digit_shaped(&token) {
+                continue;
+            }
+            numerals.push(Numeral {
+                page: page_index,
+                line: line_index,
+                band,
+                baseline_y: line.baseline_y,
+                reading,
+                text: line.text.trim().to_owned(),
+            });
+        }
+    }
+
+    // Every constant, per numbering system, that enough pages agree on.
+    let mut support: BTreeMap<(bool, i64), usize> = BTreeMap::new();
+    for numeral in &numerals {
+        if let Some((arabic, value)) = numeral.reading {
+            let page = i64::try_from(numeral.page).unwrap_or(i64::MAX);
+            *support.entry((arabic, value - page)).or_default() += 1;
+        }
+    }
+    // A constant has to hold on enough pages, and on a real share of its numbering system's
+    // readings: three footnote markers that happen to count up with the page are not a
+    // pagination.
+    let share = t.layout.furniture.folio_constant_min_share;
+    let mut readings: BTreeMap<bool, usize> = BTreeMap::new();
+    for ((arabic, _), count) in &support {
+        *readings.entry(*arabic).or_default() += count;
+    }
+    let accepted: std::collections::BTreeSet<(bool, i64)> = support
+        .iter()
+        .filter(|((arabic, _), count)| {
+            let total = readings.get(arabic).copied().unwrap_or_default();
+            **count >= min_pages && (**count as f64) >= share * total as f64
+        })
+        .map(|(key, _)| *key)
+        .collect();
+
+    let mut folios: Vec<Folio> = Vec::new();
+    let mut per_page: BTreeMap<usize, (Band, f32, i64)> = BTreeMap::new();
+    for numeral in &numerals {
+        let Some((arabic, value)) = numeral.reading else {
+            continue;
+        };
+        let page = i64::try_from(numeral.page).unwrap_or(i64::MAX);
+        if !accepted.contains(&(arabic, value - page)) || per_page.contains_key(&numeral.page) {
+            continue;
+        }
+        per_page.insert(
+            numeral.page,
+            (numeral.band, numeral.baseline_y, value - page),
+        );
+        folios.push(Folio {
+            page: numeral.page,
+            line: numeral.line,
+            band: numeral.band,
+            label: numeral.text.clone(),
+        });
+    }
+    if folios.is_empty() {
+        return folios;
+    }
+
+    // Misread folios: digit-shaped, where the neighbours print theirs, labelled by the
+    // neighbours' constant.
+    let reach = 2usize;
+    for numeral in &numerals {
+        if per_page.contains_key(&numeral.page) || numeral.reading.is_some() {
+            continue;
+        }
+        let neighbour = (numeral.page.saturating_sub(reach)..=numeral.page + reach)
+            .filter(|page| *page != numeral.page)
+            .filter_map(|page| per_page.get(&page).copied())
+            .find(|(band, baseline, _)| {
+                *band == numeral.band && (baseline - numeral.baseline_y).abs() <= y_tolerance
+            });
+        let Some((band, _, constant)) = neighbour else {
+            continue;
+        };
+        let value = i64::try_from(numeral.page).unwrap_or(i64::MAX) + constant;
+        if value <= 0 {
+            continue;
+        }
+        per_page.insert(numeral.page, (band, numeral.baseline_y, constant));
+        folios.push(Folio {
+            page: numeral.page,
+            line: numeral.line,
+            band,
+            label: value.to_string(),
+        });
+    }
+    folios.sort_by_key(|folio| (folio.page, folio.line));
+    folios
+}
+
+/// A short token made of digits and of the letters a text layer reads digits as — `ı`, `l`,
+/// `I`, `O`, `o`, `S` — with at least one real digit in it.
+fn digit_shaped(token: &str) -> bool {
+    token.chars().any(|ch| ch.is_ascii_digit())
+        && token.chars().all(|ch| {
+            ch.is_ascii_digit() || matches!(ch, 'ı' | 'l' | 'I' | 'i' | 'O' | 'o' | 'S' | 's' | 'B')
+        })
+}
+
+// ---------------------------------------------------------------------------
 // Text handling
 // ---------------------------------------------------------------------------
 
@@ -744,4 +974,76 @@ fn edit_distance_is_normalised_by_length() {
     assert_eq!(normalised_edit_distance("abc", "abc"), 0.0);
     assert!(normalised_edit_distance("chapterone", "chaptertwo") > 0.15);
     assert!(normalised_edit_distance("thetestbook", "thetestbok") < 0.15);
+}
+
+#[cfg(test)]
+mod folio_tests {
+    use super::*;
+    use oc_core::thresholds::T;
+
+    fn page(index: u32, lines: &[(String, f32)]) -> PageLines {
+        PageLines {
+            page: PageRef::new(index),
+            page_height_pt: 500.0,
+            lines: lines
+                .iter()
+                .map(|(text, y)| LineText {
+                    text: text.clone(),
+                    bbox: Rect {
+                        x0: 100.0,
+                        y0: *y,
+                        x1: 140.0,
+                        y1: y + 9.0,
+                    },
+                    baseline_y: y + 8.0,
+                    size_pt: 10.0,
+                })
+                .collect(),
+        }
+    }
+
+    /// Folios at the foot, two digits then three, one chapter opening with none and one misread
+    /// by the text layer: every printed one is found, and the misread one is labelled by the
+    /// constant its neighbours agree on.
+    #[test]
+    fn page_numbers_are_the_page_index_plus_a_constant() {
+        let pages: Vec<PageLines> = (0..120u32)
+            .map(|index| {
+                let folio = match index {
+                    40 => None,
+                    60 => Some("6\u{131}".to_owned()),
+                    _ => Some((index + 5).to_string()),
+                };
+                let mut lines = vec![("body text of the page, set full.".to_owned(), 100.0)];
+                if let Some(folio) = folio {
+                    lines.push((folio, 480.0));
+                }
+                page(index, &lines)
+            })
+            .collect();
+        let folios = find_folios(&pages, 10.0, &T);
+        assert_eq!(folios.len(), 119, "every page but the opening");
+        let misread = folios
+            .iter()
+            .find(|folio| folio.page == 60)
+            .expect("the misread folio");
+        assert_eq!(misread.label, "65");
+        assert!(folios.iter().any(|folio| folio.label == "124"));
+    }
+
+    /// Numbers in the margin that are not the page's index plus a constant — footnote markers,
+    /// a chapter number — are not page numbers.
+    #[test]
+    fn numbers_that_do_not_track_the_page_are_not_folios() {
+        let pages: Vec<PageLines> = (0..30u32)
+            .map(|index| {
+                let marker = ["1", "2", "3"][(index % 3) as usize];
+                page(
+                    index,
+                    &[("body".to_owned(), 100.0), (marker.to_owned(), 480.0)],
+                )
+            })
+            .collect();
+        assert!(find_folios(&pages, 10.0, &T).is_empty());
+    }
 }

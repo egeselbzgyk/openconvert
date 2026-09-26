@@ -79,6 +79,13 @@ pub fn budget_group(reason: Reason) -> Option<BudgetGroup> {
             name: "decorative_glyph",
             fraction: budget.decorative_glyph,
         },
+        // A soft hyphen is a line-break hyphen the producer wrote as a discretionary one: an
+        // InDesign export marks every hyphenation point of a justified book this way, so it is
+        // bounded as dehyphenation is, not as the rare "other" removals are.
+        Reason::SoftHyphen => BudgetGroup {
+            name: "soft_hyphen",
+            fraction: budget.soft_hyphen,
+        },
         _ => BudgetGroup {
             name: "other",
             fraction: budget.other,
@@ -382,6 +389,18 @@ pub fn check_invariants(
     let left = before.union(&added);
     let right = after.union(&removed);
     if left != right {
+        if std::env::var_os("OC_DEBUG_I1").is_some() {
+            eprintln!(
+                "DEBUG I-1 {}: missing {:?}",
+                decl.name,
+                left.difference(&right)
+            );
+            eprintln!(
+                "DEBUG I-1 {}: extra {:?}",
+                decl.name,
+                right.difference(&left)
+            );
+        }
         return Err(ConservationError::NotConserved {
             stage: decl.name,
             unexplained_removed: left.difference(&right).total(),
