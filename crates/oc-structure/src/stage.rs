@@ -1098,39 +1098,6 @@ fn joins_within(
         .collect()
 }
 
-#[cfg(test)]
-mod join_tests {
-    use super::*;
-
-    /// A title's blocks are joined only while each one is emitted as a heading: a block a list
-    /// or a note owns ends the chain, and an owned head joins nothing — else its words reach the
-    /// book twice, or not at all (I-1 on six technical books, 2026-09-26).
-    #[test]
-    fn a_title_is_joined_only_over_blocks_the_heading_arm_emits() {
-        let id = |n: u32| {
-            let at = oc_model::geom::Rect {
-                x0: 0.0,
-                y0: 0.0,
-                x1: 1.0,
-                y1: 1.0,
-            };
-            BlockId::derive(n, at, "block")
-        };
-        let joins: std::collections::BTreeMap<BlockId, Vec<BlockId>> =
-            [(id(1), vec![id(2), id(3), id(4)]), (id(10), vec![id(11)])]
-                .into_iter()
-                .collect();
-        let owned = [id(3), id(10)];
-        let kept = joins_within(joins, |block| !owned.contains(block));
-        assert_eq!(
-            kept.get(&id(1)),
-            Some(&vec![id(2)]),
-            "cut before the owned block"
-        );
-        assert!(!kept.contains_key(&id(10)), "an owned head joins nothing");
-    }
-}
-
 fn join_multiline_headings(
     headings: &[HeadingAssignment],
     blocks: &[BlockView],
@@ -1341,4 +1308,37 @@ fn opens_with(cap: &oc_layout::anchor::DropCap, block: &BlockView) -> bool {
             .is_some_and(|line| line.text.trim_start().starts_with(character))
         && block.bbox.y1 >= cap.bbox.y0
         && block.bbox.y0 <= cap.bbox.y1
+}
+
+#[cfg(test)]
+mod join_tests {
+    use super::*;
+
+    /// A title's blocks are joined only while each one is emitted as a heading: a block a list
+    /// or a note owns ends the chain, and an owned head joins nothing — else its words reach the
+    /// book twice, or not at all (I-1 on six technical books, 2026-09-26).
+    #[test]
+    fn a_title_is_joined_only_over_blocks_the_heading_arm_emits() {
+        let id = |n: u32| {
+            let at = oc_model::geom::Rect {
+                x0: 0.0,
+                y0: 0.0,
+                x1: 1.0,
+                y1: 1.0,
+            };
+            BlockId::derive(n, at, "block")
+        };
+        let joins: std::collections::BTreeMap<BlockId, Vec<BlockId>> =
+            [(id(1), vec![id(2), id(3), id(4)]), (id(10), vec![id(11)])]
+                .into_iter()
+                .collect();
+        let owned = [id(3), id(10)];
+        let kept = joins_within(joins, |block| !owned.contains(block));
+        assert_eq!(
+            kept.get(&id(1)),
+            Some(&vec![id(2)]),
+            "cut before the owned block"
+        );
+        assert!(!kept.contains_key(&id(10)), "an owned head joins nothing");
+    }
 }
