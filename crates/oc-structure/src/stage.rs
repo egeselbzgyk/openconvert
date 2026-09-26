@@ -545,6 +545,7 @@ pub fn structure_with(
     owned.extend(contents_blocks.iter().copied());
     let tables = extract_tables(
         &input.vectors,
+        input.page_count,
         blocks,
         &owned,
         u32::try_from(input.images.len()).unwrap_or_default(),
