@@ -4,13 +4,18 @@
 
 STATUS: IN_PROGRESS
 CURRENT_PHASE: 7.5
-CURRENT_ITEM: Phase 7.5 resumed by the maintainer (2026-09-26) as "reading quality on real books",
-              working toward v1.1.0 (maintainer: release it on GitHub, published, when the quality is
-              reasonable). Work loop: convert the maintainer's ~140 local books (kept outside the repository;
-              never named or committed) with the scratch harness described under "v1.1 reading
-              quality", fix the worst defect class, re-measure. Next: the `epub` stage losing text on
-              four books, the two timeouts, LLM tasks ("IDs in, labels out"), README, then the
-              release (ir_version 1 → 2 because `Document.cover` was added).
+CURRENT_ITEM: v1.1.0 is committed on `v1.1/reading-quality` (version bumped, CHANGELOG [1.1.0],
+              Tev1-4B default) and NOT pushed. A local NSIS installer was built for the maintainer
+              to try first (maintainer: "do not push before I try it"). The rehearsal found and fixed
+              two release blockers: the downloader refused Tev1 under licence "unspecified" (the
+              pinned GGUF declares Apache-2.0; registry updated), and llama-server refused
+              `--context-checkpoints` (now `--ctx-checkpoints`). Next, after the maintainer's OK:
+              `bump-rules-check --tag v1.1.0`, `ci-lint --release-branch`, merge into main, tag
+              v1.1.0, push, publish the release workflow's draft (`gh release edit --draft=false`).
+              Local build recipe: release engine → apps/desktop/src-tauri/bin/openconvert-engine-
+              <triple>.exe, then in apps/desktop/src-tauri `npx @tauri-apps/cli@2.11.5 build
+              --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'` (no signing key
+              locally).
 LAST_UPDATED: 2026-09-26
 
 ---
