@@ -136,13 +136,31 @@ Done and committed since the morning:
   with a plausibility filter, free-text `front_page` task (quality mode only).
 - Desktop: history, output folder, per-step time limit, AI mode setting; README rewritten.
 
-In progress / next:
-1. Corpus run v8 (all fixes together) — compare with v7 and fix regressions.
-2. Evaluation of System-1 decision models (kev-0.8b, kev-4b via `laya`; Tev1-4B via llama.cpp)
-   against the chat model on a hand-labelled front-page set — report to the maintainer.
-3. Real ruled tables (join rule segments); the novel whose chapter openers are body-size.
-4. Release v1.1.0 — only after the maintainer's go-ahead: CHANGELOG `[1.1.0]`, version bump,
-   ir_version 1→2, merge to main, tag, publish.
+Since then (all committed, 891 tests green):
+- Corpus v8 compared with v7: regressions found and fixed — a novel's chapter-opening
+  illustrations were dropped as "scans" (now only OCR text or a scanned book drops page
+  pictures, `images.scan_book_min_share`); a converter-made outline of bold words was trusted
+  (`headings.outline_trust_min_distinct_share`). Remaining paragraph-count drops are correct
+  page-break joins. Failures: 4 (two need OCR, two PDFium cannot open).
+- Ruled tables drawn in pieces are detected (technical books 0 → 3-49 tables; prose unchanged);
+  most still come out as one-column tables (no fallback image, runs spanning cells).
+
+System-1 model evaluation (31 hand-labelled opening pages, TR/DE/EN; this laptop's CPU):
+| model | runtime | correct | s/page |
+| Tev1-4B (Q4_K_M), state cut to 600 chars | llama-server as is | 30/31 | ~6 |
+| Qwen3-1.7B quality (reasoned x2, agree) | llama-server | 19/31 (19/22 answered) | ~20 |
+| Jev-Style 2B v2 (Q4) | llama-server | 17/31 | ~5 |
+| Jev-Style 0.8B v3 (Q8, emulated scorer) | llama-server | 16/31 | (8 calls/page) |
+| Qwen3-1.7B fast (constrained word) | llama-server | 11/31 | ~7 |
+| laya-multilingual (mmBERT) | laya/ggmlc | 7/31 | ~1.3 |
+| kev-0.8b | laya/ggmlc | 6/31 | 10-16 |
+| kev-4b | laya/ggmlc | not finished (>55 s/page) | - |
+Kev GGUFs do not run on llama.cpp (ggmlc `laya` or the dohnuts.cpp fork). Tev1's fine-tune
+licence was "still being finalized" at publication - check before bundling.
+
+Next — waiting for the maintainer (they asked to stop before pushing/releasing):
+1. Decide on the decision model (Tev1-4B looks best; Tev1-0.8B exists only as safetensors).
+2. Release v1.1.0: CHANGELOG `[1.1.0]`, version bump, ir_version 1→2, merge to main, tag, publish.
 
 ## v1.1 reading quality — the maintainer's books (2026-09-26, uncommitted work in `main`'s tree)
 
