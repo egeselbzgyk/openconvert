@@ -899,9 +899,21 @@ fn pack(
         nav_plans.push(spine.nav);
     }
 
-    let toc = nav_plans
+    // The pages before the first heading are one entry of the contents, named by the book's
+    // title: typed as a title page, a copyright page and a dedication, each would otherwise be
+    // listed under the book's name, three identical lines at the top of every book's contents.
+    // They stay in the spine and in the landmarks.
+    let mut front_listed = false;
+    let toc = document
+        .sections
         .iter()
-        .filter_map(|plan| resolve(plan, &anchors, &files))
+        .zip(&nav_plans)
+        .filter(|(section, _)| {
+            let untitled_front =
+                section.heading.is_none() && matches!(section.role, SectionRole::FrontMatter(_));
+            !untitled_front || !std::mem::replace(&mut front_listed, true)
+        })
+        .filter_map(|(_, plan)| resolve(plan, &anchors, &files))
         .collect();
     let page_list = page_targets(document, &anchors);
     let landmarks = landmarks(document, &nav_plans, &anchors, &files);

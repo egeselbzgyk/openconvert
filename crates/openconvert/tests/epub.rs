@@ -114,6 +114,21 @@ fn nav_and_ncx_agree() {
     }
 }
 
+/// The pages before the first heading — a title page, a copyright page, a dedication — are one
+/// entry of the contents, not one entry each under the book's name: no fixture's contents lists
+/// one title twice in a row.
+#[test]
+fn the_contents_never_repeats_a_line() {
+    for stem in FIXTURES {
+        let built = common::build(stem);
+        let nav = built.text_file("nav.xhtml");
+        let entries: Vec<String> = anchors(between(&nav, "<nav epub:type=\"toc\"", "</nav>"));
+        for pair in entries.windows(2) {
+            assert_ne!(pair[0], pair[1], "{stem}: {entries:?}");
+        }
+    }
+}
+
 /// Row 5.9. A `page-list` entry that does not resolve is a citation that goes nowhere, and it
 /// is the whole point of carrying `PageBreak` through the IR at all (R1 §C.4 #7).
 #[test]
