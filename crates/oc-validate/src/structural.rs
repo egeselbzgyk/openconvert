@@ -396,7 +396,7 @@ pub fn validate_structural(
 
     let i7 = check_i7(&chars, &src.ledger);
     let heading = heading_sanity(&heading_source_pages(src), &blocks, page_count, t);
-    let duplicates = duplicate_stats(&blocks);
+    let duplicates = duplicate_stats(&significant_blocks(&blocks, t));
 
     // One block per paragraph, joined by a blank line, is what makes `dup_para_frac` and the
     // n-gram shares mean over a reflowable book what they mean over a page of a source PDF.
@@ -451,6 +451,21 @@ fn heading_warnings(sanity: &HeadingSanity, t: &Thresholds) -> Vec<Warning> {
         warnings.push(Warning::new(W_HEADINGS_OUT_OF_PAGE_ORDER, Severity::Warn));
     }
     warnings
+}
+
+/// The blocks a repeat among means something: at least `validate.dup_block_min_chars` long, and
+/// not a table cell. A book legitimately repeats short blocks — an index entry under two parents,
+/// a contents line that is its chapter's title, a "Yes" in a table, a line of code — and a block
+/// the converter emitted twice is a paragraph (2026-09-26: up to one block in ten repeated in
+/// technical books, every one of them short).
+fn significant_blocks(blocks: &[Block], t: &Thresholds) -> Vec<Block> {
+    let min = usize::try_from(t.validate.dup_block_min_chars.max(0)).unwrap_or(usize::MAX);
+    blocks
+        .iter()
+        .filter(|block| !matches!(block.tag.as_str(), "td" | "th"))
+        .filter(|block| block.text.chars().count() >= min)
+        .cloned()
+        .collect()
 }
 
 fn duplicate_warnings(duplicates: &DuplicateStats, t: &Thresholds) -> Vec<Warning> {
@@ -788,4 +803,27 @@ fn a_repeated_block_is_counted_and_named() {
     let unique = duplicate_stats(&blocks[..2]);
     assert_eq!(unique.duplicates, 0);
     assert!(duplicate_warnings(&unique, t).is_empty());
+}
+
+/// A book's short repeats — index entries, contents lines, table cells — are not what the
+/// duplicate check is for, and a paragraph emitted twice still is.
+#[test]
+fn only_long_blocks_outside_tables_count_as_repeats() {
+    let t = &oc_core::thresholds::T;
+    let long = "A paragraph long enough that emitting it twice can only be the converter's doing.";
+    let blocks = vec![
+        block("t/c1.xhtml", "p", "evaluation pipeline design, 200-208"),
+        block("t/c1.xhtml", "p", "evaluation pipeline design, 200-208"),
+        block("t/c1.xhtml", "td", "Yes"),
+        block("t/c1.xhtml", "td", "Yes"),
+        block("t/c2.xhtml", "p", long),
+    ];
+    let quiet = duplicate_stats(&significant_blocks(&blocks, t));
+    assert_eq!(quiet.duplicates, 0, "{quiet:?}");
+
+    let mut twice = blocks.clone();
+    twice.push(block("t/c3.xhtml", "p", long));
+    let loud = duplicate_stats(&significant_blocks(&twice, t));
+    assert_eq!(loud.duplicates, 1, "{loud:?}");
+    assert_eq!(duplicate_warnings(&loud, t).len(), 1);
 }

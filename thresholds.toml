@@ -883,6 +883,13 @@ evidence = "The h1-count range is stated 'for a book' and says nothing about a f
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[validate.dup_block_min_chars]
+value = 40
+source = "provisional"
+evidence = "The shortest block a repeat among counts toward validate.dup_block_frac. Six technical books flagged at 0.04-0.10 of their blocks repeated; every repeat was a legitimate short block - index entries under two parents, contents lines, the half-title - and at 40 characters the share fell to 0.000-0.002 while a paragraph emitted twice (the observed pipeline bug) stays far above it. Measured 2026-09-26"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [validate.dup_block_frac]
 value = 0.02
 source = "provisional"

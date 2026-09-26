@@ -181,7 +181,7 @@ expression: value
         "h1_count_plausible": null
       },
       "duplicates": {
-        "blocks": 12,
+        "blocks": 7,
         "duplicates": 0,
         "worst": []
       },
@@ -274,5 +274,5 @@ expression: value
       "input_hash": "adc3de8ec21ab7d5d16b72e02fc20ac7bb4deb29d0b34a22a31535e227bfae2b"
     }
   ],
-  "thresholds": "[270 entries, redacted]"
+  "thresholds": "[271 entries, redacted]"
 }

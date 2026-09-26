@@ -487,8 +487,6 @@ pub fn structure_with(
     // blocks that follow each other in reading order on one page, set at one size within the
     // level tolerance, with no more than a line of air between them.
     let heading_joins = join_multiline_headings(&headings, blocks, t);
-    let joined_away: std::collections::BTreeSet<BlockId> =
-        heading_joins.values().flatten().copied().collect();
     // A contents entry that named the second line of such a title names the title.
     if let Some(contents) = contents.as_mut() {
         for entry in contents.entries.iter_mut() {
@@ -673,6 +671,20 @@ pub fn structure_with(
                 .map(|anchor| (region.id, anchor))
         })
         .collect();
+    // A title joined across blocks is emitted by its first block, and the rest are skipped. That
+    // holds only for blocks that reach the heading arm below: a block a note, a list, a table or
+    // the contents took is emitted by its owner first, so joining it would put its words in the
+    // book twice — or, when the owner is the head, lose the rest (2026-09-26). A title's chain is
+    // cut at the first block that is owned elsewhere.
+    let reaches_heading_arm = |id: &BlockId| {
+        !claims.contains(*id)
+            && !lists.taken.contains_key(id)
+            && !contents_blocks.contains(id)
+            && !tables.claimed_by.contains_key(id)
+    };
+    let heading_joins = joins_within(heading_joins, reaches_heading_arm);
+    let joined_away: std::collections::BTreeSet<BlockId> =
+        heading_joins.values().flatten().copied().collect();
     let mut minter = Minter::new();
     let mut flow: Vec<FlowItem> = Vec::new();
     let mut emitted_lists: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
@@ -1069,6 +1081,56 @@ fn without_controls(mut metadata: Metadata) -> Metadata {
 }
 
 /// Which headings continue the heading before them: per first block, the blocks joined to it.
+/// `joins` kept to the blocks `reaches` admits: a title whose first block is not admitted is not
+/// joined at all, and a chain is cut before its first block that is not.
+fn joins_within(
+    joins: std::collections::BTreeMap<BlockId, Vec<BlockId>>,
+    reaches: impl Fn(&BlockId) -> bool,
+) -> std::collections::BTreeMap<BlockId, Vec<BlockId>> {
+    joins
+        .into_iter()
+        .filter(|(head, _)| reaches(head))
+        .map(|(head, rest)| {
+            let rest: Vec<BlockId> = rest.into_iter().take_while(|id| reaches(id)).collect();
+            (head, rest)
+        })
+        .filter(|(_, rest)| !rest.is_empty())
+        .collect()
+}
+
+#[cfg(test)]
+mod join_tests {
+    use super::*;
+
+    /// A title's blocks are joined only while each one is emitted as a heading: a block a list
+    /// or a note owns ends the chain, and an owned head joins nothing — else its words reach the
+    /// book twice, or not at all (I-1 on six technical books, 2026-09-26).
+    #[test]
+    fn a_title_is_joined_only_over_blocks_the_heading_arm_emits() {
+        let id = |n: u32| {
+            let at = oc_model::geom::Rect {
+                x0: 0.0,
+                y0: 0.0,
+                x1: 1.0,
+                y1: 1.0,
+            };
+            BlockId::derive(n, at, "block")
+        };
+        let joins: std::collections::BTreeMap<BlockId, Vec<BlockId>> =
+            [(id(1), vec![id(2), id(3), id(4)]), (id(10), vec![id(11)])]
+                .into_iter()
+                .collect();
+        let owned = [id(3), id(10)];
+        let kept = joins_within(joins, |block| !owned.contains(block));
+        assert_eq!(
+            kept.get(&id(1)),
+            Some(&vec![id(2)]),
+            "cut before the owned block"
+        );
+        assert!(!kept.contains_key(&id(10)), "an owned head joins nothing");
+    }
+}
+
 fn join_multiline_headings(
     headings: &[HeadingAssignment],
     blocks: &[BlockView],
