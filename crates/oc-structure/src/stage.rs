@@ -347,6 +347,9 @@ pub struct StructureEdits {
     pub indented: std::collections::BTreeMap<BlockId, crate::quotes::IndentedKind>,
     /// Task 1: the metadata, when a model's answer was admitted. Outside `C` (ARCHITECTURE §5.2).
     pub metadata: Option<Metadata>,
+    /// Task `front_page`: a kind for a page before the first chapter, by page index. Read only
+    /// for pages the rules left untyped or called a dedication (`front::front_sections`).
+    pub front_pages: std::collections::BTreeMap<u32, oc_model::doc::FrontMatterKind>,
 }
 
 impl StructureEdits {
@@ -355,6 +358,7 @@ impl StructureEdits {
             && self.zones.is_empty()
             && self.indented.is_empty()
             && self.metadata.is_none()
+            && self.front_pages.is_empty()
     }
 }
 
@@ -994,6 +998,7 @@ pub fn structure_with(
         &input.labels,
         &input.lang,
         metadata.title.as_deref(),
+        &edits.front_pages,
         t,
         &edits.zones,
     );

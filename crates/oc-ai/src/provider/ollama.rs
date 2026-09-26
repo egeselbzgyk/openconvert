@@ -70,9 +70,13 @@ impl<T: Transport> Ollama<T> {
 
     /// The request body, exactly as it goes on the wire, in a fixed key order.
     pub fn body(&self, request: &LlmRequest) -> Result<String, LlmError> {
-        let schema: Value = serde_json::from_str(request.schema).map_err(|error| {
-            LlmError::Protocol(format!("the task's schema is not JSON: {error}"))
-        })?;
+        let schema: Option<Value> = if request.is_free_text() {
+            None
+        } else {
+            Some(serde_json::from_str(request.schema).map_err(|error| {
+                LlmError::Protocol(format!("the task's schema is not JSON: {error}"))
+            })?)
+        };
 
         let mut options = Map::new();
         options.insert("temperature".to_owned(), json!(self.config.temperature));
@@ -89,7 +93,9 @@ impl<T: Transport> Ollama<T> {
             ]),
         );
         body.insert("stream".to_owned(), json!(false));
-        body.insert("format".to_owned(), schema);
+        if let Some(schema) = schema {
+            body.insert("format".to_owned(), schema);
+        }
         body.insert("options".to_owned(), Value::Object(options));
         body.insert("keep_alive".to_owned(), json!(self.config.keep_alive_secs));
         body.insert("think".to_owned(), json!(false));

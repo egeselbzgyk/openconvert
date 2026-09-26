@@ -933,6 +933,34 @@ evidence = "PHASE 10 detail 7, task 4: the languages (dc:language primary subtag
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[ai.task.front_page.languages]
+value = ["*"]
+source = "provisional"
+evidence = "Task front_page (quality mode): the kind of a page before the first chapter that the deterministic rules left untyped or called a dedication. Every language by maintainer direction (2026-09-26): the answer is a label, taken only when two reasoned answers asked with the kinds in opposite orders agree, and a smoke test of the bundled model named title, copyright, dedication and contents pages correctly that way. Not evaluated under docs/AI_EVALUATION.md"
+owner = "maintainer"
+review_by = "2027-03-31"
+
+[llm.front_page_max_pages]
+value = 12
+source = "provisional"
+evidence = "The most pages before the first chapter the front_page task asks about, two calls each. Front matter runs to a dozen pages in the corpus's novels; a technical book's longer preface is running text the rules already handle. Invented (2026-09-26)"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.front_page_max_chars]
+value = 1500
+source = "provisional"
+evidence = "The most characters of a page the front_page task shows the model: a title, copyright or dedication page is far shorter, and the start of a longer page says what kind it is. Keeps a question well inside a 4096-token slot with its reasoning. Invented (2026-09-26)"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.reasoned_max_tokens]
+value = 400
+source = "provisional"
+evidence = "The most tokens a reasoned (quality-mode) answer may take: two or three sentences and an ANSWER line took 25-65 tokens from the bundled model in the smoke test (2026-09-26); the rest is room for a wordier model. Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [llm.max_calls_per_book]
 value = 400
 source = "provisional"

@@ -66,6 +66,7 @@ fn kind_of(
 pub fn front_sections(
     pages: Vec<FrontPage>,
     title: Option<&str>,
+    told: &std::collections::BTreeMap<u32, FrontMatterKind>,
     lang: &LangTag,
     t: &Thresholds,
 ) -> Vec<Section> {
@@ -86,6 +87,16 @@ pub fn front_sections(
         let words = |index: usize| page_text(&pages[index].content).split_whitespace().count();
         if words(first) <= words(second) {
             kinds[first] = FrontMatterKind::HalfTitle;
+        }
+    }
+    // What the front_page task said, for the pages the rules could not type or typed on the
+    // weakest evidence: a few words alone on a page are as often a motto or a series name as a
+    // dedication. A copyright sign, an ISBN, the title or a contents link outweighs a model.
+    for (page, kind) in pages.iter().zip(kinds.iter_mut()) {
+        if matches!(kind, FrontMatterKind::Other | FrontMatterKind::Dedication) {
+            if let Some(told) = told.get(&page.page) {
+                *kind = *told;
+            }
         }
     }
 
@@ -307,7 +318,13 @@ mod tests {
                 ],
             ),
         ];
-        let sections = front_sections(pages, Some("Kayıp Zaman"), &LangTag::TR, &T);
+        let sections = front_sections(
+            pages,
+            Some("Kayıp Zaman"),
+            &Default::default(),
+            &LangTag::TR,
+            &T,
+        );
         assert_eq!(
             kinds(&sections),
             vec![
@@ -330,7 +347,7 @@ mod tests {
             page(4, &["Printed by a printer. ISBN 0-306-40615-2"]),
             page(5, &[long.as_str()]),
         ];
-        let sections = front_sections(pages, None, &LangTag::EN, &T);
+        let sections = front_sections(pages, None, &Default::default(), &LangTag::EN, &T);
         assert_eq!(
             kinds(&sections),
             vec![FrontMatterKind::Copyright, FrontMatterKind::Other]
@@ -349,13 +366,47 @@ mod tests {
                 para("A. Writer"),
             ])],
         }];
-        let sections = front_sections(pages, Some("The Book"), &LangTag::EN, &T);
+        let sections = front_sections(
+            pages,
+            Some("The Book"),
+            &Default::default(),
+            &LangTag::EN,
+            &T,
+        );
         assert_eq!(kinds(&sections), vec![FrontMatterKind::TitlePage]);
         assert!(sections[0]
             .content
             .iter()
             .all(|item| matches!(item, Content::Paragraph(_))));
         assert_eq!(page_text(&sections[0].content), "THE BOOK A. Writer");
+    }
+
+    /// The model's kind is taken for a page the rules left untyped or called a dedication, and
+    /// never over a copyright sign.
+    #[test]
+    fn the_front_page_task_types_only_what_the_rules_could_not() {
+        let long = "word ".repeat(200);
+        let pages = vec![
+            page(3, &["\u{00A9} 2020 Someone"]),
+            page(4, &["For the ones who stayed"]),
+            page(5, &[long.as_str()]),
+        ];
+        let told: std::collections::BTreeMap<u32, FrontMatterKind> = [
+            (3, FrontMatterKind::Preface),
+            (4, FrontMatterKind::Epigraph),
+            (5, FrontMatterKind::Foreword),
+        ]
+        .into_iter()
+        .collect();
+        let sections = front_sections(pages, None, &told, &LangTag::EN, &T);
+        assert_eq!(
+            kinds(&sections),
+            vec![
+                FrontMatterKind::Copyright,
+                FrontMatterKind::Epigraph,
+                FrontMatterKind::Foreword,
+            ]
+        );
     }
 
     #[test]

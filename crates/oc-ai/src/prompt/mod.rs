@@ -25,6 +25,7 @@ pub const PROMPT_VERSION: u32 = 1;
 /// The artifacts of prompt version 1, one module per task.
 pub mod v1 {
     pub mod book_structure;
+    pub mod front_page;
     pub mod heading_roles;
     pub mod metadata;
     pub mod verse_quote;
@@ -80,5 +81,6 @@ pub fn artifacts(purpose: Purpose) -> Artifacts {
         Purpose::HeadingRoles => v1::heading_roles::ARTIFACTS,
         Purpose::BookStructure => v1::book_structure::ARTIFACTS,
         Purpose::VerseQuote => v1::verse_quote::ARTIFACTS,
+        Purpose::FrontPage => v1::front_page::ARTIFACTS,
     }
 }

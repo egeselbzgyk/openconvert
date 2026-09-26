@@ -95,7 +95,15 @@ pub fn book_structure(
     lang: &LangTag,
     t: &Thresholds,
 ) -> (Vec<Section>, Vec<Warning>, Confidence) {
-    book_structure_with(flow, labels, lang, None, t, &ZoneEdits::default())
+    book_structure_with(
+        flow,
+        labels,
+        lang,
+        None,
+        &std::collections::BTreeMap::new(),
+        t,
+        &ZoneEdits::default(),
+    )
 }
 
 /// One heading's place, as the book-structure task (PHASE 10, task 3) placed it.
@@ -133,6 +141,8 @@ pub fn book_structure_with(
     // The book's title, by which its title page is known among the pages before the first
     // heading.
     title: Option<&str>,
+    // The front_page task's kinds, by page, for the pages the rules could not type.
+    front_pages: &std::collections::BTreeMap<u32, FrontMatterKind>,
     t: &Thresholds,
     zones: &ZoneEdits,
 ) -> (Vec<Section>, Vec<Warning>, Confidence) {
@@ -244,7 +254,7 @@ pub fn book_structure_with(
     // dedication, so that nothing printed before the first heading is lost and each page is
     // what it is.
     if !preamble.is_empty() {
-        let front = crate::front::front_sections(preamble, title, lang, t);
+        let front = crate::front::front_sections(preamble, title, front_pages, lang, t);
         roots.splice(0..0, front);
     }
 
@@ -446,7 +456,15 @@ mod tests {
             .into_iter()
             .collect(),
         };
-        let (edited, warnings, _) = book_structure_with(&flow, &[], &LangTag::EN, None, &T, &zones);
+        let (edited, warnings, _) = book_structure_with(
+            &flow,
+            &[],
+            &LangTag::EN,
+            None,
+            &std::collections::BTreeMap::new(),
+            &T,
+            &zones,
+        );
         let roles: Vec<SectionRole> = edited.iter().map(|section| section.role).collect();
         assert_eq!(
             roles,

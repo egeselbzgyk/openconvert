@@ -160,6 +160,7 @@ fn language_gate_disables_a_task_for_one_language() {
         heading_roles: &["en", "de", "tr"],
         book_structure: &["en", "de", "tr"],
         verse_quote: &["en", "de"],
+        front_page: &[],
     };
     assert!(gates.allows(Purpose::VerseQuote, "en", false));
     assert!(
@@ -240,10 +241,17 @@ fn language_gate_disables_a_task_for_one_language() {
         heading_roles: T.ai.task.heading_roles.languages,
         book_structure: T.ai.task.book_structure.languages,
         verse_quote: T.ai.task.verse_quote.languages,
+        front_page: T.ai.task.front_page.languages,
     };
     for language in ["tr", "de-DE", "ja", "und"] {
-        assert!(shipped.allows(Purpose::Metadata, language, false), "{language}");
-        assert!(!shipped.allows(Purpose::HeadingRoles, language, false), "{language}");
+        assert!(
+            shipped.allows(Purpose::Metadata, language, false),
+            "{language}"
+        );
+        assert!(
+            !shipped.allows(Purpose::HeadingRoles, language, false),
+            "{language}"
+        );
     }
 }
 

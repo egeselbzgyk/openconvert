@@ -1,0 +1,11 @@
+title: the title page: the book's title with its author, and perhaps a translator or the publisher's name
+halftitle: a half-title: the book's title alone, or with the series it belongs to
+copyright: the copyright or imprint page: publisher, ISBN, edition, printing, credits, addresses
+dedication: a dedication, such as "for my mother"
+epigraph: an epigraph: a short quotation or motto set before the text, with its source
+contents: a table of contents
+foreword: a foreword, written by someone other than the author
+preface: a preface, a note to the reader, or acknowledgements
+introduction: an introduction to the book
+other: other front matter: praise for the book, a list of the author's other books, a map, a list of characters, a blank or decorative page
+body: the main text of the book: the start of a chapter, or running text

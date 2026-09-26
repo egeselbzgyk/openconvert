@@ -27,6 +27,7 @@ pub struct LanguageGates<'a> {
     pub heading_roles: &'a [&'a str],
     pub book_structure: &'a [&'a str],
     pub verse_quote: &'a [&'a str],
+    pub front_page: &'a [&'a str],
 }
 
 impl LanguageGates<'_> {
@@ -36,6 +37,7 @@ impl LanguageGates<'_> {
             Purpose::HeadingRoles => self.heading_roles,
             Purpose::BookStructure => self.book_structure,
             Purpose::VerseQuote => self.verse_quote,
+            Purpose::FrontPage => self.front_page,
         }
     }
 

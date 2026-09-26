@@ -101,6 +101,11 @@ pub enum GateFailure {
     /// Task 2's validation: the mapping breaks one of ARCHITECTURE §9.6's role rules.
     #[error("the mapping breaks a role rule: {0}")]
     RoleRule(&'static str),
+    /// A reasoned task's check: the two answers, asked with the choices in opposite orders, did
+    /// not name the same one — or one of them named none. A choice that depends on the order it
+    /// was offered in is not a judgement.
+    #[error("the two answers did not agree")]
+    Disagreed,
     /// Gate V: a component of the region's statistics worsened by more than its epsilon. The
     /// first such component in the tuple's fixed order is the one named.
     #[error("the edit made `{statistic}` worse: {before} before, {after} after")]
@@ -129,6 +134,7 @@ impl GateFailure {
             GateFailure::HoldoutDisagrees { .. } => "S.holdout",
             GateFailure::RoleRule(_) => "S.roles",
             GateFailure::Worsened { .. } => "V.worsened",
+            GateFailure::Disagreed => "S.agreement",
         }
     }
 }

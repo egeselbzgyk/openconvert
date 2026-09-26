@@ -191,6 +191,9 @@ pub enum Purpose {
     BookStructure,
     /// Task 4: verse, block quotation, preformatted or paragraph, for ambiguous indented blocks.
     VerseQuote,
+    /// What kind of page one of the pages before the first chapter is — a label, asked in free
+    /// text in quality mode (`prompt::v1::front_page`).
+    FrontPage,
 }
 
 impl Purpose {
@@ -210,6 +213,7 @@ impl Purpose {
             Purpose::HeadingRoles => "heading_roles",
             Purpose::BookStructure => "book_structure",
             Purpose::VerseQuote => "verse_quote",
+            Purpose::FrontPage => "front_page",
         }
     }
 }
@@ -233,6 +237,13 @@ pub struct LlmRequest {
 }
 
 impl LlmRequest {
+    /// A question answered in free text: no grammar, no schema. The model reasons before it
+    /// answers and the task reads the answer out of what it wrote; nothing constrains the shape,
+    /// on any provider.
+    pub fn is_free_text(&self) -> bool {
+        self.grammar.is_empty() && self.schema.is_empty()
+    }
+
     /// The SHA-256 of the grammar text: the `grammar_hash` of the cache key (ARCHITECTURE §9.2), so
     /// a grammar edit cannot be answered from a cache entry decoded under the old one.
     pub fn grammar_sha256(&self) -> [u8; 32] {

@@ -15,6 +15,7 @@
 //! caller fills from `oc_core::thresholds::T`.
 
 pub mod book_structure;
+pub mod front_page;
 pub mod heading_roles;
 pub mod metadata;
 pub mod verse_quote;

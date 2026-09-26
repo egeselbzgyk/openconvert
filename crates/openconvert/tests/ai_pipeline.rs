@@ -102,6 +102,9 @@ impl LlmProvider for Echo {
             clock.advance(ms);
         }
         let text = match request.purpose {
+            // A page the rules could not type is, to this double, other front matter.
+            Purpose::FrontPage => "It is neither of the named kinds.
+ANSWER: other".to_owned(),
             Purpose::Metadata => {
                 let title = request
                     .user

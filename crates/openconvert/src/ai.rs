@@ -192,6 +192,7 @@ pub fn run(
         heading_roles: t.ai.task.heading_roles.languages,
         book_structure: t.ai.task.book_structure.languages,
         verse_quote: t.ai.task.verse_quote.languages,
+        front_page: t.ai.task.front_page.languages,
     };
     let allowed = |purpose| gates.allows(purpose, &language, ctx.all_tasks);
 
@@ -295,6 +296,11 @@ pub fn run(
             &structure_limits,
             grant.book_structure_chunks,
         );
+    }
+    // --- The pages before the first chapter the rules could not type: quality mode only, where
+    // the model reasons before it answers. Constrained one-word answers were at chance on them.
+    if ctx.mode == oc_core::jobspec::AiMode::Quality && allowed(Purpose::FrontPage) {
+        step.front_pages(&mut session);
     }
 
     step.outcome
@@ -415,6 +421,90 @@ impl Step<'_> {
             Ok(title)
         });
         self.settled(choice, asked.trace, verdict);
+    }
+
+    /// Ask about each page before the first chapter that the rules left untyped or called a
+    /// dedication, and apply the kinds both answers agreed on as one edit.
+    fn front_pages(&mut self, session: &mut Session<'_>) {
+        use oc_ai::task::front_page::{ask, PageKind};
+        use oc_model::doc::{FrontMatterKind, SectionRole};
+
+        let max_pages = usize::try_from(self.t.llm.front_page_max_pages).unwrap_or_default();
+        let max_chars = usize::try_from(self.t.llm.front_page_max_chars).unwrap_or(usize::MAX);
+        let max_tokens = u32::try_from(self.t.llm.reasoned_max_tokens).unwrap_or(self.max_tokens);
+        let pages: Vec<(u32, FrontMatterKind)> = self
+            .current
+            .sections
+            .iter()
+            .filter(|section| section.heading.is_none())
+            .filter_map(|section| match section.role {
+                SectionRole::FrontMatter(
+                    kind @ (FrontMatterKind::Other | FrontMatterKind::Dedication),
+                ) => Some((section.source_pages, kind)),
+                _ => None,
+            })
+            .flat_map(|((first, last), kind)| (first..=last).map(move |page| (page, kind)))
+            .take(max_pages)
+            .collect();
+
+        let mut agreed: Vec<(Choice, LlmTrace, FrontMatterKind)> = Vec::new();
+        let mut told: std::collections::BTreeMap<u32, FrontMatterKind> =
+            std::collections::BTreeMap::new();
+        for (page, deterministic) in pages {
+            let text = page_text(self.input, page, max_chars);
+            if text.trim().is_empty() {
+                continue;
+            }
+            let choice = Choice {
+                stage: oc_core::stages::STRUCTURE.name,
+                kind: Purpose::FrontPage.as_str(),
+                subject: None,
+                deterministic: front_word(deterministic).to_owned(),
+                alternatives: Vec::new(),
+            };
+            match ask(session, &text, page.saturating_add(1), max_tokens) {
+                Err(why) => self.unasked(choice, why.code()),
+                Ok(answer) => {
+                    let Some(trace) = answer.traces.first().cloned() else {
+                        continue;
+                    };
+                    let kind = answer.kind.map(|kind| match kind {
+                        PageKind::Title => FrontMatterKind::TitlePage,
+                        PageKind::HalfTitle => FrontMatterKind::HalfTitle,
+                        PageKind::Copyright => FrontMatterKind::Copyright,
+                        PageKind::Dedication => FrontMatterKind::Dedication,
+                        PageKind::Epigraph => FrontMatterKind::Epigraph,
+                        PageKind::Contents => FrontMatterKind::TableOfContents,
+                        PageKind::Foreword => FrontMatterKind::Foreword,
+                        PageKind::Preface => FrontMatterKind::Preface,
+                        PageKind::Introduction => FrontMatterKind::Introduction,
+                        // Nothing to say beyond what the rules said.
+                        PageKind::Other | PageKind::Body => deterministic,
+                    });
+                    match kind {
+                        Some(kind) => {
+                            if kind != deterministic {
+                                told.insert(page, kind);
+                            }
+                            agreed.push((choice, trace, kind));
+                        }
+                        None => self.settled(choice, trace, Err(GateFailure::Disagreed)),
+                    }
+                }
+            }
+        }
+        // One edit for every page the answers agreed on, through gates L and V like any other.
+        let verdict = if told.is_empty() {
+            Ok(())
+        } else {
+            let mut candidate = self.accepted.clone();
+            candidate.front_pages.extend(told);
+            self.try_edit(candidate, &Region::Whole)
+        };
+        for (choice, trace, kind) in agreed {
+            let verdict = verdict.clone().map(|()| front_word(kind).to_owned());
+            self.settled(choice, trace, verdict);
+        }
     }
 
     fn heading_roles(&mut self, session: &mut Session<'_>, roles: &RolesQuestion) {
@@ -679,6 +769,36 @@ fn describe_zones(edit: &oc_ai::task::book_structure::ZoneEdit) -> String {
 }
 
 // --- Payloads: what each task is shown, built from what `structure` measured.
+
+/// A page's text as printed, block by block, cut to `max_chars` characters.
+fn page_text(input: &StructureInput, page: u32, max_chars: usize) -> String {
+    let text = input
+        .blocks
+        .iter()
+        .filter(|block| block.page == page)
+        .map(|block| block.text.trim())
+        .filter(|text| !text.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    text.chars().take(max_chars).collect()
+}
+
+/// A front-matter kind as a decision names it.
+fn front_word(kind: oc_model::doc::FrontMatterKind) -> &'static str {
+    use oc_model::doc::FrontMatterKind;
+    match kind {
+        FrontMatterKind::HalfTitle => "halftitle",
+        FrontMatterKind::TitlePage => "title",
+        FrontMatterKind::Copyright => "copyright",
+        FrontMatterKind::Dedication => "dedication",
+        FrontMatterKind::Epigraph => "epigraph",
+        FrontMatterKind::TableOfContents => "contents",
+        FrontMatterKind::Foreword => "foreword",
+        FrontMatterKind::Preface => "preface",
+        FrontMatterKind::Introduction => "introduction",
+        FrontMatterKind::Other => "other",
+    }
+}
 
 /// The flat heading list, in reading order: what book structure's indices count.
 fn heading_list(current: &StructureOutput) -> Vec<book_structure::HeadingEntry> {
