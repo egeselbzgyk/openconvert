@@ -1879,6 +1879,20 @@ evidence = "Rules drawn as filled rectangles have a thickness, so a cell edge is
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[table.rule_join_gap_pt]
+value = 3.0
+source = "provisional"
+evidence = "Measured on four technical books (2026-09-26): no table rule was one path. One strokes a separate segment per column along every row boundary, another each cell's four sides as four lines; the pieces of one rule lie on one line and overlap end to end by 0.3-0.7 pt. Pieces whose ends are at most this far apart are one rule: the same 3 pt that makes two coordinates one cell edge (table.grid_snap_pt), a hair above a stroke's own width and far below the gutter between two tables set side by side"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[table.min_taken_text_share]
+value = 0.5
+source = "provisional"
+evidence = "A table takes only the blocks wholly inside its region; a block that reaches outside stays in the flow whole, and the table is built from what is left. Measured on a technical book (2026-09-26), eight ruled regions had text in blocks reaching outside: the share left inside the table was 0 twice, 0.003 (a lone note mark emitted as a one-cell table beside its rows), 0.25, 0.44, 0.55, 0.74 and 0.91. Half is the point below which the table is mostly in the paragraph rather than in the table, and the region is left to the flow"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 [table.rule_overlap_min]
 value = 0.5
 source = "provisional"
