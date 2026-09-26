@@ -1886,6 +1886,27 @@ evidence = "Two horizontal rules belong to one table when their x-extents overla
 owner = "maintainer"
 review_by = "2027-06-30"
 
+[table.min_columns]
+value = 2
+source = "provisional"
+evidence = "A table sets its data in two columns or more. Two vertical rules bound one column, and one ruled column is a box around text - a sidebar, a boxed passage - not a grid: measured on eleven real books, every ruled region of one column held a boxed passage of prose, a figure, or nothing. Vertical rules that divide a region into this many columns are its column structure on their own"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[table.min_aligned_rows]
+value = 2
+source = "provisional"
+evidence = "Rules alone do not make a table: an underline under a line of text, a running head's rule, a footnote separator and a box's frame are all rules, and pairs of them bounded running prose that was emitted as tables (a novel with no tables came out with 74, most of them a chapter number cut from its opener). Where no vertical rules divide the region, its text must show the columns: rows set as cells apart at a gutter (a gap of text.line_split_gap_em) that another such row shares. Two is the fewest rows that can repeat a column structure"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[table.min_aligned_row_share]
+value = 0.5
+source = "provisional"
+evidence = "The share of a region's printed rows that must be set as cells on a shared gutter. Measured over the 2,004 rule-bounded regions of eleven real books (seven prose, four technical): 1,151 scored 0, and running prose never scored above 0.20, reached only where a figure's labels or a catalogue's price lines sat among it - justified prose breaks a run at a stretched space on a stray line, never on most of them. Scanned diagrams with columns of labels scored 0.17-0.6, workbook exercises with answer blanks 0.06-0.71, contents and index pages 0.84-0.97, a real borderless table 1.0. Half keeps a table whose long cells wrap onto continuation lines and refuses a page of prose with a few split lines"
+owner = "maintainer"
+review_by = "2027-06-30"
+
 # ---------- quotes, verse and preformatted (PIPELINE 8.6) ----------
 [verse.short_line_fill_max]
 value = 0.85

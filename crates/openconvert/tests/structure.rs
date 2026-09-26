@@ -688,6 +688,7 @@ fn ruled_table_becomes_html_table() {
     let views = read.views();
     let outcome = extract_tables(
         &read.vectors,
+        read.pages,
         &views,
         &Default::default(),
         u32::try_from(read.images.len()).unwrap_or_default(),
@@ -743,7 +744,14 @@ fn ruled_table_becomes_html_table() {
 #[test]
 fn borderless_table_falls_back_to_image_with_details() {
     let read = read("../../corpus/fixtures/handmade/h26_borderless_table.pdf");
-    let outcome = extract_tables(&read.vectors, &read.views(), &Default::default(), 0, &T);
+    let outcome = extract_tables(
+        &read.vectors,
+        read.pages,
+        &read.views(),
+        &Default::default(),
+        0,
+        &T,
+    );
 
     assert_eq!(outcome.tables.len(), 1, "the rules bound one region");
     assert!(
