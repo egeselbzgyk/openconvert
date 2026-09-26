@@ -83,20 +83,23 @@ fn cache_reuse_flag_follows_registry() {
         value_of(&dense, "--cache-reuse"),
         Some(T.llm.cache_reuse_min_chunk.to_string().as_str())
     );
-    assert!(!dense.iter().any(|arg| arg == "--context-checkpoints"));
+    assert!(!dense.iter().any(|arg| arg == "--ctx-checkpoints"));
 
-    // A hybrid recurrent entry: no KV shifting, checkpoints instead (RT A3).
+    // A hybrid recurrent entry: no KV shifting, checkpoints instead (RT A3). The flag is the
+    // pinned server's own spelling: `--context-checkpoints` is refused as an unknown argument,
+    // and the server exits before it is ever healthy (2026-09-26, llama.cpp b10456).
     let hybrid = args(&command(program, &spec(false, Some(32)), 1, &key));
     assert!(
         !hybrid.iter().any(|arg| arg == "--cache-reuse"),
         "cache_reuse = false never gets --cache-reuse: {hybrid:?}"
     );
-    assert_eq!(value_of(&hybrid, "--context-checkpoints"), Some("32"));
+    assert_eq!(value_of(&hybrid, "--ctx-checkpoints"), Some("32"));
+    assert!(!hybrid.iter().any(|arg| arg == "--context-checkpoints"));
 
     // And the registry, not the family name, decides: a dense entry that says false gets none.
     let dense_off = args(&command(program, &spec(false, None), 1, &key));
     assert!(!dense_off.iter().any(|arg| arg.starts_with("--cache-reuse")));
     assert!(!dense_off
         .iter()
-        .any(|arg| arg.starts_with("--context-checkpoints")));
+        .any(|arg| arg.starts_with("--ctx-checkpoints")));
 }

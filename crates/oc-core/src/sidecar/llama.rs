@@ -3,7 +3,9 @@
 //! Every flag here is one V1 §3 verified against the pinned llama.cpp build; none is invented. What
 //! varies between models is decided by the model's `models.toml` entry, never by its family name:
 //! `--cache-reuse` only for an entry that says `cache_reuse = true` (RT A3 — recurrent layers cannot
-//! be KV-shifted), `--context-checkpoints` only for an entry that names a count.
+//! be KV-shifted), `--ctx-checkpoints` only for an entry that names a count. That flag is spelled
+//! as the pinned server's `--help` spells it; the design documents' `--context-checkpoints` is
+//! refused as an unknown argument, and the server exits before it is ever healthy.
 //!
 //! The per-run key never appears in the argument list, which any user on the machine can read with
 //! `ps`. `llama-server` reads it from [`API_KEY_ENV`] when `--api-key` is absent, and a process's
@@ -72,7 +74,7 @@ pub fn command(program: &Path, spec: &ServerSpec, port: u16, key: &SecretString)
     }
     if let Some(checkpoints) = spec.context_checkpoints {
         command
-            .arg("--context-checkpoints")
+            .arg("--ctx-checkpoints")
             .arg(checkpoints.to_string());
     }
     command

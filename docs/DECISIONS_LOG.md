@@ -6160,6 +6160,23 @@ models' and any instruction model's, so a user's own model is asked the same way
 `llm.front_page_max_chars` is 600: 30/31 at 600 characters against 29 at 1,500 and 350, at half
 the time of 1,500.
 
-**Open.** The fine-tuned weights declare no licence yet ("still being finalized" at
-publication); the registry says so (`license = "unspecified"`) and the app does not bundle the
-model — the user downloads it. Revisit when Together AI publishes the licence.
+**Licence.** The pinned GGUF revision declares Apache-2.0 (`license: apache-2.0` in its card at
+`b00dd6b`), and the registry records that: the downloader installs only a model whose licence
+text it bundles, and refused the default under `unspecified` — found by installing the release
+build locally before tagging it. Together AI's own card says the fine-tuned weights' licence
+"was still being finalized" at publication; the `NOTICE` written beside the model says so, and
+the app does not bundle the model — the user downloads it. Revisit when Together AI publishes
+the licence.
+
+## 2026-09-26 · The checkpoint flag is `--ctx-checkpoints` · release rehearsal
+
+Installing the v1.1 build and converting with the default model on gave `W_LLM_UNAVAILABLE`
+("the model server did not become ready") within seconds. Run by hand with the engine's own
+arguments, the pinned `llama-server` (b10456) stopped at once: `invalid argument:
+--context-checkpoints`. Its `--help` spells the flag `-ctxcp, --ctx-checkpoints,
+--swa-checkpoints N`; the design documents (RT A3, V1 §3) had written the long name out. The
+flag is sent only for a hybrid recurrent entry, and until Tev1-4B none of those was the
+default, so no conversion had asked for it. `oc-core::sidecar::llama` now sends
+`--ctx-checkpoints`, and `cache_reuse_flag_follows_registry` checks that spelling. With it, a
+paper converts with 12 of the model's decisions in quality mode (2 m 17 s, the 120 s budget
+spent) and 7 in fast mode (40 s).
