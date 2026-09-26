@@ -17,6 +17,9 @@ use crate::provider::Purpose;
 /// The `Decision.fallback` of an escalation whose task is not enabled for the book's language.
 pub const LANGUAGE_GATE: &str = "language.gate";
 
+/// The entry of `ai.task.<task>.languages` that enables a task for every language.
+pub const ALL_LANGUAGES: &str = "*";
+
 /// Per task, the languages it is enabled for: `ai.task.<task>.languages`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LanguageGates<'a> {
@@ -37,7 +40,8 @@ impl LanguageGates<'_> {
     }
 
     /// Whether `purpose` may run for a book in `language` — a BCP-47 tag, read by its primary
-    /// subtag, case-insensitively. `all_tasks` is `--ai-all-tasks`.
+    /// subtag, case-insensitively. `all_tasks` is `--ai-all-tasks`. `*` in a task's list enables
+    /// it for every language: a task whose checks read no language at all.
     pub fn allows(&self, purpose: Purpose, language: &str, all_tasks: bool) -> bool {
         if all_tasks {
             return true;
@@ -49,7 +53,7 @@ impl LanguageGates<'_> {
             .to_ascii_lowercase();
         self.of(purpose)
             .iter()
-            .any(|enabled| enabled.eq_ignore_ascii_case(&primary))
+            .any(|enabled| *enabled == ALL_LANGUAGES || enabled.eq_ignore_ascii_case(&primary))
     }
 }
 

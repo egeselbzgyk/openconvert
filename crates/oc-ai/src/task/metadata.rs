@@ -22,6 +22,8 @@ use crate::task::normalise;
 pub struct MetadataLimits {
     /// `metadata.llm_title_max_chars`: ARCHITECTURE §9.6's "title length 1–200 chars".
     pub title_max_chars: usize,
+    /// `metadata.llm_author_min_words`: the fewest words a name the model calls an author has.
+    pub author_min_words: usize,
 }
 
 impl MetadataInput {
@@ -77,6 +79,48 @@ pub fn validate_metadata(
     }
     Ok(())
 }
+
+/// The fields of an admitted answer that are also plausible: a title the pages print larger
+/// than their body text, authors that are names of `author_min_words` words or more with no
+/// digits in them. The rest is dropped, not refused — the deterministic value stands for it.
+///
+/// Verbatim is not enough (2026-09-26, a smoke test against the bundled model): a line of a
+/// contents page copied exactly is still no title, and a series editor's surname copied exactly
+/// is still no author.
+pub fn plausible(
+    mut answer: MetadataAnswer,
+    input: &MetadataInput,
+    limits: &MetadataLimits,
+) -> MetadataAnswer {
+    if let Some(title) = &answer.title {
+        let wanted = normalise(title);
+        let printed_large = input.lines.iter().any(|line| {
+            matches!(
+                line.size,
+                Some(crate::prompt::v1::metadata::Size::Large)
+                    | Some(crate::prompt::v1::metadata::Size::Medium)
+            ) && {
+                // The title printed on this line, or this line one of a title set over several.
+                let printed = normalise(&line.text);
+                printed.contains(&wanted)
+                    || (printed.chars().count() >= TITLE_PART_MIN_CHARS
+                        && wanted.contains(&printed))
+            }
+        });
+        if !printed_large {
+            answer.title = None;
+            answer.subtitle = None;
+        }
+    }
+    answer.authors.retain(|author| {
+        author.split_whitespace().count() >= limits.author_min_words
+            && !author.chars().any(char::is_numeric)
+    });
+    answer
+}
+
+/// A large line shorter than this is a numeral or an initial, found inside any title by chance.
+const TITLE_PART_MIN_CHARS: usize = 3;
 
 /// The metadata an admitted answer makes of the deterministic metadata.
 ///

@@ -906,11 +906,11 @@ owner = "maintainer"
 review_by = "2099-01-01"
 
 [ai.task.metadata.languages]
-value = []
+value = ["*"]
 source = "provisional"
-evidence = "PHASE 10 detail 7, task 1: the languages (dc:language primary subtags) this task runs for under --ai - the ones where it was non-inferior to the deterministic path with a false-repair rate at most 1 % in every assertion category (McNemar, docs/AI_EVALUATION.md). No evaluation has run: no model was reachable where Phase 10 was built. So no language is enabled, and the task runs only under --ai-all-tasks, the flag detail 7 keeps an unproven task behind"
+evidence = "PHASE 10 detail 7, task 1. Enabled for every language by maintainer direction (2026-09-26): the task's checks read no language - every field must be a verbatim substring of pages 1-3 (validate_metadata), a title must be printed larger than the body and an author must be a name of metadata.llm_author_min_words words (plausible) - and the question is asked only when the file declares no title. A smoke test of ten books against the bundled model replaced a garbled heuristic title and a title run together with its author, and the plausibility rules drop the wrong fields it returned. The McNemar evaluation of docs/AI_EVALUATION.md has still not run"
 owner = "maintainer"
-review_by = "2027-06-30"
+review_by = "2027-03-31"
 
 [ai.task.heading_roles.languages]
 value = []
@@ -1119,6 +1119,13 @@ review_by = "2027-06-30"
 value = 20
 source = "provisional"
 evidence = "PHASE 10 detail 4: chunks overlap and must agree on the overlap. The width is invented here - a tenth of a chunk, enough headings to carry a part or back-matter boundary across a seam - and is to be measured on the first reference works converted"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[metadata.llm_author_min_words]
+value = 2
+source = "provisional"
+evidence = "The fewest words a name the metadata task calls an author must have to be taken. Against the bundled model (smoke test 2026-09-26) the one-word answers were a surname cut from a full name and a word of the title; every right answer was a given name and a family name. A mononymous author is lost to this, and keeps whatever the deterministic path found"
 owner = "maintainer"
 review_by = "2027-06-30"
 

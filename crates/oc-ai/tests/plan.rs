@@ -225,14 +225,25 @@ fn language_gate_disables_a_task_for_one_language() {
     assert!(decision.llm.is_none(), "no model was asked");
     assert_eq!(decision.chosen, "blockquote");
 
-    // The shipped map enables nothing yet: no evaluation has run (PHASE 10 detail 7).
+    // The shipped map: metadata for every language, by maintainer direction (2026-09-26), and
+    // nothing else until its evaluation has run (PHASE 10 detail 7).
+    assert_eq!(T.ai.task.metadata.languages, [oc_ai::plan::ALL_LANGUAGES]);
     for languages in [
-        T.ai.task.metadata.languages,
         T.ai.task.heading_roles.languages,
         T.ai.task.book_structure.languages,
         T.ai.task.verse_quote.languages,
     ] {
         assert!(languages.is_empty(), "{languages:?}");
+    }
+    let shipped = LanguageGates {
+        metadata: T.ai.task.metadata.languages,
+        heading_roles: T.ai.task.heading_roles.languages,
+        book_structure: T.ai.task.book_structure.languages,
+        verse_quote: T.ai.task.verse_quote.languages,
+    };
+    for language in ["tr", "de-DE", "ja", "und"] {
+        assert!(shipped.allows(Purpose::Metadata, language, false), "{language}");
+        assert!(!shipped.allows(Purpose::HeadingRoles, language, false), "{language}");
     }
 }
 

@@ -393,6 +393,8 @@ impl Step<'_> {
         let limits = oc_ai::task::metadata::MetadataLimits {
             title_max_chars: usize::try_from(self.t.metadata.llm_title_max_chars)
                 .unwrap_or(usize::MAX),
+            author_min_words: usize::try_from(self.t.metadata.llm_author_min_words)
+                .unwrap_or(usize::MAX),
         };
         let verdict = oc_ai::gates::schema::gate_response::<metadata::MetadataAnswer>(
             &asked.response,
@@ -400,7 +402,7 @@ impl Step<'_> {
         )
         .and_then(|answer| {
             oc_ai::task::metadata::validate_metadata(&answer, &question.verbatim_text(), &limits)?;
-            Ok(answer)
+            Ok(oc_ai::task::metadata::plausible(answer, &question, &limits))
         })
         .and_then(|answer| {
             let mut candidate = self.accepted.clone();

@@ -155,6 +155,7 @@ impl Asker for Never {
 
 fn metadata_limits() -> MetadataLimits {
     MetadataLimits {
+        author_min_words: usize::try_from(T.metadata.llm_author_min_words).expect("small"),
         title_max_chars: usize::try_from(T.metadata.llm_title_max_chars).unwrap_or(usize::MAX),
     }
 }
@@ -296,6 +297,7 @@ fn metadata_check_ignores_the_tags_and_bounds_the_title() {
     let long = "Jemand mußte Josef K. verleumdet haben, denn ohne daß er";
     let tight = MetadataLimits {
         title_max_chars: 10,
+        ..metadata_limits()
     };
     assert!(matches!(
         validate_metadata(&answer(long), &input.verbatim_text(), &tight),
@@ -1055,4 +1057,38 @@ fn verse_block_budget_capped_at_30() {
     assert!(batches
         .iter()
         .all(|batch| !batch.blocks.contains(&thirty_first)));
+}
+
+/// Verbatim is not plausible: a title copied from a line set at body size — a contents entry, a
+/// running head — is dropped, and so is an "author" of one word, while a title printed large and
+/// a full name stay.
+#[test]
+fn metadata_keeps_only_plausible_fields() {
+    use oc_ai::task::metadata::plausible;
+    let input = title_page();
+    let answer = |title: &str, authors: &[&str]| MetadataAnswer {
+        title: Some(title.to_owned()),
+        subtitle: None,
+        authors: authors.iter().map(|author| (*author).to_owned()).collect(),
+        translator: None,
+        publisher: None,
+        date: None,
+    };
+    let kept = plausible(
+        answer("Der Prozess", &["Franz Kafka", "Kafka"]),
+        &input,
+        &metadata_limits(),
+    );
+    assert_eq!(kept.title.as_deref(), Some("Der Prozess"));
+    assert_eq!(kept.authors, vec!["Franz Kafka".to_owned()]);
+
+    let body_line = input
+        .lines
+        .iter()
+        .find(|line| line.size.is_none())
+        .expect("the title page has a line at body size")
+        .text
+        .clone();
+    let dropped = plausible(answer(&body_line, &[]), &input, &metadata_limits());
+    assert_eq!(dropped.title, None);
 }
