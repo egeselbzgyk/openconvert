@@ -102,6 +102,58 @@ describe("settings route", () => {
     expect(document.querySelector(".oc-setting__help")?.textContent).toBe("On: the installed model is asked where the rules alone cannot decide.");
   });
 
+  // The AI mode (job spec v2's `ai.mode`), for every provider alike: offered while AI assistance is
+  // on, quality by default, saved at once, and each choice says what it costs.
+  it("the AI mode is offered with AI on, is quality by default, is saved, and says what each costs", async () => {
+    const backend = new FakeBackend();
+    backend.saved = { ...backend.saved, aiEnabled: true, provider: "ollama" };
+    await openSettings(backend);
+    let name = "AI mode";
+    const group = () => document.querySelector<HTMLElement>(`[role="radiogroup"][aria-label="${name}"]`);
+    const radios = () => [...(group()?.querySelectorAll<HTMLElement>('[role="radio"]') ?? [])];
+    const radio = (text: string) => radios().find((r) => r.textContent?.trim().startsWith(text));
+    const checked = () => radios().find((r) => r.getAttribute("aria-checked") === "true");
+
+    expect(group(), "AI is on: the mode is offered").not.toBeNull();
+    expect(radios().map((r) => r.querySelector(".oc-radio__hint")?.textContent)).toEqual([
+      "Quicker; the model gives short answers.",
+      "Slower; the model thinks each answer through and checks it twice. Works with every model.",
+    ]);
+    expect(checked()?.textContent, "quality by default").toContain("Quality (slower)");
+    expect(checked()?.tabIndex, "the one Tab stop is the chosen mode").toBe(0);
+
+    radio("Fast")?.click();
+    await settle();
+    flushSync();
+    expect(backend.saved.aiMode).toBe("fast");
+    expect(backend.saved.provider, "nothing else changes").toBe("ollama");
+    expect(checked()?.textContent).toContain("Fast");
+
+    // ↓ moves and selects (RadioGroup's keyboard contract).
+    radio("Fast")?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    await settle();
+    flushSync();
+    expect(backend.saved.aiMode).toBe("quality");
+
+    // In the user's language, the group's name too.
+    setLanguage("tr");
+    flushSync();
+    name = "Yapay zekâ modu";
+    expect(radio("Hızlı")?.textContent).toContain("Daha çabuk; model kısa cevaplar verir.");
+    expect(radio("Kaliteli (daha yavaş)")?.textContent).toContain("Her modelle çalışır.");
+    setLanguage("en");
+    flushSync();
+    name = "AI mode";
+
+    // Off: nothing to choose, and the switch is the only control left.
+    document.querySelector<HTMLButtonElement>('[role="switch"]')?.click();
+    await settle();
+    flushSync();
+    expect(backend.saved.aiEnabled).toBe(false);
+    expect(document.querySelector('[role="radiogroup"]'), "AI is off: no mode is offered").toBeNull();
+    expect(backend.saved.aiMode, "the choice is kept for when it is on again").toBe("quality");
+  });
+
   it("the card names all four tasks; the notices open in a dialog", async () => {
     await openSettings();
     expect(document.querySelector(".oc-card")?.textContent, "all four tasks are named").toContain("metadata");

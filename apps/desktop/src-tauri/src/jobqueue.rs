@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant, SystemTime};
 
-use oc_core::jobspec::{JobSpec, LimitsSpec};
+use oc_core::jobspec::{AiMode, JobSpec, LimitsSpec};
 use oc_core::thresholds::T;
 use oc_model::document::PresetName;
 use serde::Serialize;
@@ -182,9 +182,11 @@ pub struct Rebuild {
 enum Phase {
     Queued,
     /// Waiting for the app's model server: the lease arrives on `lease` from the thread that
-    /// started it. `cancelled` once Cancel was pressed meanwhile: the job then ends without starting.
+    /// started it, and its model is asked in `mode`. `cancelled` once Cancel was pressed meanwhile:
+    /// the job then ends without starting.
     Preparing {
         lease: mpsc::Receiver<Result<ServerLease, AiUnavailable>>,
+        mode: AiMode,
         cancelled: bool,
     },
     Running(Box<dyn Running>),
@@ -393,8 +395,9 @@ impl<L: Launch> JobQueue<L> {
         job.phase = match phase {
             Phase::Queued => Phase::Done(JobState::CancelledBeforeStart),
             // The server keeps loading; the job ends when its lease arrives, without starting.
-            Phase::Preparing { lease, .. } => Phase::Preparing {
+            Phase::Preparing { lease, mode, .. } => Phase::Preparing {
                 lease,
+                mode,
                 cancelled: true,
             },
             Phase::Running(mut running) => {
@@ -439,8 +442,16 @@ impl<L: Launch> JobQueue<L> {
             let phase =
                 std::mem::replace(&mut self.jobs[index].phase, Phase::Done(JobState::Running));
             let next = match phase {
-                Phase::Preparing { lease, cancelled } => match lease.try_recv() {
-                    Err(mpsc::TryRecvError::Empty) => Phase::Preparing { lease, cancelled },
+                Phase::Preparing {
+                    lease,
+                    mode,
+                    cancelled,
+                } => match lease.try_recv() {
+                    Err(mpsc::TryRecvError::Empty) => Phase::Preparing {
+                        lease,
+                        mode,
+                        cancelled,
+                    },
                     arrived => {
                         changed = true;
                         let arrived = arrived.unwrap_or(Err(AiUnavailable::ServerFailed));
@@ -454,7 +465,7 @@ impl<L: Launch> JobQueue<L> {
                             let ai = match arrived {
                                 Ok(lease) => {
                                     job.leased = true;
-                                    Some(lease.spec())
+                                    Some(lease.spec(mode))
                                 }
                                 Err(why) => {
                                     job.ai_unavailable = Some(why);
@@ -579,7 +590,7 @@ impl<L: Launch> JobQueue<L> {
                 JobAi::ConsentRequired { host } => Phase::Done(JobState::FailedToStart {
                     error: UiError::ConsentRequired { host },
                 }),
-                JobAi::Builtin => match &self.server {
+                JobAi::Builtin { mode } => match &self.server {
                     // The model loads off the queue's lock: a gigabyte can take a while, and the
                     // queue must keep answering Cancel meanwhile.
                     Some(server) => {
@@ -590,6 +601,7 @@ impl<L: Launch> JobQueue<L> {
                         });
                         Phase::Preparing {
                             lease,
+                            mode,
                             cancelled: false,
                         }
                     }
@@ -1072,7 +1084,9 @@ mod tests {
             &[PathBuf::from("/b/a.pdf"), PathBuf::from("/b/b.pdf")],
             PresetName::Auto,
             None,
-            &JobAi::Builtin,
+            &JobAi::Builtin {
+                mode: AiMode::Quality,
+            },
         );
         assert_eq!(queue.views()[1].state, JobState::Queued { position: 2 });
         until_prepared(&mut queue);
@@ -1106,7 +1120,9 @@ mod tests {
             &[PathBuf::from("/b/a.pdf")],
             PresetName::Auto,
             None,
-            &JobAi::Builtin,
+            &JobAi::Builtin {
+                mode: AiMode::Quality,
+            },
         );
         until_prepared(&mut queue);
         assert_eq!(queue.views()[0].state, JobState::Running);
@@ -1121,7 +1137,9 @@ mod tests {
             &[PathBuf::from("/b/a.pdf")],
             PresetName::Auto,
             None,
-            &JobAi::Builtin,
+            &JobAi::Builtin {
+                mode: AiMode::Quality,
+            },
         );
         assert_eq!(queue.views()[0].state, JobState::Running);
         assert_eq!(
@@ -1145,7 +1163,9 @@ mod tests {
             &[PathBuf::from("/b/a.pdf")],
             PresetName::Auto,
             None,
-            &JobAi::Builtin,
+            &JobAi::Builtin {
+                mode: AiMode::Quality,
+            },
         );
         assert_eq!(queue.views()[0].state, JobState::Preparing);
         assert!(
@@ -1235,6 +1255,68 @@ mod tests {
         assert!(
             spec["limits"].get("max_pages").is_none(),
             "unchanged caps are not sent"
+        );
+    }
+
+    /// The AI mode a job was queued with is its spec's `ai.mode` (job spec v2), whichever provider
+    /// answers: the app's own server, once its lease arrives, and an endpoint as the settings
+    /// configure it — Ollama or a custom one.
+    #[test]
+    fn a_job_spec_carries_the_ai_mode_it_was_queued_with() {
+        use crate::settings::{Provider, Settings};
+
+        let (queue, launcher, _, dir) = recording("ai-mode");
+        let server = FakeServer::answering(Ok(ServerLease {
+            endpoint: "http://127.0.0.1:40123".to_owned(),
+            api_key_file: dir.join("run").join("llm.key"),
+            model_id: "qwen3-1.7b".to_owned(),
+        }));
+        let mut queue = queue.with_model_server(server);
+        let settings = |provider, ai_mode| {
+            let mut settings = Settings {
+                ai_enabled: true,
+                provider,
+                ai_mode,
+                ..Settings::default()
+            };
+            settings.custom.endpoint = "http://127.0.0.1:1234/v1".to_owned();
+            settings
+        };
+        let planned = [
+            (Provider::Builtin, AiMode::Fast),
+            (Provider::Ollama, AiMode::Quality),
+            (Provider::Custom, AiMode::Fast),
+        ];
+        for (index, (provider, mode)) in planned.into_iter().enumerate() {
+            queue.enqueue_into(
+                &[dir.join(format!("{index}.pdf"))],
+                PresetName::Auto,
+                None,
+                &JobAi::plan(&settings(provider, mode)),
+                None,
+            );
+        }
+        until_prepared(&mut queue);
+        for (index, (provider, mode)) in planned.into_iter().enumerate() {
+            let spec = spec_of(&launcher, index);
+            assert_eq!(spec["schema"], "openconvert.job/2", "{provider:?}");
+            assert_eq!(spec["ai"]["enabled"], true, "{provider:?}");
+            assert_eq!(spec["ai"]["mode"], mode.as_str(), "{provider:?}");
+            // One job at a time: the next starts when this one ends.
+            launcher.0.lock().expect("not poisoned").exited[index] = Some(Some(0));
+            queue.tick(Instant::now());
+        }
+        let endpoints: Vec<_> = (0..planned.len())
+            .map(|index| spec_of(&launcher, index)["ai"]["endpoint"].clone())
+            .collect();
+        assert_eq!(
+            endpoints,
+            [
+                "http://127.0.0.1:40123",
+                "http://localhost:11434",
+                "http://127.0.0.1:1234/v1"
+            ],
+            "the built-in server, Ollama, the custom endpoint"
         );
     }
 

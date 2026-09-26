@@ -49,6 +49,7 @@ export function installTauriMock(fixture: MockFixture): void {
     provider: "builtin",
     ollamaModel: null,
     custom: { endpoint: "", model: "", apiKeyFile: null, consent: null },
+    aiMode: "quality",
   };
   let history = fixture.history.map((entry) => ({ ...entry }));
   const calls: string[] = [];
