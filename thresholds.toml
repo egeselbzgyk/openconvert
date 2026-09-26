@@ -2010,3 +2010,10 @@ source = "provisional"
 evidence = "How far into the book, as a share of its pages, a back-matter keyword heading has to be to start the back matter. A technical book's preface ends in Acknowledgments; read as the back matter, it put all nine chapters after it there (2026-09-26). Appendices, notes, bibliography and index sit in the second half of every book in the local corpus. Invented"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+[images.background_min_page_chars]
+value = 200
+source = "provisional"
+evidence = "The least non-whitespace text a page needs for its full-page background to be dropped as the scan under its text layer. An OCR sandwich page of prose carries a thousand characters and more; a full-bleed photograph's caption a line or two. A 260-page scanned book emitted all 520 page scans as figures beside their own text (2026-09-26). Invented"
+owner = "maintainer"
+review_by = "2027-06-30"

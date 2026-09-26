@@ -554,7 +554,16 @@ pub fn structure_with(
     // Ornaments first: a caption bound to an image that is then dropped as an ornament took a
     // block out of the flow for a figure the book never shows, and its text went with it —
     // whole paragraphs of one book, beside a chapter-opening flourish (2026-09-26).
-    let images = drop_ornaments(&input.images, &input.image_hashes, input.page_count, t);
+    let mut images = drop_ornaments(&input.images, &input.image_hashes, input.page_count, t);
+    let chars_on_page = blocks.iter().fold(
+        std::collections::BTreeMap::<u32, usize>::new(),
+        |mut chars, block| {
+            *chars.entry(block.page).or_default() +=
+                block.text.chars().filter(|ch| !ch.is_whitespace()).count();
+            chars
+        },
+    );
+    crate::images::drop_text_backgrounds(&mut images, &input.images, &chars_on_page, t);
     let kept_images: Vec<oc_model::extract::ImageRef> = input
         .images
         .iter()

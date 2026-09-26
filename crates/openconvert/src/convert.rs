@@ -675,8 +675,30 @@ fn downstream(
 
     // The images are decoded for `epub`, and reported as its work: the first thing a user sees of
     // "Building" on an illustrated book is this loop.
+    // Only the images the book shows: its figures and the tables kept as pictures. A scanned
+    // book's page scans under their text, and every dropped ornament, are never decoded — the
+    // scans alone were two minutes of a 260-page book (2026-09-26).
     observe.check()?;
-    let mut sources = decode_images(pdf, &upstream.images, &upstream.slots, observe)?;
+    let shown: std::collections::BTreeSet<oc_model::extract::ImageId> = document
+        .document
+        .figures
+        .iter()
+        .map(|figure| figure.image)
+        .chain(
+            document
+                .document
+                .tables
+                .iter()
+                .filter_map(|table| table.fallback_image),
+        )
+        .collect();
+    let wanted: Vec<oc_model::extract::ImageRef> = upstream
+        .images
+        .iter()
+        .filter(|image| shown.contains(&image.id))
+        .cloned()
+        .collect();
+    let mut sources = decode_images(pdf, &wanted, &upstream.slots, observe)?;
     // The cover: the first page, rendered whole, as the picture a library shows the book by.
     // Numbered one past the last extracted image, so it cannot be mistaken for one of them.
     let reserved = document
@@ -684,6 +706,7 @@ fn downstream(
         .tables
         .iter()
         .filter_map(|table| table.fallback_image)
+        .chain(upstream.images.iter().map(|image| image.id))
         .map(|image| image.0.saturating_add(1))
         .max()
         .unwrap_or(0);

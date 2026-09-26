@@ -53,7 +53,9 @@ pub struct PdfiumDoc {
     /// is counted once however many times the page is loaded (PHASE 14 detail 10).
     glyphs_checked: std::sync::Mutex<std::collections::BTreeSet<u32>>,
     /// Per page, which of its images carry a mask, read once from the object tree.
-    masks: std::sync::Mutex<std::collections::BTreeMap<u32, Option<Vec<bool>>>>,
+    masks: std::sync::Mutex<
+        std::collections::BTreeMap<u32, Option<Vec<crate::pdfium::images::ImageFacts>>>,
+    >,
 }
 
 impl PdfiumDoc {
@@ -370,6 +372,12 @@ impl PdfiumDoc {
     /// Unknown — a tree `lopdf` could not read, or one that disagrees with PDFium about the count
     /// — is taken as masked, which only costs the fast path.
     fn image_masked(&self, page: u32, nth: usize) -> bool {
+        self.image_fact(page, nth)
+            .is_none_or(|fact| fact.has_smask || fact.is_stencil)
+    }
+
+    /// What the object tree says about the page's `nth` image, read once per page.
+    fn image_fact(&self, page: u32, nth: usize) -> Option<crate::pdfium::images::ImageFacts> {
         let mut masks = self
             .masks
             .lock()
@@ -385,17 +393,8 @@ impl PdfiumDoc {
             crate::pdfium::page_image_facts(structure, *page_id, &self.limits)
                 .ok()
                 .flatten()
-                .map(|facts| {
-                    facts
-                        .iter()
-                        .map(|fact| fact.has_smask || fact.is_stencil)
-                        .collect()
-                })
         });
-        facts
-            .as_ref()
-            .and_then(|facts| facts.get(nth).copied())
-            .unwrap_or(true)
+        facts.as_ref().and_then(|facts| facts.get(nth).copied())
     }
 
     /// Extract one page's images (Phase 1 detail 4).
@@ -453,18 +452,23 @@ impl PdfiumDoc {
                 0.0
             };
 
-            let intrinsic_px = (pixels(image.width()), pixels(image.height()));
-            // Before anything decodes, composites or allocates for this image.
-            check_image_before_decode(
-                &declared(image.width(), image.height()),
-                &self.limits,
-                index,
-            )?;
             let fact = facts
                 .as_ref()
                 .and_then(|facts| facts.get(position))
                 .copied()
                 .unwrap_or_default();
+            // The size and the colour space as the file declares them; PDFium's own answer
+            // decodes the image to give it, so it is asked only when the tree could not say.
+            let (intrinsic_px, colorspace) = match (fact.pixels, fact.colorspace) {
+                (Some(pixels), Some(colorspace)) => (pixels, colorspace.to_owned()),
+                (Some(pixels), None) if fact.is_stencil => (pixels, "Unknown".to_owned()),
+                _ => (
+                    (pixels(image.width()), pixels(image.height())),
+                    colorspace_name(image),
+                ),
+            };
+            // Before anything decodes, composites or allocates for this image.
+            check_image_before_decode(&declared_pixels(intrinsic_px), &self.limits, index)?;
 
             images.push(ImageRef {
                 id: ImageId(u32::try_from(position).unwrap_or(u32::MAX)),
@@ -473,7 +477,7 @@ impl PdfiumDoc {
                 intrinsic_px,
                 has_smask: fact.has_smask,
                 is_inline: fact.is_inline,
-                colorspace: colorspace_name(image),
+                colorspace,
                 effective_dpi: effective_dpi(intrinsic_px.0, width_pt),
                 kind: classify_image(area_ratio, width_pt, height_pt, &oc_core::thresholds::T),
             });
@@ -552,9 +556,12 @@ impl PdfiumDoc {
             .ok_or_else(missing)?;
         let object = object.as_image_object().ok_or_else(missing)?;
 
-        // PDFium reads both sides from the image's stream dictionary without decoding it; the
-        // decoder is behind the check, not beside it (PHASE 14 detail 1).
-        let dictionary = declared(object.width(), object.height());
+        // The declared size, from the object tree: PDFium's own answer decodes the image to give
+        // it, and the decoder is behind the check, not beside it (PHASE 14 detail 1).
+        let dictionary = match self.image_fact(page, wanted).and_then(|fact| fact.pixels) {
+            Some(pixels) => declared_pixels(pixels),
+            None => declared(object.width(), object.height()),
+        };
         // The image's own pixels, decoded from its stream, unless it carries a soft mask or a
         // stencil mask: only then is PDFium's rendered bitmap needed, for the transparency the
         // mask makes. The rendered path costs tens of milliseconds per image whatever its
@@ -851,6 +858,13 @@ fn declared(
     ImageDict {
         width: u64::from(pixels(width)),
         height: u64::from(pixels(height)),
+    }
+}
+
+fn declared_pixels((width, height): (u32, u32)) -> ImageDict {
+    ImageDict {
+        width: u64::from(width),
+        height: u64::from(height),
     }
 }
 

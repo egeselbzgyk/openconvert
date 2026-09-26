@@ -26,6 +26,10 @@ pub(crate) struct ImageFacts {
     /// A stencil mask (`/ImageMask true`): one bit per pixel that says where the fill colour
     /// is painted, with no colour of its own.
     pub(crate) is_stencil: bool,
+    /// `/Width` and `/Height`, as the image's dictionary declares them.
+    pub(crate) pixels: Option<(u32, u32)>,
+    /// The colour space's family, as the dictionary names it.
+    pub(crate) colorspace: Option<&'static str>,
 }
 
 /// The image draws of one page, in content-stream order.
@@ -60,6 +64,16 @@ pub(crate) fn page_image_facts(
                         .as_stream()
                         .is_ok_and(|stream| is_stencil(&stream.dict, b"IM"))
                 }),
+                pixels: operation
+                    .operands
+                    .iter()
+                    .find_map(|operand| operand.as_stream().ok())
+                    .and_then(|stream| pixels_of(document, &stream.dict, b"W", b"H")),
+                colorspace: operation
+                    .operands
+                    .iter()
+                    .find_map(|operand| operand.as_stream().ok())
+                    .and_then(|stream| colorspace_of(document, &stream.dict, b"CS")),
             }),
             // `/Name Do`: an XObject, which is an image only if it says so.
             "Do" => {
@@ -89,12 +103,77 @@ pub(crate) fn page_image_facts(
                     has_smask: declares_mask(&stream.dict),
                     is_inline: false,
                     is_stencil: is_stencil(&stream.dict, b"ImageMask"),
+                    pixels: pixels_of(document, &stream.dict, b"Width", b"Height"),
+                    colorspace: colorspace_of(document, &stream.dict, b"ColorSpace"),
                 });
             }
             _ => {}
         }
     }
     Ok(Some(facts))
+}
+
+/// An image's pixel size, read from its dictionary under the full key or the inline abbreviation.
+///
+/// Read here, from the object tree, because asking PDFium decodes the image: its metadata call
+/// works out bits per pixel from the decoded bitmap, and asking it for the width, the height and
+/// the colour space of every image of a scanned book cost a second and a half a page
+/// (2026-09-26, a 260-page scan: 163 s of reading pages, all of it this).
+fn pixels_of(
+    document: &Document,
+    dictionary: &lopdf::Dictionary,
+    inline_width: &[u8],
+    inline_height: &[u8],
+) -> Option<(u32, u32)> {
+    let number = |long: &[u8], short: &[u8]| {
+        dictionary
+            .get(long)
+            .or_else(|_| dictionary.get(short))
+            .ok()
+            .and_then(|object| resolve(document, object))
+            .and_then(|object| object.as_i64().ok())
+            .and_then(|value| u32::try_from(value).ok())
+    };
+    Some((
+        number(b"Width", inline_width)?,
+        number(b"Height", inline_height)?,
+    ))
+}
+
+/// An image's colour-space family, from `/ColorSpace` (or the inline `/CS`): a name, or the
+/// first name of an array (`[/ICCBased …]`, `[/Indexed …]`), with the inline abbreviations.
+fn colorspace_of(
+    document: &Document,
+    dictionary: &lopdf::Dictionary,
+    inline_key: &[u8],
+) -> Option<&'static str> {
+    let object = dictionary
+        .get(b"ColorSpace")
+        .or_else(|_| dictionary.get(inline_key))
+        .ok()
+        .and_then(|object| resolve(document, object))?;
+    let name = match object {
+        Object::Name(name) => name.as_slice(),
+        Object::Array(items) => items
+            .first()
+            .and_then(|item| resolve(document, item))
+            .and_then(|item| item.as_name().ok())?,
+        _ => return None,
+    };
+    Some(match name {
+        b"DeviceGray" | b"G" => "DeviceGray",
+        b"DeviceRGB" | b"RGB" => "DeviceRGB",
+        b"DeviceCMYK" | b"CMYK" => "DeviceCMYK",
+        b"CalGray" => "CalGray",
+        b"CalRGB" => "CalRGB",
+        b"Lab" => "Lab",
+        b"ICCBased" => "ICCBased",
+        b"Separation" => "Separation",
+        b"DeviceN" => "DeviceN",
+        b"Indexed" | b"I" => "Indexed",
+        b"Pattern" => "Pattern",
+        _ => "Unknown",
+    })
 }
 
 /// `/Subtype /Image`, the only XObject kind that is one.

@@ -97,6 +97,44 @@ pub fn drop_ornaments(
     policy
 }
 
+/// A page scan was dropped because its page's text layer carries the page.
+pub const W_PAGE_SCAN_DROPPED: &str = "W_PAGE_SCAN_DROPPED";
+
+/// Drop the full-page backgrounds of pages whose text is there as text.
+///
+/// A scanned book with a recognised text layer draws each page as a picture and lays the
+/// invisible text over it. The text is the page's content; the picture of the same words is
+/// not a figure, and emitting it put every page of such a book into the EPUB twice — once as
+/// text and once as a picture of it — and spent minutes encoding them (2026-09-26: 520 page
+/// scans in a 260-page book). A page with less than `images.background_min_page_chars` of text
+/// keeps its background: a full-bleed photograph with a caption is a figure, and an image-only
+/// page is nothing but its picture.
+pub fn drop_text_backgrounds(
+    policy: &mut ImagePolicy,
+    images: &[ImageRef],
+    chars_on_page: &std::collections::BTreeMap<u32, usize>,
+    t: &Thresholds,
+) {
+    let min = usize::try_from(t.images.background_min_page_chars.max(0)).unwrap_or(usize::MAX);
+    let scans: Vec<ImageId> = images
+        .iter()
+        .filter(|image| image.kind == oc_model::extract::ImageKind::FullPageBackground)
+        .filter(|image| chars_on_page.get(&image.page.index).copied().unwrap_or(0) >= min)
+        .map(|image| image.id)
+        .filter(|id| policy.kept.contains(id))
+        .collect();
+    if scans.is_empty() {
+        return;
+    }
+    policy.kept.retain(|id| !scans.contains(id));
+    policy.warnings.push(
+        Warning::new(W_PAGE_SCAN_DROPPED, Severity::Info)
+            .with_arg("images", scans.len().to_string()),
+    );
+    policy.dropped.extend(scans);
+    policy.dropped.sort();
+}
+
 /// Whether an image is small enough to be an ornament at all.
 ///
 /// A full-page background repeated on every page of a scan is not an ornament — it *is* the
@@ -162,6 +200,29 @@ mod tests {
         let images = vec![image(0, 0, 20.0), image(1, 1, 20.0)];
         let policy = drop_ornaments(&images, &[Some(7), Some(7)], 2, t);
         assert!(policy.dropped.is_empty(), "{policy:?}");
+    }
+
+    /// The scan behind a page's text layer goes; a full-page picture on a page with only a
+    /// caption stays, and so does the scan of a page with no text at all.
+    #[test]
+    fn a_page_scan_under_its_text_is_dropped() {
+        let t = &oc_core::thresholds::T;
+        let scan = |id: u32, page: u32| {
+            let mut image = image(id, page, 500.0);
+            image.kind = ImageKind::FullPageBackground;
+            image
+        };
+        let images = vec![scan(0, 0), scan(1, 1), scan(2, 2), image(3, 0, 200.0)];
+        let chars: std::collections::BTreeMap<u32, usize> =
+            [(0, 1800), (1, 30)].into_iter().collect();
+        let mut policy = drop_ornaments(&images, &[None; 4], 3, t);
+        drop_text_backgrounds(&mut policy, &images, &chars, t);
+        assert_eq!(policy.dropped, vec![ImageId(0)]);
+        assert_eq!(policy.kept, vec![ImageId(1), ImageId(2), ImageId(3)]);
+        assert!(policy
+            .warnings
+            .iter()
+            .any(|warning| warning.code == W_PAGE_SCAN_DROPPED));
     }
 
     /// Distinct images are counted separately even when they sit in the same place.

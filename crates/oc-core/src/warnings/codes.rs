@@ -152,6 +152,10 @@ pub const CODES: &[WarningSpec] = &[
         args: &[],
     },
     WarningSpec {
+        code: "W_PAGE_SCAN_DROPPED",
+        args: &["images"],
+    },
+    WarningSpec {
         code: "W_REPAIR_FIRED",
         args: &["repair", "message_id", "location"],
     },
