@@ -100,10 +100,18 @@ pub fn assign_levels(
     // on the pages: a technical book sets code, keys and emphasis in so many styles that its
     // inventory is invalid, and its bookmarks, which name nearly every heading it prints, were
     // ignored for a size rank that made the cover's lettering its first headings (2026-09-26).
+    let distinct_titles = outline_entries
+        .iter()
+        .map(|(title, _, _)| fold_key(title, lang.clone()).to_string())
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
     let use_outline = trust_outline(
         inventory.valid,
-        outline_bound,
-        outline_entries.len(),
+        OutlineFit {
+            entries: outline_entries.len(),
+            bound: outline_bound,
+            distinct: distinct_titles,
+        },
         !by_outline.is_empty(),
         t,
     );
@@ -274,21 +282,37 @@ fn outline_titles(outline: &[OutlineEntry]) -> Vec<(String, u8, Option<u32>)> {
 /// may point at the top of the page before a heading set at the foot of it.
 const OUTLINE_PAGE_SLACK: u32 = 1;
 
+/// How an outline fits the book: its entries, how many bound to headings on the pages, and
+/// how many distinct titles it has.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OutlineFit {
+    pub entries: usize,
+    pub bound: usize,
+    pub distinct: usize,
+}
+
 /// Whether the outline's levels are the book's: always when the typography is a valid
 /// inventory and the outline bound anywhere; otherwise only when it bound at least
-/// `headings.outline_trust_min_bound_share` of its entries to headings on the pages.
+/// `headings.outline_trust_min_bound_share` of its entries to headings on the pages and names
+/// its entries with at least `headings.outline_trust_min_distinct_share` distinct titles.
+///
+/// The second test is for the outline a converter made from the book's bold words: every
+/// `Solution` and `Example` of a textbook, at levels that follow nothing, which binds well —
+/// the words are on the pages — and is no hierarchy (2026-09-26: a textbook lost 90 of its 125
+/// section headings to one).
 pub fn trust_outline(
     inventory_valid: bool,
-    entries_bound: usize,
-    entries: usize,
+    fit: OutlineFit,
     any_bound: bool,
     t: &Thresholds,
 ) -> bool {
-    if !any_bound || entries == 0 {
+    if !any_bound || fit.entries == 0 {
         return false;
     }
+    let entries = fit.entries as f64;
     inventory_valid
-        || entries_bound as f64 >= t.headings.outline_trust_min_bound_share * entries as f64
+        || (fit.bound as f64 >= t.headings.outline_trust_min_bound_share * entries
+            && fit.distinct as f64 >= t.headings.outline_trust_min_distinct_share * entries)
 }
 
 /// Bind each entry to the heading candidate that prints it, and say how many entries bound.
@@ -635,10 +659,27 @@ mod tests {
     #[test]
     fn a_well_bound_outline_is_trusted_whatever_the_typography() {
         let t = &oc_core::thresholds::T;
-        assert!(trust_outline(true, 1, 100, true, t));
-        assert!(trust_outline(false, 90, 100, true, t));
-        assert!(!trust_outline(false, 10, 100, true, t));
-        assert!(!trust_outline(false, 0, 0, false, t));
+        let fit = |bound, distinct| OutlineFit {
+            entries: 100,
+            bound,
+            distinct,
+        };
+        assert!(trust_outline(true, fit(1, 100), true, t));
+        assert!(trust_outline(false, fit(90, 95), true, t));
+        assert!(!trust_outline(false, fit(10, 100), true, t));
+        // An outline made of the book's bold words: it binds, and says the same few titles
+        // over and over.
+        assert!(!trust_outline(false, fit(95, 40), true, t));
+        assert!(!trust_outline(
+            false,
+            OutlineFit {
+                entries: 0,
+                bound: 0,
+                distinct: 0
+            },
+            false,
+            t
+        ));
     }
 
     /// The repair, in isolation: every skip closes, and a level that *descends* by more than

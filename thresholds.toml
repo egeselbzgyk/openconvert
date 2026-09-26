@@ -2052,3 +2052,10 @@ source = "provisional"
 evidence = "The share of a book's text pages that must carry a full-page background for the book to be a scan whose page pictures duplicate its text layer, when that layer is not marked as OCR. Scanned books in the local corpus carry one on nearly every page; a novel that sets its chapter openings over an illustration carried one on 17 of 80 pages, and dropping those lost real pictures (2026-09-26). Invented"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+[headings.outline_trust_min_distinct_share]
+value = 0.8
+source = "provisional"
+evidence = "The share of an outline's entries that must be distinct titles for the outline to be trusted over an invalid style inventory. A technical book repeats a few titles per chapter (Summary) and stays above 0.9; an outline a converter made from a textbook's bold words repeated Solution and Example until half its entries were the same, bound well, and replaced 125 section headings with 34 (2026-09-26). Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
