@@ -1,9 +1,9 @@
 <script lang="ts">
   // Route `settings` (settings.html; `models` is its Models section, and `firstrun` is that section
-  // opened at the default model — `setup`). Live: AI assistance and its provider, the document
-  // preset, where books are saved, the resource caps and the time each step may take, the app
-  // language, the versions, the third-party notices, and the model manager and packs, whose rows
-  // are exactly what the Rust side's manager reports. What this build cannot do is drawn as the
+  // opened at the default model — `setup`). Live: AI assistance, its mode and its provider, the
+  // document preset, where books are saved, the resource caps and the time each step may take, the
+  // app language, the versions, the third-party notices, and the model manager and packs, whose
+  // rows are exactly what the Rust side's manager reports. What this build cannot do is drawn as the
   // design draws it and says so in words — never a number or a row it cannot back with real data.
   import ConsentDialog from "../../components/ConsentDialog.svelte";
   import CopyCommand from "../../components/CopyCommand.svelte";
@@ -14,6 +14,7 @@
   import RadioGroup from "../../components/RadioGroup.svelte";
   import Toggle from "../../components/Toggle.svelte";
   import type {
+    AiMode,
     Backend,
     CacheUsage,
     CatalogKind,
@@ -369,6 +370,22 @@
       {@render aiSwitch()}
       {#if config.aiTasksEnabled === 0}
         <p class="oc-settings__hint">{t("settings.ai.noTasks")}</p>
+      {/if}
+      {#if settings.aiEnabled}
+        <!-- How the model is asked (job spec v2's `ai.mode`): the engine's modes, so the same two
+             whichever provider answers. Only while AI assistance is on; the choice is kept when off. -->
+        <div class="oc-setting oc-setting--stack">
+          <div class="oc-setting__label">{t("settings.ai.mode")}</div>
+          <RadioGroup
+            label={t("settings.ai.mode")}
+            value={settings.aiMode}
+            onchange={(value) => save({ aiMode: value as AiMode })}
+            options={[
+              { value: "fast", label: t("settings.ai.mode.fast"), hint: t("settings.ai.mode.fastHint") },
+              { value: "quality", label: t("settings.ai.mode.quality"), hint: t("settings.ai.mode.qualityHint") },
+            ]}
+          />
+        </div>
       {/if}
     {:else if section === "models"}
       {#if setup && firstModel !== undefined}

@@ -183,6 +183,7 @@ export class FakeBackend implements Backend {
     provider: "builtin",
     ollamaModel: null,
     custom: { endpoint: "", model: "", apiKeyFile: null, consent: null },
+    aiMode: "quality",
   };
   async pickPdfs(): Promise<string[]> {
     this.calls.push(["pick", null]);

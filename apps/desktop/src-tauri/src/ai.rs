@@ -8,9 +8,13 @@
 //!   leased when the job starts and released when it ends ([`ModelServer`]). A job waits for the
 //!   server to load — a 1 GB model, once per batch — before its engine starts.
 //! - **Ollama / custom endpoint** — the endpoint, model and key file written into the spec as they
-//!   are; the engine probes what it is (job-spec v1 has no provider field). A host off this computer
-//!   is sent text only with the consent the dialog recorded for that host, written as
+//!   are; the engine probes what it is (the job spec has no provider field). A host off this
+//!   computer is sent text only with the consent the dialog recorded for that host, written as
 //!   `non_loopback_consent`; without it the job never starts and the dialog opens again (D10).
+//!
+//! Whichever provider answers, the spec carries the mode the settings hold (`ai.mode`, job spec
+//! v2): fast or quality. The mode is the engine's, not a model family's, so every provider is asked
+//! the same way.
 //!
 //! **Fail-open.** Anything else that stops a model answering — no model installed, no server in
 //! this build, a server that does not come up, an endpoint that is not a usable URL — converts the
@@ -19,7 +23,7 @@
 
 use std::path::PathBuf;
 
-use oc_core::jobspec::AiSpec;
+use oc_core::jobspec::{AiMode, AiSpec};
 use serde::Serialize;
 
 use crate::settings::{endpoint_host, Provider, Settings};
@@ -28,8 +32,10 @@ use crate::settings::{endpoint_host, Provider, Settings};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JobAi {
     Off,
-    /// The app's own server: leased when the job starts.
-    Builtin,
+    /// The app's own server: leased when the job starts, and asked in `mode`.
+    Builtin {
+        mode: AiMode,
+    },
     /// An endpoint the user configured, written into the spec as it is.
     Endpoint {
         provider: Provider,
@@ -77,13 +83,16 @@ impl JobAi {
             return JobAi::Off;
         }
         match settings.provider {
-            Provider::Builtin => JobAi::Builtin,
+            Provider::Builtin => JobAi::Builtin {
+                mode: settings.ai_mode,
+            },
             Provider::Ollama => JobAi::Endpoint {
                 provider: Provider::Ollama,
                 spec: AiSpec {
                     enabled: true,
                     endpoint: Some(oc_net::detect::OLLAMA_DEFAULT_URL.to_owned()),
                     model_id: settings.ollama_model.clone(),
+                    mode: Some(settings.ai_mode),
                     ..AiSpec::default()
                 },
             },
@@ -95,7 +104,7 @@ impl JobAi {
     pub fn view(&self, unavailable: Option<AiUnavailable>) -> Option<AiView> {
         let provider = match self {
             JobAi::Off => return None,
-            JobAi::Builtin => Provider::Builtin,
+            JobAi::Builtin { .. } => Provider::Builtin,
             JobAi::Endpoint { provider, .. } | JobAi::Unusable { provider, .. } => *provider,
             JobAi::ConsentRequired { .. } => Provider::Custom,
         };
@@ -145,6 +154,7 @@ fn custom(settings: &Settings) -> JobAi {
             api_key_file: settings.custom.api_key_file.clone(),
             model_id: (!model.is_empty()).then(|| model.to_owned()),
             non_loopback_consent: !loopback,
+            mode: Some(settings.ai_mode),
             ..AiSpec::default()
         },
     }
@@ -172,13 +182,14 @@ pub struct ServerLease {
 }
 
 impl ServerLease {
-    /// The spec's `ai` object for this lease.
-    pub fn spec(&self) -> AiSpec {
+    /// The spec's `ai` object for this lease, its model asked in `mode`.
+    pub fn spec(&self, mode: AiMode) -> AiSpec {
         AiSpec {
             enabled: true,
             endpoint: Some(self.endpoint.clone()),
             api_key_file: Some(self.api_key_file.clone()),
             model_id: Some(self.model_id.clone()),
+            mode: Some(mode),
             ..AiSpec::default()
         }
     }
@@ -288,6 +299,64 @@ mod tests {
                 why: AiUnavailable::PlainHttp
             }
         );
+    }
+
+    /// The mode the settings hold is how every provider's model is asked (job spec v2's `ai.mode`):
+    /// the app's own server — its lease's spec — Ollama, and a custom endpoint alike. Each spec
+    /// validates against the committed schema.
+    #[test]
+    fn every_provider_is_asked_in_the_mode_the_settings_hold() {
+        let here = std::env::temp_dir();
+        for mode in [AiMode::Fast, AiMode::Quality] {
+            let mut builtin = on(Provider::Builtin);
+            builtin.ai_mode = mode;
+            assert_eq!(JobAi::plan(&builtin), JobAi::Builtin { mode });
+            let lease = ServerLease {
+                endpoint: "http://127.0.0.1:40123".to_owned(),
+                api_key_file: here.join("llm.key"),
+                model_id: "qwen3-1.7b".to_owned(),
+            };
+            let spec = lease.spec(mode);
+            assert_eq!(spec.mode, Some(mode), "built-in");
+            spec_is_valid_here(spec);
+
+            let mut ollama = on(Provider::Ollama);
+            ollama.ai_mode = mode;
+            let JobAi::Endpoint { spec, .. } = JobAi::plan(&ollama) else {
+                panic!("an endpoint");
+            };
+            assert_eq!(spec.mode, Some(mode), "Ollama");
+            spec_is_valid_here(spec);
+
+            let mut custom = on(Provider::Custom);
+            custom.ai_mode = mode;
+            custom.custom.endpoint = "http://127.0.0.1:1234/v1".to_owned();
+            let JobAi::Endpoint { spec, .. } = JobAi::plan(&custom) else {
+                panic!("an endpoint");
+            };
+            assert_eq!(spec.mode, Some(mode), "custom endpoint");
+            spec_is_valid_here(spec);
+        }
+        assert_eq!(
+            JobAi::plan(&on(Provider::Builtin)),
+            JobAi::Builtin {
+                mode: AiMode::Quality
+            },
+            "quality unless the user chose otherwise"
+        );
+    }
+
+    /// [`spec_is_valid`] with paths absolute on this host, and the mode written as the engine
+    /// reads it, in a version-2 spec.
+    fn spec_is_valid_here(ai: AiSpec) {
+        let here = std::env::temp_dir();
+        let mode = ai.mode.map(AiMode::as_str);
+        let mut spec = oc_core::jobspec::JobSpec::new(here.join("a.pdf"), here.join("a.epub"));
+        spec.ai = Some(ai);
+        spec.validate().expect("valid");
+        let written: serde_json::Value = serde_json::from_str(&spec.to_json()).expect("JSON");
+        assert_eq!(written["schema"], "openconvert.job/2");
+        assert_eq!(written["ai"]["mode"].as_str(), mode);
     }
 
     /// The spec the queue writes validates against the committed schema, consent and all.

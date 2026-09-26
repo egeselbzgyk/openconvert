@@ -52,6 +52,9 @@ export type Preset = "auto" | "novel" | "academic" | "textbook" | "poetry" | "sc
 /** Settings › Provider (UI_UX §2.4). */
 export type Provider = "builtin" | "ollama" | "custom";
 
+/** How the model is asked, whichever provider answers (job spec v2's `ai.mode`). */
+export type AiMode = "fast" | "quality";
+
 /** The user allowed document text to be sent to `host` (D10). Set by the Rust side only. */
 export interface Consent {
   host: string;
@@ -86,6 +89,8 @@ export interface Settings {
   provider: Provider;
   ollamaModel: string | null;
   custom: CustomEndpoint;
+  /** Fast, or quality — the default, and slower. Every job with AI assistance carries it. */
+  aiMode: AiMode;
 }
 
 /** `openconvert provider detect --json`: Ollama on this computer, or `null`. */

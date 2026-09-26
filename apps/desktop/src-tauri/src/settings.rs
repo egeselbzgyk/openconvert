@@ -3,10 +3,10 @@
 //! What the UI lets a user choose: the language, the document preset, the resource caps Advanced
 //! exposes (pages, memory, and the time each stage may take), where converted books are saved,
 //! whether the first-run card was dismissed and the earlier conversions are shown, and AI
-//! assistance — the switch, the provider, and each provider's configuration (UI_UX §2.4). The
-//! password field is deliberately absent — it is used for one job and never saved (design decision
-//! 13) — and so is any API key: only the path of the file that holds one is kept, and it is chosen
-//! in a native dialog.
+//! assistance — the switch, the provider, each provider's configuration (UI_UX §2.4), and the mode
+//! every provider's model is asked in (job spec v2's `ai.mode`). The password field is deliberately
+//! absent — it is used for one job and never saved (design decision 13) — and so is any API key:
+//! only the path of the file that holds one is kept, and it is chosen in a native dialog.
 //!
 //! **Three fields the webview cannot write.** The custom endpoint's key file, the consent given to
 //! its host, and the library folder are set only by the Rust side — the file and the folder by the
@@ -16,7 +16,7 @@
 
 use std::path::{Path, PathBuf};
 
-use oc_core::jobspec::LimitsSpec;
+use oc_core::jobspec::{AiMode, LimitsSpec};
 use oc_core::thresholds::T;
 use oc_model::document::PresetName;
 use serde::{Deserialize, Serialize};
@@ -53,6 +53,9 @@ pub struct Settings {
     pub ollama_model: Option<String>,
     /// The custom endpoint, kept whichever provider is chosen.
     pub custom: CustomEndpoint,
+    /// How the model is asked, whichever provider answers: fast, or quality — the engine's
+    /// default, and so the app's — which is slower. Every job with AI assistance carries it.
+    pub ai_mode: AiMode,
 }
 
 /// Every field its type's default but the two that are on unless turned off: saving to the library
@@ -73,6 +76,7 @@ impl Default for Settings {
             provider: Provider::default(),
             ollama_model: None,
             custom: CustomEndpoint::default(),
+            ai_mode: AiMode::default(),
         }
     }
 }
@@ -295,6 +299,47 @@ mod tests {
         let json = serde_json::to_value(Settings::default()).expect("json");
         assert_eq!(json["saveToLibrary"], true, "camelCase for the webview");
         assert!(json["stageDeadlineSecs"].is_null());
+    }
+
+    /// The AI mode (job spec v2's `ai.mode`) is quality unless the user chose fast — also for a
+    /// settings file written before the setting existed, which has no such key. It is the webview's
+    /// to change, in the engine's own words.
+    #[test]
+    fn the_ai_mode_is_quality_by_default_also_in_an_old_settings_file() {
+        assert_eq!(Settings::default().ai_mode, AiMode::Quality);
+
+        let dir = std::env::temp_dir().join(format!("oc-desktop-aimode-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("made");
+        let path = settings_path(&dir);
+        std::fs::write(
+            &path,
+            r#"{"language":"tr","aiEnabled":true,"provider":"ollama","ollamaModel":"qwen3:1.7b"}"#,
+        )
+        .expect("an old file");
+        let old = load(&path);
+        assert_eq!(
+            old.ai_mode,
+            AiMode::Quality,
+            "an old file reads the default"
+        );
+        assert!(old.ai_enabled, "and keeps everything else it held");
+        assert_eq!(old.provider, Provider::Ollama);
+
+        let fast = Settings {
+            ai_mode: AiMode::Fast,
+            ..old
+        };
+        let json = serde_json::to_value(&fast).expect("json");
+        assert_eq!(json["aiMode"], "fast", "camelCase key, the engine's value");
+        save(&path, &fast).expect("saved");
+        assert_eq!(load(&path).ai_mode, AiMode::Fast);
+        assert_eq!(
+            Settings::default().merged_from_webview(fast).ai_mode,
+            AiMode::Fast,
+            "the webview's to change"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The library folder is chosen in the native folder picker, which is the Rust side's: a save

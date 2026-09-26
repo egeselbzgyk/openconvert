@@ -329,6 +329,7 @@ fn stub_server() -> PathBuf {
 fn a_conversion_with_built_in_ai_is_served_by_the_apps_own_server() {
     use std::sync::{Arc, Mutex};
 
+    use oc_core::jobspec::AiMode;
     use oc_core::sidecar::readiness::ModelReadiness;
     use oc_model::document::PresetName;
     use openconvert_desktop::ai::JobAi;
@@ -405,7 +406,9 @@ cache_reuse = true
         std::slice::from_ref(&input),
         PresetName::Auto,
         None,
-        &JobAi::Builtin,
+        &JobAi::Builtin {
+            mode: AiMode::default(),
+        },
     );
 
     let started = Instant::now();
@@ -434,6 +437,7 @@ cache_reuse = true
     .expect("JSON");
     assert_eq!(spec["ai"]["enabled"], true);
     assert_eq!(spec["ai"]["model_id"], "tiny");
+    assert_eq!(spec["ai"]["mode"], "quality", "the default mode, written");
     assert!(
         spec["ai"]["endpoint"]
             .as_str()
