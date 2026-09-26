@@ -112,6 +112,33 @@ LAST_UPDATED: 2026-09-26
       the 1.0.0 release notes and the release checklist. **Appendix D (v1.0) does not pass** — its
       evaluation is below the Phase 15 section and every open item is in `## Blocked`.)*
 
+## v1.1 — state at the end of the 2026-09-26 session (branch `v1.1/reading-quality`)
+
+Done and committed (all workspace tests green except the 9 desktop tests with Unix paths that
+only pass on Linux CI):
+- Engine: raw image decode (fast), stencil-mask fact; heading joins never take owned blocks
+  (fixed I-1 on six technical books); W_DUPLICATE_BLOCKS counts only blocks of
+  `validate.dup_block_min_chars`+; front pages typed by what they are (`oc-structure/src/front.rs`:
+  title, half-title, copyright, dedication, epigraph, contents) with epub:type, DPUB roles and CSS;
+  back matter only past `book.back_min_page_share`; monospace needs `quotes.monospace_min_runs`.
+- AI: absolute time budget per mode (`llm.fast_*`, `llm.quality_*`); job spec v2 `ai.mode`
+  (fast | quality, default quality) and `--ai-mode`; metadata enabled for every language (`*`)
+  with a plausibility filter; new free-text `front_page` task (quality mode only, two answers in
+  opposite orders must agree). book_structure / heading_roles / verse_quote stay behind
+  `--ai-all-tasks`: the smoke test showed no benefit.
+- Desktop (merged from worktrees): conversion history (`history.json`), output folder + header
+  shortcut, per-step time limit (default 30 min), AI mode setting.
+
+Next, in order:
+1. Timeout book in the local corpus (260 pages): ~190 s between two stages and ~160 s in the
+   first — profile which stage (NDJSON stage events carry no stage name in the smoke script).
+2. One book loses 3 characters at `structure` (I-1) — debug with `OC_DEBUG_I1`.
+3. Missed chapter heading "1." (numeral with a period) in a German novel; Moliere-style false
+   dedication (a translator's essay title).
+4. Remaining LLM items the maintainer approved: author pick (quality), table/caption veto,
+   paragraph continuity at ambiguous breaks, optional review panel in the desktop.
+5. README rewrite, CHANGELOG `[1.1.0]`, version bump (ir_version 1→2), release v1.1.0.
+
 ## v1.1 reading quality — the maintainer's books (2026-09-26, uncommitted work in `main`'s tree)
 
 The maintainer reported v1.0 output as very poor on their own books (paragraph per page, hyphens left
