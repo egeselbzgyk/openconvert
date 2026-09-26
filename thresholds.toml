@@ -203,9 +203,9 @@ owner = "maintainer"
 review_by = "2027-06-30"
 
 [limits.stage_deadline_secs]
-value = 300
+value = 1200
 source = "provisional"
-evidence = "R8 §A6 watchdog 60-120 s per document; per-stage cap set higher for large books"
+evidence = "R8 §A6 watchdog 60-120 s per document; per-stage cap set far higher because a book the model reads (3-5 min, maintainer direction 2026-09-26) or a thousand-page scan must not be cut off. It is a hang detector; the job spec may set it lower or higher"
 owner = "maintainer"
 review_by = "2027-06-30"
 
