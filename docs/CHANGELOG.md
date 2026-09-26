@@ -3,6 +3,56 @@
 One section per completed phase, listing new CLI flags, new IR fields, new warning codes and new
 `thresholds.toml` entries. Required by the Definition of Done (`IMPLEMENTATION_PLAN.md` §0.3 item 8).
 
+## [1.1.0]
+
+Reading quality on real books, and an AI step that asks a model decisions rather than questions.
+
+### Conversion
+
+- **Scanned books no longer carry every page twice.** A scan with a recognised text layer kept each
+  page's picture as a figure beside its text; the picture is dropped when the text was read off it
+  (the file's own OCR layer or OpenConvert's), or when the book is a scan throughout. A novel's
+  illustrations stay (`W_PAGE_SCAN_DROPPED` names the pages).
+- **The pages before the first chapter are typed** — title page, half title, copyright, dedication,
+  epigraph, contents, foreword, preface, introduction — from signals that hold in any language
+  (©, ISBN, the book's title, a short page, a dashed attribution), and styled and tagged as such
+  (`epub:type`). They are one entry of the table of contents rather than one per page.
+- **Technical books:** the PDF's outline supplies the chapters and their levels when it binds to the
+  text; an outline of repeated bold words is not trusted as a hierarchy. Running feet that carry the
+  page number are removed, and a chapter number with its full stop reads as a heading.
+- **Tables** are found whose rules were drawn in pieces or as cell boxes, but only where the text
+  shows columns; rules repeated on every page are ignored.
+- Images are decoded from their own streams and only the ones shown are decoded; a drop cap is
+  emitted once, where it stood; paragraphs join across more page layouts; contents entries link.
+
+### AI assistance
+
+- **A decision model is the default:** Tev1-4B (Together AI, a fine-tune of Qwen3.5-4B, about 2.7 GB
+  to download). Each question is a page, a question and lettered options; the answer is one letter
+  under a grammar. On 31 hand-labelled opening pages in three languages it typed 30 correctly; the
+  1.7B chat model it replaces typed 11. Qwen3 1.7B stays available as the small model, and any
+  Ollama or OpenAI-compatible model is asked the same way.
+- **Fast or quality mode**, for every provider (`ai.mode` in the job spec, `--ai-mode` on the command
+  line, a setting in the app). Quality asks each page twice with the options reversed and keeps only
+  an answer both agree on, and has a longer time budget per book.
+- The AI step has a time budget per book, by mode and page count, rather than a share of the
+  conversion; title and author run for every language and keep only plausible fields.
+
+### Desktop
+
+- Conversion history, one output folder for every book, and a per-step time limit of 30 minutes.
+
+### Thresholds, warnings, job spec
+
+- New `thresholds.toml` entries: `llm.fast_*`, `llm.quality_*`, `llm.decision_max_tokens`,
+  `llm.front_page_max_chars`, `llm.front_page_max_pages`, `images.background_min_page_chars`,
+  `images.scan_book_min_share`, `front.*`, `book.back_min_page_share`, `quotes.monospace_min_runs`,
+  `validate.dup_block_min_chars`, `headings.outline_trust_min_bound_share`,
+  `headings.outline_trust_min_distinct_share`, `limits.stage_deadline_secs` and the table rule
+  thresholds.
+- New warning `W_PAGE_SCAN_DROPPED`; `W_LLM_TIME_EXHAUSTED` names the budget.
+- Job spec v2 (`schemas/job-spec.v2.json`) adds `ai.mode`; v1 specs are still read.
+
 ## [1.0.0]
 
 OpenConvert turns a PDF book into a reflowable EPUB 3.3 on your own computer. This is the first

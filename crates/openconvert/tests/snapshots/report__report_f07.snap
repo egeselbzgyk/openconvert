@@ -6,7 +6,7 @@ expression: value
   "schema": "openconvert.report/1",
   "status": "ok",
   "engine": {
-    "version": "1.0.0",
+    "version": "1.1.0",
     "ir_version": 1,
     "pdfium_version": "pinned-for-the-snapshot",
     "prompt_version": null

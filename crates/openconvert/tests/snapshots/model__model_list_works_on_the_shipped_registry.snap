@@ -12,7 +12,7 @@ expression: value
     "size_bytes": 2708804352,
     "ram_estimate_bytes": 6442450944,
     "cpu_expectation": "about six seconds a question on a laptop CPU",
-    "license": "unspecified",
+    "license": "Apache-2.0",
     "license_path": null,
     "warn": null
   },

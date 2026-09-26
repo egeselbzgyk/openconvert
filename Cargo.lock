@@ -4031,7 +4031,7 @@ dependencies = [
 
 [[package]]
 name = "oc-ai"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "insta",
  "oc-core",
@@ -4047,7 +4047,7 @@ dependencies = [
 
 [[package]]
 name = "oc-core"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "ctrlc",
  "getrandom 0.3.4",
@@ -4071,7 +4071,7 @@ dependencies = [
 
 [[package]]
 name = "oc-epub"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "image",
  "insta",
@@ -4088,7 +4088,7 @@ dependencies = [
 
 [[package]]
 name = "oc-layout"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "insta",
  "libm",
@@ -4103,7 +4103,7 @@ dependencies = [
 
 [[package]]
 name = "oc-model"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "base32",
  "blake3",
@@ -4120,7 +4120,7 @@ dependencies = [
 
 [[package]]
 name = "oc-net"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "base64 0.22.1",
  "minisign",
@@ -4139,7 +4139,7 @@ dependencies = [
 
 [[package]]
 name = "oc-pdf"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "flate2",
  "image",
@@ -4164,7 +4164,7 @@ dependencies = [
 
 [[package]]
 name = "oc-structure"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "blake3",
  "insta",
@@ -4181,7 +4181,7 @@ dependencies = [
 
 [[package]]
 name = "oc-testkit"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "flate2",
  "image",
@@ -4202,7 +4202,7 @@ dependencies = [
 
 [[package]]
 name = "oc-text"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "compact_str",
  "insta",
@@ -4219,7 +4219,7 @@ dependencies = [
 
 [[package]]
 name = "oc-validate"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "blake3",
  "insta",
@@ -4259,7 +4259,7 @@ dependencies = [
 
 [[package]]
 name = "openconvert"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "criterion",
@@ -4289,7 +4289,7 @@ dependencies = [
 
 [[package]]
 name = "openconvert-desktop"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "oc-ai",
  "oc-core",
@@ -8758,7 +8758,7 @@ checksum = "9440ea3e5aeabb0ac63af70daf835274065238cdd0cec83418f417eae38bacee"
 
 [[package]]
 name = "xtask"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
