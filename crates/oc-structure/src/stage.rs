@@ -697,8 +697,9 @@ pub fn structure_with(
     // A drop cap that `layout` gave a block of its own, waiting to be joined to the paragraph
     // it opens. Failing to do this is the classic stray one-character paragraph — `<p>W</p>`
     // followed by a paragraph beginning "hen the survey" — which is a very visible EPUB
-    // defect (PIPELINE §6 step 6).
-    let mut pending_cap: Option<(BlockId, String)> = None;
+    // defect (PIPELINE §6 step 6). Held with its block, because a cap no paragraph takes is
+    // emitted as that block after all (`release_cap`).
+    let mut pending_cap: Option<(&BlockView, String)> = None;
     // Per block, the flow item its last paragraph of running text ended up in, and whether that
     // paragraph ends on a word `paragraphs` joined across the break — where a block `paragraphs`
     // said carries it on is joined to it.
@@ -822,6 +823,18 @@ pub fn structure_with(
             continue;
         }
         if let Some(heading) = headings.iter().find(|heading| heading.block == block.id) {
+            // A cap opens the paragraph that follows it, and a heading is not one: whatever is
+            // held goes in before the heading, where it stood.
+            release_cap(
+                &mut Emit {
+                    flow: &mut flow,
+                    tails: &mut tails,
+                    minter: &mut minter,
+                    pending_cap: &mut pending_cap,
+                },
+                &noteref_runs,
+                t,
+            );
             let mut text = heading.text.clone();
             for rest in heading_joins.get(&block.id).into_iter().flatten() {
                 if let Some(more) = headings.iter().find(|heading| heading.block == *rest) {
@@ -853,13 +866,24 @@ pub fn structure_with(
 
         // A block that is *nothing but* a drop cap is held back and joined to the next
         // paragraph rather than emitted. The characters are not changed, only moved, which is
-        // what keeps the stage Conserving.
+        // what keeps the stage Conserving — provided a held cap is never dropped: one still
+        // held when the next arrives opened nothing, and is emitted before the next is held.
         if let Some(cap) = input
             .drop_caps
             .iter()
             .find(|cap| block.text.trim() == cap.text.trim())
         {
-            pending_cap = Some((block.id, cap.text.trim().to_owned()));
+            release_cap(
+                &mut Emit {
+                    flow: &mut flow,
+                    tails: &mut tails,
+                    minter: &mut minter,
+                    pending_cap: &mut pending_cap,
+                },
+                &noteref_runs,
+                t,
+            );
+            pending_cap = Some((block, cap.text.trim().to_owned()));
             continue;
         }
 
@@ -906,6 +930,7 @@ pub fn structure_with(
             t,
         );
         if let Some((cap_block, cap)) = pending_cap.take() {
+            let cap_block = cap_block.id;
             // No space: the cap is the paragraph's first *character*, not its first word.
             // Prepended as a span of its own rather than folded into the text: rebuilding
             // `spans` from the joined string would throw away every style and every note
@@ -992,6 +1017,17 @@ pub fn structure_with(
             content,
         });
     }
+    // A cap still held when the book ends opened nothing.
+    release_cap(
+        &mut Emit {
+            flow: &mut flow,
+            tails: &mut tails,
+            minter: &mut minter,
+            pending_cap: &mut pending_cap,
+        },
+        &noteref_runs,
+        t,
+    );
 
     let (sections, book_warnings, book_confidence) = crate::book::book_structure_with(
         &flow,
@@ -1204,11 +1240,25 @@ fn emit_contents(
 }
 
 /// What emitting running text writes to, borrowed together.
-struct Emit<'a> {
+struct Emit<'a, 'b> {
     flow: &'a mut Vec<FlowItem>,
     tails: &'a mut std::collections::BTreeMap<BlockId, (usize, bool)>,
     minter: &'a mut Minter,
-    pending_cap: &'a mut Option<(BlockId, String)>,
+    pending_cap: &'a mut Option<(&'b BlockView, String)>,
+}
+
+/// Emit the held drop cap, if there is one, as the block it is: running text, with nothing to
+/// join to.
+///
+/// A cap is held for the paragraph that follows it. When something else follows — another cap,
+/// a heading, the end of the book — it opened nothing, and is the one-character paragraph it
+/// always was. Discarding it instead lost its character: a page whose margin numerals `layout`
+/// read as drop caps lost each one that the next overwrote (I-1 at `structure`, 2026-09-26).
+fn release_cap(out: &mut Emit<'_, '_>, noterefs: &NoteRefRuns, t: &Thresholds) {
+    if let Some((block, _)) = out.pending_cap.take() {
+        let positions: Vec<usize> = (0..block.lines.len()).collect();
+        emit_running_text(out, block, &positions, noterefs, &[], t);
+    }
 }
 
 /// Some of a block's lines, cut into the paragraphs `paragraphs` found in them.
@@ -1233,7 +1283,7 @@ fn pieces_of(block: &BlockView, positions: &[usize]) -> Vec<Vec<usize>> {
 /// than inside it. A pending drop cap is joined to the first paragraph emitted, because a cap
 /// belongs to the paragraph it opens wherever the block is cut.
 fn emit_running_text(
-    out: &mut Emit<'_>,
+    out: &mut Emit<'_, '_>,
     block: &BlockView,
     positions: &[usize],
     noterefs: &NoteRefRuns,
@@ -1258,7 +1308,7 @@ fn emit_running_text(
             para.spans
                 .insert(0, oc_model::doc::Span::plain(cap.clone()));
             para.text = format!("{cap}{}", para.text);
-            para.blocks.insert(0, cap_block);
+            para.blocks.insert(0, cap_block.id);
             para.drop_cap = true;
         } else if opens_block && drop_caps.iter().any(|cap| opens_with(cap, block)) {
             para.drop_cap = true;
@@ -1351,5 +1401,200 @@ mod join_tests {
             "cut before the owned block"
         );
         assert!(!kept.contains_key(&id(10)), "an owned head joins nothing");
+    }
+}
+
+#[cfg(test)]
+mod held_cap_tests {
+    use super::*;
+    use oc_core::thresholds::T;
+    use oc_model::geom::Rect;
+    use oc_model::layout::BlockKindHint;
+    use oc_model::text::{Line, RunId, TextProvenance};
+
+    const BODY_PT: f32 = 10.0;
+    const TITLE_PT: f32 = 20.0;
+    const MARGIN: f32 = 50.0;
+    const COLUMN: f32 = 300.0;
+
+    /// One block on page 0: one line per text, one run per line, all at `size_pt`.
+    fn block(order: u32, y: f32, width: f32, size_pt: f32, lines: &[&str]) -> BlockView {
+        let views: Vec<crate::view::LineView> = lines
+            .iter()
+            .enumerate()
+            .map(|(index, text)| {
+                let top = y + 1.2 * size_pt * index as f32;
+                let bbox = Rect {
+                    x0: MARGIN,
+                    y0: top,
+                    x1: MARGIN + width,
+                    y1: top + size_pt,
+                };
+                let run = Run {
+                    id: RunId(order * 10 + u32::try_from(index).unwrap_or_default()),
+                    page: oc_model::extract::PageRef::new(0),
+                    text: (*text).to_owned(),
+                    bbox,
+                    baseline_y: bbox.y1,
+                    font: oc_model::extract::FontId(0),
+                    size_pt,
+                    weight: 400,
+                    italic: false,
+                    superscript: false,
+                    subscript: false,
+                    provenance: TextProvenance::Pdf,
+                    glyph_range: (0, 0),
+                };
+                crate::view::LineView {
+                    line: Line {
+                        runs: vec![run.id],
+                        bbox,
+                        baseline_y: bbox.y1,
+                        ends_with_hyphen: false,
+                        indent_pt: 0.0,
+                        right_gap_pt: 0.0,
+                    },
+                    text: (*text).to_owned(),
+                    runs: vec![run],
+                    glue: false,
+                }
+            })
+            .collect();
+        let bbox = Rect {
+            x0: MARGIN,
+            y0: y,
+            x1: MARGIN + width,
+            y1: views.last().map_or(y, |line| line.bbox().y1),
+        };
+        let text = lines.join(" ");
+        BlockView {
+            id: BlockId::derive(0, bbox, &text),
+            page: 0,
+            order,
+            bbox,
+            column: 0,
+            kind_hint: BlockKindHint::Text,
+            text,
+            lines: views,
+            column_width_pt: COLUMN,
+            space_above_pt: 0.0,
+            page_height_pt: 792.0,
+            para_starts: Vec::new(),
+            continues: None,
+        }
+    }
+
+    /// A block `layout` reported as a drop cap: one character, alone.
+    fn cap(order: u32, y: f32, letter: &str) -> (BlockView, oc_layout::anchor::DropCap) {
+        let block = block(order, y, BODY_PT, BODY_PT, &[letter]);
+        let cap = oc_layout::anchor::DropCap {
+            block: block.id,
+            text: letter.to_owned(),
+            bbox: block.bbox,
+        };
+        (block, cap)
+    }
+
+    fn input(blocks: Vec<BlockView>, drop_caps: Vec<oc_layout::anchor::DropCap>) -> StructureInput {
+        StructureInput {
+            runs: blocks.iter().flat_map(|b| b.runs().cloned()).collect(),
+            blocks,
+            fonts: Vec::new(),
+            images: Vec::new(),
+            image_hashes: Vec::new(),
+            vectors: Vec::new(),
+            outline: Vec::new(),
+            labels: vec![None],
+            drop_caps,
+            page_count: 1,
+            meta: MetaSources {
+                xmp: crate::meta::oc_pdf_meta::XmpMeta::default(),
+                info: crate::meta::InfoDict {
+                    title: None,
+                    author: None,
+                },
+                filename: "book.pdf".to_owned(),
+                source_sha256: "0".repeat(64),
+                language: LangTag::EN,
+            },
+            lang: LangTag::EN,
+        }
+    }
+
+    /// The flow's text in reading order: each section's heading, then its content.
+    fn reading_order(output: &StructureOutput) -> Vec<String> {
+        let mut out = Vec::new();
+        for section in &output.sections {
+            for section in section.walk() {
+                if let Some(heading) = &section.heading {
+                    out.push(heading.text());
+                }
+                collect(&section.content, &mut out);
+            }
+        }
+        out
+    }
+
+    /// A block held back as a drop cap is emitted exactly once, where it stood, whatever
+    /// follows it. The slot that held it was overwritten by the next cap and never emptied at
+    /// the end of the book, so a page whose margin numerals `layout` read as drop caps lost
+    /// every one of them that no paragraph opened (I-1 at `structure` on a real book,
+    /// 2026-09-26). A cap no paragraph opens is the one-character paragraph it is.
+    #[test]
+    fn a_held_drop_cap_is_emitted_exactly_once_whatever_follows_it() {
+        let (w, cap_w) = cap(0, 100.0, "W");
+        let (t, cap_t) = cap(1, 120.0, "T");
+        let title = block(2, 140.0, 80.0, TITLE_PT, &["Part Three"]);
+        let (s, cap_s) = cap(3, 180.0, "S");
+        let (o, cap_o) = cap(4, 200.0, "O");
+        let body = block(
+            5,
+            220.0,
+            COLUMN,
+            BODY_PT,
+            &[
+                "nce the survey was done the crew packed the instruments",
+                "and walked back down the valley towards the river road",
+                "where the cart had been waiting since early that morning.",
+            ],
+        );
+        let (e, cap_e) = cap(6, 400.0, "E");
+        let blocks = vec![w, t, title, s, o, body, e];
+        let given = blocks
+            .iter()
+            .fold(oc_model::extract::CharHistogram::new(), |all, block| {
+                all.union(&oc_model::ledger::c_of(&block.text))
+            });
+
+        let output = structure(&input(blocks, vec![cap_w, cap_t, cap_s, cap_o, cap_e]), &T);
+
+        let emitted = output
+            .emitted_text()
+            .iter()
+            .fold(oc_model::extract::CharHistogram::new(), |all, text| {
+                all.union(&oc_model::ledger::c_of(text))
+            });
+        assert_eq!(
+            emitted,
+            given,
+            "lost {:?}, appeared {:?}",
+            given.difference(&emitted).iter().collect::<Vec<_>>(),
+            emitted.difference(&given).iter().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            reading_order(&output),
+            vec![
+                "W".to_owned(),
+                "T".to_owned(),
+                "Part Three".to_owned(),
+                "S".to_owned(),
+                "Once the survey was done the crew packed the instruments and walked back \
+                 down the valley towards the river road where the cart had been waiting \
+                 since early that morning."
+                    .to_owned(),
+                "E".to_owned(),
+            ],
+            "each cap where it stood, and the one a paragraph follows opens it"
+        );
     }
 }
