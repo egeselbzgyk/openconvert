@@ -39,6 +39,8 @@ uploaded, and there is no telemetry.
 - **More useful AI, with Fast and Quality modes.** When you turn it on, the model fills in a missing
   title and author and, in Quality mode, identifies opening pages the rules could not. Both modes
   work the same with the built-in model, Ollama or your own OpenAI-compatible server.
+- **Scanned books with a text layer** no longer carry a second copy of each page as an image, and
+  convert many times faster.
 - **Desktop app:** a list of previous conversions, one folder for all your books with a button to
   open it, an adjustable time limit per step for large books, and the app's own icon.
 
