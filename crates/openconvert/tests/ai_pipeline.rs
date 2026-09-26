@@ -260,6 +260,7 @@ fn ai_edits_are_conserving_end_to_end() {
                 cache: None,
                 clock: &clock,
                 all_tasks: true,
+                mode: oc_core::jobspec::AiMode::default(),
             };
             let conversion = convert_fixture(stem, evidence, Some(&context));
             assert!(
@@ -298,6 +299,7 @@ fn a_book_with_no_outline_and_boilerplate_metadata() {
         cache: None,
         clock: &clock,
         all_tasks: true,
+        mode: oc_core::jobspec::AiMode::default(),
     };
     let conversion = convert_fixture("f09_novel_structure", Evidence::Stripped, Some(&context));
     let outcome = conversion.ai.as_ref().expect("the AI step ran");
@@ -355,6 +357,7 @@ fn book_structure_is_never_asked_when_an_outline_exists() {
         cache: None,
         clock: &clock,
         all_tasks: true,
+        mode: oc_core::jobspec::AiMode::default(),
     };
     let conversion = convert_fixture("f07_verse_and_quote", Evidence::AsIs, Some(&context));
     assert_eq!(echo.asked(Purpose::BookStructure), 0);
@@ -371,7 +374,7 @@ fn book_structure_is_never_asked_when_an_outline_exists() {
 
 /// Row 10.15. `f10` without its outline and title escalates three tasks. The model takes ten
 /// minutes a call on an injected clock, so after its first answer the book's time budget
-/// (`llm.max_budget_secs` at most) is spent: the remaining LLM work is abandoned, the conversion
+/// (`llm.quality_max_budget_secs` at most) is spent: the remaining LLM work is abandoned, the conversion
 /// completes deterministically, `W_LLM_TIME_EXHAUSTED` is in the report, and the choices left
 /// unasked say `budget.time`.
 #[test]
@@ -386,6 +389,7 @@ fn time_budget_hard_stop() {
         cache: None,
         clock: &CLOCK,
         all_tasks: true,
+        mode: oc_core::jobspec::AiMode::default(),
     };
     let conversion = convert_fixture("f10_lists_and_table", Evidence::Stripped, Some(&context));
     assert_eq!(
@@ -424,6 +428,7 @@ fn cache_hit_makes_ai_run_byte_identical() {
             cache: Some(&cache),
             clock: &clock,
             all_tasks: true,
+            mode: oc_core::jobspec::AiMode::default(),
         }),
     );
     assert!(echo.calls.load(Ordering::SeqCst) > 0);
@@ -436,6 +441,7 @@ fn cache_hit_makes_ai_run_byte_identical() {
             cache: Some(&cache),
             clock: &clock,
             all_tasks: true,
+            mode: oc_core::jobspec::AiMode::default(),
         }),
     );
     let outcome = warm.ai.as_ref().expect("the AI step ran");
@@ -459,6 +465,7 @@ fn ai_without_all_tasks_asks_nothing_until_a_language_is_enabled() {
         cache: None,
         clock: &clock,
         all_tasks: false,
+        mode: oc_core::jobspec::AiMode::default(),
     };
     let with_ai = convert_fixture("f07_verse_and_quote", Evidence::AsIs, Some(&context));
     let without = convert_fixture("f07_verse_and_quote", Evidence::AsIs, None);
@@ -522,6 +529,7 @@ fn unshare_n_covers_the_ai_cassette_path() {
         cache: Some(&cache),
         clock: &clock,
         all_tasks: true,
+        mode: oc_core::jobspec::AiMode::default(),
     };
 
     // Cold, from the in-process model: fills the cache.
@@ -560,6 +568,7 @@ fn unshare_n_covers_the_ai_cassette_path() {
         cache: None,
         clock: &clock,
         all_tasks: true,
+        mode: oc_core::jobspec::AiMode::default(),
     };
     let replayed = convert_fixture("f09_novel_structure", Evidence::Stripped, Some(&uncached));
     assert!(replayed.ai.is_some(), "the AI step ran on the cassettes");

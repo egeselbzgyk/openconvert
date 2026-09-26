@@ -402,6 +402,7 @@ fn steps<W: Write + Send>(
         cache: Some(&llm_cache),
         clock: &clock,
         all_tasks: job.ai.as_ref().is_some_and(|ai| ai.all_tasks),
+        mode: job.ai.as_ref().map(|ai| ai.mode).unwrap_or_default(),
     });
 
     let progress = EventProgress::new(events);

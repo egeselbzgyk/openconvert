@@ -968,24 +968,45 @@ evidence = "ARCHITECTURE 6.2: heading_tree_violations is an integer count - leve
 owner = "maintainer"
 review_by = "2099-01-01"
 
-[llm.seconds_per_page]
-value = 1.0
+[llm.fast_seconds_per_page]
+value = 0.3
 source = "provisional"
-evidence = "The model time a book may take, per page, replacing RT C4's share of the conversion's time: the deterministic stages take seconds, so a quarter of them allowed one call a book. The maintainer accepts three to five minutes a book for a better result (2026-09-26); a 300-page book gets five minutes at this rate. Invented, not measured"
+evidence = "Fast mode (--ai-mode fast): the model time a book may take, per page. One-word constrained answers take well under a second each on a CPU (smoke test 2026-09-26), so a 300-page book gets a minute and a half. Replaces RT C4's share of the conversion's time, which allowed one call a book. Invented"
 owner = "maintainer"
 review_by = "2027-06-30"
 
-[llm.min_budget_secs]
-value = 60
+[llm.fast_min_budget_secs]
+value = 30
 source = "provisional"
-evidence = "The least model time any book gets, so a short one still has its metadata, contents and headings asked about: on a CPU a small model answers one of those questions in one to ten seconds (smoke test 2026-09-26). Invented"
+evidence = "Fast mode: the least model time any book gets, enough for its metadata and contents questions. Invented"
 owner = "maintainer"
 review_by = "2027-06-30"
 
-[llm.max_budget_secs]
-value = 360
+[llm.fast_max_budget_secs]
+value = 150
 source = "provisional"
-evidence = "The most model time any book gets: the upper end of the three to five minutes the maintainer accepts (2026-09-26) plus a minute, so a thousand-page book does not wait half an hour on a CPU. Invented"
+evidence = "Fast mode: the most model time any book gets - two and a half minutes. Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.quality_seconds_per_page]
+value = 2.0
+source = "provisional"
+evidence = "Quality mode (--ai-mode quality, the default): the model time a book may take, per page. A reasoned answer is hundreds of tokens and each question is asked twice; the maintainer does not bind quality mode to three to five minutes (2026-09-26), so a 300-page book gets ten. Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.quality_min_budget_secs]
+value = 120
+source = "provisional"
+evidence = "Quality mode: the least model time any book gets. Invented"
+owner = "maintainer"
+review_by = "2027-06-30"
+
+[llm.quality_max_budget_secs]
+value = 1500
+source = "provisional"
+evidence = "Quality mode: the most model time any book gets - twenty-five minutes, inside the desktop's thirty-minute step limit (desktop.default_stage_deadline_secs). Invented"
 owner = "maintainer"
 review_by = "2027-06-30"
 

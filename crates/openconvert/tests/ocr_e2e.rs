@@ -648,6 +648,7 @@ fn ocr_never_calls_the_llm() {
         cache: None,
         clock: &clock,
         all_tasks: true,
+        mode: oc_core::jobspec::AiMode::default(),
     };
     let path = typst("f03_image_only");
     let bytes = std::fs::read(&path).expect("f03");

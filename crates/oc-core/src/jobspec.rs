@@ -8,7 +8,7 @@
 //! anything (Phase 12 test 12.2) and the engine before it touches the PDF (§2.2, exit code 2).
 //!
 //! **Validated against the committed schema, not against a transcription of it.** The schema file
-//! `schemas/job-spec.v1.json` is compiled in and walked here, so a pattern, a minimum or an
+//! `schemas/job-spec.v2.json` is compiled in and walked here, so a pattern, a minimum or an
 //! `additionalProperties: false` in the schema is enforced because it is in the schema — there is
 //! no second copy of `^[0-9a-f]{64}$` or `268435456` in Rust to drift from it. The walker
 //! understands exactly the keywords the schema uses and **fails closed on any other**: a schema
@@ -28,10 +28,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// The committed schema, compiled in.
-pub const SCHEMA_TEXT: &str = include_str!("../../../schemas/job-spec.v1.json");
+pub const SCHEMA_TEXT: &str = include_str!("../../../schemas/job-spec.v2.json");
 
-/// The value of the spec's own `schema` field for this version.
-pub const SCHEMA_TAG: &str = "openconvert.job/1";
+/// The value of the spec's own `schema` field for this version. A version-1 spec — the same
+/// fields without `ai.mode` — is still accepted, and reads as the default mode.
+pub const SCHEMA_TAG: &str = "openconvert.job/2";
 
 /// Why a job spec was refused. Always exit code 2 and `fatal{code: "E_JOBSPEC"}` (§2.2).
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -114,6 +115,32 @@ pub struct AiSpec {
     pub model_id: Option<String>,
     #[serde(default)]
     pub non_loopback_consent: bool,
+    /// How much of the model's time a book may take, and how it is asked (v2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<AiMode>,
+}
+
+/// How the model is asked, whichever model it is (job spec v2, `--ai-mode`).
+///
+/// **Fast** asks for a constrained one-word answer and takes a short time budget. **Quality** lets
+/// the model reason in its answer before it commits to one, asks each question twice and keeps
+/// only answers that agree, and takes a much longer budget. Neither depends on a model family's
+/// own switches, so a BYO endpoint and Ollama are asked the same way as the bundled model.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AiMode {
+    Fast,
+    #[default]
+    Quality,
+}
+
+impl AiMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            AiMode::Fast => "fast",
+            AiMode::Quality => "quality",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -461,6 +488,28 @@ mod tests {
             "input": {"path": absolute("/tmp/in.pdf")},
             "output": {"path": absolute("/tmp/out.epub")}
         })
+    }
+
+    /// A version-1 spec is still a valid spec, and reads as the default mode; a version-2 spec
+    /// may name the mode (`ai.mode`), and nothing else is a mode.
+    #[test]
+    fn a_version_one_spec_is_accepted_and_a_mode_is_read() {
+        let v1 = parse(&minimal().to_string()).expect("a v1 spec is accepted");
+        assert_eq!(v1.ai, None);
+
+        let mut fast = minimal();
+        fast["schema"] = serde_json::json!(SCHEMA_TAG);
+        fast["ai"] = serde_json::json!({"enabled": true, "mode": "fast"});
+        let spec = parse(&fast.to_string()).expect("a v2 spec with a mode is accepted");
+        assert_eq!(spec.ai.and_then(|ai| ai.mode), Some(AiMode::Fast));
+
+        let mut slow = fast.clone();
+        slow["ai"]["mode"] = serde_json::json!("thorough");
+        match refused(&slow) {
+            JobSpecError::Invalid { pointer, .. } => assert_eq!(pointer, "/ai/mode"),
+            other => panic!("expected Invalid, got {other}"),
+        }
+        assert_eq!(AiMode::default(), AiMode::Quality);
     }
 
     fn refused(document: &Value) -> JobSpecError {

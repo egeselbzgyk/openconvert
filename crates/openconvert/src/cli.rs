@@ -220,7 +220,8 @@ usage:
                                   [--password <STRING>] [--progress none|json]
                                   [--modified <YYYY-MM-DDThh:mm:ssZ>] [--report <PATH.json>]
                                   [--locale en|de|tr] [--overrides <PATH.json>]
-                                  [--ai [--ai-all-tasks] [--llm-endpoint <URL>]
+                                  [--ai [--ai-all-tasks] [--ai-mode fast|quality]
+                                        [--llm-endpoint <URL>]
                                         [--llm-provider builtin|ollama|openai-compatible]
                                         [--llm-model <NAME>] [--llm-allow-host <HOST>]
                                         [--llm-api-key-file <PATH>] [--model-path <PATH>]]
@@ -544,6 +545,20 @@ fn parse_convert<I: Iterator<Item = String>>(mut args: I) -> Result<Command, Cli
                     .ok_or(CliError::MissingValue("--llm-provider"))?;
                 ai_args.provider = Some(parse_provider(&value)?);
                 ai_only.get_or_insert("--llm-provider");
+            }
+            "--ai-mode" => {
+                let value = args.next().ok_or(CliError::MissingValue("--ai-mode"))?;
+                ai_args.mode = match value.as_str() {
+                    "fast" => oc_core::jobspec::AiMode::Fast,
+                    "quality" => oc_core::jobspec::AiMode::Quality,
+                    _ => {
+                        return Err(CliError::BadValue {
+                            what: "--ai-mode value",
+                            value,
+                        })
+                    }
+                };
+                ai_only.get_or_insert("--ai-mode");
             }
             "--llm-model" => {
                 ai_args.model = Some(args.next().ok_or(CliError::MissingValue("--llm-model"))?);

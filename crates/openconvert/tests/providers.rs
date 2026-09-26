@@ -551,6 +551,7 @@ fn consent_is_recorded_in_report() {
         cache: None,
         clock: &clock,
         all_tasks: true,
+        mode: oc_core::jobspec::AiMode::default(),
     };
     let options = openconvert::convert::ConvertOptions {
         filename: "f07_verse_and_quote.pdf".to_owned(),

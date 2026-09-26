@@ -363,7 +363,7 @@ fn an_unreachable_provider_stops_the_session() {
     assert!(session.stopped().is_some());
 }
 
-/// The budget is the book's length times `llm.seconds_per_page`, held between its floor and its
+/// The budget is the book's length times the mode's seconds a page, held between its floor and its
 /// ceiling: a short book still gets the floor, a long one no more than the ceiling.
 #[test]
 fn the_time_budget_follows_the_book_between_its_bounds() {

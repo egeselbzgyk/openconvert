@@ -84,8 +84,8 @@ impl Clock for SystemClock {
     }
 }
 
-/// Raised when the book's model time reached its budget: `llm.seconds_per_page` a page, held
-/// between `llm.min_budget_secs` and `llm.max_budget_secs`.
+/// Raised when the book's model time reached its budget: `llm.<mode>_seconds_per_page` a page,
+/// held between the mode's floor and ceiling.
 pub const W_LLM_TIME_EXHAUSTED: &str = "W_LLM_TIME_EXHAUSTED";
 
 /// The banner: AI was asked for and no model could be reached, so the book is deterministic
@@ -93,8 +93,8 @@ pub const W_LLM_TIME_EXHAUSTED: &str = "W_LLM_TIME_EXHAUSTED";
 pub const W_LLM_UNAVAILABLE: &str = "W_LLM_UNAVAILABLE";
 
 /// The model time a book of `pages` pages may take: `seconds_per_page` a page, never less than
-/// `min_secs` nor more than `max_secs` — `llm.seconds_per_page`, `llm.min_budget_secs` and
-/// `llm.max_budget_secs`, read by the caller.
+/// `min_secs` nor more than `max_secs` — the `llm.fast_*` or `llm.quality_*` budget keys, read by
+/// the caller for the book's mode.
 ///
 /// Absolute rather than a share of the conversion's time: the deterministic stages take seconds,
 /// so any share of them is a call or two, and a book the model is asked to read needs minutes

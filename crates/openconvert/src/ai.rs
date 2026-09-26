@@ -108,6 +108,8 @@ pub struct AiContext<'a> {
     pub clock: &'a dyn Clock,
     /// `--ai-all-tasks`: the language gate is set aside.
     pub all_tasks: bool,
+    /// `--ai-mode`: how the model is asked and how long a book may take.
+    pub mode: oc_core::jobspec::AiMode,
 }
 
 /// What the AI step did, for the document and the report.
@@ -123,6 +125,25 @@ pub struct AiOutcome {
     pub llm_ms: u64,
     /// The edits every gate admitted, as the structure stage applies them.
     pub edits: StructureEdits,
+}
+
+/// The model time a book of `pages` pages may take in `mode`.
+pub fn time_budget_ms(mode: oc_core::jobspec::AiMode, pages: u32, t: &Thresholds) -> u64 {
+    use oc_core::jobspec::AiMode;
+    let secs = |value: i64| u64::try_from(value).unwrap_or_default();
+    let (per_page, min, max) = match mode {
+        AiMode::Fast => (
+            t.llm.fast_seconds_per_page,
+            t.llm.fast_min_budget_secs,
+            t.llm.fast_max_budget_secs,
+        ),
+        AiMode::Quality => (
+            t.llm.quality_seconds_per_page,
+            t.llm.quality_min_budget_secs,
+            t.llm.quality_max_budget_secs,
+        ),
+    };
+    oc_ai::session::time_budget_ms(pages, per_page, secs(min), secs(max))
 }
 
 /// The pages the metadata task reads: 1–3 (PIPELINE §8.8), a definition and not a threshold.
@@ -147,12 +168,7 @@ pub fn run(
         ctx.cache,
         ctx.clock,
         u32::try_from(t.llm.max_calls_per_book).unwrap_or_default(),
-        oc_ai::session::time_budget_ms(
-            input.page_count,
-            t.llm.seconds_per_page,
-            u64::try_from(t.llm.min_budget_secs).unwrap_or_default(),
-            u64::try_from(t.llm.max_budget_secs).unwrap_or_default(),
-        ),
+        time_budget_ms(ctx.mode, input.page_count, t),
     );
     let mut step = Step {
         input,
@@ -999,5 +1015,27 @@ impl VerseQuestion {
             })
             .collect();
         Self { blocks, limits }
+    }
+}
+
+/// Fast mode takes less of the model's time than quality mode for the same book, and each stays
+/// inside its own floor and ceiling.
+#[test]
+fn fast_mode_takes_less_of_the_models_time_than_quality() {
+    use oc_core::jobspec::AiMode;
+    use oc_core::thresholds::T;
+    for pages in [1, 50, 300, 2_000] {
+        let fast = time_budget_ms(AiMode::Fast, pages, &T);
+        let quality = time_budget_ms(AiMode::Quality, pages, &T);
+        assert!(
+            fast < quality,
+            "{pages} pages: {fast} ms is not less than {quality} ms"
+        );
+        let ms = |secs: i64| u64::try_from(secs).expect("a positive bound") * 1000;
+        assert!((ms(T.llm.fast_min_budget_secs)..=ms(T.llm.fast_max_budget_secs)).contains(&fast));
+        assert!(
+            (ms(T.llm.quality_min_budget_secs)..=ms(T.llm.quality_max_budget_secs))
+                .contains(&quality)
+        );
     }
 }

@@ -55,6 +55,8 @@ pub struct AiArgs {
     /// the endpoint's (D10). The job spec's `non_loopback_consent: true` is the same consent,
     /// given to whatever host its endpoint names ([`AiArgs::consenting_to_the_endpoint`]).
     pub allow_host: Option<String>,
+    /// `--ai-mode` (the job spec's `ai.mode`): how the model is asked and how long it may take.
+    pub mode: oc_core::jobspec::AiMode,
 }
 
 impl AiArgs {

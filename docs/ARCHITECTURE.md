@@ -484,7 +484,7 @@ The region is the set of blocks the edit touches â€” for `verse_quote` that is â
 ai.enabled                     = false      # v1 default; opt-in
 llm.max_calls_per_book         = 8
 llm.max_blocks_per_book        = 30
-llm.seconds_per_page           = 1.0        # absolute, held within llm.min/max_budget_secs
+llm.quality_seconds_per_page   = 2.0        # absolute; fast mode 0.3; each held within its mode's min/max
 llm.max_output_tokens_per_call = 1500
 inventory.max_clusters         = 24         # above this: no LLM call at all
 inventory.min_body_char_share  = 0.60       # below this: clustering is invalid

@@ -148,6 +148,7 @@ fn ai_args(ai: &oc_core::jobspec::AiSpec) -> Option<AiArgs> {
         api_key_file: ai.api_key_file.clone(),
         model_path: ai.model_path.clone(),
         model: ai.model_id.clone(),
+        mode: ai.mode.unwrap_or_default(),
         ..AiArgs::default()
     };
     Some(if ai.non_loopback_consent {
@@ -225,6 +226,7 @@ mod tests {
             model_path: Some("/models/qwen3.gguf".into()),
             model_id: Some("qwen3-1.7b".to_owned()),
             non_loopback_consent: false,
+            mode: None,
         });
         let job = resolve(&on).expect("resolves");
         assert_eq!(
@@ -236,6 +238,33 @@ mod tests {
                 model: Some("qwen3-1.7b".to_owned()),
                 ..Default::default()
             })
+        );
+    }
+
+    /// The spec's `ai.mode` is `--ai-mode`; a spec without one gets the default, quality.
+    #[test]
+    fn the_mode_in_a_spec_reaches_the_ai_arguments() {
+        let mut fast = spec();
+        fast.ai = Some(oc_core::jobspec::AiSpec {
+            enabled: true,
+            mode: Some(oc_core::jobspec::AiMode::Fast),
+            ..Default::default()
+        });
+        let job = resolve(&fast).expect("resolves");
+        assert_eq!(
+            job.ai.map(|ai| ai.mode),
+            Some(oc_core::jobspec::AiMode::Fast)
+        );
+
+        let mut plain = spec();
+        plain.ai = Some(oc_core::jobspec::AiSpec {
+            enabled: true,
+            ..Default::default()
+        });
+        let job = resolve(&plain).expect("resolves");
+        assert_eq!(
+            job.ai.map(|ai| ai.mode),
+            Some(oc_core::jobspec::AiMode::Quality)
         );
     }
 

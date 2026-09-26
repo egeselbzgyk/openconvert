@@ -291,3 +291,25 @@ fn ai_against_a_live_model_conserves_every_book() {
         assert_eq!(report["conservation"]["i7"]["holds"], true, "{stem}: I-7");
     }
 }
+
+/// `--ai-mode` is an AI flag: without `--ai` it is refused as one, and it takes only `fast` or
+/// `quality`. Both are usage errors, exit code 2, before any book is read.
+#[test]
+fn ai_mode_needs_ai_and_a_known_value() {
+    let scratch = Scratch::new("ai-mode");
+    let without = convert(
+        &scratch,
+        "f01_prose_single_column",
+        "a",
+        &["--ai-mode", "fast"],
+    );
+    assert_eq!(without.status.code(), Some(2), "{without:?}");
+    let unknown = convert(
+        &scratch,
+        "f01_prose_single_column",
+        "b",
+        &["--ai", "--ai-mode", "thorough"],
+    );
+    assert_eq!(unknown.status.code(), Some(2), "{unknown:?}");
+    assert!(String::from_utf8_lossy(&unknown.stderr).contains("--ai-mode"));
+}
