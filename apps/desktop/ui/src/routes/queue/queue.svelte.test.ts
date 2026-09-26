@@ -172,6 +172,33 @@ describe("queue route", () => {
     expect(document.querySelector(".oc-dropzone, .oc-queue"), "back on the queue").not.toBeNull();
   });
 
+  // A stage that ran past `limits.stage_deadline_secs` is not a size limit: the row says which limit
+  // it was and where to raise it.
+  it("a step that ran out of time says so, and where to raise the limit", async () => {
+    const backend = await start();
+    const job = { id: "job-1", input: "/b/atlas.pdf", output: "/b/atlas.epub", renamed: false, unlocked: false, rebuild: false };
+    backend.change({ ...job, state: "running" });
+    backend.line(job.id, {
+      t: "fatal",
+      code: "E_LIMIT_EXCEEDED",
+      message: "stage_deadline_secs exceeded: stage `layout` ran past 1800 s",
+    });
+    backend.change({ ...job, state: "exited", code: 1 });
+    flushSync();
+    const row = document.querySelector('[data-job="job-1"]');
+    expect(row?.textContent).toContain("A step of the conversion ran longer than the time limit.");
+    expect(row?.textContent).toContain('You can raise "Time limit per step" in Settings › Advanced');
+    expect([...(row?.querySelectorAll("button") ?? [])].map((b) => b.textContent)).toContain("Convert again");
+
+    // A size limit is still a size limit.
+    const big = { ...job, id: "job-2", input: "/b/big.pdf", output: "/b/big.epub" };
+    backend.change({ ...big, state: "running" });
+    backend.line(big.id, { t: "fatal", code: "E_LIMIT_EXCEEDED", message: "max_pages exceeded: 5000 pages, limit 3000" });
+    backend.change({ ...big, state: "exited", code: 1 });
+    flushSync();
+    expect(document.querySelector('[data-job="job-2"]')?.textContent).toContain("exceeds a size limit");
+  });
+
   it("the row itself says consent is needed and offers the dialog again", async () => {
     const backend = await start();
     const job = { id: "job-2", input: "/b/essay.pdf", output: "/b/essay.epub", renamed: false, unlocked: false, rebuild: false };

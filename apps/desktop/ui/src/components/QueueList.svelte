@@ -1,7 +1,9 @@
 <script lang="ts">
   // The queue (components.md, QueueList): one Tab stop into the list, ↑/↓ between rows (roving
   // tabindex), Home/End; `role="list"` labelled with the file count. Forty rows scroll inside the
-  // window while the drop strip and the header stay put (queue.html §3).
+  // window while the drop strip and the header stay put (queue.html §3). It is this session's
+  // section of the main page; earlier runs' books follow it (HistoryList), and then it takes only
+  // the height its rows need.
   import type { Snippet } from "svelte";
 
   import { rovingTarget } from "../lib/a11y";
@@ -11,10 +13,13 @@
   let {
     rows,
     onremoveall,
+    fit = false,
     row: rowSnippet,
   }: {
     rows: Row[];
     onremoveall: () => void;
+    /** Another section follows: take the rows' height, scrolling only when the window is full. */
+    fit?: boolean;
     row: Snippet<[Row, boolean]>;
   } = $props();
 
@@ -42,7 +47,7 @@
 </script>
 
 <div class="oc-queue__head">
-  <span class="oc-queue__title">{t("queue.title")}</span>
+  <span class="oc-queue__title">{t("queue.session")}</span>
   <span class="oc-queue__count">{tn("queue.count", rows.length, { r: converting, w: waiting })}</span>
   <span class="oc-queue__spacer"></span>
   {#if waiting > 1}
@@ -52,6 +57,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <ul
   class="oc-queue oc-queue--scroll"
+  class:oc-queue--fit={fit}
   aria-label={tn("queue.listLabel", rows.length)}
   bind:this={list}
   onkeydown={keydown}

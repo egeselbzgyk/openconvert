@@ -30,6 +30,11 @@ export interface UiConfig {
   os: string;
   maxPages: number;
   maxMemoryBytes: number;
+  /** The time each stage may take unless the user set one (`desktop.default_stage_deadline_secs`),
+      and the range Settings › Advanced accepts, in seconds. */
+  defaultStageDeadlineSecs: number;
+  minStageDeadlineSecs: number;
+  maxStageDeadlineSecs: number;
   /** How many of the four AI tasks this build enables for any language (`ai.task.*.languages`). */
   aiTasksEnabled: number;
   /** This build has the in-app updater (every build but the Flatpak's, which Flathub updates). */
@@ -67,6 +72,14 @@ export interface Settings {
   preset: Preset;
   maxPages: number | null;
   maxMemoryBytes: number | null;
+  /** The time each stage may take, in seconds; `null` is the app's default. */
+  stageDeadlineSecs: number | null;
+  /** Save every book in the library folder rather than beside its PDF. */
+  saveToLibrary: boolean;
+  /** The library folder the user chose; `null` is the default. Set by the Rust side only. */
+  libraryDir: string | null;
+  /** "Previous conversions" on the main page is open. */
+  historyOpen: boolean;
   firstrunDismissed: boolean;
   /** AI assistance: off by default (D17). */
   aiEnabled: boolean;
@@ -213,6 +226,29 @@ export interface Enqueued {
   skipped: string[];
 }
 
+/** One conversion of an earlier run of the app (`src-tauri/src/history.rs`, `Row`). */
+export interface HistoryEntry {
+  id: string;
+  input: string;
+  inputName: string;
+  output: string;
+  /** RFC 3339, UTC; `null` when the converter never started. */
+  startedAt: string | null;
+  finishedAt: string;
+  durationMs: number | null;
+  status: "complete" | "invalid" | "failed";
+  exitCode: number | null;
+  /** The converter's `fatal` code for a failure (`E_PDF`, `E_LIMIT_EXCEEDED`…), or `E_START`. */
+  errorCode: string | null;
+  /** The cap that stopped it, by its thresholds name (`stage_deadline_secs`…). */
+  errorCap: string | null;
+  title: string | null;
+  authors: string[];
+  pages: number | null;
+  /** The book is still where it was saved. */
+  outputExists: boolean;
+}
+
 /** Native drag and drop, as Tauri delivers it: absolute paths (Phase 12 detail 2). */
 export type DropEvent =
   | { type: "enter"; paths: string[] }
@@ -287,6 +323,21 @@ export interface Backend {
   updateCheck(): Promise<UpdateCheck>;
   /** Install the update the last check verified, and restart into it. */
   updateInstall(): Promise<void>;
+  /** "Previous conversions": the books of earlier runs of the app, newest first. */
+  history(): Promise<HistoryEntry[]>;
+  /** Forget one entry, or all of them; no book is touched. */
+  historyRemove(id: string): Promise<void>;
+  historyClear(): Promise<void>;
+  /** An earlier book in the OS's EPUB reader, or selected in its folder — named by entry id. */
+  historyOpen(id: string): Promise<void>;
+  historyShow(id: string): Promise<void>;
+  /** The folder books are saved in when Settings saves to the library. */
+  libraryPath(): Promise<string>;
+  /** That folder in the system's file manager (the main page's folder button). */
+  openLibrary(): Promise<void>;
+  /** The native folder picker for the library; the answer is the settings as saved. */
+  pickLibraryDir(): Promise<Settings>;
+  resetLibraryDir(): Promise<Settings>;
 }
 
 /** The Rust commands and event of each catalog (`src-tauri/src/main.rs`). */
@@ -373,5 +424,14 @@ export function tauriBackend(): Backend {
     networkLog: () => invoke<NetworkLog>("network_log"),
     updateCheck: () => invoke<UpdateCheck>("update_check"),
     updateInstall: () => invoke<void>("update_install"),
+    history: () => invoke<HistoryEntry[]>("history_list"),
+    historyRemove: (id) => invoke<void>("history_remove", { id }),
+    historyClear: () => invoke<void>("history_clear"),
+    historyOpen: (id) => invoke<void>("history_open", { id }),
+    historyShow: (id) => invoke<void>("history_show", { id }),
+    libraryPath: () => invoke<string>("library_path"),
+    openLibrary: () => invoke<void>("open_library"),
+    pickLibraryDir: () => invoke<Settings>("pick_library_dir"),
+    resetLibraryDir: () => invoke<Settings>("reset_library_dir"),
   };
 }

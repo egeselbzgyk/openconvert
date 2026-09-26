@@ -482,3 +482,22 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .oc-editor__help { margin: 0; }
 .oc-editor__add { align-self: flex-start; }
 .oc-editor__select { max-width: 20rem; }
+
+/* The main page's sections: this session's queue takes only the height its rows need when earlier
+   runs' books follow it (QueueList `fit`), scrolling once the window is full. HistoryList is a
+   disclosure: its header is one button (chevron, title, count); open, it shares the column with the
+   queue and its list scrolls inside it, as the queue's does. A book no longer on disk is quieter. */
+.oc-queue--fit { flex: 0 1 auto; }
+.oc-history { width: 100%; max-width: var(--oc-content-max); flex: none; min-height: 0; display: flex; flex-direction: column; gap: var(--oc-space-3); }
+.oc-history.is-open { flex: 1 1 0; min-height: 12rem; }
+.oc-history__head { align-items: center; }
+.oc-history__toggle {
+  display: inline-flex; align-items: center; gap: var(--oc-space-2);
+  min-height: var(--oc-control-sm); padding: 0 var(--oc-space-2) 0 0;
+  border: 0; border-radius: var(--oc-radius-sm); background: transparent; color: var(--oc-text);
+  font-size: var(--oc-text-base); text-align: left; cursor: pointer;
+}
+.oc-history__toggle .oc-icon { color: var(--oc-text-secondary); }
+.oc-history__toggle:hover .oc-queue__title { text-decoration: underline; }
+.oc-history__list[hidden] { display: none; }
+.oc-row--gone .oc-row__name { color: var(--oc-text-secondary); }

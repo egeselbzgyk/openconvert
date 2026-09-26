@@ -16,6 +16,7 @@ import type {
   EndpointCheck,
   NetworkLog,
   Enqueued,
+  HistoryEntry,
   LicenseView,
   ModelReadiness,
   ModelRow,
@@ -42,9 +43,52 @@ export const CONFIG: UiConfig = {
   os: "linux",
   maxPages: 3000,
   maxMemoryBytes: 4294967296,
+  defaultStageDeadlineSecs: 1800,
+  minStageDeadlineSecs: 60,
+  maxStageDeadlineSecs: 86400,
   aiTasksEnabled: 0,
   updater: true,
 };
+
+/** Two books of an earlier run, as `history_list` sends them: one converted, one that failed. */
+export function historyEntries(): HistoryEntry[] {
+  return [
+    {
+      id: "s1-job-2",
+      input: "/books/moby-dick.pdf",
+      inputName: "moby-dick.pdf",
+      output: "/home/me/Documents/OpenConvert/moby-dick.epub",
+      startedAt: "2026-09-20T09:14:02Z",
+      finishedAt: "2026-09-20T09:15:25Z",
+      durationMs: 83250,
+      status: "complete",
+      exitCode: 0,
+      errorCode: null,
+      errorCap: null,
+      title: "Moby-Dick; or, The Whale",
+      authors: ["Herman Melville"],
+      pages: 214,
+      outputExists: true,
+    },
+    {
+      id: "s1-job-1",
+      input: "/books/atlas.pdf",
+      inputName: "atlas.pdf",
+      output: "/home/me/Documents/OpenConvert/atlas.epub",
+      startedAt: "2026-09-20T08:00:00Z",
+      finishedAt: "2026-09-20T08:30:00Z",
+      durationMs: 1800000,
+      status: "failed",
+      exitCode: 1,
+      errorCode: "E_LIMIT_EXCEEDED",
+      errorCap: "stage_deadline_secs",
+      title: null,
+      authors: [],
+      pages: null,
+      outputExists: false,
+    },
+  ];
+}
 
 export const HELLO: Hello = {
   v: 1,
@@ -130,6 +174,10 @@ export class FakeBackend implements Backend {
     preset: "auto",
     maxPages: null,
     maxMemoryBytes: null,
+    stageDeadlineSecs: null,
+    saveToLibrary: true,
+    libraryDir: null,
+    historyOpen: true,
     firstrunDismissed: false,
     aiEnabled: false,
     provider: "builtin",
@@ -145,8 +193,13 @@ export class FakeBackend implements Backend {
   }
   async saveSettings(next: Settings): Promise<Settings> {
     this.calls.push(["settings", next]);
-    // As the Rust side does: the key file and the consent are never the webview's to write.
-    this.saved = { ...next, custom: { ...next.custom, apiKeyFile: this.saved.custom.apiKeyFile, consent: this.saved.custom.consent } };
+    // As the Rust side does: the library folder, the key file and the consent are never the
+    // webview's to write.
+    this.saved = {
+      ...next,
+      libraryDir: this.saved.libraryDir,
+      custom: { ...next.custom, apiKeyFile: this.saved.custom.apiKeyFile, consent: this.saved.custom.consent },
+    };
     return this.saved;
   }
   reports = new Map<string, Report>();
@@ -335,6 +388,44 @@ export class FakeBackend implements Backend {
   }
   async updateInstall(): Promise<void> {
     this.calls.push(["updateInstall", null]);
+  }
+
+  /** What `history_list` answers: earlier runs' books. Empty unless a test fills it. */
+  earlier: HistoryEntry[] = [];
+  /** Opening an earlier book fails, as it does for a book moved away since. */
+  earlierGone = false;
+  async history(): Promise<HistoryEntry[]> {
+    return this.earlier;
+  }
+  async historyRemove(id: string): Promise<void> {
+    this.calls.push(["historyRemove", id]);
+    this.earlier = this.earlier.filter((entry) => entry.id !== id);
+  }
+  async historyClear(): Promise<void> {
+    this.calls.push(["historyClear", null]);
+    this.earlier = [];
+  }
+  async historyOpen(id: string): Promise<void> {
+    this.calls.push(["historyOpen", id]);
+    if (this.earlierGone) throw { kind: "not_on_disk", detail: id };
+  }
+  async historyShow(id: string): Promise<void> {
+    this.calls.push(["historyShow", id]);
+  }
+  library = "/home/me/Documents/OpenConvert";
+  async libraryPath(): Promise<string> {
+    return this.saved.libraryDir ?? this.library;
+  }
+  async openLibrary(): Promise<void> {
+    this.calls.push(["openLibrary", null]);
+  }
+  async pickLibraryDir(): Promise<Settings> {
+    this.saved = { ...this.saved, libraryDir: "/home/me/Books" };
+    return this.saved;
+  }
+  async resetLibraryDir(): Promise<Settings> {
+    this.saved = { ...this.saved, libraryDir: null };
+    return this.saved;
   }
 
   /** The Rust side announces a changed model row. */

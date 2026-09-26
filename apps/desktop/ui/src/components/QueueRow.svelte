@@ -5,7 +5,7 @@
   import { applied, refusedCorrections } from "../lib/corrections";
   import { formatValue } from "../lib/i18n";
   import type { Row } from "../lib/jobstate";
-  import { needsConsent, silentSeconds, visibleSteps } from "../lib/jobstate";
+  import { needsConsent, ranOutOfTime, silentSeconds, visibleSteps } from "../lib/jobstate";
   import { totalMs } from "../lib/report";
   import { countText, stepLabel, stepOf } from "../lib/labels";
   import { i18n, t, tn } from "../lib/locale.svelte";
@@ -114,6 +114,7 @@
         // Once a typed password has failed, the field says so; the note is for the first ask.
         return { head: t("error.password"), note: row.unlocked ? "" : t("error.passwordTried"), retry: false };
       case "E_LIMIT_EXCEEDED":
+        if (ranOutOfTime(row.fatal)) return { head: t("error.deadline"), note: t("error.deadlineHint"), retry: true };
         return { head: t("error.limit"), note: t("error.limitHint"), retry: true };
       case "E_INPUT":
         return { head: t("error.unreadable"), note: t("error.code", { code }), retry: true };

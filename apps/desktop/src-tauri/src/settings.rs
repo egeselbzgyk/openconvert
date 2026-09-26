@@ -1,26 +1,29 @@
 //! The user's settings, kept by the Rust side in the app's config directory.
 //!
-//! What the UI lets a user choose: the language, the document preset, the two resource caps
-//! Advanced exposes, whether the first-run card was dismissed, and AI assistance — the switch, the
-//! provider, and each provider's configuration (UI_UX §2.4). The password field is deliberately
-//! absent — it is used for one job and never saved (design decision 13) — and so is any API key:
-//! only the path of the file that holds one is kept, and it is chosen in a native dialog.
+//! What the UI lets a user choose: the language, the document preset, the resource caps Advanced
+//! exposes (pages, memory, and the time each stage may take), where converted books are saved,
+//! whether the first-run card was dismissed and the earlier conversions are shown, and AI
+//! assistance — the switch, the provider, and each provider's configuration (UI_UX §2.4). The
+//! password field is deliberately absent — it is used for one job and never saved (design decision
+//! 13) — and so is any API key: only the path of the file that holds one is kept, and it is chosen
+//! in a native dialog.
 //!
-//! **Two fields the webview cannot write.** The custom endpoint's key file and the consent given to
-//! its host are set only by the Rust side — the file by the native picker, the consent by the
-//! consent dialog's Allow ([`Settings::granting_consent`]) — and a save from the webview keeps them
-//! as they were ([`Settings::merged_from_webview`]). A consent is to one host: changing the
-//! endpoint to another host withdraws it.
+//! **Three fields the webview cannot write.** The custom endpoint's key file, the consent given to
+//! its host, and the library folder are set only by the Rust side — the file and the folder by the
+//! native pickers, the consent by the consent dialog's Allow ([`Settings::granting_consent`]) — and
+//! a save from the webview keeps them as they were ([`Settings::merged_from_webview`]). A consent
+//! is to one host: changing the endpoint to another host withdraws it.
 
 use std::path::{Path, PathBuf};
 
 use oc_core::jobspec::LimitsSpec;
+use oc_core::thresholds::T;
 use oc_model::document::PresetName;
 use serde::{Deserialize, Serialize};
 
 use crate::engine::UiError;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Settings {
     /// `"en"`, `"de"`, `"tr"`, or `None` to follow the system.
@@ -29,6 +32,17 @@ pub struct Settings {
     /// Overrides of `limits.max_pages` / `limits.max_memory_bytes`; `None` keeps the shipped value.
     pub max_pages: Option<u64>,
     pub max_memory_bytes: Option<u64>,
+    /// The time each stage may take, in seconds; `None` is the app's default,
+    /// `desktop.default_stage_deadline_secs` — which every job carries, since the engine's own
+    /// `limits.stage_deadline_secs` is too short for large, image-heavy books.
+    pub stage_deadline_secs: Option<u64>,
+    /// Save every book in the library folder rather than beside its PDF. On by default.
+    pub save_to_library: bool,
+    /// The library folder the user chose; `None` is the default (`OpenConvert` in Documents).
+    /// Set by the native folder picker only.
+    pub library_dir: Option<PathBuf>,
+    /// "Previous conversions" on the main page is open.
+    pub history_open: bool,
     /// "Not now" on the first-run card: it does not return to the main window (design decision 10).
     pub firstrun_dismissed: bool,
     /// AI assistance (UI_UX §2.4). Off by default, as `ai.enabled` is (D17).
@@ -39,6 +53,28 @@ pub struct Settings {
     pub ollama_model: Option<String>,
     /// The custom endpoint, kept whichever provider is chosen.
     pub custom: CustomEndpoint,
+}
+
+/// Every field its type's default but the two that are on unless turned off: saving to the library
+/// and showing the earlier conversions. A settings file without either key reads them as on.
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            language: None,
+            preset: PresetName::default(),
+            max_pages: None,
+            max_memory_bytes: None,
+            stage_deadline_secs: None,
+            save_to_library: true,
+            library_dir: None,
+            history_open: true,
+            firstrun_dismissed: false,
+            ai_enabled: false,
+            provider: Provider::default(),
+            ollama_model: None,
+            custom: CustomEndpoint::default(),
+        }
+    }
 }
 
 /// Settings › Provider (UI_UX §2.4, D10).
@@ -77,22 +113,40 @@ pub struct Consent {
     pub granted_at: String,
 }
 
+/// A threshold in seconds as the job spec counts them; a negative one is a malformed file, which
+/// `thresholds-lint` catches, not a runtime condition.
+fn seconds(value: i64) -> u64 {
+    u64::try_from(value).unwrap_or_default()
+}
+
 impl Settings {
-    /// The limits a job spec carries, when the user changed any.
-    pub fn limits(&self) -> Option<LimitsSpec> {
-        (self.max_pages.is_some() || self.max_memory_bytes.is_some()).then_some(LimitsSpec {
+    /// The limits every job spec carries: the page and memory caps when the user changed them, and
+    /// always a stage deadline ([`Settings::stage_deadline`]).
+    pub fn limits(&self) -> LimitsSpec {
+        LimitsSpec {
             max_pages: self.max_pages,
             max_memory_bytes: self.max_memory_bytes,
-            stage_deadline_secs: None,
-        })
+            stage_deadline_secs: Some(self.stage_deadline()),
+        }
+    }
+
+    /// The time each stage may take: the user's choice, brought inside what Settings offers
+    /// (`desktop.min_stage_deadline_secs` … `desktop.max_stage_deadline_secs`), or the app's default.
+    pub fn stage_deadline(&self) -> u64 {
+        let shortest = seconds(T.desktop.min_stage_deadline_secs);
+        let longest = seconds(T.desktop.max_stage_deadline_secs).max(shortest);
+        self.stage_deadline_secs
+            .unwrap_or_else(|| seconds(T.desktop.default_stage_deadline_secs))
+            .clamp(shortest, longest)
     }
 }
 
 impl Settings {
-    /// `next`, as the webview sent it, with the two fields only the Rust side sets kept as they
-    /// were: the key file, and the consent — which is dropped when the endpoint now names another
-    /// host, since it was given to the old one.
+    /// `next`, as the webview sent it, with the three fields only the Rust side sets kept as they
+    /// were: the library folder, the key file, and the consent — which is dropped when the endpoint
+    /// now names another host, since it was given to the old one.
     pub fn merged_from_webview(&self, mut next: Settings) -> Settings {
+        next.library_dir = self.library_dir.clone();
         next.custom.api_key_file = self.custom.api_key_file.clone();
         next.custom.consent = self.custom.consent.clone().filter(|consent| {
             endpoint_host(&next.custom.endpoint).as_deref() == Some(&consent.host)
@@ -152,6 +206,8 @@ pub fn save(path: &Path, settings: &Settings) -> Result<(), UiError> {
 
 #[cfg(test)]
 mod tests {
+    use oc_core::thresholds::T;
+
     use super::*;
 
     #[test]
@@ -171,15 +227,92 @@ mod tests {
         };
         save(&path, &chosen).expect("saved");
         assert_eq!(load(&path), chosen);
+        assert_eq!(chosen.limits().max_pages, Some(5000));
+        let untouched = Settings::default().limits();
         assert_eq!(
-            chosen.limits().and_then(|limits| limits.max_pages),
-            Some(5000)
-        );
-        assert_eq!(
-            Settings::default().limits(),
-            None,
+            (untouched.max_pages, untouched.max_memory_bytes),
+            (None, None),
             "untouched caps stay the shipped ones"
         );
+    }
+
+    fn secs(value: i64) -> u64 {
+        u64::try_from(value).expect("positive")
+    }
+
+    /// The maintainer's decision (2026-09-26): every job the app queues carries a stage deadline —
+    /// the app's own default, `desktop.default_stage_deadline_secs`, unless the user set one in
+    /// Settings › Advanced — so a large book is not stopped at the engine's shorter default.
+    #[test]
+    fn the_job_spec_always_carries_a_stage_deadline() {
+        let default = secs(T.desktop.default_stage_deadline_secs);
+        assert_eq!(
+            Settings::default().limits().stage_deadline_secs,
+            Some(default),
+            "the app's default, not the engine's"
+        );
+        assert!(default > secs(T.limits.stage_deadline_secs));
+
+        let chosen = Settings {
+            stage_deadline_secs: Some(secs(T.desktop.min_stage_deadline_secs) * 3),
+            ..Settings::default()
+        };
+        assert_eq!(
+            chosen.limits().stage_deadline_secs,
+            chosen.stage_deadline_secs
+        );
+
+        // A value outside what Settings offers (a hand-edited file) is brought inside it.
+        let short = Settings {
+            stage_deadline_secs: Some(1),
+            ..Settings::default()
+        };
+        assert_eq!(
+            short.limits().stage_deadline_secs,
+            Some(secs(T.desktop.min_stage_deadline_secs))
+        );
+        let long = Settings {
+            stage_deadline_secs: Some(u64::MAX),
+            ..Settings::default()
+        };
+        assert_eq!(
+            long.limits().stage_deadline_secs,
+            Some(secs(T.desktop.max_stage_deadline_secs))
+        );
+    }
+
+    /// Books go to the OpenConvert folder unless the user says otherwise — also for a settings file
+    /// written before the setting existed, which has no such key.
+    #[test]
+    fn books_are_saved_to_the_library_by_default() {
+        assert!(Settings::default().save_to_library);
+        assert!(Settings::default().history_open);
+        let old: Settings =
+            serde_json::from_str(r#"{"language":"de","preset":"novel"}"#).expect("old file");
+        assert!(old.save_to_library, "an old file reads as on");
+        assert_eq!(old.stage_deadline_secs, None);
+        assert_eq!(old.library_dir, None);
+        let json = serde_json::to_value(Settings::default()).expect("json");
+        assert_eq!(json["saveToLibrary"], true, "camelCase for the webview");
+        assert!(json["stageDeadlineSecs"].is_null());
+    }
+
+    /// The library folder is chosen in the native folder picker, which is the Rust side's: a save
+    /// from the webview keeps it as it was.
+    #[test]
+    fn the_webview_cannot_write_the_library_folder() {
+        let kept = Settings {
+            library_dir: Some(PathBuf::from("/home/me/Books")),
+            ..Settings::default()
+        };
+        let forged = Settings {
+            library_dir: Some(PathBuf::from("/etc")),
+            save_to_library: false,
+            ..Settings::default()
+        };
+        let saved = kept.merged_from_webview(forged);
+        assert_eq!(saved.library_dir, kept.library_dir);
+        assert!(!saved.save_to_library, "the switch is the webview's");
     }
 
     /// The key file and the consent are the Rust side's to set: a save from the webview cannot add

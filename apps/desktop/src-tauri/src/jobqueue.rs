@@ -9,11 +9,15 @@
 //! [`JobQueue::tick`] on a timer to notice exits and enforce the kill deadline; the tests call it
 //! with whatever `now` they need, which is how the five-second fallback is tested without five
 //! seconds of sleeping.
+//!
+//! Every job that ends is reported once to the sink ([`QueueSink::finished`]), which is how the
+//! app's history (`history.rs`) learns of it, and a book is written beside its PDF or into the
+//! library folder the settings name ([`JobQueue::enqueue_into`]).
 
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use oc_core::jobspec::{JobSpec, LimitsSpec};
 use oc_core::thresholds::T;
@@ -22,7 +26,7 @@ use serde::Serialize;
 
 use crate::ai::{AiUnavailable, AiView, JobAi, ModelServer, ServerLease};
 use crate::engine::{Engine, Launch, Running, UiError};
-use crate::fs_scope::{default_output_for, free_output_path_among};
+use crate::fs_scope::{default_output_for, free_output_path_among, output_in};
 
 /// A job's state as the queue knows it. What happens *inside* a run — stages, progress,
 /// heartbeats — is the engine's events, which go straight to the UI.
@@ -71,12 +75,31 @@ pub struct JobView {
     pub state: JobState,
 }
 
+/// A job that has ended, reported once ([`QueueSink::finished`]): what the app's history records.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Finished {
+    pub id: String,
+    pub input: PathBuf,
+    pub output: PathBuf,
+    /// The report the engine writes beside the output.
+    pub report: PathBuf,
+    /// When its engine started; `None` for a job that never started one.
+    pub started: Option<SystemTime>,
+    pub ended: SystemTime,
+    /// It ended because the user cancelled it.
+    pub cancelled: bool,
+    /// How it ended: `Exited`, `FailedToStart` or `CancelledBeforeStart`.
+    pub state: JobState,
+}
+
 /// What the queue tells the app, which relays it to the webview.
 pub trait QueueSink: Send + Sync {
     /// A line of NDJSON from job `job`'s engine.
     fn line(&self, job: &str, line: String);
     /// Job `job` changed state outside its event stream (started, exited, removed).
     fn changed(&self, job: &JobView);
+    /// Job `job` has ended. Called once per job, after its last state change.
+    fn finished(&self, _job: &Finished) {}
 }
 
 struct Job {
@@ -99,7 +122,52 @@ struct Job {
     ai_unavailable: Option<AiUnavailable>,
     /// It holds a lease on the app's model server, to be released when it ends.
     leased: bool,
+    /// When its engine started.
+    started: Option<SystemTime>,
+    /// Cancel was pressed on it.
+    cancel_requested: bool,
+    /// Its end has been reported ([`QueueSink::finished`]).
+    reported: bool,
     phase: Phase,
+}
+
+impl Job {
+    /// A job for `input` that writes `output`, waiting its turn.
+    fn waiting(
+        id: String,
+        input: PathBuf,
+        output: PathBuf,
+        renamed: bool,
+        preset: PresetName,
+        limits: Option<LimitsSpec>,
+        ai: JobAi,
+    ) -> Self {
+        Self {
+            id,
+            input,
+            output,
+            renamed,
+            preset,
+            limits,
+            password: None,
+            unlocked: false,
+            rebuild: None,
+            ai,
+            ai_unavailable: None,
+            leased: false,
+            started: None,
+            cancel_requested: false,
+            reported: false,
+            phase: Phase::Queued,
+        }
+    }
+}
+
+/// The report the engine writes beside `output` (`<output>.report.json`).
+fn report_beside(output: &Path) -> PathBuf {
+    let mut report = output.as_os_str().to_os_string();
+    report.push(".report.json");
+    PathBuf::from(report)
 }
 
 /// A "Fix and rebuild": the corrections file, and the digest of the PDF they were made for — which
@@ -193,31 +261,42 @@ impl<L: Launch> JobQueue<L> {
         limits: Option<LimitsSpec>,
         ai: &JobAi,
     ) -> Vec<String> {
+        self.enqueue_into(pdfs, preset, limits, ai, None)
+    }
+
+    /// [`JobQueue::enqueue_as`], saving every book in `folder` — the library — rather than beside
+    /// its PDF when one is given.
+    pub fn enqueue_into(
+        &mut self,
+        pdfs: &[PathBuf],
+        preset: PresetName,
+        limits: Option<LimitsSpec>,
+        ai: &JobAi,
+        folder: Option<&Path>,
+    ) -> Vec<String> {
         let mut ids = Vec::with_capacity(pdfs.len());
         for input in pdfs {
             self.next += 1;
             let id = format!("job-{}", self.next);
-            let desired = default_output_for(input);
+            let desired = match folder {
+                Some(folder) => output_in(folder, input),
+                None => default_output_for(input),
+            };
             let output = free_output_path_among(&desired, |path| self.reserves(path));
-            self.jobs.push_back(Job {
-                id: id.clone(),
-                input: input.clone(),
-                renamed: output != desired,
+            let renamed = output != desired;
+            self.jobs.push_back(Job::waiting(
+                id.clone(),
+                input.clone(),
                 output,
+                renamed,
                 preset,
                 limits,
-                password: None,
-                unlocked: false,
-                rebuild: None,
-                ai: ai.clone(),
-                ai_unavailable: None,
-                leased: false,
-                phase: Phase::Queued,
-            });
+                ai.clone(),
+            ));
             ids.push(id);
         }
         self.pump();
-        self.announce_all();
+        self.settle();
         ids
     }
 
@@ -239,23 +318,22 @@ impl<L: Launch> JobQueue<L> {
         self.next += 1;
         let new_id = format!("job-{}", self.next);
         self.jobs.push_back(Job {
-            id: new_id.clone(),
-            input: old.input,
-            output: old.output,
-            renamed: old.renamed,
-            preset: old.preset,
-            limits: old.limits,
             password: Some(password),
             unlocked: true,
             // A locked book being rebuilt keeps its corrections through the unlock.
             rebuild: old.rebuild,
-            ai: old.ai,
-            ai_unavailable: None,
-            leased: false,
-            phase: Phase::Queued,
+            ..Job::waiting(
+                new_id.clone(),
+                old.input,
+                old.output,
+                old.renamed,
+                old.preset,
+                old.limits,
+                old.ai,
+            )
         });
         self.pump();
-        self.announce_all();
+        self.settle();
         Ok(new_id)
     }
 
@@ -277,22 +355,19 @@ impl<L: Launch> JobQueue<L> {
         self.next += 1;
         let new_id = format!("job-{}", self.next);
         self.jobs.push_back(Job {
-            id: new_id.clone(),
-            input: old.input,
-            output: old.output,
-            renamed: old.renamed,
-            preset: old.preset,
-            limits: old.limits,
-            password: None,
-            unlocked: false,
             rebuild: Some(rebuild),
-            ai: old.ai,
-            ai_unavailable: None,
-            leased: false,
-            phase: Phase::Queued,
+            ..Job::waiting(
+                new_id.clone(),
+                old.input,
+                old.output,
+                old.renamed,
+                old.preset,
+                old.limits,
+                old.ai,
+            )
         });
         self.pump();
-        self.announce_all();
+        self.settle();
         Ok(new_id)
     }
 
@@ -311,6 +386,9 @@ impl<L: Launch> JobQueue<L> {
             .iter_mut()
             .find(|job| job.id == id)
             .ok_or_else(|| UiError::UnknownJob(id.to_owned()))?;
+        if !matches!(job.phase, Phase::Done(_)) {
+            job.cancel_requested = true;
+        }
         let phase = std::mem::replace(&mut job.phase, Phase::Done(JobState::Running));
         job.phase = match phase {
             Phase::Queued => Phase::Done(JobState::CancelledBeforeStart),
@@ -330,7 +408,7 @@ impl<L: Launch> JobQueue<L> {
             other => other,
         };
         self.pump();
-        self.announce_all();
+        self.settle();
         Ok(())
     }
 
@@ -431,8 +509,33 @@ impl<L: Launch> JobQueue<L> {
             }
         }
         if self.pump() || changed {
-            self.announce_all();
+            self.settle();
         }
+    }
+
+    /// Report every job that has ended and not been reported, then announce every row.
+    fn settle(&mut self) {
+        let ended = SystemTime::now();
+        for job in &mut self.jobs {
+            let Phase::Done(state) = &job.phase else {
+                continue;
+            };
+            if job.reported {
+                continue;
+            }
+            job.reported = true;
+            self.sink.finished(&Finished {
+                id: job.id.clone(),
+                input: job.input.clone(),
+                output: job.output.clone(),
+                report: report_beside(&job.output),
+                started: job.started,
+                ended,
+                cancelled: job.cancel_requested,
+                state: state.clone(),
+            });
+        }
+        self.announce_all();
     }
 
     fn release_server(&self) {
@@ -530,7 +633,10 @@ impl<L: Launch> JobQueue<L> {
             .engine
             .start(&job.id, &spec, password.as_deref(), on_line)
         {
-            Ok(running) => Phase::Running(running),
+            Ok(running) => {
+                job.started = Some(SystemTime::now());
+                Phase::Running(running)
+            }
             Err(error) => {
                 if job.leased {
                     job.leased = false;
@@ -551,9 +657,7 @@ impl<L: Launch> JobQueue<L> {
             .iter()
             .find(|job| job.id == id)
             .ok_or_else(|| UiError::UnknownJob(id.to_owned()))?;
-        let mut report = job.output.as_os_str().to_os_string();
-        report.push(".report.json");
-        Ok((job.output.clone(), PathBuf::from(report)))
+        Ok((job.output.clone(), report_beside(&job.output)))
     }
 
     /// The event lines job `id`'s engine has written so far.
@@ -1084,5 +1188,134 @@ mod tests {
 
     fn queue_named(name: &str) -> (JobQueue<FakeLauncher>, FakeLauncher) {
         queue(name)
+    }
+
+    /// Every finished job, as the queue reported it.
+    #[derive(Default)]
+    struct Finishes(Mutex<Vec<Finished>>);
+    impl QueueSink for Finishes {
+        fn line(&self, _job: &str, _line: String) {}
+        fn changed(&self, _job: &JobView) {}
+        fn finished(&self, job: &Finished) {
+            self.0.lock().expect("not poisoned").push(job.clone());
+        }
+    }
+
+    /// A queue that records what finished, and a directory of absolute paths on this host (a
+    /// spec's paths must be absolute, and `/b/a.pdf` is not on Windows).
+    fn recording(name: &str) -> (JobQueue<FakeLauncher>, FakeLauncher, Arc<Finishes>, PathBuf) {
+        let dir =
+            std::env::temp_dir().join(format!("oc-desktop-queue-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let dirs = AppDirs::under(&dir.join("app")).expect("made");
+        let launcher = FakeLauncher::default();
+        let finishes = Arc::new(Finishes::default());
+        let queue = JobQueue::new(Engine::new(dirs.jobs, launcher.clone()), finishes.clone());
+        (queue, launcher, finishes, dir)
+    }
+
+    /// The stage deadline the settings give (the app's default, 30 minutes) reaches the spec the
+    /// engine reads, with the other limits.
+    #[test]
+    fn a_job_spec_carries_the_stage_deadline_it_was_queued_with() {
+        let (mut queue, launcher, _, dir) = recording("deadline");
+        let limits = crate::settings::Settings::default().limits();
+        queue.enqueue_into(
+            &[dir.join("big.pdf")],
+            PresetName::Auto,
+            Some(limits),
+            &JobAi::Off,
+            None,
+        );
+        let spec = spec_of(&launcher, 0);
+        assert_eq!(
+            spec["limits"]["stage_deadline_secs"],
+            u64::try_from(T.desktop.default_stage_deadline_secs).expect("positive")
+        );
+        assert!(
+            spec["limits"].get("max_pages").is_none(),
+            "unchanged caps are not sent"
+        );
+    }
+
+    /// With a library folder, every book is saved there under its PDF's name — never over a book
+    /// already there, nor over one a waiting job will write.
+    #[test]
+    fn books_are_saved_in_the_folder_given() {
+        let (mut queue, _, _, dir) = recording("folder");
+        let library = dir.join("OpenConvert");
+        std::fs::create_dir_all(&library).expect("made");
+        std::fs::write(library.join("Book.epub"), "x").expect("an earlier book");
+        queue.enqueue_into(
+            &[
+                dir.join("a").join("Book.pdf"),
+                dir.join("b").join("Book.pdf"),
+            ],
+            PresetName::Auto,
+            None,
+            &JobAi::Off,
+            Some(&library),
+        );
+        let views = queue.views();
+        assert_eq!(views[0].output, library.join("Book (2).epub"));
+        assert!(views[0].renamed);
+        assert_eq!(views[1].output, library.join("Book (3).epub"));
+
+        queue.enqueue_into(
+            &[dir.join("c.pdf")],
+            PresetName::Auto,
+            None,
+            &JobAi::Off,
+            None,
+        );
+        assert_eq!(
+            queue.views()[2].output,
+            dir.join("c.epub"),
+            "no folder: beside the PDF"
+        );
+    }
+
+    /// Each job that ends is reported once — the history's record of it — with when it started,
+    /// how it ended, and whether the user cancelled it.
+    #[test]
+    fn a_finished_job_is_reported_once() {
+        let (mut queue, launcher, finishes, dir) = recording("finished");
+        let before = std::time::SystemTime::now();
+        let ids = queue.enqueue_into(
+            &[dir.join("a.pdf"), dir.join("b.pdf"), dir.join("c.pdf")],
+            PresetName::Auto,
+            None,
+            &JobAi::Off,
+            None,
+        );
+        assert!(finishes.0.lock().expect("not poisoned").is_empty());
+
+        launcher.0.lock().expect("not poisoned").exited[0] = Some(Some(0));
+        queue.tick(Instant::now());
+        queue.tick(Instant::now());
+        let first = finishes.0.lock().expect("not poisoned").clone();
+        assert_eq!(first.len(), 1, "once, however often the clock ticks");
+        assert_eq!(first[0].id, ids[0]);
+        assert_eq!(first[0].state, JobState::Exited { code: Some(0) });
+        assert_eq!(first[0].output, dir.join("a.epub"));
+        let mut report = dir.join("a.epub").into_os_string();
+        report.push(".report.json");
+        assert_eq!(first[0].report, PathBuf::from(report));
+        assert!(!first[0].cancelled);
+        let started = first[0].started.expect("its engine started");
+        assert!(started >= before && first[0].ended >= started);
+
+        // Cancelled while running, and before it ever started: both reported, both marked.
+        queue.cancel(&ids[2], Instant::now()).expect("known");
+        queue.cancel(&ids[1], Instant::now()).expect("known");
+        launcher.0.lock().expect("not poisoned").exited[1] = Some(Some(3));
+        queue.tick(Instant::now());
+        let all = finishes.0.lock().expect("not poisoned").clone();
+        assert_eq!(all.len(), 3);
+        let waiting = all.iter().find(|job| job.id == ids[2]).expect("reported");
+        assert_eq!(waiting.state, JobState::CancelledBeforeStart);
+        assert!(waiting.cancelled && waiting.started.is_none());
+        let running = all.iter().find(|job| job.id == ids[1]).expect("reported");
+        assert!(running.cancelled);
     }
 }

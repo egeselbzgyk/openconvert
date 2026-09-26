@@ -6,6 +6,7 @@
 
   import AppHeader from "./components/AppHeader.svelte";
   import BlockingError from "./components/BlockingError.svelte";
+  import Icon from "./components/Icon.svelte";
   import {
     tauriBackend,
     type Backend,
@@ -13,10 +14,12 @@
     type CorrectionPatch,
     type DropEvent,
     type EndpointCheck,
+    type HistoryEntry,
     type Settings as UserSettings,
     type UiConfig,
     type UiError,
   } from "./lib/backend";
+  import { entryName } from "./lib/history";
   import { IR_VERSION, PROTOCOL_VERSION, type Hello } from "./lib/events";
   import { SPRITE } from "./lib/icons";
   import { Catalog, defaultModel } from "./lib/catalog.svelte";
@@ -55,6 +58,11 @@
   let settingsSection = $state<Section>("ai");
   let models = $state<Catalog<"models"> | null>(null);
   let packs = $state<Catalog<"packs"> | null>(null);
+  /** "Previous conversions": the books of earlier runs of the app, read once at start. This run's
+      conversions are the queue's rows. */
+  let earlier = $state<HistoryEntry[]>([]);
+  /** Earlier books whose "Open in reader" found no reader, by entry id. */
+  let earlierNoReader = $state<Record<string, boolean>>({});
   /** The first-run card: offered while the default model is not installed, until "Not now". */
   const firstrun = $derived.by(() => {
     const model = defaultModel(models);
@@ -136,6 +144,8 @@
       unlisten.push(await backend.onLine((job, line) => jobs.line(job, line, clock())));
       unlisten.push(await backend.onDragDrop(dragDrop));
       jobs.load(await backend.rows());
+      // A history that cannot be read is no history, never a window that does not open.
+      earlier = await backend.history().catch(() => []);
       // The model manager and packs: rows now, changes as the Rust side announces them.
       const modelCatalog = new Catalog(backend, "models");
       const packCatalog = new Catalog(backend, "packs");
@@ -259,6 +269,41 @@
     await backend.enqueue([row.input]);
     await remove(row.id);
   }
+
+  /** Open or close "Previous conversions"; the choice is kept with the settings. */
+  async function toggleEarlier() {
+    if (settings === null) return;
+    await save({ ...settings, historyOpen: !settings.historyOpen });
+  }
+  /** An earlier book is no longer where it was saved: the row says so and stops offering it. */
+  function markGone(id: string) {
+    earlier = earlier.map((entry) => (entry.id === id ? { ...entry, outputExists: false } : entry));
+  }
+  async function openEarlier(id: string) {
+    try {
+      await backend.historyOpen(id);
+    } catch (error) {
+      if ((error as UiError).kind === "not_on_disk") markGone(id);
+      else earlierNoReader = { ...earlierNoReader, [id]: true };
+    }
+  }
+  async function showEarlier(id: string) {
+    try {
+      await backend.historyShow(id);
+    } catch {
+      markGone(id);
+    }
+  }
+  async function removeEarlier(id: string) {
+    const entry = earlier.find((candidate) => candidate.id === id);
+    await backend.historyRemove(id);
+    earlier = earlier.filter((candidate) => candidate.id !== id);
+    if (entry !== undefined) announcement = t("history.removed", { file: entryName(entry) });
+  }
+  async function clearEarlier() {
+    await backend.historyClear();
+    earlier = [];
+  }
 </script>
 
 <!-- The icon sprite, once, invisible; every icon is a <use> into it. -->
@@ -304,8 +349,28 @@
           settings = { ...settings, firstrunDismissed: true };
           void backend.saveSettings(settings);
         }}
+        library={settings?.saveToLibrary ?? true}
+        history={earlier}
+        historyOpen={settings?.historyOpen ?? true}
+        historyNoReader={earlierNoReader}
+        onhistorytoggle={() => void toggleEarlier()}
+        onhistoryopen={(id) => void openEarlier(id)}
+        onhistoryshow={(id) => void showEarlier(id)}
+        onhistoryagain={(entry) => void add([entry.input])}
+        onhistoryremove={(id) => void removeEarlier(id)}
+        onhistoryclear={() => void clearEarlier()}
       />
-      <AppHeader onsettings={() => (route = { name: "settings" })} />
+      <AppHeader onsettings={() => (route = { name: "settings" })}>
+        {#snippet extra()}
+          <!-- The library: where every book is saved unless Settings says beside its PDF. -->
+          <button
+            class="oc-btn oc-btn--icon oc-btn--sm"
+            aria-label={t("app.openLibrary")}
+            title={t("app.openLibrary")}
+            onclick={() => void backend.openLibrary().catch(() => undefined)}><Icon name="folder" size="md" /></button
+          >
+        {/snippet}
+      </AppHeader>
     {:else if route.name === "report"}
       {@const job = route.job}
       {@const row = store.rows.find((candidate) => candidate.id === job)}
@@ -370,6 +435,7 @@
         bind:section={settingsSection}
         bind:consent={consentCheck}
         providers={backend}
+        library={backend}
         onsaved={(next) => (settings = next)}
         onconsented={() => void afterConsent()}
         onsetup={() => (route = { name: "firstrun" })}

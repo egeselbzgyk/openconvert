@@ -42,6 +42,9 @@ const FIXTURE: MockFixture = {
     os: "linux",
     maxPages: 3000,
     maxMemoryBytes: 4294967296,
+    defaultStageDeadlineSecs: 1800,
+    minStageDeadlineSecs: 60,
+    maxStageDeadlineSecs: 86400,
     aiTasksEnabled: 0,
     updater: true,
   },
@@ -88,6 +91,44 @@ const FIXTURE: MockFixture = {
   },
   packs: { unavailable: "model `validation` still has a placeholder in `license`", rows: [] },
   licenseText: readFileSync(path.join(ROOT, "crates/oc-net/licenses/Apache-2.0.txt"), "utf8"),
+  // Two books of an earlier run, so "Previous conversions" is on the queue screen axe and the
+  // contrast check visit: one converted, one stopped at the time limit.
+  history: [
+    {
+      id: "s1-job-2",
+      input: "/books/moby-dick.pdf",
+      inputName: "moby-dick.pdf",
+      output: "/home/me/Documents/OpenConvert/moby-dick.epub",
+      startedAt: "2026-09-20T09:14:02Z",
+      finishedAt: "2026-09-20T09:15:25Z",
+      durationMs: 83250,
+      status: "complete",
+      exitCode: 0,
+      errorCode: null,
+      errorCap: null,
+      title: "Moby-Dick; or, The Whale",
+      authors: ["Herman Melville"],
+      pages: 214,
+      outputExists: true,
+    },
+    {
+      id: "s1-job-1",
+      input: "/books/atlas.pdf",
+      inputName: "atlas.pdf",
+      output: "/home/me/Documents/OpenConvert/atlas.epub",
+      startedAt: "2026-09-20T08:00:00Z",
+      finishedAt: "2026-09-20T08:30:00Z",
+      durationMs: 1800000,
+      status: "failed",
+      exitCode: 1,
+      errorCode: "E_LIMIT_EXCEEDED",
+      errorCap: "stage_deadline_secs",
+      title: null,
+      authors: [],
+      pages: null,
+      outputExists: false,
+    },
+  ],
 };
 
 let server: { url: string; close: () => Promise<void> };
@@ -151,6 +192,13 @@ const SCREENS: Record<string, (page: Page) => Promise<void>> = {
     await SCREENS.settings!(page);
     await page.locator(".oc-nav__item", { hasText: EN["settings.nav.advanced"] }).click();
     await expect(page.getByRole("button", { name: EN["settings.advanced.clear"] })).toBeVisible();
+  },
+  // Where books are saved: a switch, the folder as a file picker, and the folder's own button.
+  "settings-output": async (page) => {
+    await SCREENS.settings!(page);
+    await page.locator(".oc-nav__item", { hasText: EN["settings.nav.output"] }).click();
+    await expect(page.getByRole("switch", { name: EN["settings.output.library"] })).toBeVisible();
+    await expect(page.locator(".oc-filepick__value")).toHaveText("/home/me/Documents/OpenConvert");
   },
   // The model manager: tags, facts, a licence shown in full before its download.
   models: async (page) => {

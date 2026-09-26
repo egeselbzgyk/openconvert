@@ -1,15 +1,17 @@
 <script lang="ts">
   // Route `queue` (screen-map.md): the drop zone — full size while the queue is empty, a strip
   // above it once jobs exist, so focus order stays drop zone → queue → Settings (design decision
-  // 4) — the privacy note, the first-run card while the queue is empty (queue.html §1), and the
-  // queue itself.
+  // 4) — the privacy note, the first-run card while the queue is empty (queue.html §1), the queue
+  // itself — this session's conversions — and under it the books of earlier runs of the app
+  // ("Previous conversions", from the history the Rust side keeps).
   import Dialog from "../../components/Dialog.svelte";
   import DropZone from "../../components/DropZone.svelte";
   import FirstRunCard from "../../components/FirstRunCard.svelte";
+  import HistoryList from "../../components/HistoryList.svelte";
   import PrivacyNote from "../../components/PrivacyNote.svelte";
   import QueueList from "../../components/QueueList.svelte";
   import QueueRow from "../../components/QueueRow.svelte";
-  import type { ModelRow } from "../../lib/backend";
+  import type { HistoryEntry, ModelRow } from "../../lib/backend";
   import type { JobStore } from "../../lib/jobs.svelte";
   import type { Row } from "../../lib/jobstate";
   import { tn } from "../../lib/locale.svelte";
@@ -36,6 +38,16 @@
     firstrun = null,
     onsetup = () => undefined,
     onnotnow = () => undefined,
+    library = false,
+    history = [],
+    historyOpen = true,
+    historyNoReader = {},
+    onhistorytoggle = () => undefined,
+    onhistoryopen = () => undefined,
+    onhistoryshow = () => undefined,
+    onhistoryagain = () => undefined,
+    onhistoryremove = () => undefined,
+    onhistoryclear = () => undefined,
   }: {
     store: JobStore;
     dragging: { pdfs: number; skipped: string[] } | null;
@@ -60,6 +72,18 @@
     firstrun?: ModelRow | null;
     onsetup?: () => void;
     onnotnow?: () => void;
+    /** Books go to the OpenConvert folder (Settings › Output folder), which the drop zone says. */
+    library?: boolean;
+    /** Earlier runs' books, newest first; the section is not drawn without any. */
+    history?: HistoryEntry[];
+    historyOpen?: boolean;
+    historyNoReader?: Record<string, boolean>;
+    onhistorytoggle?: () => void;
+    onhistoryopen?: (id: string) => void;
+    onhistoryshow?: (id: string) => void;
+    onhistoryagain?: (entry: HistoryEntry) => void;
+    onhistoryremove?: (id: string) => void;
+    onhistoryclear?: () => void;
   } = $props();
 
   let confirming = $state(false);
@@ -67,16 +91,29 @@
 </script>
 
 <main class="oc-main">
-  <DropZone strip={store.rows.length > 0} {dragging} {onselect} />
+  <DropZone strip={store.rows.length > 0} {dragging} {onselect} {library} />
   {#if store.rows.length === 0}
     <PrivacyNote />
     {#if firstrun !== null}<FirstRunCard model={firstrun} {onsetup} {onnotnow} />{/if}
   {:else}
-    <QueueList rows={store.rows} onremoveall={() => (confirming = true)}>
+    <QueueList rows={store.rows} fit={history.length > 0} onremoveall={() => (confirming = true)}>
       {#snippet row(row: Row, active: boolean)}
         <QueueRow {row} {active} now={store.now} {oncancel} {onremove} {onretry} {ontoggle} {onopen} {onshow} {ondetails} {onpreview} {onexport} {onunlock} {onconsent} {oneditmeta} {onedittoc} {onpage} />
       {/snippet}
     </QueueList>
+  {/if}
+  {#if history.length > 0}
+    <HistoryList
+      entries={history}
+      open={historyOpen}
+      noReader={historyNoReader}
+      ontoggle={onhistorytoggle}
+      onopen={onhistoryopen}
+      onshow={onhistoryshow}
+      onagain={onhistoryagain}
+      onremove={onhistoryremove}
+      onclear={onhistoryclear}
+    />
   {/if}
 </main>
 

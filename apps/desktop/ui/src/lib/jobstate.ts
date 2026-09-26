@@ -339,6 +339,19 @@ export function needsConsent(row: Row): boolean {
   );
 }
 
+/** The cap a stage that ran out of time is named by — in the `fatal` message and as the failure
+    report's `cap` (`limits.stage_deadline_secs`, PHASE 14 detail 6). */
+export const DEADLINE_CAP = "stage_deadline_secs";
+
+/**
+ * Whether the job stopped because a stage ran past its deadline: `E_LIMIT_EXCEEDED` naming
+ * {@link DEADLINE_CAP}. Unlike the size limits, the answer is the time limit in Settings › Advanced.
+ * The message is matched only to choose the sentence; it is never shown (R10 §6.20).
+ */
+export function ranOutOfTime(fatal: Fatal | null): boolean {
+  return fatal !== null && fatal.code === "E_LIMIT_EXCEEDED" && fatal.message.startsWith(DEADLINE_CAP);
+}
+
 /** Seconds since the last heartbeat, for "no signal for {s} seconds". */
 export function silentSeconds(row: Row, now: number): number {
   return row.lastSignalMs === null ? 0 : Math.floor((now - row.lastSignalMs) / 1000);
