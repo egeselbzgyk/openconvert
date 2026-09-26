@@ -21,7 +21,6 @@ use oc_pdf::inspect::PdfOpen;
 use oc_pdf::pdfium::PdfiumBackend;
 
 use crate::cli::{AiArgs, ConvertArgs, Progress};
-use oc_ai::session::Clock;
 use openconvert::ai_endpoint::{self, OpenError};
 use openconvert::convert::{convert_observed, ConvertError, ConvertOptions, Observe};
 use openconvert::sandbox::SandboxReport;

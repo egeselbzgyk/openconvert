@@ -525,7 +525,7 @@ fn provider_flags_need_ai_and_a_known_provider() {
 /// given, and for how long — and a conversion that needed no consent has no such section.
 #[test]
 fn consent_is_recorded_in_report() {
-    use oc_ai::session::{Clock, SystemClock};
+    use oc_ai::session::SystemClock;
     use openconvert::ai::AiContext;
     use openconvert::report::{report, to_json, ReportInput};
 
