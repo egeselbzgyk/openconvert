@@ -2045,3 +2045,10 @@ source = "provisional"
 evidence = "The share of a PDF outline's entries that must bind to headings printed on the pages for the outline's levels to be used when the style inventory is invalid. Technical books set code, keys and emphasis in more styles than inventory.max_clusters and so had their bookmarks - which name nearly every heading they print - ignored for size rank (2026-09-26). An outline that binds half its entries is the book's; one that binds a few by chance is not. Invented"
 owner = "maintainer"
 review_by = "2027-06-30"
+
+[images.scan_book_min_share]
+value = 0.5
+source = "provisional"
+evidence = "The share of a book's text pages that must carry a full-page background for the book to be a scan whose page pictures duplicate its text layer, when that layer is not marked as OCR. Scanned books in the local corpus carry one on nearly every page; a novel that sets its chapter openings over an illustration carried one on 17 of 80 pages, and dropping those lost real pictures (2026-09-26). Invented"
+owner = "maintainer"
+review_by = "2027-06-30"

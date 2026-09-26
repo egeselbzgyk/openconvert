@@ -100,26 +100,69 @@ pub fn drop_ornaments(
 /// A page scan was dropped because its page's text layer carries the page.
 pub const W_PAGE_SCAN_DROPPED: &str = "W_PAGE_SCAN_DROPPED";
 
-/// Drop the full-page backgrounds of pages whose text is there as text.
+/// The pages whose full-page background is the scan of the text over it.
+///
+/// A page qualifies when it carries at least `images.background_min_page_chars` of text and a
+/// full-page background, and either its text was read off a scan — the file's own OCR layer or
+/// this pipeline's OCR — or the book is a scan: at least `images.scan_book_min_share` of its
+/// text pages carry such a background. A novel that sets a few chapter openings over an
+/// illustration is not a scan, and keeps those pictures (2026-09-26: dropping them lost the
+/// pictures and let the chapter numbers read as one list).
+pub fn scan_pages(
+    images: &[ImageRef],
+    blocks: &[crate::view::BlockView],
+    runs: &[oc_model::text::Run],
+    t: &Thresholds,
+) -> std::collections::BTreeSet<u32> {
+    use std::collections::{BTreeMap, BTreeSet};
+    let min = usize::try_from(t.images.background_min_page_chars.max(0)).unwrap_or(usize::MAX);
+    let count = |text: &str| text.chars().filter(|ch| !ch.is_whitespace()).count();
+    let mut text_chars: BTreeMap<u32, usize> = BTreeMap::new();
+    for block in blocks {
+        *text_chars.entry(block.page).or_default() += count(&block.text);
+    }
+    let mut ocr_chars: BTreeMap<u32, usize> = BTreeMap::new();
+    for run in runs
+        .iter()
+        .filter(|run| run.provenance != oc_model::text::TextProvenance::Pdf)
+    {
+        *ocr_chars.entry(run.page.index).or_default() += count(&run.text);
+    }
+    let text_pages: BTreeSet<u32> = text_chars
+        .iter()
+        .filter(|(_, chars)| **chars >= min)
+        .map(|(page, _)| *page)
+        .collect();
+    let backed: BTreeSet<u32> = images
+        .iter()
+        .filter(|image| image.kind == oc_model::extract::ImageKind::FullPageBackground)
+        .map(|image| image.page.index)
+        .filter(|page| text_pages.contains(page))
+        .collect();
+    let scanned_book = !text_pages.is_empty()
+        && backed.len() as f64 >= t.images.scan_book_min_share * text_pages.len() as f64;
+    backed
+        .into_iter()
+        .filter(|page| scanned_book || ocr_chars.get(page).copied().unwrap_or(0) >= min)
+        .collect()
+}
+
+/// Drop the full-page backgrounds of the [`scan_pages`]: the page's text is there as text.
 ///
 /// A scanned book with a recognised text layer draws each page as a picture and lays the
 /// invisible text over it. The text is the page's content; the picture of the same words is
 /// not a figure, and emitting it put every page of such a book into the EPUB twice — once as
 /// text and once as a picture of it — and spent minutes encoding them (2026-09-26: 520 page
-/// scans in a 260-page book). A page with less than `images.background_min_page_chars` of text
-/// keeps its background: a full-bleed photograph with a caption is a figure, and an image-only
-/// page is nothing but its picture.
+/// scans in a 260-page book).
 pub fn drop_text_backgrounds(
     policy: &mut ImagePolicy,
     images: &[ImageRef],
-    chars_on_page: &std::collections::BTreeMap<u32, usize>,
-    t: &Thresholds,
+    scan_pages: &std::collections::BTreeSet<u32>,
 ) {
-    let min = usize::try_from(t.images.background_min_page_chars.max(0)).unwrap_or(usize::MAX);
     let scans: Vec<ImageId> = images
         .iter()
         .filter(|image| image.kind == oc_model::extract::ImageKind::FullPageBackground)
-        .filter(|image| chars_on_page.get(&image.page.index).copied().unwrap_or(0) >= min)
+        .filter(|image| scan_pages.contains(&image.page.index))
         .map(|image| image.id)
         .filter(|id| policy.kept.contains(id))
         .collect();
@@ -213,10 +256,9 @@ mod tests {
             image
         };
         let images = vec![scan(0, 0), scan(1, 1), scan(2, 2), image(3, 0, 200.0)];
-        let chars: std::collections::BTreeMap<u32, usize> =
-            [(0, 1800), (1, 30)].into_iter().collect();
+        let pages: std::collections::BTreeSet<u32> = [0].into_iter().collect();
         let mut policy = drop_ornaments(&images, &[None; 4], 3, t);
-        drop_text_backgrounds(&mut policy, &images, &chars, t);
+        drop_text_backgrounds(&mut policy, &images, &pages);
         assert_eq!(policy.dropped, vec![ImageId(0)]);
         assert_eq!(policy.kept, vec![ImageId(1), ImageId(2), ImageId(3)]);
         assert!(policy
